@@ -11,6 +11,10 @@ export interface Warehouse {
   country: string;
   status: WarehouseStatus;
   createdAt: string;
+  locationCount?: number;
+  _count?: {
+    locations?: number;
+  };
 }
 
 export interface CreateWarehouseInput {
@@ -33,6 +37,10 @@ export const WarehousesApi = {
     const { data } = await api.get<Warehouse[]>('/warehouses', {
       params: { includeInactive },
     });
+    return data;
+  },
+  async getById(id: string): Promise<Warehouse> {
+    const { data } = await api.get<Warehouse>(`/warehouses/${id}`);
     return data;
   },
   async create(input: CreateWarehouseInput): Promise<Warehouse> {

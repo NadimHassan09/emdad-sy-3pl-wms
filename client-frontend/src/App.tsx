@@ -84,6 +84,7 @@ const CreateProductPage     = lazyPage(() => import('./pages/CreateProductPage')
 const EditProductPage       = lazyPage(() => import('./pages/EditProductPage'),       'EditProductPage');
 const ProductDetailPage     = lazyPage(() => import('./pages/ProductDetailPage'),     'ProductDetailPage');
 const DashboardPage         = lazyPage(() => import('./pages/DashboardPage'),         'DashboardPage');
+const ClientFinancesPage    = lazyPage(() => import('./pages/ClientFinancesPage'),    'ClientFinancesPage');
 const BillingPage           = lazyPage(() => import('./pages/BillingPage'),           'BillingPage');
 const InvoicesPage          = lazyPage(() => import('./pages/InvoicesPage'),          'InvoicesPage');
 const BillingInvoiceDetailPage = lazyPage(() => import('./pages/BillingInvoiceDetailPage'), 'BillingInvoiceDetailPage');
@@ -297,6 +298,14 @@ function AppRoutes(): ReactElement {
             <Route path="returns" element={<Navigate to="/ecommerce-orders/returns" replace />} />
             <Route path="returns/new" element={<Navigate to="/ecommerce-orders/returns/new" replace />} />
             <Route path="returns/:id" element={<LegacyReturnRedirect />} />
+            <Route
+              path="finances"
+              element={
+                <RequireRouteAccess>
+                  <ClientFinancesPage />
+                </RequireRouteAccess>
+              }
+            />
             <Route
               path="billing"
               element={

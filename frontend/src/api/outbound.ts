@@ -18,6 +18,7 @@ export type OutboundOrderStatus =
   | 'allocated'
   | 'picking'
   | 'packing'
+  | 'waiting_for_shipping_method'
   | 'waiting_for_shipping_details'
   | 'ready_to_ship'
   | 'out_for_delivery'
@@ -104,6 +105,7 @@ export interface OutboundOrder {
   shippingQuotedPrice?: string | number | null;
   shippingQuotedCurrency?: string | null;
   shippingServiceId?: string | null;
+  shippingHubId?: string | null;
   shippingPackages?: Array<{
     lines: Array<{ productId: string; quantity: number }>;
     lengthCm: number;
@@ -520,6 +522,7 @@ export const OutboundApi = {
         weightKg: number;
         destinationKey: string;
         partsKey?: string;
+        hubId?: string;
         quotedAt: string;
         expiresAt: string;
       } | null;

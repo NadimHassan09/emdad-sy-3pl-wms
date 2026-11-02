@@ -114,15 +114,27 @@ api.interceptors.response.use(
   (resp) => {
     const body = resp.data as ApiSuccess<unknown> | ApiError | unknown;
     if (body && typeof body === 'object' && 'success' in (body as object)) {
-      const env = body as ApiSuccess<unknown> | ApiError;
+      const env = body as Record<string, any>;
       if (env.success) {
-        resp.data = env.data;
+        resp.data = 'data' in env ? env.data : env;
         return resp;
       }
-      throw Object.assign(new Error(env.error.message), {
-        code: env.error.code,
-        details: env.error.details,
-        fields: env.error.fields,
+      const message =
+        env.error?.message ||
+        env.message ||
+        env.result?.message ||
+        'Request failed';
+      const code =
+        env.error?.code ||
+        env.code ||
+        env.errorCode ||
+        env.result?.errorCode ||
+        'REQUEST_FAILED';
+      throw Object.assign(new Error(message), {
+        code,
+        details: env.error?.details ?? env.details,
+        fields: env.error?.fields ?? env.fields,
+        raw: env,
       });
     }
     return resp;
@@ -177,4 +189,5 @@ export interface PageResult<T> {
   total: number;
   limit: number;
   offset: number;
+  statusCounts?: Record<string, number>;
 }

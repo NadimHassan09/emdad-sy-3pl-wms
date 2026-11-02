@@ -4,6 +4,7 @@ import {
   IsArray,
   IsInt,
   IsNotEmpty,
+  IsNumber,
   IsOptional,
   IsPositive,
   IsString,
@@ -20,8 +21,8 @@ export class ExternalOutboundLineDto {
   sku!: string;
 
   @Type(() => Number)
-  @IsInt({ message: 'Quantity must be a whole number (no decimals).' })
-  @IsPositive({ message: 'Quantity must be a positive whole number.' })
+  @IsNumber({ maxDecimalPlaces: 4 }, { message: 'Quantity must be a number with up to 4 decimal places.' })
+  @IsPositive({ message: 'Quantity must be a positive number.' })
   quantity!: number;
 }
 

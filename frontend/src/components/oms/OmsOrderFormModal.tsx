@@ -9,6 +9,7 @@ import { ProductsApi } from '../../api/products';
 import { useAuth } from '../../auth/AuthContext';
 import { Button } from '../Button';
 import { CascadingAddressSelector } from '../CascadingAddressSelector';
+import { validateSyrianAddressHierarchy } from '../../data/syria-address';
 import { Combobox } from '../Combobox';
 import { DeliveryLocationMap } from '../DeliveryLocationMap';
 import { Modal } from '../Modal';
@@ -185,7 +186,6 @@ export function OmsOrderFormModal({
               productId: l.productId,
               requestedQuantity: qty,
               unitPrice,
-              lineTotal: qty * unitPrice,
             };
           });
 
@@ -194,6 +194,13 @@ export function OmsOrderFormModal({
           throw new Error('Required ship date cannot be before today.');
         }
         if (parsedLines.length === 0) throw new Error('Add at least one line.');
+        const seenProductIds = new Set<string>();
+        for (const line of parsedLines) {
+          if (seenProductIds.has(line.productId)) {
+            throw new Error('Duplicate product line: Each product can only appear once in an order.');
+          }
+          seenProductIds.add(line.productId);
+        }
         if (!recipientName.trim()) throw new Error('Recipient name is required.');
         if (!isValidRecipientName(recipientName)) {
           throw new Error('Name can only contain Arabic or English letters and spaces.');
@@ -201,8 +208,15 @@ export function OmsOrderFormModal({
         if (recipientPhone.isEmpty || !recipientPhone.isValid) {
           throw new Error('Recipient phone is required.');
         }
-        if (!city.trim() || !district.trim() || !addressLine1.trim()) {
-          throw new Error('Governorate, City/Region, and Town/Neighborhood are required.');
+        const addressValidation = validateSyrianAddressHierarchy({ city, district, addressLine1 });
+        if (!addressValidation.valid) {
+          throw new Error(addressValidation.error ?? 'Invalid address selection.');
+        }
+        if (!addressLine2.trim()) {
+          throw new Error('Street / Detailed Address is required (must be more than 10 characters).');
+        }
+        if (addressLine2.trim().length <= 10) {
+          throw new Error('Street / Detailed Address must be more than 10 characters.');
         }
 
         const payload: CreateOmsOrderInput = {
@@ -218,9 +232,7 @@ export function OmsOrderFormModal({
           shippingReceiverLng: deliveryLng.trim() ? Number(deliveryLng) : undefined,
           notes: notes || undefined,
           paymentMethod: paymentMethod || undefined,
-          subtotal: calculatedSubtotal,
           shippingFee: shippingFee ? shipAmount : undefined,
-          codAmount: paymentMethod === 'COD' ? calculatedSubtotal : undefined,
           currency: currency || undefined,
           lines: parsedLines,
           shippingPhoneCountry: recipientPhone.countryIso || undefined,
@@ -229,6 +241,19 @@ export function OmsOrderFormModal({
       }
 
       if (!initial) throw new Error('Order not loaded.');
+      if (addressLine2.trim() && addressLine2.trim().length <= 10) {
+        throw new Error('Street / Detailed Address must be more than 10 characters.');
+      }
+      if (city || district || addressLine1) {
+        const addressValidation = validateSyrianAddressHierarchy({
+          city: city || initial.city || undefined,
+          district: district || initial.district || undefined,
+          addressLine1: addressLine1 || initial.addressLine1 || undefined,
+        });
+        if (!addressValidation.valid) {
+          throw new Error(addressValidation.error ?? 'Invalid address selection.');
+        }
+      }
       if (linesFrozen) {
         return OmsApi.update(initial.id, {
           recipientName: recipientName.trim() || undefined,
@@ -242,9 +267,7 @@ export function OmsOrderFormModal({
           requiredShipDate,
           notes,
           paymentMethod: paymentMethod || undefined,
-          subtotal: calculatedSubtotal,
           shippingFee: shippingFee ? shipAmount : 0,
-          codAmount: paymentMethod === 'COD' ? calculatedSubtotal : undefined,
           currency,
           shippingPhoneCountry: recipientPhone.countryIso || undefined,
         });
@@ -261,9 +284,7 @@ export function OmsOrderFormModal({
         requiredShipDate,
         notes,
         paymentMethod: paymentMethod || undefined,
-        subtotal: calculatedSubtotal,
         shippingFee: shippingFee ? shipAmount : 0,
-        codAmount: paymentMethod === 'COD' ? calculatedSubtotal : undefined,
         currency,
         shippingPhoneCountry: recipientPhone.countryIso || undefined,
       });
@@ -360,12 +381,18 @@ export function OmsOrderFormModal({
             districtRequired
             addressLine1Required
           />
-          <TextField
-            label="Street / Detailed Address"
-            value={addressLine2}
-            onChange={(e) => setAddressLine2(e.target.value)}
-            placeholder="Street name, building, floor…"
-          />
+          <div>
+            <TextField
+              label="Street / Detailed Address *"
+              value={addressLine2}
+              onChange={(e) => setAddressLine2(e.target.value)}
+              placeholder="Street name, building, floor (more than 10 characters)…"
+              required
+            />
+            <p className="mt-1 text-xs text-text-muted">
+              Must be more than 10 characters / يجب أن يكون العنوان أكثر من 10 أحرف
+            </p>
+          </div>
         </div>
         <DeliveryLocationMap
           lat={deliveryLat}

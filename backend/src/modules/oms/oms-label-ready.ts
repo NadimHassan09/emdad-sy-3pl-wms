@@ -4,6 +4,7 @@ const CONFIRMED = new Set([
   'out_for_delivery',
   'delivered',
   'failed_delivery',
+  'return_pending_receipt',
   'returned',
 ]);
 

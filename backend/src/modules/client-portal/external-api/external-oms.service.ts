@@ -109,6 +109,17 @@ export class ExternalOmsService {
       });
     }
 
+    if (!dto.address?.street?.trim()) {
+      throwApiValidation('Order payload is incomplete.', {
+        'address.street': 'Street / detailed address is required and must be more than 10 characters.',
+      });
+    }
+    if (dto.address.street.trim().length <= 10) {
+      throwApiValidation('Order payload is invalid.', {
+        'address.street': 'Street / detailed address must be more than 10 characters.',
+      });
+    }
+
     const address = resolveSyriaAddress({
       governorate: dto.address.governorate,
       city: dto.address.city,
@@ -161,7 +172,7 @@ export class ExternalOmsService {
         city: address.value.governorate,
         district: address.value.city,
         addressLine1: address.value.neighborhood,
-        addressLine2: address.value.street ?? undefined,
+        addressLine2: address.value.street || dto.address.street.trim(),
         notes: dto.notes,
         storeChannel: dto.storeChannel,
         paymentMethod: dto.paymentMethod,
@@ -176,9 +187,8 @@ export class ExternalOmsService {
           unitPrice: l.unitPrice,
         })),
       });
-      // Programmatic create = confirmed (same as successful CSV import path intent for integrations).
-      const confirmed = await this.oms.confirm(client, created.id);
-      return { ...publicOmsOrder(confirmed), idempotentReplay: false };
+      // Creation initial status aligns with Manual and Import: waiting_for_confirmation.
+      return { ...publicOmsOrder(created), idempotentReplay: false };
     } catch (err) {
       if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
         const again = await this.oms.findByExternalReference(client, externalOrderId);

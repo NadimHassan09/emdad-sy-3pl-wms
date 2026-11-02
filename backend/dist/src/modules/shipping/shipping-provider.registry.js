@@ -9,18 +9,26 @@ var __metadata = (this && this.__metadata) || function (k, v) {
     if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.ShippingProviderRegistry = exports.SILA_SY_CODE = exports.BABEL_EXPRESS_CODE = void 0;
+exports.ShippingProviderRegistry = exports.SENA_EXPRESS_CODE = exports.SILA_SY_CODE = exports.BABEL_EXPRESS_CODE = void 0;
 const common_1 = require("@nestjs/common");
 const babel_express_adapter_1 = require("./providers/babel-express/babel-express.adapter");
+const mock_carrier_adapter_1 = require("./providers/mock-carrier/mock-carrier.adapter");
+const sena_express_adapter_1 = require("./providers/sena-express/sena-express.adapter");
 const sila_sy_adapter_1 = require("./providers/sila-sy/sila-sy.adapter");
-var shipping_constants_1 = require("./shipping.constants");
-Object.defineProperty(exports, "BABEL_EXPRESS_CODE", { enumerable: true, get: function () { return shipping_constants_1.BABEL_EXPRESS_CODE; } });
-Object.defineProperty(exports, "SILA_SY_CODE", { enumerable: true, get: function () { return shipping_constants_1.SILA_SY_CODE; } });
+const shipping_constants_1 = require("./shipping.constants");
+var shipping_constants_2 = require("./shipping.constants");
+Object.defineProperty(exports, "BABEL_EXPRESS_CODE", { enumerable: true, get: function () { return shipping_constants_2.BABEL_EXPRESS_CODE; } });
+Object.defineProperty(exports, "SILA_SY_CODE", { enumerable: true, get: function () { return shipping_constants_2.SILA_SY_CODE; } });
+Object.defineProperty(exports, "SENA_EXPRESS_CODE", { enumerable: true, get: function () { return shipping_constants_2.SENA_EXPRESS_CODE; } });
 let ShippingProviderRegistry = class ShippingProviderRegistry {
     byCode = new Map();
-    constructor(babel, sila) {
+    constructor(babel, sila, sena, mock) {
         this.byCode.set(babel.code, babel);
         this.byCode.set(sila.code, sila);
+        this.byCode.set(sena.code, sena);
+        if (process.env.SHIPPING_MOCK_ENABLED === 'true') {
+            this.byCode.set(shipping_constants_1.MOCK_CARRIER_CODE, mock);
+        }
     }
     get(code) {
         const provider = this.byCode.get(code);
@@ -39,6 +47,9 @@ let ShippingProviderRegistry = class ShippingProviderRegistry {
 exports.ShippingProviderRegistry = ShippingProviderRegistry;
 exports.ShippingProviderRegistry = ShippingProviderRegistry = __decorate([
     (0, common_1.Injectable)(),
-    __metadata("design:paramtypes", [babel_express_adapter_1.BabelExpressAdapter, sila_sy_adapter_1.SilaSyAdapter])
+    __metadata("design:paramtypes", [babel_express_adapter_1.BabelExpressAdapter,
+        sila_sy_adapter_1.SilaSyAdapter,
+        sena_express_adapter_1.SenaExpressAdapter,
+        mock_carrier_adapter_1.MockCarrierAdapter])
 ], ShippingProviderRegistry);
 //# sourceMappingURL=shipping-provider.registry.js.map

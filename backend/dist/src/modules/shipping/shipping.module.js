@@ -8,6 +8,7 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.ShippingModule = void 0;
 const common_1 = require("@nestjs/common");
+const audit_module_1 = require("../../common/audit/audit.module");
 const crypto_module_1 = require("../../common/crypto/crypto.module");
 const prisma_module_1 = require("../../common/prisma/prisma.module");
 const auth_module_1 = require("../auth/auth.module");
@@ -20,16 +21,23 @@ const babel_address_adapter_1 = require("./providers/babel-express/babel-address
 const babel_express_adapter_1 = require("./providers/babel-express/babel-express.adapter");
 const babel_express_http_client_1 = require("./providers/babel-express/babel-express.http-client");
 const babel_geo_sync_service_1 = require("./providers/babel-express/babel-geo-sync.service");
+const mock_carrier_adapter_1 = require("./providers/mock-carrier/mock-carrier.adapter");
+const sena_express_adapter_1 = require("./providers/sena-express/sena-express.adapter");
+const sena_express_http_client_1 = require("./providers/sena-express/sena-express.http-client");
 const sila_sy_adapter_1 = require("./providers/sila-sy/sila-sy.adapter");
 const sila_sy_http_client_1 = require("./providers/sila-sy/sila-sy.http-client");
 const shipping_controller_1 = require("./shipping.controller");
+const shipping_fee_controller_1 = require("./shipping-fee.controller");
+const shipping_fee_service_1 = require("./shipping-fee.service");
 const shipping_webhook_controller_1 = require("./shipping-webhook.controller");
 const shipping_geo_service_1 = require("./shipping-geo.service");
 const shipping_provider_registry_1 = require("./shipping-provider.registry");
+const shipping_fx_service_1 = require("./shipping-fx.service");
 const shipping_service_1 = require("./shipping.service");
 const shipping_auto_return_service_1 = require("./shipping-auto-return.service");
 const shipping_tracking_service_1 = require("./shipping-tracking.service");
 const shipping_sync_scheduler_1 = require("./shipping-sync.scheduler");
+const sila_event_sync_service_1 = require("./sila-event-sync.service");
 let ShippingModule = class ShippingModule {
 };
 exports.ShippingModule = ShippingModule;
@@ -37,30 +45,38 @@ exports.ShippingModule = ShippingModule = __decorate([
     (0, common_1.Module)({
         imports: [
             prisma_module_1.PrismaModule,
+            audit_module_1.AuditModule,
             crypto_module_1.CryptoModule,
             auth_module_1.AuthModule,
             realtime_module_1.RealtimeModule,
             inventory_module_1.InventoryModule,
             cod_module_1.CodModule,
         ],
-        controllers: [shipping_controller_1.ShippingController, shipping_webhook_controller_1.ShippingWebhookController],
+        controllers: [shipping_controller_1.ShippingController, shipping_webhook_controller_1.ShippingWebhookController, shipping_fee_controller_1.ShippingFeeController],
         providers: [
             babel_express_http_client_1.BabelExpressHttpClient,
             babel_express_adapter_1.BabelExpressAdapter,
             babel_address_adapter_1.BabelAddressAdapter,
             babel_geo_sync_service_1.BabelGeoSyncService,
+            sena_express_http_client_1.SenaExpressHttpClient,
+            sena_express_adapter_1.SenaExpressAdapter,
             sila_sy_http_client_1.SilaSyHttpClient,
             sila_sy_adapter_1.SilaSyAdapter,
+            mock_carrier_adapter_1.MockCarrierAdapter,
             address_resolve_service_1.AddressResolveService,
+            shipping_fx_service_1.ShippingFxService,
             shipping_provider_registry_1.ShippingProviderRegistry,
             shipping_geo_service_1.ShippingGeoService,
             shipping_service_1.ShippingService,
             bulk_shipping_service_1.BulkShippingService,
             shipping_auto_return_service_1.ShippingAutoReturnService,
             shipping_tracking_service_1.ShippingTrackingService,
+            sila_event_sync_service_1.SilaEventSyncService,
             shipping_sync_scheduler_1.ShippingSyncScheduler,
+            shipping_fee_service_1.ShippingFeeService,
         ],
         exports: [
+            shipping_fx_service_1.ShippingFxService,
             shipping_service_1.ShippingService,
             shipping_provider_registry_1.ShippingProviderRegistry,
             bulk_shipping_service_1.BulkShippingService,
@@ -68,10 +84,12 @@ exports.ShippingModule = ShippingModule = __decorate([
             babel_geo_sync_service_1.BabelGeoSyncService,
             babel_express_adapter_1.BabelExpressAdapter,
             babel_address_adapter_1.BabelAddressAdapter,
+            sena_express_adapter_1.SenaExpressAdapter,
             sila_sy_adapter_1.SilaSyAdapter,
             address_resolve_service_1.AddressResolveService,
             shipping_auto_return_service_1.ShippingAutoReturnService,
             shipping_tracking_service_1.ShippingTrackingService,
+            shipping_fee_service_1.ShippingFeeService,
         ],
     })
 ], ShippingModule);

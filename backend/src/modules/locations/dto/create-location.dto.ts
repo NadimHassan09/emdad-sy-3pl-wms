@@ -1,12 +1,14 @@
 import { LocationType } from '@prisma/client';
 import { IsEnum, IsNumber, IsOptional, IsString, Length, Min } from 'class-validator';
 
+import { EmptyToUndefined } from '../../../common/transformers/query-transform';
 import { IsUuidLoose } from '../../../common/validators/is-uuid-loose';
 
 export class CreateLocationDto {
   @IsUuidLoose()
   warehouseId!: string;
 
+  @EmptyToUndefined()
   @IsOptional()
   @IsUuidLoose()
   parentId?: string;

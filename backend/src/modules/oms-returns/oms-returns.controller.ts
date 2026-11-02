@@ -153,4 +153,13 @@ export class OmsReturnsController {
   ) {
     return this.returns.confirmReturnByScan(user, body.code);
   }
+
+  @Post(':id/rollback')
+  rollback(
+    @CurrentUser() user: AuthPrincipal,
+    @Param('id', ParseUuidLoosePipe) id: string,
+    @Body() body?: { targetStatus?: 'out_for_delivery' | 'ready_to_ship' },
+  ) {
+    return this.returns.rollbackReturn(id, user, body);
+  }
 }

@@ -35,6 +35,8 @@ import { BackupRetentionService } from './backup-retention.service';
 import { BackupSchedulesController } from './backup-schedules.controller';
 import { BackupSchedulesService } from './backup-schedules.service';
 import { BackupSchedulerService } from './backup-scheduler.service';
+import { BackupManualCooldownController } from './backup-manual-cooldown.controller';
+import { BackupManualGateService } from './backup-manual-gate.service';
 import { BackupsController } from './backups.controller';
 import { BackupsService } from './backups.service';
 
@@ -45,6 +47,7 @@ import { BackupsService } from './backups.service';
     BackupSchedulesController,
     BackupRetentionController,
     BackupStoragePolicyController,
+    BackupManualCooldownController,
     BackupsController,
   ],
   providers: [
@@ -57,6 +60,7 @@ import { BackupsService } from './backups.service';
     BackupDriveRetentionService,
     BackupDriveRetentionCleanupService,
     BackupStoragePolicyService,
+    BackupManualGateService,
     BackupFileEncryptionService,
     BackupStorageService,
     BackupDownloadTokenService,

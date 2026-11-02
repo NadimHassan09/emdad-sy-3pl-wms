@@ -42,8 +42,18 @@ class ClientOmsOrdersExportDto {
     orderSearch;
     status;
     storeChannel;
+    customer;
+    phone;
+    city;
+    carrier;
+    startOrderNo;
+    endOrderNo;
+    totalOp;
+    totalValue;
+    operationalStage;
     createdFrom;
     createdTo;
+    format;
 }
 exports.ClientOmsOrdersExportDto = ClientOmsOrdersExportDto;
 __decorate([
@@ -88,6 +98,60 @@ __decorate([
 __decorate([
     (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsString)(),
+    (0, class_validator_1.MaxLength)(120),
+    __metadata("design:type", String)
+], ClientOmsOrdersExportDto.prototype, "customer", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.MaxLength)(60),
+    __metadata("design:type", String)
+], ClientOmsOrdersExportDto.prototype, "phone", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.MaxLength)(80),
+    __metadata("design:type", String)
+], ClientOmsOrdersExportDto.prototype, "city", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.MaxLength)(80),
+    __metadata("design:type", String)
+], ClientOmsOrdersExportDto.prototype, "carrier", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.MaxLength)(40),
+    __metadata("design:type", String)
+], ClientOmsOrdersExportDto.prototype, "startOrderNo", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.MaxLength)(40),
+    __metadata("design:type", String)
+], ClientOmsOrdersExportDto.prototype, "endOrderNo", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.MaxLength)(10),
+    __metadata("design:type", String)
+], ClientOmsOrdersExportDto.prototype, "totalOp", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.MaxLength)(40),
+    __metadata("design:type", String)
+], ClientOmsOrdersExportDto.prototype, "totalValue", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.MaxLength)(40),
+    __metadata("design:type", String)
+], ClientOmsOrdersExportDto.prototype, "operationalStage", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
     (0, class_validator_1.MaxLength)(10),
     __metadata("design:type", String)
 ], ClientOmsOrdersExportDto.prototype, "createdFrom", void 0);
@@ -97,4 +161,9 @@ __decorate([
     (0, class_validator_1.MaxLength)(10),
     __metadata("design:type", String)
 ], ClientOmsOrdersExportDto.prototype, "createdTo", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    __metadata("design:type", String)
+], ClientOmsOrdersExportDto.prototype, "format", void 0);
 //# sourceMappingURL=bulk-confirm-client-oms-orders.dto.js.map

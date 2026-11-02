@@ -47,6 +47,12 @@ function PhoneNumber({ number }: { number: string }) {
 export function OmsWaybillView({ waybill, isArabic: _isArabic = true }: Props) {
   const [internalQr, setInternalQr] = useState('');
   const [carrierQr,  setCarrierQr]  = useState('');
+  const [activePartIndex, setActivePartIndex] = useState(0);
+
+  const hasParts = Boolean(waybill.partBarcodes && waybill.partBarcodes.length > 0);
+  const currentPartBarcode = hasParts ? waybill.partBarcodes![activePartIndex] : undefined;
+  const currentPartTotal = hasParts ? waybill.partBarcodes!.length : undefined;
+  const currentPartNum = hasParts ? activePartIndex + 1 : undefined;
 
   // Load Cairo font from Google Fonts
   useEffect(() => {
@@ -68,167 +74,226 @@ export function OmsWaybillView({ waybill, isArabic: _isArabic = true }: Props) {
   }, [waybill.qrCodeData, waybill.internalWaybillNumber, waybill.orderNumber]);
 
   useEffect(() => {
-    if (waybill.carrierTrackingNumber) {
-      QRCode.toDataURL(waybill.carrierTrackingNumber, qrOpts).then(setCarrierQr).catch(console.warn);
+    const target = (hasParts ? waybill.partBarcodes?.[activePartIndex] : waybill.carrierTrackingNumber) || '';
+    if (target) {
+      QRCode.toDataURL(target, qrOpts).then(setCarrierQr).catch(console.warn);
     } else setCarrierQr('');
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [waybill.carrierTrackingNumber]);
+  }, [hasParts, activePartIndex, waybill.partBarcodes, waybill.carrierTrackingNumber]);
 
   const senderName  = waybill.company.tradeName || waybill.company.name;
   const senderPhone = (waybill.sender as { name: string; phone?: string; hub: string }).phone || '';
   const created     = waybill.createdAt ? new Date(waybill.createdAt).toISOString().split('T')[0] : '';
 
   return (
-    <div
-      className="waybill-paper"
-      dir="rtl"
-      style={{
-        background: '#fff', color: '#0f172a', fontSize: '12px', lineHeight: '1.4',
-        border: `2px solid ${G_DARK}`, borderRadius: '8px',
-        display: 'flex', flexDirection: 'column', gap: '0',
-        fontFamily: "'Cairo', -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif",
-        direction: 'rtl', maxWidth: '440px', margin: '0 auto', overflow: 'hidden',
-      }}
-    >
+    <div>
+      {hasParts && waybill.partBarcodes && waybill.partBarcodes.length > 1 && (
+        <div className="flex flex-wrap items-center justify-center gap-2 mb-3 no-print">
+          <span className="text-xs font-bold text-slate-700">طرود الشحنة ({waybill.partBarcodes.length}):</span>
+          {waybill.partBarcodes.map((barcode, idx) => (
+            <button
+              key={barcode}
+              type="button"
+              onClick={() => setActivePartIndex(idx)}
+              className={`px-3 py-1 text-xs font-bold rounded-lg border transition-all ${
+                activePartIndex === idx
+                  ? 'bg-emerald-800 text-white border-emerald-800 shadow-xs'
+                  : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
+              }`}
+            >
+              طرد {idx + 1} من {waybill.partBarcodes!.length}
+            </button>
+          ))}
+        </div>
+      )}
+      <div
+        className="waybill-paper"
+        dir="rtl"
+        style={{
+          background: '#fff', color: '#0f172a', fontSize: '12px', lineHeight: '1.4',
+          border: `2px solid ${G_DARK}`, borderRadius: '8px',
+          display: 'flex', flexDirection: 'column', gap: '0',
+          fontFamily: "'Cairo', -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif",
+          direction: 'rtl', maxWidth: '440px', margin: '0 auto', overflow: 'hidden',
+        }}
+      >
 
-      {/* ══════════════════════ HEADER ══════════════════════ */}
-      <div style={{
-        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-        padding: '10px 14px', borderBottom: `2px solid ${G_DARK}`,
-      }}>
-        {/* Left: green badge */}
+        {/* ══════════════════════ HEADER ══════════════════════ */}
         <div style={{
-          background: G_DARK, color: '#fff', borderRadius: '6px',
-          padding: '7px 14px', textAlign: 'center',
+          display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+          padding: '10px 14px', borderBottom: `2px solid ${G_DARK}`,
         }}>
-          <div style={{ fontSize: '17px', fontWeight: 900, lineHeight: 1 }}>بوليصة شحن</div>
-          <div style={{ fontSize: '8px', fontWeight: 700, letterSpacing: '2px', color: '#fff', marginTop: '2px' }}>
-            SHIPPING WAYBILL
-          </div>
-        </div>
-
-        {/* Right: logo + EMDAD text */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <div style={{ textAlign: 'right' }}>
-            <div style={{ fontSize: '24px', fontWeight: 900, color: G_DARK, letterSpacing: '0.5px', lineHeight: 1 }}>
-              EMDAD
-            </div>
-            <div style={{ fontSize: '11px', fontWeight: 700, color: G_DARK }}>مستودع إمداد</div>
-          </div>
-          <img
-            src="/emdad-logo.png"
-            alt="Emdad"
-            style={{ height: '40px', width: 'auto', objectFit: 'contain' }}
-            onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
-          />
-        </div>
-      </div>
-
-      {/* ══════════════════════ INFO BAR ══════════════════════ */}
-      <div style={{ display: 'flex', borderBottom: `1.5px solid ${G_DARK}` }}>
-        {/* Carrier */}
-        <div style={{ flex: 1.2, padding: '7px 8px', borderLeft: `1px solid ${G_DARK}`, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '3px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-            <i className="fa-solid fa-truck-fast" style={{ color: G_DARK, fontSize: '11px' }} aria-hidden="true" />
-            <span style={{ fontSize: '9px', color: G_MID, fontWeight: 700 }}>الناقل</span>
-          </div>
-          {waybill.carrierLogoUrl ? (
-            <img
-              src={waybill.carrierLogoUrl}
-              alt={waybill.carrier}
-              style={{ maxHeight: '28px', maxWidth: '80px', objectFit: 'contain', display: 'block' }}
-              onError={(e) => {
-                const img = e.target as HTMLImageElement;
-                img.style.display = 'none';
-                const t = document.createElement('span');
-                t.style.cssText = `font-weight:800;font-size:10px;color:${G_DARK}`;
-                t.textContent = waybill.carrier;
-                img.parentNode?.insertBefore(t, img.nextSibling);
-              }}
-            />
-          ) : (
-            <span style={{ fontWeight: 800, fontSize: '10px', color: G_DARK }}>{waybill.carrier}</span>
-          )}
-        </div>
-        {/* Order number */}
-        <div style={{ flex: 1.3, padding: '7px 8px', borderLeft: `1px solid ${G_DARK}`, textAlign: 'center' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px', marginBottom: '3px' }}>
-            <i className="fa-solid fa-file-lines" style={{ color: G_DARK, fontSize: '11px' }} aria-hidden="true" />
-            <span style={{ fontSize: '9px', color: G_MID, fontWeight: 700 }}>رقم الطلب</span>
-          </div>
-          <div style={{ fontSize: '11px', fontWeight: 900, color: '#0f172a', fontFamily: 'monospace' }}>{waybill.orderNumber}</div>
-        </div>
-        {/* Issue date */}
-        <div style={{ flex: 1, padding: '7px 8px', textAlign: 'center' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px', marginBottom: '3px' }}>
-            <i className="fa-solid fa-calendar-days" style={{ color: G_DARK, fontSize: '11px' }} aria-hidden="true" />
-            <span style={{ fontSize: '9px', color: G_MID, fontWeight: 700 }}>تاريخ الإصدار</span>
-          </div>
-          <div style={{ fontSize: '11px', fontWeight: 800, color: '#0f172a' }}>{created}</div>
-        </div>
-      </div>
-
-      {/* ══════════════════════ INNER PAD ══════════════════════ */}
-      <div style={{ padding: '8px 10px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-
-        {/* ── TRACKING CODES ── */}
-        <div style={{ display: 'flex', gap: '6px', alignItems: 'stretch' }}>
+          {/* Left: green badge */}
           <div style={{
-            flex: waybill.carrierTrackingNumber && carrierQr ? 1 : 1,
-            minWidth: 0,
-            border: `1.5px solid ${G_DARK}`, borderRadius: '6px',
-            padding: '7px', background: '#fff',
-            textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center',
+            background: G_DARK, color: '#fff', borderRadius: '6px',
+            padding: '7px 14px', textAlign: 'center',
           }}>
-            <div style={{ fontSize: '10px', fontWeight: 800, color: G_DARK, marginBottom: '4px', width: '100%', minHeight: waybill.carrierTrackingNumber && carrierQr ? '34px' : undefined }}>
-              رقم بوليصة إمداد الداخلي
-              <div style={{ fontFamily: 'monospace', fontWeight: 900, fontSize: '12px', color: '#0f172a', marginTop: '4px', wordBreak: 'break-all' }}>
-                {waybill.internalWaybillNumber}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
+              <div style={{ fontSize: '17px', fontWeight: 900, lineHeight: 1 }}>بوليصة شحن</div>
+              {hasParts && (
+                <span style={{ fontSize: '10px', fontWeight: 800, background: G_MINT, color: G_DARK, padding: '2px 6px', borderRadius: '4px' }}>
+                  طرد {currentPartNum}/{currentPartTotal}
+                </span>
+              )}
+            </div>
+            <div style={{ fontSize: '8px', fontWeight: 700, letterSpacing: '2px', color: '#fff', marginTop: '2px' }}>
+              SHIPPING WAYBILL
+            </div>
+          </div>
+
+          {/* Right: logo + EMDAD text */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <div style={{ textAlign: 'right' }}>
+              <div style={{ fontSize: '24px', fontWeight: 900, color: G_DARK, letterSpacing: '0.5px', lineHeight: 1 }}>
+                EMDAD
+              </div>
+              <div style={{ fontSize: '11px', fontWeight: 700, color: G_DARK }}>مستودع إمداد</div>
+            </div>
+            <img
+              src="/emdad-logo.png"
+              alt="Emdad"
+              style={{ height: '40px', width: 'auto', objectFit: 'contain' }}
+              onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+            />
+          </div>
+        </div>
+
+        {/* ══════════════════════ INFO BAR ══════════════════════ */}
+        <div style={{ display: 'flex', borderBottom: `1.5px solid ${G_DARK}` }}>
+          {/* Carrier */}
+          <div style={{ flex: 1.2, padding: '7px 8px', borderLeft: `1px solid ${G_DARK}`, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '3px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+              <i className="fa-solid fa-truck-fast" style={{ color: G_DARK, fontSize: '11px' }} aria-hidden="true" />
+              <span style={{ fontSize: '9px', color: G_MID, fontWeight: 700 }}>الناقل</span>
+            </div>
+            {waybill.carrierLogoUrl ? (
+              <img
+                src={waybill.carrierLogoUrl}
+                alt={waybill.carrier}
+                style={{ maxHeight: '28px', maxWidth: '80px', objectFit: 'contain', display: 'block' }}
+                onError={(e) => {
+                  const img = e.target as HTMLImageElement;
+                  img.style.display = 'none';
+                  const t = document.createElement('span');
+                  t.style.cssText = `font-weight:800;font-size:10px;color:${G_DARK}`;
+                  t.textContent = waybill.carrier;
+                  img.parentNode?.insertBefore(t, img.nextSibling);
+                }}
+              />
+            ) : (
+              <span style={{ fontWeight: 800, fontSize: '10px', color: G_DARK }}>{waybill.carrier}</span>
+            )}
+          </div>
+          {/* Order number */}
+          <div style={{ flex: 1.3, padding: '7px 8px', borderLeft: `1px solid ${G_DARK}`, textAlign: 'center' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px', marginBottom: '3px' }}>
+              <i className="fa-solid fa-file-lines" style={{ color: G_DARK, fontSize: '11px' }} aria-hidden="true" />
+              <span style={{ fontSize: '9px', color: G_MID, fontWeight: 700 }}>رقم الطلب</span>
+            </div>
+            <div style={{ fontSize: '11px', fontWeight: 900, color: '#0f172a', fontFamily: 'monospace' }}>{waybill.orderNumber}</div>
+          </div>
+          {/* Issue date */}
+          <div style={{ flex: 1, padding: '7px 8px', borderLeft: hasParts ? `1px solid ${G_DARK}` : undefined, textAlign: 'center' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px', marginBottom: '3px' }}>
+              <i className="fa-solid fa-calendar-days" style={{ color: G_DARK, fontSize: '11px' }} aria-hidden="true" />
+              <span style={{ fontSize: '9px', color: G_MID, fontWeight: 700 }}>تاريخ الإصدار</span>
+            </div>
+            <div style={{ fontSize: '11px', fontWeight: 800, color: '#0f172a' }}>{created}</div>
+          </div>
+          {/* Package part if multi-part */}
+          {hasParts && (
+            <div style={{ flex: 1.1, padding: '7px 8px', textAlign: 'center', background: G_LIGHT }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px', marginBottom: '3px' }}>
+                <i className="fa-solid fa-box" style={{ color: G_DARK, fontSize: '11px' }} aria-hidden="true" />
+                <span style={{ fontSize: '9px', color: G_MID, fontWeight: 700 }}>رقم الطرد</span>
+              </div>
+              <div style={{ fontSize: '11px', fontWeight: 900, color: G_DARK }}>
+                طرد {currentPartNum} من {currentPartTotal}
               </div>
             </div>
-            {internalQr
-              ? <img src={internalQr} alt="QR" style={{ width: waybill.carrierTrackingNumber && carrierQr ? 110 : 140, height: waybill.carrierTrackingNumber && carrierQr ? 110 : 140, maxWidth: 140, maxHeight: 140, objectFit: 'contain', display: 'block', marginTop: 6 }} />
-              : <div style={{ width: '100%', aspectRatio: '1', background: G_LIGHT, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8' }}>QR</div>
-            }
-          </div>
+          )}
+        </div>
 
-          {waybill.carrierTrackingNumber && carrierQr ? (
+        {/* ══════════════════════ INNER PAD ══════════════════════ */}
+        <div style={{ padding: '8px 10px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+
+          {/* ── TRACKING CODES ── */}
+          <div style={{ display: 'flex', gap: '6px', alignItems: 'stretch' }}>
             <div style={{
-              flex: 1, minWidth: 0, border: `1.5px solid ${G_DARK}`, borderRadius: '6px',
+              flex: 1,
+              minWidth: 0,
+              border: `1.5px solid ${G_DARK}`, borderRadius: '6px',
               padding: '7px', background: '#fff',
               textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center',
             }}>
-              <div style={{ fontSize: '10px', fontWeight: 800, color: '#0f172a', marginBottom: '3px', width: '100%', minHeight: '34px' }}>
-                رقم التتبع لدى الناقل (AWB)
-                {waybill.isCarrierAwbFromApi && (
-                  <div style={{
-                    display: 'inline-flex', alignItems: 'center', gap: '4px',
-                    background: G_LIGHT, color: G_DARK,
-                    border: `1px solid #86efac`, borderRadius: '4px',
-                    padding: '2px 7px', fontSize: '9px', fontWeight: 800, marginTop: '3px',
-                  }}>
-                    <i className="fa-solid fa-circle-check" style={{ fontSize: '9px' }} aria-hidden="true" />
-                    معتمد من {waybill.carrier}
-                  </div>
-                )}
-                <div style={{ fontFamily: 'monospace', fontWeight: 900, fontSize: '10px', color: '#0f172a', marginTop: '4px', wordBreak: 'break-all' }}>
-                  {waybill.carrierTrackingNumber}
+              <div style={{ fontSize: '10px', fontWeight: 800, color: G_DARK, marginBottom: '4px', width: '100%', minHeight: carrierQr ? '34px' : undefined }}>
+                رقم بوليصة إمداد الداخلي
+                <div style={{ fontFamily: 'monospace', fontWeight: 900, fontSize: '12px', color: '#0f172a', marginTop: '4px', wordBreak: 'break-all' }}>
+                  {waybill.internalWaybillNumber}
                 </div>
               </div>
-              <img src={carrierQr} alt="QR" style={{ width: 110, height: 110, objectFit: 'contain', display: 'block', marginTop: 6 }} />
+              {internalQr
+                ? <img src={internalQr} alt="QR" style={{ width: carrierQr ? 110 : 140, height: carrierQr ? 110 : 140, maxWidth: 140, maxHeight: 140, objectFit: 'contain', display: 'block', marginTop: 6 }} />
+                : <div style={{ width: '100%', aspectRatio: '1', background: G_LIGHT, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8' }}>QR</div>
+              }
             </div>
-          ) : (
-            <div style={{
-              flex: '0 0 72px', width: '72px', border: `1px dashed #bbf7d0`, borderRadius: '6px',
-              padding: '6px', background: G_LIGHT,
-              textAlign: 'center', display: 'flex', alignItems: 'center', justifyContent: 'center',
-            }}>
-              <div style={{ fontSize: '10px', fontWeight: 800, color: G_DARK }}>
-                {waybill.shippingMethod === 'carrier' ? 'بانتظار الإصدار' : 'شحن يدوي'}
+
+            {hasParts && currentPartBarcode ? (
+              <div style={{
+                flex: 1, minWidth: 0, border: `1.5px solid ${G_DARK}`, borderRadius: '6px',
+                padding: '7px', background: '#fff',
+                textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center',
+              }}>
+                <div style={{ fontSize: '10px', fontWeight: 800, color: '#0f172a', marginBottom: '3px', width: '100%', minHeight: '34px' }}>
+                  باركود الطرد لدى الناقل
+                  <div style={{ fontFamily: 'monospace', fontWeight: 900, fontSize: '10px', color: '#0f172a', marginTop: '4px', wordBreak: 'break-all' }}>
+                    {currentPartBarcode}
+                  </div>
+                </div>
+                {carrierQr && (
+                  <img src={carrierQr} alt="Part QR" style={{ width: 100, height: 100, objectFit: 'contain', display: 'block', marginTop: 4 }} />
+                )}
+                <div style={{ fontSize: '10px', fontWeight: 700, color: '#334155', marginTop: '4px' }}>
+                  AWB: <span style={{ fontFamily: 'monospace', fontWeight: 900, color: '#0f172a' }}>{waybill.mainAwb || waybill.carrierTrackingNumber}</span>
+                </div>
               </div>
-            </div>
-          )}
-        </div>
+            ) : waybill.carrierTrackingNumber && carrierQr ? (
+              <div style={{
+                flex: 1, minWidth: 0, border: `1.5px solid ${G_DARK}`, borderRadius: '6px',
+                padding: '7px', background: '#fff',
+                textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center',
+              }}>
+                <div style={{ fontSize: '10px', fontWeight: 800, color: '#0f172a', marginBottom: '3px', width: '100%', minHeight: '34px' }}>
+                  رقم التتبع لدى الناقل (AWB)
+                  {waybill.isCarrierAwbFromApi && (
+                    <div style={{
+                      display: 'inline-flex', alignItems: 'center', gap: '4px',
+                      background: G_LIGHT, color: G_DARK,
+                      border: `1px solid #86efac`, borderRadius: '4px',
+                      padding: '2px 7px', fontSize: '9px', fontWeight: 800, marginTop: '3px',
+                    }}>
+                      <i className="fa-solid fa-circle-check" style={{ fontSize: '9px' }} aria-hidden="true" />
+                      معتمد من {waybill.carrier}
+                    </div>
+                  )}
+                  <div style={{ fontFamily: 'monospace', fontWeight: 900, fontSize: '10px', color: '#0f172a', marginTop: '4px', wordBreak: 'break-all' }}>
+                    {waybill.carrierTrackingNumber}
+                  </div>
+                </div>
+                <img src={carrierQr} alt="QR" style={{ width: 110, height: 110, objectFit: 'contain', display: 'block', marginTop: 6 }} />
+              </div>
+            ) : (
+              <div style={{
+                flex: '0 0 72px', width: '72px', border: `1px dashed #bbf7d0`, borderRadius: '6px',
+                padding: '6px', background: G_LIGHT,
+                textAlign: 'center', display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }}>
+                <div style={{ fontSize: '10px', fontWeight: 800, color: G_DARK }}>
+                  {waybill.shippingMethod === 'carrier' ? 'بانتظار الإصدار' : 'شحن يدوي'}
+                </div>
+              </div>
+            )}
+          </div>
 
         {/* ── SENDER ── */}
         <div style={{ border: `1.5px solid ${G_DARK}`, borderRadius: '6px', overflow: 'hidden' }}>
@@ -373,5 +438,6 @@ export function OmsWaybillView({ waybill, isArabic: _isArabic = true }: Props) {
 
       </div>
     </div>
+  </div>
   );
 }

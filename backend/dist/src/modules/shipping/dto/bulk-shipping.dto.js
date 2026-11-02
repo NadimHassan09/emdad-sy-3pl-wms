@@ -28,6 +28,11 @@ class BulkShippingConfirmItemDto {
     quotedPrice;
     quotedCurrency;
     recommendedProviderCode;
+    codCollectionCurrency;
+    serviceId;
+    deliveryType;
+    hubId;
+    payer;
 }
 exports.BulkShippingConfirmItemDto = BulkShippingConfirmItemDto;
 __decorate([
@@ -55,6 +60,36 @@ __decorate([
     (0, class_validator_1.MaxLength)(64),
     __metadata("design:type", Object)
 ], BulkShippingConfirmItemDto.prototype, "recommendedProviderCode", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.MaxLength)(8),
+    __metadata("design:type", Object)
+], BulkShippingConfirmItemDto.prototype, "codCollectionCurrency", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.MaxLength)(160),
+    __metadata("design:type", Object)
+], BulkShippingConfirmItemDto.prototype, "serviceId", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.MaxLength)(32),
+    __metadata("design:type", Object)
+], BulkShippingConfirmItemDto.prototype, "deliveryType", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.MaxLength)(64),
+    __metadata("design:type", Object)
+], BulkShippingConfirmItemDto.prototype, "hubId", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.MaxLength)(16),
+    __metadata("design:type", Object)
+], BulkShippingConfirmItemDto.prototype, "payer", void 0);
 class BulkShippingConfirmDto {
     items;
 }

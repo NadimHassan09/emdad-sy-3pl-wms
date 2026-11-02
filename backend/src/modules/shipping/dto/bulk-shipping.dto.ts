@@ -55,6 +55,11 @@ export class BulkShippingConfirmItemDto {
 
   @IsOptional()
   @IsString()
+  @MaxLength(64)
+  hubId?: string | null;
+
+  @IsOptional()
+  @IsString()
   @MaxLength(16)
   payer?: string | null;
 }

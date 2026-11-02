@@ -22,6 +22,7 @@ export type OmsOrderStatus =
   | 'shipped'
   | 'delivered'
   | 'failed_delivery'
+  | 'return_pending_receipt'
   | 'completed'
   | 'returned'
   | 'cancelled';
@@ -77,6 +78,17 @@ export type OmsWaybillData = {
   }>;
   totalQuantity: number;
   labelUrl: string | null;
+  partIndex?: number;
+  partTotal?: number;
+  partBarcode?: string;
+  mainAwb?: string;
+  partBarcodes?: string[];
+  parts?: Array<{
+    partIndex: number;
+    partTotal: number;
+    partBarcode: string;
+    mainAwb: string;
+  }>;
 };
 
 export type OmsImportRowError = {
@@ -125,6 +137,13 @@ export interface CodRecord {
     status: string;
     recipientName: string | null;
     paymentMethod: string | null;
+    trackingNumber?: string | null;
+    outboundOrderId?: string | null;
+    outboundOrder?: {
+      id: string;
+      orderNumber: string;
+      trackingNumber: string | null;
+    } | null;
   } | null;
   originalAmount: string;
   currentAmount: string;
@@ -257,6 +276,7 @@ export interface LinkedOutboundSummary {
   shippingMethod?: string | null;
   shippingProviderCode?: string | null;
   shippingServiceId?: string | null;
+  shippingHubId?: string | null;
   shippingQuotedPrice?: string | number | null;
   shippingQuotedCurrency?: string | null;
   shippingCost?: string | number | null;
@@ -272,6 +292,9 @@ export interface OmsOrderListItem {
   carrier?: string | null;
   shippingCarrierName?: string | null;
   trackingNumber?: string | null;
+  awbPending?: boolean;
+  cancellationUnconfirmed?: boolean;
+  shippingHubId?: string | null;
   shippingMethod?: 'manual' | 'carrier' | string | null;
   isManualShipping?: boolean;
   recipientName?: string | null;
@@ -280,6 +303,7 @@ export interface OmsOrderListItem {
   storeChannel?: string | null;
   total?: string | null;
   currency?: string | null;
+  shippingFee?: string | number | null;
   outboundOrderId?: string | null;
   needsInformation?: boolean;
   importBatchId?: string | null;
@@ -387,27 +411,48 @@ export interface OmsOrderDetail extends OmsOrderListItem {
   lines: OmsOrderLine[];
   timeline?: OmsOrderEvent[];
   reservations?: OmsStockReservation[];
+  inboundTraceability?: OmsInboundTraceabilityItem[];
+}
+
+export interface OmsInboundTraceabilityItem {
+  id?: string;
+  omsOrderLineId?: string | null;
+  productId: string;
+  productSku: string;
+  productName: string;
+  inboundOrderId: string | null;
+  inboundOrderNumber: string | null;
+  quantity: string;
+  status: 'allocated' | 'fulfilled' | 'source_not_recorded' | 'unfulfilled';
+  lotNumber?: string | null;
+  isHistoricalFallback?: boolean;
 }
 
 export interface OmsShipmentMovementEvent {
   timestamp: string;
   title: string;
+  originalDescription?: string | null;
   location?: string | null;
   notes?: string | null;
   color?: 'default' | 'info' | 'success' | 'error' | 'warning';
   code?: string | null;
+  source?: 'carrier' | 'emdad';
 }
 
 export interface OmsShippingMovementResult {
   providerCode?: string | null;
   providerName?: string | null;
   awb?: string | null;
+  awbPending?: boolean;
   isDelivered?: boolean;
   statusLabel?: string | null;
   statusColor?: string | null;
   events: OmsShipmentMovementEvent[];
   message?: string | null;
   error?: string | null;
+  lookupState?: 'ok' | 'not_found' | 'error' | null;
+  shipmentState?: 'active' | 'cancelled' | 'superseded' | null;
+  cancellationUnconfirmed?: boolean;
 }
 
 export interface OmsOrderEvent {
@@ -495,7 +540,6 @@ export interface CreateOmsOrderLineInput {
   requestedQuantity: number;
   specificLotId?: string;
   unitPrice?: number;
-  lineTotal?: number;
   discountAmount?: number;
 }
 
@@ -515,9 +559,7 @@ export interface CreateOmsOrderInput extends ShippingConfigPayload {
   addressLine2?: string;
   deliveryInstructions?: string;
   paymentMethod?: OmsPaymentMethod;
-  subtotal?: number;
   shippingFee?: number;
-  codAmount?: number;
   currency?: string;
   warehouseId?: string;
   outboundOrderId?: string;
@@ -541,9 +583,7 @@ export interface UpdateOmsOrderInput extends ShippingConfigPayload {
   notes?: string;
   clientReference?: string;
   paymentMethod?: OmsPaymentMethod;
-  subtotal?: number;
   shippingFee?: number;
-  codAmount?: number;
   currency?: string;
   outboundOrderId?: string | null;
   storeChannel?: string;
@@ -619,6 +659,46 @@ export type OmsBulkConfirmReturnsResponse = {
   failed: number;
   confirmedReturns: Array<{ id: string; returnNumber: string; status: string }>;
   failures: Array<{ id: string; error: string }>;
+};
+
+export type OmsAdjustShippingFeeResponse = {
+  id: string;
+  orderNumber: string;
+  companyId: string;
+  shippingFee: string;
+  newShippingFee: string;
+  previousShippingFee: string;
+  difference: string;
+  subtotal: string;
+  status: string;
+  invoiceNumber?: string | null;
+  isInvoiceClosed?: boolean;
+};
+
+export type OmsBulkShippingFeeResultItem = {
+  id: string;
+  orderNumber: string;
+  previousShippingFee: string;
+  newShippingFee: string;
+  difference: string;
+  subtotal: string;
+  status: string;
+  invoiceNumber?: string | null;
+  isInvoiceClosed?: boolean;
+};
+
+export type OmsBulkShippingFeeFailure = {
+  id: string;
+  orderNumber: string | null;
+  error: string;
+};
+
+export type OmsBulkShippingFeeResponse = {
+  requested: number;
+  updated: number;
+  failed: number;
+  updatedOrders: OmsBulkShippingFeeResultItem[];
+  failures: OmsBulkShippingFeeFailure[];
 };
 
 function filenameFromDisposition(disposition: unknown, fallback: string): string {
@@ -745,6 +825,7 @@ export const OmsApi = {
   async exportDownloadPost(body: {
     columnIds: string[];
     arabicHeaders?: boolean;
+    format?: 'xlsx' | 'csv';
     ids?: string[];
     companyId?: string;
     orderSearch?: string;
@@ -817,18 +898,48 @@ export const OmsApi = {
     return api.get<OmsOrderDetail>(`/oms/orders/${id}`).then((r) => r.data);
   },
 
+  getTraceability(id: string) {
+    return api.get<OmsInboundTraceabilityItem[]>(`/oms/orders/${id}/traceability`).then((r) => r.data);
+  },
+
+  scanShippingTransition(input: {
+    code: string;
+    action: 'ready_to_ship' | 'handover';
+  }): Promise<{
+    ok: true;
+    alreadyApplied: boolean;
+    action: 'ready_to_ship' | 'handover';
+    orderId: string;
+    orderNumber: string;
+    omsStatus: string;
+    outboundStatus: string;
+  }> {
+    return api.post('/oms/orders/scan-shipping-transition', input).then((r) => r.data);
+  },
+
   getWaybill(id: string): Promise<OmsWaybillData> {
-    return api.get<OmsWaybillData>(`/oms/orders/${id}/waybill`).then((r) => r.data);
+    return api
+      .get<OmsWaybillData>(`/oms/orders/${id}/waybill`, {
+        params: { t: Date.now() },
+        headers: { 'Cache-Control': 'no-store', Pragma: 'no-cache' },
+      })
+      .then((r) => r.data);
   },
 
   async waybillPdfBlob(id: string): Promise<Blob> {
-    const response = await api.get<Blob>(`/oms/orders/${id}/waybill/pdf`, { responseType: 'blob' });
+    const response = await api.get<Blob>(`/oms/orders/${id}/waybill/pdf`, {
+      responseType: 'blob',
+      params: { t: Date.now() },
+      headers: { 'Cache-Control': 'no-store', Pragma: 'no-cache' },
+    });
     return response.data;
   },
 
   async downloadWaybillPdf(id: string, orderNumber?: string): Promise<void> {
     const response = await api.get<Blob>(`/oms/orders/${id}/waybill/pdf`, {
       responseType: 'blob',
+      params: { t: Date.now() },
+      headers: { 'Cache-Control': 'no-store', Pragma: 'no-cache' },
     });
     const filename = `Waybill_${orderNumber || id}.pdf`;
     const url = URL.createObjectURL(response.data);
@@ -928,6 +1039,23 @@ export const OmsApi = {
       .then((r) => r.data);
   },
 
+  adjustShippingFee(id: string, input: { shippingFee: number; reason?: string }) {
+    return api
+      .post<OmsAdjustShippingFeeResponse>(`/oms/orders/${id}/adjust-shipping-fee`, input)
+      .then((r) => r.data);
+  },
+
+  adjustShippingFeeBulk(input: {
+    ids?: string[];
+    shippingFee?: number;
+    reason?: string;
+    items?: Array<{ id: string; shippingFee: number; reason?: string }>;
+  }): Promise<OmsBulkShippingFeeResponse> {
+    return api
+      .post<OmsBulkShippingFeeResponse>('/oms/orders/adjust-shipping-fee-bulk', input)
+      .then((r) => r.data);
+  },
+
   confirm(id: string) {
     return api.post<OmsOrderDetail>(`/oms/orders/${id}/confirm`).then((r) => r.data);
   },
@@ -1008,6 +1136,27 @@ export const OmsApi = {
 
   cancel(id: string) {
     return api.post<OmsOrderDetail>(`/oms/orders/${id}/cancel`).then((r) => r.data);
+  },
+
+  cancelShipment(id: string, reason?: string, force?: boolean) {
+    return api
+      .post<{ result: CancelShipmentResult; order?: OmsOrderDetail }>(
+        `/oms/orders/${id}/cancel-shipment`,
+        { reason, force },
+      )
+      .then((r) => r.data);
+  },
+
+  cancelShipmentsBulk(ids: string[], reason?: string): Promise<CancelShipmentResult[]> {
+    return api
+      .post<CancelShipmentResult[]>('/oms/orders/cancel-shipments-bulk', { ids, reason })
+      .then((r) => r.data);
+  },
+
+  rollbackReturn(id: string, options?: { targetStatus?: 'out_for_delivery' | 'ready_to_ship' }) {
+    return api
+      .post<OmsRollbackReturnResponse>(`/oms/orders/${id}/rollback-return`, options)
+      .then((r) => r.data);
   },
 
   revertCancel(id: string) {
@@ -1114,6 +1263,12 @@ export const OmsApi = {
   clearBatchFlags(id: string, ids: string[]): Promise<{ updated: number }> {
     return api.post<{ updated: number }>(`/oms/batches/${id}/clear-flags`, { ids }).then((r) => r.data);
   },
+
+  cancelShipments(id: string, ids?: string[]): Promise<CancelShipmentResult[]> {
+    return api
+      .post<CancelShipmentResult[]>(`/oms/batches/${id}/cancel-shipments`, { ids: ids ?? [] })
+      .then((r) => r.data);
+  },
 };
 
 export type CodSetStatusByScanResponse = {
@@ -1128,7 +1283,7 @@ export type CodSetStatusByScanResponse = {
 };
 
 export const CodApi = {
-  async exportCsv(params: {
+  async exportExcel(params: {
     companyId?: string;
     status?: CodRecordStatus;
     search?: string;
@@ -1141,7 +1296,35 @@ export const CodApi = {
       params,
       responseType: 'blob',
     });
-    saveOmsBlob(response.data, 'cod-records.csv');
+    saveOmsBlob(
+      response.data,
+      filenameFromDisposition(
+        response.headers['content-disposition'],
+        `COD_Report_${params.companyId ? 'Client' : 'All_Clients'}.xlsx`,
+      ),
+    );
+  },
+
+  async exportPdf(params: {
+    companyId?: string;
+    status?: CodRecordStatus;
+    search?: string;
+    createdFrom?: string;
+    createdTo?: string;
+    amountMin?: number;
+    amountMax?: number;
+  } = {}): Promise<void> {
+    const response = await api.get<Blob>('/cod/records/export.pdf', {
+      params,
+      responseType: 'blob',
+    });
+    saveOmsBlob(
+      response.data,
+      filenameFromDisposition(
+        response.headers['content-disposition'],
+        `COD_Report_${params.companyId ? 'Client' : 'All_Clients'}.pdf`,
+      ),
+    );
   },
 
   list(params: {
@@ -1357,7 +1540,40 @@ export const OmsReturnsApi = {
       .post<OmsConfirmReturnByScanResponse>('/oms/returns/confirm-by-scan', { code })
       .then((r) => r.data);
   },
+
+  rollbackReturn(
+    id: string,
+    options?: { targetStatus?: 'out_for_delivery' | 'ready_to_ship' },
+  ): Promise<OmsRollbackReturnResponse> {
+    return api
+      .post<OmsRollbackReturnResponse>(`/oms/returns/${id}/rollback`, options)
+      .then((r) => r.data);
+  },
 };
+
+export interface CancelShipmentResult {
+  success: boolean;
+  status: 'cancelled' | 'pending_confirmation' | 'unsupported' | 'refused' | 'error';
+  message: string;
+  orderId: string;
+  orderNumber: string;
+  providerCode?: string | null;
+  carrierName?: string | null;
+  awb?: string | null;
+  errorCode?: string | null;
+}
+
+export interface OmsRollbackReturnResponse {
+  returnId: string;
+  returnNumber: string;
+  omsOrderId: string;
+  orderNumber: string;
+  restoredStatus: string;
+  carrierReactivationStatus: 'active' | 'reshipment_required' | 'reshipped';
+  reversedLinesCount: number;
+  message: string;
+  newAwb?: string;
+}
 
 export interface OmsConfirmReturnByScanResponse {
   ok: boolean;

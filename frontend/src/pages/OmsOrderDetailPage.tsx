@@ -3,6 +3,7 @@ import { type ReactNode, useEffect, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 
 import { Alert, Card, ListPageHeader, Skeleton } from '@ds';
+import { api } from '../api/client';
 import { CodApi, OmsApi, OmsReturnsApi } from '../api/oms';
 import { OmsOrderFormModal } from '../components/oms/OmsOrderFormModal';
 import { CreateOmsReturnModal } from '../components/oms/CreateOmsReturnModal';
@@ -15,6 +16,8 @@ import { Modal } from '../components/Modal';
 import { TextField } from '../components/TextField';
 import { useToast } from '../components/ToastProvider';
 import { useAuth } from '../auth/AuthContext';
+import { OmsEditShippingFeeModal } from '../components/oms/OmsEditShippingFeeModal';
+import { CancelShipmentModal } from '../components/oms/CancelShipmentModal';
 import { QK } from '../constants/query-keys';
 import {
   mapOmsCommercialDisplayStatus,
@@ -23,6 +26,27 @@ import {
 import { isOmsAdminCancellableStatus } from '../lib/oms-order-cancel';
 import { isOmsOrderDeletable } from '../lib/oms-order-delete';
 import { isOmsReturnEligibleStatus } from '../lib/oms-return-eligibility';
+import { orderOperationalStage, orderMainStatus } from '../lib/oms-operational-stage';
+
+type CarrierCostView = {
+  carrierQuote: string | null;
+  carrierQuoteCurrency: string | null;
+  shipments: Array<{
+    id: string;
+    providerCode: string;
+    actualCost: string | null;
+    actualCostCurrency: string | null;
+    history: Array<{
+      id: string;
+      previousAmount: string | null;
+      previousCurrency: string | null;
+      amount: string;
+      currency: string | null;
+      source: string;
+      eventAt: string | null;
+    }>;
+  }>;
+};
 
 function Field({ label, value }: { label: string; value: ReactNode }) {
   return (
@@ -51,8 +75,12 @@ export function OmsOrderDetailPage() {
   const [rejectOpen, setRejectOpen] = useState(false);
   const [cancelOpen, setCancelOpen] = useState(false);
   const [undoCancelOpen, setUndoCancelOpen] = useState(false);
+  const [cancelShipmentOpen, setCancelShipmentOpen] = useState(false);
+  const [rollbackOfdOpen, setRollbackOfdOpen] = useState(false);
+  const [rollbackReadyOpen, setRollbackReadyOpen] = useState(false);
   const [returnOpen, setReturnOpen] = useState(false);
   const [shippingFeeAfterOpen, setShippingFeeAfterOpen] = useState(false);
+  const [editShippingFeeOpen, setEditShippingFeeOpen] = useState(false);
   const [revertOpen, setRevertOpen] = useState(false);
   const [shippingFeeAfter, setShippingFeeAfter] = useState('');
   const [rejectReason, setRejectReason] = useState('');
@@ -71,6 +99,16 @@ export function OmsOrderDetailPage() {
     queryKey: ['cod-by-order', id],
     queryFn: () => CodApi.byOrder(id),
     enabled: !!id,
+  });
+
+  const canSeeCarrierCost =
+    user?.role === 'super_admin' || user?.role === 'wh_manager' || user?.role === 'finance';
+  const canSeeCarrierHistory = user?.role === 'super_admin' || user?.role === 'wh_manager';
+  const carrierCostQuery = useQuery({
+    queryKey: ['carrier-costs', id],
+    queryFn: () =>
+      api.get<CarrierCostView>(`/shipping/orders/${id}/carrier-costs`).then((response) => response.data),
+    enabled: !!id && canSeeCarrierHistory,
   });
 
   const returnsQuery = useQuery({
@@ -161,6 +199,25 @@ export function OmsOrderDetailPage() {
     onError: (e: Error) => toast.error(e.message),
   });
 
+  const resumeOfdMut = useMutation({
+    mutationFn: () => OmsApi.outForDelivery(id),
+    onSuccess: () => {
+      toast.success('Order resumed out for delivery.');
+      invalidate();
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const confirmReceiptMut = useMutation({
+    mutationFn: () => OmsApi.confirmReturnReceipt(id),
+    onSuccess: () => {
+      toast.success('Return receipt confirmed. Stock updated once.');
+      invalidate();
+      void qc.invalidateQueries({ queryKey: ['oms-returns'] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
   const failedDeliveryMut = useMutation({
     mutationFn: () => OmsApi.failedDelivery(id),
     onSuccess: () => {
@@ -177,6 +234,18 @@ export function OmsOrderDetailPage() {
       toast.success('Return coordinated. Stock is unchanged until the warehouse confirms receipt.');
       invalidate();
       void qc.invalidateQueries({ queryKey: ['oms-returns'] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const rollbackReturnMut = useMutation({
+    mutationFn: (targetStatus: 'out_for_delivery' | 'ready_to_ship') =>
+      OmsApi.rollbackReturn(id, { targetStatus }),
+    onSuccess: (res) => {
+      toast.success(res.message || 'Return rolled back successfully.');
+      setRollbackOfdOpen(false);
+      setRollbackReadyOpen(false);
+      invalidate();
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -226,13 +295,12 @@ export function OmsOrderDetailPage() {
 
   // Auto-open the "Specify shipping fee" modal when coming from the /orders/oms row actions.
   // Must be declared before any early-return (loading/error) paths to keep React hook order stable.
+  // Auto-open the shipping fee adjustment modal when coming with openShippingFee in navigation state.
   useEffect(() => {
     if (!openShippingFeeRequested) return;
     if (autoOpenedShippingFeeModalRef.current) return;
     if (!order) return;
-    if (order.status !== 'delivered' && order.status !== 'completed') return;
-    setShippingFeeAfter(order.shippingFee ?? '');
-    setShippingFeeAfterOpen(true);
+    setEditShippingFeeOpen(true);
     autoOpenedShippingFeeModalRef.current = true;
   }, [openShippingFeeRequested, order]);
 
@@ -283,21 +351,29 @@ export function OmsOrderDetailPage() {
     commercial === 'waiting_for_confirmation' ||
     commercial === 'confirmed_waiting_for_admin_approval' ||
     commercial === 'processing';
-  const canMarkDelivered = commercial === 'shipped';
+  const canMarkDelivered =
+    commercial === 'shipped' || order.status === 'failed_delivery';
+  const canResumeOutForDelivery = order.status === 'failed_delivery';
   const canMarkFailedDelivery =
     commercial === 'shipped' || order.status === 'out_for_delivery';
   const canMarkReturned = order.status === 'failed_delivery';
+  const canConfirmReturnReceipt = order.status === 'return_pending_receipt';
   const canUndoConfirmedReturn = user?.role === 'super_admin' && order.status === 'returned';
+  const stage = order ? orderOperationalStage(order) : null;
+  const canCancelShipment = order.status === 'ready_to_ship' && stage === 'shipping_confirmation';
+  const canRollbackReturn = order.status === 'returned';
   const canRevertDelivery = commercial === 'delivered';
   const canUndoCancel = Boolean(order.canRevertCancel);
   const canCancel = isOmsAdminCancellableStatus(order.status);
   const canCreateReturn = isOmsReturnEligibleStatus(order.status);
   const canDelete = isOmsOrderDeletable(order.status);
-  const canSpecifyShippingFeeAfterDelivery =
-    commercial === 'delivered' ||
-    order.status === 'delivered' ||
-    order.status === 'completed';
   const canRetryCod = order.codGenerationStatus === 'failed';
+  const canEditShippingFee =
+    !user ||
+    user?.role === 'super_admin' ||
+    user?.role === 'wh_manager' ||
+    user?.role === 'admin' ||
+    user?.authGroup === 'ADMIN';
 
   return (
     <div className="space-y-5 animate-enter">
@@ -340,6 +416,25 @@ export function OmsOrderDetailPage() {
                 Reject
               </Button>
             ) : null}
+            {canCancelShipment ? (
+              <Button
+                variant="secondary"
+                className="!border-rose-400 !text-rose-700 hover:!bg-rose-50 dark:!border-rose-800 dark:!text-rose-300 dark:hover:!bg-rose-950/30"
+                onClick={() => setCancelShipmentOpen(true)}
+              >
+                <i className="fa-solid fa-ban mr-1.5 text-xs" aria-hidden="true" />
+                Cancel Shipment
+              </Button>
+            ) : null}
+            {canResumeOutForDelivery ? (
+              <Button
+                variant="secondary"
+                loading={resumeOfdMut.isPending}
+                onClick={() => resumeOfdMut.mutate()}
+              >
+                Out for delivery
+              </Button>
+            ) : null}
             {canMarkDelivered ? (
               <Button loading={deliveredMut.isPending} onClick={() => deliveredMut.mutate()}>
                 Mark delivered
@@ -351,7 +446,7 @@ export function OmsOrderDetailPage() {
                 loading={failedDeliveryMut.isPending}
                 onClick={() => failedDeliveryMut.mutate()}
               >
-                Mark failed delivery
+                Field Delivery
               </Button>
             ) : null}
             {canMarkReturned ? (
@@ -360,8 +455,36 @@ export function OmsOrderDetailPage() {
                 loading={returnedMut.isPending}
                 onClick={() => returnedMut.mutate()}
               >
-                Coordinate return
+                Return pending receipt
               </Button>
+            ) : null}
+            {canConfirmReturnReceipt ? (
+              <Button
+                loading={confirmReceiptMut.isPending}
+                onClick={() => confirmReceiptMut.mutate()}
+              >
+                Confirm return receipt
+              </Button>
+            ) : null}
+            {canRollbackReturn ? (
+              <>
+                <Button
+                  variant="secondary"
+                  className="!border-blue-500 !text-blue-700 hover:!bg-blue-50 dark:!border-blue-700 dark:!text-blue-300"
+                  onClick={() => setRollbackOfdOpen(true)}
+                >
+                  <i className="fa-solid fa-truck-fast mr-1.5 text-xs" aria-hidden="true" />
+                  Rollback to Out for Delivery
+                </Button>
+                <Button
+                  variant="secondary"
+                  className="!border-indigo-500 !text-indigo-700 hover:!bg-indigo-50 dark:!border-indigo-700 dark:!text-indigo-300"
+                  onClick={() => setRollbackReadyOpen(true)}
+                >
+                  <i className="fa-solid fa-box-archive mr-1.5 text-xs" aria-hidden="true" />
+                  Rollback to Ready to Ship
+                </Button>
+              </>
             ) : null}
             {canUndoConfirmedReturn ? (
               <Button
@@ -390,15 +513,13 @@ export function OmsOrderDetailPage() {
                 Undo Cancel
               </Button>
             ) : null}
-            {canSpecifyShippingFeeAfterDelivery ? (
+            {canEditShippingFee ? (
               <Button
                 variant="secondary"
-                onClick={() => {
-                  setShippingFeeAfter(order.shippingFee ?? '');
-                  setShippingFeeAfterOpen(true);
-                }}
+                onClick={() => setEditShippingFeeOpen(true)}
               >
-                Specify shipping fee
+                <i className="fa-solid fa-pen text-xs me-1.5" aria-hidden="true" />
+                Edit shipping fee
               </Button>
             ) : null}
             {canRetryCod ? (
@@ -435,7 +556,7 @@ export function OmsOrderDetailPage() {
       />
 
       <div className="flex flex-wrap items-center gap-2">
-        <OmsStatusBadge status={order.status} needsInformation={order.needsInformation} />
+        <OmsStatusBadge status={orderMainStatus(order)} needsInformation={order.needsInformation} />
         {order.rejectionReason ? (
           <span className="rounded-full bg-status-error-bg px-2 py-0.5 text-xs font-medium text-status-error-fg">
             Rejected: {order.rejectionReason}
@@ -467,8 +588,23 @@ export function OmsOrderDetailPage() {
                   label="Detailed Address"
                   value={order.addressLine2 || order.destinationAddress || '—'}
                 />
-                <Field label="Carrier" value={order.carrier ?? '—'} />
-                <Field label="Tracking" value={order.trackingNumber ?? '—'} />
+                <Field
+                  label="Carrier"
+                  value={order.shippingCarrierName || order.carrier || '—'}
+                />
+                <Field
+                  label="Tracking"
+                  value={
+                    order.awbPending
+                      ? 'Carrier AWB pending'
+                      : order.trackingNumber ?? '—'
+                  }
+                />
+                {order.cancellationUnconfirmed ? (
+                  <div className="sm:col-span-2 rounded-lg border border-amber-200 bg-amber-50/70 px-3 py-2 text-xs text-amber-900">
+                    Babel did not return this shipment. Cancellation is not confirmed; the current carrier and AWB stay assigned.
+                  </div>
+                ) : null}
                 {order.deliveryInstructions ? (
                   <div className="sm:col-span-2">
                     <Field label="Instructions" value={order.deliveryInstructions} />
@@ -518,6 +654,92 @@ export function OmsOrderDetailPage() {
                       </td>
                     </tr>
                   ))}
+                </tbody>
+              </table>
+            </div>
+          </Card>
+
+          <Card padding="none" className="overflow-hidden">
+            <Card.Header>
+              <div>
+                <Card.Title>Inbound Traceability</Card.Title>
+                <p className="mt-0.5 text-xs text-text-muted">
+                  Source inbound receipts supplying inventory for this order
+                </p>
+              </div>
+              <span className="text-xs font-medium text-text-muted">
+                {(order.inboundTraceability ?? []).length}{' '}
+                {(order.inboundTraceability ?? []).length === 1 ? 'source' : 'sources'}
+              </span>
+            </Card.Header>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-surface-card-muted text-xs font-semibold uppercase text-text-muted">
+                  <tr>
+                    <th className="px-4 py-2.5 text-left">Product</th>
+                    <th className="px-4 py-2.5 text-left">SKU</th>
+                    <th className="px-4 py-2.5 text-left">Source Inbound Order</th>
+                    <th className="px-4 py-2.5 text-right">Quantity Used</th>
+                    <th className="px-4 py-2.5 text-center">Status</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border-subtle">
+                  {(order.inboundTraceability ?? []).length === 0 ? (
+                    <tr>
+                      <td colSpan={5} className="px-4 py-6 text-center text-sm text-text-muted">
+                        No inbound traceability records recorded for this order.
+                      </td>
+                    </tr>
+                  ) : (
+                    (order.inboundTraceability ?? []).map((item, idx) => (
+                      <tr key={item.id ?? `${item.productId}-${item.inboundOrderId ?? idx}`}>
+                        <td className="px-4 py-2.5 font-medium text-text-strong">
+                          {item.productName}
+                        </td>
+                        <td className="px-4 py-2.5 font-mono text-xs text-text-muted">
+                          {item.productSku}
+                        </td>
+                        <td className="px-4 py-2.5">
+                          {item.inboundOrderId && item.inboundOrderNumber ? (
+                            <Link
+                              to={`/orders/inbound/${item.inboundOrderId}`}
+                              className="font-medium text-brand-700 hover:underline dark:text-brand-400"
+                            >
+                              {item.inboundOrderNumber}
+                            </Link>
+                          ) : (
+                            <span className="text-xs italic text-text-muted">
+                              {item.status === 'source_not_recorded'
+                                ? 'Source not recorded'
+                                : 'Not yet allocated'}
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-4 py-2.5 text-right font-semibold text-text-body">
+                          {item.quantity}
+                        </td>
+                        <td className="px-4 py-2.5 text-center">
+                          <span
+                            className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${
+                              item.status === 'fulfilled'
+                                ? 'bg-status-success-bg text-status-success-fg'
+                                : item.status === 'allocated'
+                                  ? 'bg-status-info-bg text-status-info-fg'
+                                  : 'bg-surface-card-muted text-text-muted'
+                            }`}
+                          >
+                            {item.status === 'fulfilled'
+                              ? 'Fulfilled'
+                              : item.status === 'allocated'
+                                ? 'Allocated'
+                                : item.status === 'source_not_recorded'
+                                  ? 'Unrecorded'
+                                  : 'Unfulfilled'}
+                          </span>
+                        </td>
+                      </tr>
+                    ))
+                  )}
                 </tbody>
               </table>
             </div>
@@ -590,6 +812,19 @@ export function OmsOrderDetailPage() {
             <Card.Body className="px-4 py-4 sm:px-5">
               <div className="space-y-3">
                 <Field label="Order #" value={order.orderNumber} />
+                {outboundId ? (
+                  <Field
+                    label="Outbound Order"
+                    value={
+                      <Link
+                        to={`/orders/outbound/${outboundId}`}
+                        className="font-medium text-brand-700 hover:underline dark:text-brand-400"
+                      >
+                        {order.linkedOutboundOrder?.orderNumber ?? outboundId}
+                      </Link>
+                    }
+                  />
+                ) : null}
                 <Field label="Client" value={order.company?.name ?? '—'} />
                 <Field label="Client reference" value={order.clientReference ?? '—'} />
                 <Field
@@ -621,18 +856,47 @@ export function OmsOrderDetailPage() {
               <div className="space-y-3">
                 <Field label="Payment" value={order.paymentMethod ?? '—'} />
                 <Field
-                  label="Shipping fee"
-                  value={fmtMoney(order.shippingFee, order.currency)}
+                  label="Client shipping rate"
+                  value={
+                    <div className="flex items-center justify-end gap-2">
+                      <span>{fmtMoney(order.shippingFee, order.currency)}</span>
+                      {canEditShippingFee ? (
+                        <button
+                          type="button"
+                          onClick={() => setEditShippingFeeOpen(true)}
+                          className="inline-flex items-center gap-1 rounded border border-border-subtle bg-white px-2 py-0.5 text-xs font-semibold text-text-strong shadow-2xs hover:bg-surface-hover"
+                        >
+                          <i className="fa-solid fa-pen text-[10px]" aria-hidden="true" />
+                          Edit
+                        </button>
+                      ) : null}
+                    </div>
+                  }
                 />
-                <Field
-                  label="Shipping cost"
-                  value={fmtMoney(
-                    order.linkedOutboundOrder?.shippingCost != null
-                      ? String(order.linkedOutboundOrder.shippingCost)
-                      : null,
-                    order.linkedOutboundOrder?.shippingCostCurrency ?? order.currency,
-                  )}
-                />
+                {canSeeCarrierCost ? (
+                  <Field
+                    label="Carrier quote"
+                    value={fmtMoney(
+                      carrierCostQuery.data?.carrierQuote ??
+                        (order.linkedOutboundOrder?.shippingQuotedPrice != null
+                          ? String(order.linkedOutboundOrder.shippingQuotedPrice)
+                          : null),
+                      carrierCostQuery.data?.carrierQuoteCurrency ??
+                        order.linkedOutboundOrder?.shippingQuotedCurrency,
+                    )}
+                  />
+                ) : null}
+                {canSeeCarrierCost ? (
+                  <Field
+                    label="Actual carrier cost"
+                    value={fmtMoney(
+                      order.linkedOutboundOrder?.shippingCost != null
+                        ? String(order.linkedOutboundOrder.shippingCost)
+                        : null,
+                      order.linkedOutboundOrder?.shippingCostCurrency,
+                    )}
+                  />
+                ) : null}
                 <Field
                   label="Subtotal"
                   value={
@@ -644,6 +908,33 @@ export function OmsOrderDetailPage() {
                 <Field label="COD amount" value={fmtMoney(order.codAmount, order.currency)} />
                 <Field label="Legacy COD status" value={order.codStatus ?? '—'} />
               </div>
+              {canSeeCarrierHistory && (carrierCostQuery.data?.shipments.length ?? 0) > 0 ? (
+                <div className="mt-4 space-y-2">
+                  <h3 className="text-xs font-semibold uppercase tracking-wide text-text-muted">
+                    Carrier cost history
+                  </h3>
+                  {carrierCostQuery.data?.shipments.map((shipment) => (
+                    <div key={shipment.id} className="rounded-lg border border-border-subtle p-3 text-sm">
+                      <div className="text-text-body">
+                        {shipment.providerCode}: {shipment.actualCost ? `${shipment.actualCost} ${shipment.actualCostCurrency ?? ''}` : 'Pending'}
+                      </div>
+                      {shipment.history.length === 0 ? (
+                        <p className="mt-1 text-text-muted">No verified cost changes yet.</p>
+                      ) : (
+                        <ul className="mt-2 space-y-1 text-text-muted">
+                          {shipment.history.map((change) => (
+                            <li key={change.id}>
+                              {change.previousAmount ?? '—'} {change.previousCurrency ?? ''} → {change.amount}{' '}
+                              {change.currency ?? ''} · {change.source}
+                              {change.eventAt ? ` · ${new Date(change.eventAt).toLocaleString()}` : ''}
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              ) : null}
               {codQuery.data ? (
                 <div className="mt-4 rounded-lg border border-border-subtle bg-surface-sunken p-4">
                   <div className="mb-3 flex items-center justify-between gap-2">
@@ -819,6 +1110,58 @@ export function OmsOrderDetailPage() {
         initialOrderId={id}
         onSuccess={() => invalidate()}
       />
+
+      <OmsEditShippingFeeModal
+        open={editShippingFeeOpen}
+        onClose={() => setEditShippingFeeOpen(false)}
+        orders={order ? [order] : []}
+        onSuccess={() => invalidate()}
+      />
+
+      <CancelShipmentModal
+        open={cancelShipmentOpen}
+        order={order}
+        onClose={() => setCancelShipmentOpen(false)}
+        onSuccess={() => invalidate()}
+      />
+
+      <ConfirmModal
+        open={rollbackOfdOpen}
+        title={`Rollback to Out for Delivery (Reship with original carrier)?`}
+        confirmLabel="Reship & Out for Delivery"
+        cancelLabel="Cancel"
+        loading={rollbackReturnMut.isPending}
+        onClose={() => !rollbackReturnMut.isPending && setRollbackOfdOpen(false)}
+        onConfirm={() => rollbackReturnMut.mutate('out_for_delivery')}
+      >
+        <div className="space-y-2 text-sm">
+          <p>
+            This action reverses the inventory from the Returns quarantine location and initiates a real reshipment with the original shipping provider via API.
+          </p>
+          <p className="text-xs font-semibold text-text-strong">
+            Crucial safeguard: The order status will NOT advance to Out for Delivery unless the carrier API successfully confirms acceptance.
+          </p>
+        </div>
+      </ConfirmModal>
+
+      <ConfirmModal
+        open={rollbackReadyOpen}
+        title={`Rollback to Ready to Ship?`}
+        confirmLabel="Rollback to Ready to Ship"
+        cancelLabel="Cancel"
+        loading={rollbackReturnMut.isPending}
+        onClose={() => !rollbackReturnMut.isPending && setRollbackReadyOpen(false)}
+        onConfirm={() => rollbackReturnMut.mutate('ready_to_ship')}
+      >
+        <div className="space-y-2 text-sm">
+          <p>
+            This action reverses the inventory from the Returns quarantine location and resets the order to <strong>Ready to Ship / Shipping Details</strong>.
+          </p>
+          <p className="text-xs text-text-muted">
+            No shipment will be created automatically. You will be able to review addresses, package dimensions, and choose any carrier you prefer.
+          </p>
+        </div>
+      </ConfirmModal>
     </div>
   );
 }

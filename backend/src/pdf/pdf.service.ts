@@ -108,6 +108,10 @@ export class PdfService implements OnModuleDestroy {
     return this.logoDataUri;
   }
 
+  get fontFaceCss(): string {
+    return this.fontFace;
+  }
+
   private async loadPuppeteer(): Promise<PuppeteerNode> {
     if (!this.puppeteerMod) {
       const mod = await importPuppeteer();

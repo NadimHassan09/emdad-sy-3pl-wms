@@ -7,7 +7,7 @@ import { QK } from '../../constants/query-keys';
 import { useToast } from '../ToastProvider';
 import { Modal } from '../Modal';
 
-const ISSUE = new Set(['failed_delivery', 'cancelled', 'rejected', 'returned']);
+const ISSUE = new Set(['failed_delivery', 'return_pending_receipt', 'cancelled', 'rejected', 'returned']);
 const FINISHED = new Set(['delivered', 'completed']);
 
 type Props = {

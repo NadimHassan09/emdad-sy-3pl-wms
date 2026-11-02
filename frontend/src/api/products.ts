@@ -66,6 +66,7 @@ export interface UpdateProductInput {
 
 export interface ProductListQuery {
   companyId?: string;
+  status?: string;
   /** Legacy: matches name OR sku OR barcode. */
   search?: string;
   /** Substring match on product name (maps to `productName` query param). */
@@ -102,6 +103,8 @@ export const ProductsApi = {
     if (query.offset != null) params.offset = query.offset;
     const companyId = query.companyId?.trim();
     if (companyId) params.companyId = companyId;
+    const status = query.status?.trim();
+    if (status && status !== 'all') params.status = status;
     const search = query.search?.trim();
     if (search) params.search = search;
     const productName = query.productName?.trim();
@@ -150,4 +153,27 @@ export const ProductsApi = {
     });
     return data;
   },
+  async exportExcel(query: ProductListQuery = {}): Promise<Blob> {
+    const params: Record<string, string | number | boolean> = {};
+    const companyId = query.companyId?.trim();
+    if (companyId) params.companyId = companyId;
+    const status = query.status?.trim();
+    if (status && status !== 'all') params.status = status;
+    const search = query.search?.trim();
+    if (search) params.search = search;
+    const productName = query.productName?.trim();
+    if (productName) params.productName = productName;
+    const sku = query.sku?.trim();
+    if (sku) params.sku = sku;
+    const productBarcode = query.productBarcode?.trim();
+    if (productBarcode) params.productBarcode = productBarcode;
+    if (query.includeArchived === true) params.includeArchived = true;
+
+    const res = await api.get('/products/export', {
+      params,
+      responseType: 'blob',
+    });
+    return res.data;
+  },
 };
+

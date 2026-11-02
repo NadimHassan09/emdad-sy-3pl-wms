@@ -1,6 +1,11 @@
 import { useState } from 'react';
 
 import { OutboundApi } from '../../api/outbound';
+import {
+  mapPayerForCarrier,
+  resolvePaymentModeFromPayer,
+  type ShippingPaymentMode,
+} from '../../lib/shipping-payer';
 
 export type ShipmentFieldError = {
   message: string;
@@ -94,6 +99,7 @@ export function parsePackedShipmentError(text: string | null | undefined): Shipm
 type Props = {
   outboundOrderId: string;
   companyId?: string;
+  carrierCode?: string;
   error: ShipmentFieldError;
   isArabic?: boolean;
   busy?: boolean;
@@ -103,6 +109,7 @@ type Props = {
 export function ShipmentErrorActions({
   outboundOrderId,
   companyId,
+  carrierCode,
   error,
   isArabic,
   busy,
@@ -128,7 +135,11 @@ export function ShipmentErrorActions({
     if (error.field === 'receiverName') body.recipientName = value;
     if (error.field === 'receiverPhone') body.recipientPhone = value;
     if (error.field === 'receiverNeighborhood' || error.field === 'addressLine1') body.addressLine1 = value;
-    if (error.field === 'shippingPayer') body.shippingPayer = value;
+    if (error.field === 'shippingPayer') {
+      const mode = resolvePaymentModeFromPayer(value);
+      const carrier = carrierCode || (error.message.includes('Babel') ? 'BABEL_EXPRESS' : 'SILA_SY');
+      body.shippingPayer = mapPayerForCarrier(mode, carrier);
+    }
     if (error.field === 'currency') body.codCollectionCurrency = value;
     if (error.field === 'codAmount') body.codAmount = Number(value);
     if (error.field === 'weight') body.shippingWeightKg = Number(value);
@@ -175,13 +186,20 @@ export function ShipmentErrorActions({
       {editable ? (
         error.field === 'shippingPayer' ? (
           <select
-            className="w-full rounded border border-rose-200 bg-white px-2 py-1"
-            value={value || 'sender'}
-            onChange={(e) => setValue(e.target.value)}
+            className="w-full rounded border border-rose-200 bg-white px-2 py-1 text-xs font-semibold"
+            value={resolvePaymentModeFromPayer(value)}
+            onChange={(e) => {
+              const mode = e.target.value as ShippingPaymentMode;
+              const carrier = carrierCode || (error.message.includes('Babel') ? 'BABEL_EXPRESS' : 'SILA_SY');
+              setValue(mapPayerForCarrier(mode, carrier));
+            }}
           >
-            <option value="sender">{isArabic ? 'المرسل' : 'Sender'}</option>
-            <option value="receiver">{isArabic ? 'المستلم' : 'Receiver'}</option>
-            <option value="reseller">{isArabic ? 'الوسيط' : 'Reseller'}</option>
+            <option value="EMDAD_PAYS">
+              {isArabic ? 'إمداد تتحمل تكلفة الشحن (افتراضي)' : 'Emdad Pays (Default)'}
+            </option>
+            <option value="RECIPIENT_PAYS">
+              {isArabic ? 'المستلم يتحمل تكلفة الشحن' : 'Recipient Pays'}
+            </option>
           </select>
         ) : error.field === 'currency' ? (
           <select

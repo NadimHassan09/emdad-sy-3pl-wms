@@ -92,6 +92,16 @@ let ExternalOmsService = class ExternalOmsService {
                 'address.neighborhood': 'Neighborhood is required.',
             });
         }
+        if (!dto.address?.street?.trim()) {
+            (0, api_validation_1.throwApiValidation)('Order payload is incomplete.', {
+                'address.street': 'Street / detailed address is required and must be more than 10 characters.',
+            });
+        }
+        if (dto.address.street.trim().length <= 10) {
+            (0, api_validation_1.throwApiValidation)('Order payload is invalid.', {
+                'address.street': 'Street / detailed address must be more than 10 characters.',
+            });
+        }
         const address = (0, syria_address_1.resolveSyriaAddress)({
             governorate: dto.address.governorate,
             city: dto.address.city,
@@ -136,7 +146,7 @@ let ExternalOmsService = class ExternalOmsService {
                 city: address.value.governorate,
                 district: address.value.city,
                 addressLine1: address.value.neighborhood,
-                addressLine2: address.value.street ?? undefined,
+                addressLine2: address.value.street || dto.address.street.trim(),
                 notes: dto.notes,
                 storeChannel: dto.storeChannel,
                 paymentMethod: dto.paymentMethod,
@@ -151,8 +161,7 @@ let ExternalOmsService = class ExternalOmsService {
                     unitPrice: l.unitPrice,
                 })),
             });
-            const confirmed = await this.oms.confirm(client, created.id);
-            return { ...(0, public_order_serialize_1.publicOmsOrder)(confirmed), idempotentReplay: false };
+            return { ...(0, public_order_serialize_1.publicOmsOrder)(created), idempotentReplay: false };
         }
         catch (err) {
             if (err instanceof client_1.Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {

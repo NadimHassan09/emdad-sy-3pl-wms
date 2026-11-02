@@ -23,6 +23,14 @@ export class BillingUsageProcessorService {
 
   private async runTick() {
     try {
+      const cutoverPolicy = await this.prisma.financialPolicy.findUnique({
+        where: { key: 'cutover_active' },
+        select: { value: true },
+      });
+      if (cutoverPolicy?.value === 'true') {
+        return;
+      }
+
       const now = new Date();
       const cycles = await this.prisma.billingCycle.findMany({
         where: {

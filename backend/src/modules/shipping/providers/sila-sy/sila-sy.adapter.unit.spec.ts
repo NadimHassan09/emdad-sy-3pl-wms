@@ -1,6 +1,6 @@
 import { BadRequestException } from '@nestjs/common';
 import { SilaSyAdapter, buildSilaServiceId } from './sila-sy.adapter';
-import { SilaSyHttpClient } from './sila-sy.http-client';
+import { SilaSyApiError, SilaSyHttpClient } from './sila-sy.http-client';
 import { SILA_SY_CODE } from '../../shipping.constants';
 
 describe('SilaSyAdapter', () => {
@@ -13,6 +13,8 @@ describe('SilaSyAdapter', () => {
     mockHttp = {
       get: jest.fn(),
       post: jest.fn(),
+      put: jest.fn(),
+      getEnvelope: jest.fn(),
     } as unknown as jest.Mocked<SilaSyHttpClient>;
     adapter = new SilaSyAdapter(mockHttp);
   });
@@ -200,12 +202,134 @@ describe('SilaSyAdapter', () => {
       ).rejects.toThrow(BadRequestException);
     });
 
-    it('rejects a Sila barcode when the courier tracking number is missing', async () => {
+    it('keeps the Sila cargo id when the carrier AWB is not assigned yet', async () => {
       mockHttp.post.mockResolvedValueOnce({ couriers: [] });
-      mockHttp.post.mockResolvedValueOnce({ barcode: 'SILA-ONLY' });
+      mockHttp.post.mockResolvedValueOnce({
+        id: 'cargo-uuid',
+        tracking_token: 'a'.repeat(32),
+        barcode: 'SILA-ONLY',
+      });
+      mockHttp.get.mockResolvedValueOnce(null);
+      const res = await adapter.createShipment(credentials, {
+        serviceId: 'SILA_SY:cour_123:area_456',
+        receiver: { name: 'Omar', phoneCountry: '963', phoneLocal: '999111222', address: 'Damascus', lat: 0, lng: 0 },
+        packageType: 'box',
+        weightKg: 1,
+        contents: 'Goods',
+        deliveryType: 'address',
+        pickupType: 'address',
+        payer: 'sender',
+        codAmount: 0,
+      });
+      expect(res.awb).toBe('cargo-uuid');
+      expect(res.trackingNumber).toBeUndefined();
+      const cargoBody = mockHttp.post.mock.calls.find((call) => call[0] === 'cargos')?.[2] as {
+        pay_on_delivery?: { amount: number };
+      };
+      expect(cargoBody.pay_on_delivery?.amount).toBe(0);
+    });
+
+    it('treats 409 duplicate_reference as success and does not suffix-retry', async () => {
+      mockHttp.post.mockResolvedValueOnce({ couriers: [] });
+      mockHttp.post.mockRejectedValueOnce(
+        new SilaSyApiError(
+          'reference already used',
+          409,
+          {},
+          'duplicate_reference',
+          {
+            existing_cargo_id: 'existing-cargo',
+            existing_barcode: 'SILA-EXISTING',
+            existing_status: 'in_transit',
+          },
+        ),
+      );
+      mockHttp.get.mockResolvedValue({
+        id: 'existing-cargo',
+        barcode: 'SILA-EXISTING',
+        status: 'in_transit',
+      });
+
+      const res = await adapter.createShipment(credentials, {
+        serviceId: 'SILA_SY:cour_123:area_456',
+        reference: 'ORD-1001',
+        receiver: { name: 'Omar', phoneCountry: '963', phoneLocal: '999111222', address: 'Damascus', lat: 0, lng: 0 },
+        packageType: 'box',
+        weightKg: 1,
+        contents: 'Goods',
+        deliveryType: 'address',
+        pickupType: 'address',
+        payer: 'sender',
+        codAmount: 0,
+      });
+
+      expect(res.awb).toBe('existing-cargo');
+      const cargoPosts = mockHttp.post.mock.calls.filter((call) => call[0] === 'cargos');
+      expect(cargoPosts).toHaveLength(1);
+      expect(cargoPosts[0][2]).toEqual(expect.objectContaining({ reference: 'ORD-1001' }));
+    });
+
+    it('retries with unique reference suffix if 409 duplicate_reference matches a different courier or dead cargo', async () => {
+      mockHttp.post.mockResolvedValueOnce({ couriers: [] });
+      mockHttp.post.mockRejectedValueOnce(
+        new SilaSyApiError(
+          'reference already used',
+          409,
+          {},
+          'duplicate_reference',
+          {
+            existing_cargo_id: 'ancient-cargo',
+            existing_barcode: 'SILA-OLD',
+            existing_status: 'returned',
+          },
+        ),
+      );
+      mockHttp.get.mockResolvedValueOnce({
+        id: 'ancient-cargo',
+        courier_id: 'diff_courier',
+        status: 'returned',
+        created_at: '2026-08-01T00:00:00.000Z',
+      });
+      mockHttp.post.mockResolvedValueOnce({
+        id: 'brand-new-cargo',
+        barcode: 'SILA-NEW',
+        status: 'confirmed',
+      });
+      mockHttp.get.mockResolvedValueOnce({
+        id: 'brand-new-cargo',
+        barcode: 'SILA-NEW',
+        status: 'confirmed',
+      });
+
+      const res = await adapter.createShipment(credentials, {
+        serviceId: 'SILA_SY:cour_123:area_456',
+        reference: 'ORD-1001',
+        receiver: { name: 'Omar', phoneCountry: '963', phoneLocal: '999111222', address: 'Damascus', lat: 0, lng: 0 },
+        packageType: 'box',
+        weightKg: 1,
+        contents: 'Goods',
+        deliveryType: 'address',
+        pickupType: 'address',
+        payer: 'sender',
+        codAmount: 0,
+      });
+
+      expect(res.awb).toBe('brand-new-cargo');
+      const cargoPosts = mockHttp.post.mock.calls.filter((call) => call[0] === 'cargos');
+      expect(cargoPosts).toHaveLength(2);
+      expect((cargoPosts[1][2] as any).reference).toMatch(/^ORD-1001-\d+$/);
+    });
+
+    it('does not send allow_duplicate on possible_duplicate', async () => {
+      mockHttp.post.mockResolvedValueOnce({ couriers: [] });
+      mockHttp.post.mockRejectedValueOnce(
+        new SilaSyApiError('possible duplicate', 409, {}, 'possible_duplicate', {}),
+      );
+
       await expect(
         adapter.createShipment(credentials, {
           serviceId: 'SILA_SY:cour_123:area_456',
+          reference: 'ORD-1001',
           receiver: { name: 'Omar', phoneCountry: '963', phoneLocal: '999111222', address: 'Damascus', lat: 0, lng: 0 },
           packageType: 'box',
           weightKg: 1,
@@ -215,7 +339,8 @@ describe('SilaSyAdapter', () => {
           payer: 'sender',
           codAmount: 0,
         }),
-      ).rejects.toThrow(/courier tracking number/i);
+      ).rejects.toThrow(/possible duplicate/i);
+      expect(mockHttp.post.mock.calls.some((call) => call[2] && (call[2] as any).allow_duplicate)).toBe(false);
     });
 
     it('posts cargo payload with parsed courier_id and returns awb', async () => {
@@ -223,8 +348,15 @@ describe('SilaSyAdapter', () => {
       mockHttp.post.mockResolvedValueOnce({
         id: 'sila_cargo_99',
         barcode: 'SILA-998877',
-        tracking_number: 'COURIER-998877',
+        tracking_token: 'b'.repeat(32),
         status: 'created',
+        shipments: [
+          {
+            tracking_number: 'SL-TEST-1',
+            remote_label_code: 'COURIER-998877',
+            remote_barcode: 'COURIER-998877',
+          },
+        ],
       });
 
       const res = await adapter.createShipment(credentials, {
@@ -261,8 +393,9 @@ describe('SilaSyAdapter', () => {
     it('sends pickup address as sender and does not use branch pickup for home delivery', async () => {
       mockHttp.post.mockResolvedValueOnce({ couriers: [] });
       mockHttp.post.mockResolvedValueOnce({
+        id: 'cargo-1',
         barcode: 'SILA-1',
-        tracking_number: 'COURIER-1',
+        courier_barcode: 'COURIER-1',
       });
 
       await adapter.createShipment(credentials, {
@@ -335,7 +468,25 @@ describe('SilaSyAdapter', () => {
   });
 
   describe('getTrackingHistory', () => {
-    it('uses GET /cargos/{token} and builds timeline from deliveryRoute', async () => {
+    it('uses the tracking timeline and keeps the courier route', async () => {
+      mockHttp.get.mockResolvedValueOnce({
+        barcode: 'token-ofd',
+        current_status: 'out_for_delivery',
+        timeline: [
+          {
+            status: 'processing',
+            label_ar: 'processing',
+            timestamp: '2026-10-03T10:00:00.000Z',
+            note: 'system',
+          },
+          {
+            status: 'out_for_delivery',
+            label_ar: 'خارج للتوصيل',
+            timestamp: '2026-10-04T12:00:00.000Z',
+            note: 'courier',
+          },
+        ],
+      });
       mockHttp.get.mockResolvedValueOnce({
         id: 'cargo-ofd',
         tracking_token: 'token-ofd',
@@ -345,6 +496,7 @@ describe('SilaSyAdapter', () => {
         shipments: [
           {
             status: 'out_for_delivery',
+            remote_status_raw: 'SCANNED_BY_DRIVER_AND_IN_CAR',
             remote_last_status: {
               deliveryRoute: [
                 {
@@ -366,15 +518,97 @@ describe('SilaSyAdapter', () => {
       });
 
       const res = await adapter.getTrackingHistory(credentials, 'token-ofd');
+      expect(mockHttp.get).toHaveBeenCalledWith('cargos/token-ofd/tracking', 'sila_live_testkey123');
       expect(mockHttp.get).toHaveBeenCalledWith('cargos/token-ofd', 'sila_live_testkey123');
       expect(res?.awb).toBe('token-ofd');
       expect(res?.statusLabel).toBe('الشحنة خرجت للتوصيل');
-      expect(res?.events.length).toBeGreaterThanOrEqual(2);
-      expect(res?.events[0].title).toContain('قيد التوصيل');
-      expect(res?.events[0].timestamp).toContain('2026-10-04');
+      expect(res?.events.map((event) => event.title)).toEqual([
+        'قيد التوصيل مع السائق',
+        'خارج للتوصيل',
+        'طلب جديد',
+        'تم تكوين الشحنة',
+      ]);
+      expect(res?.events[0].notes).toContain('مع السائق');
+      expect(res?.events[1].timestamp).toContain('2026-10-04T12:00:00');
     });
 
-    it('does not trust list endpoint items[0] when cargo token mismatches', async () => {
+    it('keeps postpone history and the courier reason without treating it as a failed delivery', async () => {
+      mockHttp.get.mockResolvedValueOnce({
+        barcode: 'token-postponed',
+        current_status: 'postponed',
+        timeline: [
+          {
+            status: 'out_for_delivery',
+            label_ar: 'خارج للتوصيل',
+            timestamp: '2026-10-14T12:08:05.412Z',
+            note: 'courier',
+          },
+          {
+            status: 'postponed',
+            label_ar: 'postponed',
+            timestamp: '2026-10-15T09:12:00.402Z',
+            note: 'courier',
+          },
+        ],
+      });
+      mockHttp.get.mockResolvedValueOnce({
+        id: 'cargo-postponed',
+        tracking_token: 'token-postponed',
+        status: 'postponed',
+        shipments: [
+          {
+            remote_status_raw: 'POSTPONED_DELIVERY',
+            remote_failure_notes: 'تم التنسيق مع الزبون التوصيل السبت',
+          },
+        ],
+      });
+
+      const res = await adapter.getTrackingHistory(credentials, 'token-postponed');
+      expect(res?.events).toHaveLength(2);
+      expect(res?.events[0].title).toBe('تم تأجيل التسليم');
+      expect(res?.events[0].notes).toContain('تم التنسيق مع الزبون التوصيل السبت');
+      expect(res?.events[1].title).toBe('خارج للتوصيل');
+      expect(res?.statusLabel).toBe('تم تأجيل التسليم');
+    });
+
+    it('hides source-tag notes, keeps real notes, and uses courier name', async () => {
+      mockHttp.get.mockResolvedValueOnce({
+        barcode: 'sila-bar',
+        current_status: 'in_transit',
+        courier: { name: 'ترابط' },
+        timeline: [
+          {
+            status: 'in_transit',
+            label_ar: 'في الطريق',
+            label_en: 'In transit',
+            timestamp: '2026-10-21T10:00:00.000Z',
+            note: 'admin',
+          },
+          {
+            status: 'created',
+            label_ar: 'تم الإنشاء',
+            timestamp: '2026-10-21T09:00:00.000Z',
+            note: 'جارٍ التحضير في المستودع',
+          },
+        ],
+      });
+      mockHttp.get.mockResolvedValueOnce({
+        id: 'cargo-uuid',
+        barcode: 'sila-bar',
+        courier: { name: 'ترابط' },
+        courier_barcode: '100537003427',
+        status: 'in_transit',
+      });
+
+      const res = await adapter.getTrackingHistory(credentials, 'cargo-uuid');
+      expect(res?.providerName).toBe('ترابط');
+      expect(res?.awb).toBe('100537003427');
+      expect(res?.events[0].notes).toBeNull();
+      expect(res?.events[1].notes).toBe('جارٍ التحضير في المستودع');
+    });
+
+    it('does not trust a cargo when the token mismatches', async () => {
+      mockHttp.get.mockResolvedValueOnce({});
       mockHttp.get.mockResolvedValueOnce({
         id: 'other-cargo',
         tracking_token: 'other-token',
@@ -413,6 +647,128 @@ describe('SilaSyAdapter', () => {
       });
       expect(res?.awb).toBe('tok-webhook');
       expect(res?.normalizedStatus).toBe('out_for_delivery');
+    });
+
+    it('records a postponement reason without a return or failed-delivery status', () => {
+      const res = adapter.normalizeWebhook({}, {
+        tracking_token: 'tok-postponed',
+        status: 'postponed',
+        remote_failure_notes: 'الزبون غير متاح اليوم',
+        updated_at: '2026-10-15T09:12:00.000Z',
+      });
+      expect(res?.normalizedStatus).toBe('unknown');
+      expect(res?.notes).toBe('الزبون غير متاح اليوم');
+      expect(res?.returnReason).toBeUndefined();
+    });
+
+    it('uses new_status for dual terminal events and delivery id', () => {
+      const res = adapter.normalizeWebhook(
+        {
+          'x-sila-event': 'cargo.delivered',
+          'x-sila-delivery': 'del-1',
+        },
+        {
+          event: 'cargo.delivered',
+          data: {
+            id: 'cargo-1',
+            barcode: 'sila-bar',
+            reference: 'OMS-1',
+            new_status: 'delivered',
+            occurred_at: '2026-10-21T10:00:00.000Z',
+          },
+        },
+      );
+      expect(res?.normalizedStatus).toBe('delivered');
+      expect(res?.externalEventId).toBe('sila:cargo-1:delivered:2026-10-21T10:00:00.000Z');
+      expect(res?.deliveryId).toBe('del-1');
+      expect(res?.reference).toBe('OMS-1');
+    });
+  });
+
+  describe('cancelShipment', () => {
+    it('maps pending_confirmation without treating it as done', async () => {
+      mockHttp.put.mockResolvedValueOnce({
+        id: 'cargo-1',
+        status: 'cancelled',
+        courier_cancel: 'pending_confirmation',
+      });
+      const res = await adapter.cancelShipment(credentials, 'cargo-1');
+      expect(res.outcome).toBe('pending_confirmation');
+      expect(mockHttp.put).toHaveBeenCalledTimes(1);
+      expect(mockHttp.put).toHaveBeenCalledWith('cargos/cargo-1/cancel', 'sila_live_testkey123', {});
+    });
+
+    it('maps confirmed / already / not_needed to cancelled outcomes', async () => {
+      mockHttp.put.mockResolvedValueOnce({ id: 'c1', status: 'cancelled', courier_cancel: 'confirmed' });
+      await expect(adapter.cancelShipment(credentials, 'c1')).resolves.toEqual(
+        expect.objectContaining({ outcome: 'cancelled', courierCancel: 'confirmed' }),
+      );
+      mockHttp.put.mockResolvedValueOnce({ id: 'c1', status: 'cancelled', courier_cancel: 'already' });
+      await expect(adapter.cancelShipment(credentials, 'c1')).resolves.toEqual(
+        expect.objectContaining({ outcome: 'already_cancelled' }),
+      );
+      mockHttp.put.mockResolvedValueOnce({ id: 'c1', status: 'cancelled', courier_cancel: 'not_needed' });
+      await expect(adapter.cancelShipment(credentials, 'c1')).resolves.toEqual(
+        expect.objectContaining({ outcome: 'cancelled', courierCancel: 'not_needed' }),
+      );
+    });
+
+    it('maps documented refusal codes to refused', async () => {
+      mockHttp.put.mockRejectedValueOnce(
+        new SilaSyApiError('locked', 409, {}, 'cargo_locked'),
+      );
+      await expect(adapter.cancelShipment(credentials, 'c1')).resolves.toEqual(
+        expect.objectContaining({ outcome: 'refused', errorCode: 'cargo_locked' }),
+      );
+      mockHttp.put.mockRejectedValueOnce(
+        new SilaSyApiError('window', 409, {}, 'cancel_window_closed'),
+      );
+      await expect(adapter.cancelShipment(credentials, 'c1')).resolves.toEqual(
+        expect.objectContaining({ outcome: 'refused', errorCode: 'cancel_window_closed' }),
+      );
+      mockHttp.put.mockRejectedValueOnce(
+        new SilaSyApiError('refused', 409, {}, 'courier_refused_cancel'),
+      );
+      await expect(adapter.cancelShipment(credentials, 'c1')).resolves.toEqual(
+        expect.objectContaining({ outcome: 'refused', errorCode: 'courier_refused_cancel' }),
+      );
+    });
+  });
+
+  describe('registerWebhook', () => {
+    it('registers at Sila and does not ping webhook.test until the secret can be stored', async () => {
+      mockHttp.post.mockResolvedValueOnce({
+        id: 'wh-1',
+        secret: 'whsec_test_once',
+      });
+      const res = await adapter.registerWebhook(
+        credentials,
+        'https://staging-admin.emdadsy.com/api/shipping/webhooks/SILA_SY',
+        '',
+      );
+      expect(res.ok).toBe(true);
+      expect(res.webhookId).toBe('wh-1');
+      expect(res.secret).toBe('whsec_test_once');
+      expect(mockHttp.post).toHaveBeenCalledTimes(1);
+      expect(mockHttp.post).toHaveBeenCalledWith(
+        'webhooks',
+        'sila_live_testkey123',
+        expect.objectContaining({
+          url: 'https://staging-admin.emdadsy.com/api/shipping/webhooks/SILA_SY',
+          events: ['*'],
+        }),
+      );
+    });
+  });
+
+  describe('verifyWebhook', () => {
+    it('accepts sha256 HMAC of the raw body and rejects tampering', () => {
+      const crypto = require('crypto') as typeof import('crypto');
+      const secret = 'whsec_test';
+      const raw = '{"event":"webhook.test"}';
+      const sig = `sha256=${crypto.createHmac('sha256', secret).update(raw).digest('hex')}`;
+      expect(adapter.verifyWebhook({ 'x-sila-signature': sig }, raw, secret)).toBe(true);
+      expect(adapter.verifyWebhook({ 'x-sila-signature': sig }, '{"event":"tampered"}', secret)).toBe(false);
     });
   });
 });

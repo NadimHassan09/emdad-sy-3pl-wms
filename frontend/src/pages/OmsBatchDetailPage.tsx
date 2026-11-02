@@ -2,11 +2,14 @@ import { useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 
+import { StatusCardNav, STATUS_CARD_TONES, type StatusCardItem } from '@ds';
 import { OmsApi, type OmsOrderListItem } from '../api/oms';
 import { OutboundApi, type BulkIdsResponse } from '../api/outbound';
 import { AdminListPageShell } from '../components/AdminListPageShell';
 import { DataTable, type Column } from '../components/DataTable';
 import { OmsBulkShippingDetailsModal } from '../components/oms/OmsBulkShippingDetailsModal';
+import { OmsEditShippingFeeModal } from '../components/oms/OmsEditShippingFeeModal';
+import { useAuth } from '../auth/AuthContext';
 import { useOmsOrderRowActions } from '../components/oms/useOmsOrderRowActions';
 import { OmsStageBadge } from '../components/oms/OmsStageBadge';
 import { OmsStatusBadge } from '../components/oms/OmsStatusBadge';
@@ -14,14 +17,14 @@ import { useToast } from '../components/ToastProvider';
 import { QK } from '../constants/query-keys';
 import { runInChunks } from '../lib/chunk-ids';
 import { isOmsAdminCancellableStatus } from '../lib/oms-order-cancel';
-import { omsOperationalStageLabel, orderOperationalStage } from '../lib/oms-operational-stage';
+import { omsOperationalStageLabel, orderOperationalStage, orderMainStatus } from '../lib/oms-operational-stage';
 import {
   getClientFxSnapshot,
   toComparableUsd,
 } from '../lib/shipping-compare';
 
 const CHUNK = 100;
-const ISSUE = new Set(['failed_delivery', 'cancelled', 'rejected', 'returned']);
+const ISSUE = new Set(['failed_delivery', 'return_pending_receipt', 'cancelled', 'rejected', 'returned']);
 
 function useArabic() {
   return (
@@ -40,6 +43,7 @@ const CONFIRMED_SHIPPING = new Set([
   'out_for_delivery',
   'delivered',
   'failed_delivery',
+  'return_pending_receipt',
   'returned',
 ]);
 
@@ -69,12 +73,21 @@ export function OmsBatchDetailPage() {
   const navigate = useNavigate();
   const toast = useToast();
   const qc = useQueryClient();
+  const { user } = useAuth();
+  const canEditShippingFee =
+    !user ||
+    user?.role === 'super_admin' ||
+    user?.role === 'wh_manager' ||
+    user?.role === 'admin' ||
+    user?.authGroup === 'ADMIN';
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [busy, setBusy] = useState<string | null>(null);
   const [shippingOpen, setShippingOpen] = useState(false);
+  const [editShippingFeeOpen, setEditShippingFeeOpen] = useState(false);
   const [issueOpen, setIssueOpen] = useState(false);
   const [issueNote, setIssueNote] = useState('');
   const [search, setSearch] = useState('');
+  const [orderStatusFilter, setOrderStatusFilter] = useState('');
   const rowActions = useOmsOrderRowActions({ isArabic, batchId: id });
 
   const query = useQuery({
@@ -89,15 +102,119 @@ export function OmsBatchDetailPage() {
     return orders.filter((order) => selected.has(order.id));
   }, [orders, selected]);
 
+  const allOrdersList = useMemo(() => batch?.orders ?? [], [batch]);
+  const batchStatusTotals = useMemo(() => {
+    let pending = 0;
+    let processing = 0;
+    let ready = 0;
+    let shipped = 0;
+    let issues = 0;
+    for (const row of allOrdersList) {
+      if (row.issueNote || ISSUE.has(row.order.status)) {
+        issues++;
+      } else {
+        const main = orderMainStatus(row.order);
+        if (
+          main === 'waiting_for_confirmation' ||
+          main === 'confirmed_waiting_for_admin_approval' ||
+          main === 'pending_approval' ||
+          main === 'pending'
+        ) {
+          pending++;
+        } else if (main === 'ready_to_ship') {
+          ready++;
+        } else if (main === 'processing') {
+          processing++;
+        } else if (main === 'shipped' || main === 'delivered') {
+          shipped++;
+        }
+      }
+    }
+    return {
+      all: allOrdersList.length,
+      pending,
+      processing,
+      ready,
+      shipped,
+      issues,
+    };
+  }, [allOrdersList]);
+
+  const batchStatusItems: StatusCardItem[] = useMemo(
+    () => [
+      {
+        value: '',
+        label: isArabic ? 'كل الطلبات' : 'All orders',
+        count: batchStatusTotals.all,
+        ...STATUS_CARD_TONES.slate,
+      },
+      {
+        value: 'pending',
+        label: isArabic ? 'قيد الموافقة' : 'Pending approval',
+        count: batchStatusTotals.pending,
+        ...STATUS_CARD_TONES.amber,
+      },
+      {
+        value: 'processing',
+        label: isArabic ? 'قيد التجهيز' : 'Processing',
+        count: batchStatusTotals.processing,
+        ...STATUS_CARD_TONES.cyan,
+      },
+      {
+        value: 'ready',
+        label: isArabic ? 'جاهز للشحن' : 'Ready to ship',
+        count: batchStatusTotals.ready,
+        ...STATUS_CARD_TONES.blue,
+      },
+      {
+        value: 'shipped',
+        label: isArabic ? 'تم الشحن والتسليم' : 'Shipped & Delivered',
+        count: batchStatusTotals.shipped,
+        ...STATUS_CARD_TONES.emerald,
+      },
+      {
+        value: 'issues',
+        label: isArabic ? 'المشكلات' : 'Issues',
+        count: batchStatusTotals.issues,
+        ...STATUS_CARD_TONES.rose,
+      },
+    ],
+    [batchStatusTotals, isArabic],
+  );
+
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    const source = batch?.orders ?? [];
+    let source = batch?.orders ?? [];
+    if (orderStatusFilter) {
+      source = source.filter((row) => {
+        if (orderStatusFilter === 'issues') return Boolean(row.issueNote || ISSUE.has(row.order.status));
+        const main = orderMainStatus(row.order);
+        if (orderStatusFilter === 'pending') {
+          return (
+            main === 'waiting_for_confirmation' ||
+            main === 'confirmed_waiting_for_admin_approval' ||
+            main === 'pending_approval' ||
+            main === 'pending'
+          );
+        }
+        if (orderStatusFilter === 'processing') {
+          return main === 'processing';
+        }
+        if (orderStatusFilter === 'ready') {
+          return main === 'ready_to_ship';
+        }
+        if (orderStatusFilter === 'shipped') {
+          return main === 'shipped' || main === 'delivered';
+        }
+        return true;
+      });
+    }
     if (!q) return source;
     return source.filter((row) => {
       const hay = `${row.order.orderNumber} ${row.order.recipientName ?? ''} ${row.order.company?.name ?? ''}`.toLowerCase();
       return hay.includes(q);
     });
-  }, [batch, search]);
+  }, [batch, search, orderStatusFilter]);
 
   const waitingConfirm = scoped.filter((order) => order.status === 'waiting_for_confirmation');
   const waitingApproval = scoped.filter(
@@ -226,9 +343,13 @@ export function OmsBatchDetailPage() {
       order.linkedOutboundOrder?.status === 'packed',
   );
   const delivery = scoped.filter((order) => order.status === 'shipped' || order.status === 'out_for_delivery');
-  const returns = scoped.filter((order) => order.status === 'failed_delivery');
+  const fieldDelivery = scoped.filter((order) => order.status === 'failed_delivery');
+  const pendingReceipts = scoped.filter((order) => order.status === 'return_pending_receipt');
   const cancellable = scoped.filter(
     (order) => isOmsAdminCancellableStatus(order.status) && order.status !== 'cancelled',
+  );
+  const cancelShipmentsEligible = scoped.filter(
+    (order) => order.status === 'ready_to_ship' && orderOperationalStage(order) === 'shipping_confirmation',
   );
   const printable = orders.filter((order) => labelReadiness(order) === 'ready');
 
@@ -359,7 +480,7 @@ export function OmsBatchDetailPage() {
     { header: isArabic ? 'الشركة' : 'Client', accessor: (row) => row.order.company?.name || '—' },
     {
       header: isArabic ? 'حالة الطلب' : 'Order status',
-      accessor: (row) => <OmsStatusBadge status={row.order.status} isArabic={isArabic} />,
+      accessor: (row) => <OmsStatusBadge status={orderMainStatus(row.order)} isArabic={isArabic} />,
     },
     { header: isArabic ? 'المرحلة' : 'Stage', accessor: (row) => <OmsStageBadge order={row.order} isArabic={isArabic} /> },
     {
@@ -653,11 +774,44 @@ export function OmsBatchDetailPage() {
                 }
               />
               <Action
-                show={returns.length > 0}
+                show={fieldDelivery.length > 0}
                 busy={busy}
-                label={isArabic ? `مرتجع (${returns.length})` : `Returned (${returns.length})`}
+                label={
+                  isArabic
+                    ? `مرتجع بانتظار الاستلام (${fieldDelivery.length})`
+                    : `Return Pending Receipt (${fieldDelivery.length})`
+                }
                 onClick={() =>
-                  void run('returned', () => chunkedOms(returns.map((order) => order.id), OmsApi.returnedBulk))
+                  void run('returned', () =>
+                    chunkedOms(fieldDelivery.map((order) => order.id), OmsApi.returnedBulk),
+                  )
+                }
+              />
+              <Action
+                show={pendingReceipts.length > 0}
+                busy={busy}
+                label={
+                  isArabic
+                    ? `تأكيد استلام المرتجع (${pendingReceipts.length})`
+                    : `Confirm Return Receipt (${pendingReceipts.length})`
+                }
+                onClick={() =>
+                  void run('confirm-receipt', () =>
+                    chunkedOms(
+                      pendingReceipts.map((order) => order.id),
+                      async (chunkIds) => {
+                        let failed = 0;
+                        await Promise.all(
+                          chunkIds.map((id) =>
+                            OmsApi.confirmReturnReceipt(id).catch(() => {
+                              failed++;
+                            }),
+                          ),
+                        );
+                        return { failed };
+                      },
+                    ),
+                  )
                 }
               />
               <Action
@@ -667,6 +821,31 @@ export function OmsBatchDetailPage() {
                 label={isArabic ? `إلغاء (${cancellable.length})` : `Cancel (${cancellable.length})`}
                 onClick={() =>
                   void run('cancel', () => chunkedOms(cancellable.map((order) => order.id), OmsApi.cancelBulk))
+                }
+              />
+              <Action
+                show={cancelShipmentsEligible.length > 0}
+                busy={busy}
+                variant="danger"
+                label={
+                  isArabic
+                    ? `إلغاء الشحنات (${cancelShipmentsEligible.length})`
+                    : `Cancel Shipments (${cancelShipmentsEligible.length})`
+                }
+                onClick={() =>
+                  void run('cancel-shipments', async () => {
+                    const results = await OmsApi.cancelShipments(
+                      id,
+                      cancelShipmentsEligible.map((o) => o.id),
+                    );
+                    const successful = results.filter(
+                      (r) => r.success && r.status !== 'refused' && r.status !== 'unsupported' && r.status !== 'error',
+                    ).length;
+                    const failed = results.length - successful;
+                    return isArabic
+                      ? `تم إلغاء ${successful} شحنة بنجاح${failed > 0 ? ` (فشل ${failed})` : ''}.`
+                      : `Successfully cancelled ${successful} shipment(s)${failed > 0 ? ` (${failed} failed)` : ''}.`;
+                  })
                 }
               />
               <Action
@@ -772,9 +951,29 @@ export function OmsBatchDetailPage() {
                   >
                     {isArabic ? `إزالة من المجموعة (${selected.size})` : `Remove from batch (${selected.size})`}
                   </button>
+                  {canEditShippingFee && (
+                    <button
+                      id="btn-batch-edit-shipping-fee-top"
+                      type="button"
+                      disabled={!!busy}
+                      onClick={() => setEditShippingFeeOpen(true)}
+                      className="rounded-lg bg-purple-600 hover:bg-purple-700 active:bg-purple-800 px-3.5 py-1.5 text-xs font-bold text-white shadow-xs focus:outline-none focus:ring-2 focus:ring-purple-400/50 transition-all cursor-pointer disabled:opacity-50"
+                    >
+                      <i className="fa-solid fa-dollar-sign text-[11px] me-1" aria-hidden="true" />
+                      {isArabic ? `تعديل رسوم الشحن (${selected.size})` : `Edit Shipping Fee (${selected.size})`}
+                    </button>
+                  )}
                 </>
               ) : null}
             </div>
+          </div>
+
+          <div className="mb-4">
+            <StatusCardNav
+              items={batchStatusItems}
+              value={orderStatusFilter}
+              onChange={(val) => setOrderStatusFilter(val)}
+            />
           </div>
 
           <div className="mb-3">
@@ -785,6 +984,42 @@ export function OmsBatchDetailPage() {
               className="w-full max-w-md rounded-lg border border-border-subtle px-3 py-2 text-sm"
             />
           </div>
+
+          {selected.size > 0 && (
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-2.5 rounded-xl border-2 border-primary/40 bg-surface-card p-2.5 shadow-md animate-enter">
+              <div className="flex items-center gap-2 px-1 text-sm font-bold text-text-strong">
+                <span className="inline-flex h-5 min-w-[1.25rem] px-1.5 items-center justify-center rounded-full bg-primary text-white text-xs font-bold shadow-xs">
+                  {selected.size}
+                </span>
+                <span>
+                  {isArabic ? `تم تحديد ${selected.size} طلب` : `${selected.size} selected`}
+                </span>
+              </div>
+              <div className="flex flex-wrap items-center gap-1.5">
+                {canEditShippingFee && (
+                  <button
+                    id="btn-batch-edit-shipping-fee-table"
+                    type="button"
+                    disabled={!!busy}
+                    onClick={() => setEditShippingFeeOpen(true)}
+                    className="inline-flex items-center gap-1.5 rounded-lg bg-purple-600 hover:bg-purple-700 active:bg-purple-800 px-3.5 py-1.5 text-xs font-bold text-white shadow-xs focus:outline-none focus:ring-2 focus:ring-purple-400/50 transition-all cursor-pointer disabled:opacity-50"
+                  >
+                    <i className="fa-solid fa-dollar-sign text-[11px]" aria-hidden="true" />
+                    <span>{isArabic ? `تعديل رسوم الشحن (${selected.size})` : `Edit Shipping Fee (${selected.size})`}</span>
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setSelected(new Set())}
+                  className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-medium text-text-muted hover:text-text-strong transition-all cursor-pointer"
+                >
+                  <i className="fa-solid fa-xmark text-[11px]" aria-hidden="true" />
+                  <span>{isArabic ? 'إلغاء التحديد' : 'Clear selection'}</span>
+                </button>
+              </div>
+            </div>
+          )}
+
           <DataTable
             columns={columns}
             rows={filtered}
@@ -795,6 +1030,40 @@ export function OmsBatchDetailPage() {
             onRowClick={(row) => navigate(`/orders/oms/${row.order.id}`)}
             empty={isArabic ? 'لا توجد طلبات في هذه المجموعة.' : 'This batch has no active orders.'}
           />
+
+          {/* ─── Selected Batch Orders Floating Bulk Action Bar (fixed bottom) ─── */}
+          {selected.size > 0 && (
+            <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 flex items-center gap-3 rounded-2xl bg-surface-card/95 px-5 py-3 shadow-2xl border-2 border-primary/50 backdrop-blur-md animate-enter">
+              <div className="flex items-center gap-2 text-sm font-bold text-text-strong">
+                <span className="inline-flex h-6 min-w-[1.5rem] px-2 items-center justify-center rounded-full bg-primary text-white text-xs font-bold shadow-xs">
+                  {selected.size}
+                </span>
+                <span className="whitespace-nowrap">
+                  {isArabic ? `تم تحديد ${selected.size} طلب` : `${selected.size} selected`}
+                </span>
+              </div>
+              <div className="h-4 w-px bg-border-subtle" />
+              {canEditShippingFee && (
+                <button
+                  id="btn-batch-edit-shipping-fee-floating"
+                  type="button"
+                  disabled={!!busy}
+                  onClick={() => setEditShippingFeeOpen(true)}
+                  className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-lg bg-purple-600 hover:bg-purple-700 active:bg-purple-800 px-4 py-2 text-xs font-bold text-white shadow-sm focus:outline-none focus:ring-2 focus:ring-purple-400/50 transition-all cursor-pointer disabled:opacity-50"
+                >
+                  <i className="fa-solid fa-dollar-sign text-[11px]" aria-hidden="true" />
+                  <span>{isArabic ? 'تعديل رسوم الشحن' : 'Edit Shipping Fee'}</span>
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => setSelected(new Set())}
+                className="text-xs font-medium text-text-muted hover:text-text-strong px-2 py-1 cursor-pointer"
+              >
+                {isArabic ? 'إلغاء' : 'Clear'}
+              </button>
+            </div>
+          )}
           {rowActions.modals}
           <OmsBulkShippingDetailsModal
             open={shippingOpen}
@@ -845,6 +1114,24 @@ export function OmsBatchDetailPage() {
               </form>
             </div>
           ) : null}
+
+          <OmsEditShippingFeeModal
+            open={editShippingFeeOpen}
+            orders={scoped}
+            onClose={() => {
+              setEditShippingFeeOpen(false);
+              setSelected(new Set());
+              void qc.invalidateQueries({ queryKey: QK.omsBatch(id) });
+              void qc.invalidateQueries({ queryKey: QK.omsBatches });
+              void qc.invalidateQueries({ queryKey: QK.omsOrders });
+            }}
+            onSuccess={() => {
+              void qc.invalidateQueries({ queryKey: QK.omsBatch(id) });
+              void qc.invalidateQueries({ queryKey: QK.omsBatches });
+              void qc.invalidateQueries({ queryKey: QK.omsOrders });
+            }}
+            isArabic={isArabic}
+          />
         </>
       )}
     </AdminListPageShell>

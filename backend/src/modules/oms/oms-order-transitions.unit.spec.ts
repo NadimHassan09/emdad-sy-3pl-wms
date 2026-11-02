@@ -75,15 +75,18 @@ describe('oms-order-transitions', () => {
     ).toThrow(/not allowed/i);
   });
 
-  it('allows mark_returned from delivered and Out for Delivery', () => {
+  it('creates return pending receipt from Field Delivery or delivered', () => {
     expect(
-      assertOmsTransition(OmsOrderStatus.delivered, 'mark_returned', 'system'),
-    ).toBe(OmsOrderStatus.returned);
+      assertOmsTransition(OmsOrderStatus.failed_delivery, 'mark_returned', 'admin'),
+    ).toBe(OmsOrderStatus.return_pending_receipt);
     expect(
-      assertOmsTransition(OmsOrderStatus.shipped, 'mark_returned', 'admin'),
-    ).toBe(OmsOrderStatus.returned);
+      assertOmsTransition(OmsOrderStatus.delivered, 'mark_returned', 'admin'),
+    ).toBe(OmsOrderStatus.return_pending_receipt);
+  });
+
+  it('confirms pending receipt into returned', () => {
     expect(
-      assertOmsTransition(OmsOrderStatus.out_for_delivery, 'mark_returned', 'system'),
+      assertOmsTransition(OmsOrderStatus.return_pending_receipt, 'mark_returned', 'system'),
     ).toBe(OmsOrderStatus.returned);
   });
 
@@ -94,6 +97,33 @@ describe('oms-order-transitions', () => {
     expect(
       assertOmsTransition(OmsOrderStatus.failed_delivery, 'resume_shipping', 'admin'),
     ).toBe(OmsOrderStatus.out_for_delivery);
+  });
+
+  it('allows recover from return pending receipt to OFD or delivered', () => {
+    expect(
+      assertOmsTransition(OmsOrderStatus.return_pending_receipt, 'resume_shipping', 'admin'),
+    ).toBe(OmsOrderStatus.out_for_delivery);
+    expect(
+      assertOmsTransition(OmsOrderStatus.return_pending_receipt, 'mark_delivered', 'admin'),
+    ).toBe(OmsOrderStatus.delivered);
+  });
+
+  it('blocks admin mark_returned from Out for Delivery — Field Delivery is the decision state', () => {
+    expect(() =>
+      assertOmsTransition(OmsOrderStatus.shipped, 'mark_returned', 'admin'),
+    ).toThrow(/not allowed/i);
+    expect(() =>
+      assertOmsTransition(OmsOrderStatus.out_for_delivery, 'mark_returned', 'admin'),
+    ).toThrow(/not allowed/i);
+  });
+
+  it('allows system mark_returned from OFD into pending receipt (provider return events)', () => {
+    expect(
+      assertOmsTransition(OmsOrderStatus.shipped, 'mark_returned', 'system'),
+    ).toBe(OmsOrderStatus.return_pending_receipt);
+    expect(
+      assertOmsTransition(OmsOrderStatus.out_for_delivery, 'mark_returned', 'system'),
+    ).toBe(OmsOrderStatus.return_pending_receipt);
   });
 
   it('moves waiting_for_confirmation to confirmed_waiting_for_admin_approval on admin_confirm and client_confirm', () => {

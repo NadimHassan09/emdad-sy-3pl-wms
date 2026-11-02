@@ -15,6 +15,18 @@ export type SilaBranchOption = {
   name: string;
 };
 
+export type SilaHubChoice = {
+  id: string;
+  name: string;
+  nearest: boolean;
+};
+
+export type SilaHubResolution = {
+  hubs: SilaHubChoice[];
+  nearestId: string | null;
+  nearestDetermined: boolean;
+};
+
 function readPoint(value: CoordRecord | undefined | null): LatLng | null {
   const lat = Number(value?.lat);
   const lng = Number(value?.lng);
@@ -97,4 +109,77 @@ export function pickNearestSilaBranch(
     if (!best || distance < best.distance) best = { branch, distance };
   }
   return best?.branch ?? usable[0];
+}
+
+/**
+ * Hub list for UI + create. Does not guess a nearest hub when coordinates
+ * cannot be resolved — the operator must pick one.
+ */
+export function resolveSilaHubOptions(
+  branches: SilaBranchOption[],
+  destination: {
+    governorate?: string | null;
+    neighborhood?: string | null;
+    lat?: number | null;
+    lng?: number | null;
+  },
+  index: LocationIndexFile = locationIndex as LocationIndexFile,
+): SilaHubResolution {
+  const usable = branches.filter((branch) => branch.id?.trim() && branch.name?.trim());
+  if (usable.length === 0) {
+    return { hubs: [], nearestId: null, nearestDetermined: false };
+  }
+  if (usable.length === 1) {
+    return {
+      hubs: [{ id: usable[0].id.trim(), name: usable[0].name.trim(), nearest: true }],
+      nearestId: usable[0].id.trim(),
+      nearestDetermined: true,
+    };
+  }
+
+  const governorate = destination.governorate?.trim() || '';
+  const neighborhood = destination.neighborhood?.trim() || '';
+  const explicit = readPoint({ lat: destination.lat, lng: destination.lng });
+  const receiver =
+    explicit ??
+    (governorate && neighborhood ? pointForPlace(index, governorate, neighborhood) : null);
+  if (!receiver || !governorate) {
+    return {
+      hubs: usable.map((branch) => ({
+        id: branch.id.trim(),
+        name: branch.name.trim(),
+        nearest: false,
+      })),
+      nearestId: null,
+      nearestDetermined: false,
+    };
+  }
+
+  let best: { id: string; distance: number } | null = null;
+  const scored: Array<{ id: string; name: string; distance: number | null }> = [];
+  for (const branch of usable) {
+    const place = silaBranchPlaceName(branch.name);
+    const point = pointForPlace(index, governorate, place);
+    const distance = point ? haversineDistanceKm(receiver, point) : null;
+    scored.push({ id: branch.id.trim(), name: branch.name.trim(), distance });
+    if (distance != null && (!best || distance < best.distance)) {
+      best = { id: branch.id.trim(), distance };
+    }
+  }
+  if (!best) {
+    return {
+      hubs: scored.map((row) => ({ id: row.id, name: row.name, nearest: false })),
+      nearestId: null,
+      nearestDetermined: false,
+    };
+  }
+  return {
+    hubs: scored.map((row) => ({
+      id: row.id,
+      name: row.name,
+      nearest: row.id === best!.id,
+    })),
+    nearestId: best.id,
+    nearestDetermined: true,
+  };
 }

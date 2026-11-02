@@ -1,4 +1,4 @@
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import {
   ArrayMinSize,
   IsArray,
@@ -24,8 +24,8 @@ export class CreateClientOmsOrderLineDto {
   productId!: string;
 
   @Type(() => Number)
-  @IsInt({ message: 'Requested quantity must be a whole number (no decimals).' })
-  @IsPositive({ message: 'Requested quantity must be a positive whole number greater than zero.' })
+  @IsNumber({ maxDecimalPlaces: 4 }, { message: 'Requested quantity must be a number with up to 4 decimal places.' })
+  @IsPositive({ message: 'Requested quantity must be a positive number greater than zero.' })
   requestedQuantity!: number;
 
   @IsOptional()
@@ -68,9 +68,11 @@ export class CreateClientOmsOrderDto {
   @MinLength(1)
   addressLine1!: string;
 
-  @IsOptional()
   @IsString()
-  addressLine2?: string;
+  @IsNotEmpty({ message: 'Street / detailed address is required and must be more than 10 characters.' })
+  @Transform(({ value }: { value: unknown }) => (typeof value === 'string' ? value.trim() : value))
+  @MinLength(11, { message: 'Street / detailed address must be more than 10 characters.' })
+  addressLine2!: string;
 
   @IsOptional()
   @Type(() => Number)

@@ -32,6 +32,7 @@ class ListProductsQueryDto extends pagination_dto_1.PaginationDto {
     sku;
     productBarcode;
     includeArchived;
+    status;
 }
 exports.ListProductsQueryDto = ListProductsQueryDto;
 __decorate([
@@ -70,4 +71,10 @@ __decorate([
     (0, class_validator_1.IsBoolean)(),
     __metadata("design:type", Boolean)
 ], ListProductsQueryDto.prototype, "includeArchived", void 0);
+__decorate([
+    (0, query_transform_1.EmptyToUndefined)(),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    __metadata("design:type", String)
+], ListProductsQueryDto.prototype, "status", void 0);
 //# sourceMappingURL=list-products-query.dto.js.map

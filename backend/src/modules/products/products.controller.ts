@@ -7,8 +7,10 @@ import {
   Patch,
   Post,
   Query,
+  Res,
   UseGuards,
 } from '@nestjs/common';
+import type { Response } from 'express';
 
 import { CurrentUser } from '../../common/auth/current-user.decorator';
 import { AuthPrincipal } from '../../common/auth/current-user.types';
@@ -32,6 +34,23 @@ export class ProductsController {
   @Get()
   list(@CurrentUser() user: AuthPrincipal, @Query() query: ListProductsQueryDto) {
     return this.products.list(user, query);
+  }
+
+  @Get('export')
+  async export(
+    @CurrentUser() user: AuthPrincipal,
+    @Query() query: ListProductsQueryDto,
+    @Res() res: Response,
+  ) {
+    const buffer = await this.products.exportXlsx(user, query);
+    const filename = `products-export-${new Date().toISOString().slice(0, 10)}.xlsx`;
+    res.setHeader(
+      'Content-Type',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    );
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.setHeader('Content-Length', buffer.length);
+    res.end(buffer);
   }
 
   @Get('next-sku')

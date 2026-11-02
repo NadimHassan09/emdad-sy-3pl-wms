@@ -43,4 +43,9 @@ export class ListLocationsLookupQueryDto extends PaginationDto {
   @IsOptional()
   @IsBoolean()
   includeArchived?: boolean;
+
+  @EmptyToUndefined()
+  @IsOptional()
+  @IsUuidLoose()
+  excludeId?: string;
 }

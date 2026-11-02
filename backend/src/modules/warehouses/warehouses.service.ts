@@ -73,19 +73,44 @@ export class WarehousesService {
     return created;
   }
 
-  list(query?: ListWarehousesQueryDto) {
+  async list(query?: ListWarehousesQueryDto) {
     const includeInactive = coerceOptionalBool(query?.includeInactive) === true;
     const where: Prisma.WarehouseWhereInput = {};
     if (!includeInactive) {
       where.status = 'active';
     }
-    return this.prisma.warehouse.findMany({ where, orderBy: { code: 'asc' } });
+    const rows = await this.prisma.warehouse.findMany({
+      where,
+      orderBy: { code: 'asc' },
+      include: {
+        _count: {
+          select: { locations: true },
+        },
+      },
+    });
+    return rows.map(({ _count, ...wh }) => ({
+      ...wh,
+      locationCount: _count?.locations ?? 0,
+      _count,
+    }));
   }
 
   async findById(id: string) {
-    const wh = await this.prisma.warehouse.findUnique({ where: { id } });
+    const wh = await this.prisma.warehouse.findUnique({
+      where: { id },
+      include: {
+        _count: {
+          select: { locations: true },
+        },
+      },
+    });
     if (!wh) throw new NotFoundException('Warehouse not found.');
-    return wh;
+    const { _count, ...rest } = wh;
+    return {
+      ...rest,
+      locationCount: _count?.locations ?? 0,
+      _count,
+    };
   }
 
   /**

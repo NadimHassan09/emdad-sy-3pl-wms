@@ -17,6 +17,7 @@ const common_1 = require("@nestjs/common");
 const current_user_decorator_1 = require("../../common/auth/current-user.decorator");
 const parse_uuid_loose_pipe_1 = require("../../common/pipes/parse-uuid-loose.pipe");
 const cod_records_service_1 = require("./cod-records.service");
+const cod_export_util_1 = require("./cod-export.util");
 const cod_dto_1 = require("./dto/cod.dto");
 let CodController = class CodController {
     cod;
@@ -25,6 +26,21 @@ let CodController = class CodController {
     }
     list(user, query) {
         return this.cod.list(user, query);
+    }
+    setStatusByScan(user, dto) {
+        return this.cod.setStatusByScan(user, dto.code, dto.status);
+    }
+    async exportRecords(user, query, res) {
+        const { buffer, filename } = await this.cod.exportXlsx(user, query);
+        res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        res.setHeader('Content-Disposition', (0, cod_export_util_1.codExportContentDisposition)(filename));
+        res.send(buffer);
+    }
+    async exportRecordsPdf(user, query, res) {
+        const { buffer, filename } = await this.cod.exportPdf(user, query);
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Disposition', (0, cod_export_util_1.codExportContentDisposition)(filename));
+        res.send(buffer);
     }
     findOne(user, id) {
         return this.cod.findById(id, user);
@@ -51,6 +67,34 @@ __decorate([
     __metadata("design:paramtypes", [Object, cod_dto_1.ListCodRecordsQueryDto]),
     __metadata("design:returntype", void 0)
 ], CodController.prototype, "list", null);
+__decorate([
+    (0, common_1.Post)('status-by-scan'),
+    __param(0, (0, current_user_decorator_1.CurrentUser)()),
+    __param(1, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, cod_dto_1.SetCodStatusByScanDto]),
+    __metadata("design:returntype", void 0)
+], CodController.prototype, "setStatusByScan", null);
+__decorate([
+    (0, common_1.Get)('records/export'),
+    (0, common_1.Header)('Cache-Control', 'no-store'),
+    __param(0, (0, current_user_decorator_1.CurrentUser)()),
+    __param(1, (0, common_1.Query)()),
+    __param(2, (0, common_1.Res)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, cod_dto_1.ListCodRecordsQueryDto, Object]),
+    __metadata("design:returntype", Promise)
+], CodController.prototype, "exportRecords", null);
+__decorate([
+    (0, common_1.Get)('records/export.pdf'),
+    (0, common_1.Header)('Cache-Control', 'no-store'),
+    __param(0, (0, current_user_decorator_1.CurrentUser)()),
+    __param(1, (0, common_1.Query)()),
+    __param(2, (0, common_1.Res)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, cod_dto_1.ListCodRecordsQueryDto, Object]),
+    __metadata("design:returntype", Promise)
+], CodController.prototype, "exportRecordsPdf", null);
 __decorate([
     (0, common_1.Get)('records/:id'),
     __param(0, (0, current_user_decorator_1.CurrentUser)()),

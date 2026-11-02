@@ -62,6 +62,7 @@ class UpdateShippingDetailsDto {
     shippingMethod;
     shippingProviderCode;
     shippingServiceId;
+    shippingHubId;
     recipientName;
     recipientPhone;
     destinationAddress;
@@ -83,6 +84,10 @@ class UpdateShippingDetailsDto {
     addressLine1;
     addressLine2;
     currency;
+    codCollectionCurrency;
+    codAmount;
+    shippingQuotedPrice;
+    shippingQuotedCurrency;
     shippingPackages;
 }
 exports.UpdateShippingDetailsDto = UpdateShippingDetailsDto;
@@ -106,6 +111,13 @@ __decorate([
     (0, class_validator_1.MaxLength)(128),
     __metadata("design:type", Object)
 ], UpdateShippingDetailsDto.prototype, "shippingServiceId", void 0);
+__decorate([
+    (0, query_transform_1.EmptyToUndefined)(),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.MaxLength)(64),
+    __metadata("design:type", Object)
+], UpdateShippingDetailsDto.prototype, "shippingHubId", void 0);
 __decorate([
     (0, query_transform_1.EmptyToUndefined)(),
     (0, class_validator_1.IsOptional)(),
@@ -251,6 +263,36 @@ __decorate([
     (0, class_validator_1.MaxLength)(8),
     __metadata("design:type", Object)
 ], UpdateShippingDetailsDto.prototype, "currency", void 0);
+__decorate([
+    (0, query_transform_1.EmptyToUndefined)(),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.MaxLength)(8),
+    __metadata("design:type", Object)
+], UpdateShippingDetailsDto.prototype, "codCollectionCurrency", void 0);
+__decorate([
+    (0, query_transform_1.EmptyToUndefined)(),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_transformer_1.Type)(() => Number),
+    (0, class_validator_1.IsNumber)(),
+    (0, class_validator_1.Min)(0),
+    __metadata("design:type", Object)
+], UpdateShippingDetailsDto.prototype, "codAmount", void 0);
+__decorate([
+    (0, query_transform_1.EmptyToUndefined)(),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_transformer_1.Type)(() => Number),
+    (0, class_validator_1.IsNumber)(),
+    (0, class_validator_1.Min)(0),
+    __metadata("design:type", Object)
+], UpdateShippingDetailsDto.prototype, "shippingQuotedPrice", void 0);
+__decorate([
+    (0, query_transform_1.EmptyToUndefined)(),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.MaxLength)(8),
+    __metadata("design:type", Object)
+], UpdateShippingDetailsDto.prototype, "shippingQuotedCurrency", void 0);
 __decorate([
     (0, query_transform_1.EmptyToUndefined)(),
     (0, class_validator_1.IsOptional)(),

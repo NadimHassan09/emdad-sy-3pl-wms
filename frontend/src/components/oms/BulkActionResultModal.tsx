@@ -1,4 +1,5 @@
 import type {
+  CancelShipmentResult,
   OmsBulkApproveResponse,
   OmsBulkCancelResponse,
   OmsBulkConfirmResponse,
@@ -12,7 +13,8 @@ type ActionResult =
   | OmsBulkConfirmResponse
   | OmsBulkCancelResponse
   | OmsBulkStatusTransitionResponse
-  | BulkIdsResponse;
+  | BulkIdsResponse
+  | CancelShipmentResult[];
 
 type ResultItem = {
   orderNumber: string | null;
@@ -26,15 +28,19 @@ type FailureItem = {
 };
 
 function isApproveResponse(r: ActionResult): r is OmsBulkApproveResponse {
-  return 'approved' in r;
+  return !Array.isArray(r) && 'approved' in r;
 }
 
 function isConfirmResponse(r: ActionResult): r is OmsBulkConfirmResponse {
-  return 'confirmed' in r;
+  return !Array.isArray(r) && 'confirmed' in r;
 }
 
 function isCancelResponse(r: ActionResult): r is OmsBulkCancelResponse {
-  return 'cancelled' in r;
+  return !Array.isArray(r) && 'cancelled' in r;
+}
+
+function isCancelShipmentArray(r: ActionResult): r is CancelShipmentResult[] {
+  return Array.isArray(r);
 }
 
 function normalizeResult(result: ActionResult): {
@@ -87,6 +93,31 @@ function normalizeResult(result: ActionResult): {
       total: result.requested,
       successCount: result.cancelled,
       failCount: result.failed,
+    };
+  }
+  if (isCancelShipmentArray(result)) {
+    const succeeded: ResultItem[] = [];
+    const failures: FailureItem[] = [];
+    for (const item of result) {
+      if (item.success && item.status !== 'refused' && item.status !== 'unsupported' && item.status !== 'error') {
+        succeeded.push({
+          orderNumber: item.orderNumber,
+          status: item.status,
+          note: item.message,
+        });
+      } else {
+        failures.push({
+          orderNumber: item.orderNumber,
+          error: item.message || item.status,
+        });
+      }
+    }
+    return {
+      succeeded,
+      failures,
+      total: result.length,
+      successCount: succeeded.length,
+      failCount: failures.length,
     };
   }
   return {

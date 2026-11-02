@@ -8,6 +8,7 @@ exports.OMS_RETURN_ELIGIBLE_STATUSES = new Set([
     client_1.OmsOrderStatus.shipped,
     client_1.OmsOrderStatus.out_for_delivery,
     client_1.OmsOrderStatus.failed_delivery,
+    client_1.OmsOrderStatus.return_pending_receipt,
 ]);
 function isOmsReturnEligibleStatus(status) {
     if (!status)

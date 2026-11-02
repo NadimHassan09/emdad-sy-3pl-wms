@@ -3,6 +3,7 @@ import {
   Injectable,
   Logger,
   NotFoundException,
+  OnModuleInit,
 } from '@nestjs/common';
 import {
   CarrierShipmentStatus,
@@ -21,8 +22,14 @@ import { convertCodCollection } from './cod-collection';
 import { ShippingFxService } from './shipping-fx.service';
 import { BabelApiError } from './providers/babel-express/babel-express.http-client';
 import { parsePhoneForBabel, resolveBabelCodCurrency } from './providers/babel-express/babel-shipment.mapper';
-import { BABEL_EXPRESS_CODE, ShippingProviderRegistry } from './shipping-provider.registry';
-import { resolveShippingCarrierName } from './shipping-carrier-resolver';
+import { BABEL_EXPRESS_CODE, SILA_SY_CODE, SENA_EXPRESS_CODE, ShippingProviderRegistry } from './shipping-provider.registry';
+import {
+  displayNameForProviderCode,
+  normalizeCourierDisplayName,
+  resolveShippingCarrierName,
+  serviceIdBelongsToProvider,
+} from './shipping-carrier-resolver';
+import { mergeShipmentRawMeta } from './providers/sila-sy/sila-meta.util';
 import { assertCarrierShippingReady, type ShippingConfigFields } from './shipping-config.util';
 import {
   classifyShippingError,
@@ -69,6 +76,8 @@ export type ShippingProviderAdminView = {
   lastTestedAt: string | null;
   lastTestStatus: string | null;
   lastErrorSafe: string | null;
+  webhookRegistered: boolean;
+  supportsWebhooks: boolean;
 };
 
 function maskUsername(username: string | null | undefined): string | null {
@@ -116,6 +125,81 @@ function roundCoord(n: number): number {
   return Math.round(n * 1e5) / 1e5;
 }
 
+function confirmedServiceIdForProvider(
+  providerCode: string,
+  order: {
+    shippingServiceId?: string | null;
+    omsOrder?: { shippingServiceId?: string | null } | null;
+  },
+): string | null {
+  const matching = [order.shippingServiceId, order.omsOrder?.shippingServiceId].find((value) =>
+    serviceIdBelongsToProvider(value, providerCode),
+  );
+  if (matching) return matching || null;
+  if (providerCode === BABEL_EXPRESS_CODE) return `${BABEL_EXPRESS_CODE}:address`;
+  return null;
+}
+
+function confirmedCarrierDisplayName(params: {
+  providerCode: string;
+  providerName: string;
+  serviceId: string | null;
+  raw: unknown;
+}): string {
+  return (
+    resolveShippingCarrierName({
+      carrier: null,
+      shippingProviderCode: params.providerCode,
+      shippingServiceId: params.serviceId,
+      outboundOrder: {
+        carrier: null,
+        shippingProviderCode: params.providerCode,
+        shippingServiceId: params.serviceId,
+        carrierShipments: [
+          {
+            status: 'created',
+            supersededAt: null,
+            providerCode: params.providerCode,
+            rawResultMeta: params.raw as any,
+          },
+        ],
+      },
+    }) || (params.providerCode === BABEL_EXPRESS_CODE ? 'Babel Express' : params.providerName)
+  );
+}
+
+function leftoverAwbCompatibleWithProvider(
+  providerCode: string,
+  leftoverCarrier: string | null | undefined,
+): boolean {
+  const leftover = leftoverCarrier?.trim() || '';
+  if (!leftover) return true;
+  const selectedDisplay = displayNameForProviderCode(providerCode);
+  if (selectedDisplay) {
+    return normalizeCourierDisplayName(leftover) === selectedDisplay;
+  }
+  if (providerCode === SILA_SY_CODE) {
+    return !leftover.toLowerCase().includes('babel');
+  }
+  return true;
+}
+
+function confirmedCarrierIdentityPatch(params: {
+  providerCode: string;
+  providerName: string;
+  serviceId: string | null;
+  trackingNumber: string | null;
+  raw: unknown;
+}) {
+  const carrier = confirmedCarrierDisplayName(params);
+  return {
+    carrier,
+    trackingNumber: params.trackingNumber?.trim() || null,
+    shippingProviderCode: params.providerCode,
+    shippingServiceId: params.serviceId,
+  };
+}
+
 export type QuoteDestinationRatesResult = {
   inSelectedArea: boolean | null;
   quotes: ShippingRateQuote[];
@@ -123,7 +207,7 @@ export type QuoteDestinationRatesResult = {
 };
 
 @Injectable()
-export class ShippingService {
+export class ShippingService implements OnModuleInit {
   private readonly logger = new Logger(ShippingService.name);
 
   constructor(
@@ -136,6 +220,25 @@ export class ShippingService {
     private readonly addressResolve: AddressResolveService,
     private readonly fx: ShippingFxService,
   ) {}
+
+  async onModuleInit(): Promise<void> {
+    await this.ensureSeedProviders();
+  }
+
+  async ensureSeedProviders(): Promise<void> {
+    const seed = [
+      { code: BABEL_EXPRESS_CODE, name: 'Babel Express' },
+      { code: SILA_SY_CODE, name: 'Sila-SY.com' },
+      { code: SENA_EXPRESS_CODE, name: 'شركة سينا (SENA Express)' },
+    ];
+    for (const p of seed) {
+      await this.prisma.shippingProvider.upsert({
+        where: { code: p.code },
+        create: { code: p.code, name: p.name, enabled: true },
+        update: { name: p.name },
+      });
+    }
+  }
 
   private static readonly ORIGIN_ADDRESS_ID = 'default';
 
@@ -372,6 +475,7 @@ export class ShippingService {
       volumeCbm: dto.volumeCbm ?? null,
       codAmount: dto.codAmount ?? null,
       parts: dto.parts?.map((p) => Number(p.weight)) ?? null,
+      hubId: dto.hubId?.trim() || '',
       gov: dto.governorate?.trim() || '',
       city: dto.city?.trim() || '',
       hood: dto.neighborhood?.trim() || '',
@@ -507,6 +611,7 @@ export class ShippingService {
             neighborhood: dto.neighborhood,
             codAmount: dto.codAmount ?? undefined,
             currency: dto.rateCurrency ?? undefined,
+            ...(dto.hubId?.trim() ? { hubId: dto.hubId.trim() } : {}),
             ...(dto.parts && dto.parts.length > 0
               ? {
                   parts: dto.parts.map((p) => ({
@@ -552,6 +657,13 @@ export class ShippingService {
               restrictions: res.restrictions,
               providerName: res.providerName ?? row.name,
               logoUrl: res.logoUrl,
+              ...(res.hubs && res.hubs.length > 0
+                ? {
+                    hubs: res.hubs,
+                    nearestHubId: res.nearestHubId ?? null,
+                    nearestHubDetermined: Boolean(res.nearestHubDetermined),
+                  }
+                : {}),
             });
           }
         } catch (err) {
@@ -644,6 +756,16 @@ export class ShippingService {
         ? Number(input.existingId)
         : null;
     if (existing != null && Number.isFinite(existing) && existing > 0) {
+      const valid = await this.babelAddress.validateNeighbourhoodId(existing, {
+        governorate: input.governorate,
+        cityRegion: input.cityRegion,
+        townNeighborhood: input.townNeighborhood,
+      });
+      if (!valid) {
+        throw new BadRequestException(
+          `Babel neighbourhood ID ${existing} is invalid or does not match the delivery governorate/city.`,
+        );
+      }
       return existing;
     }
     return this.babelAddress.resolveNeighbourhoodId({
@@ -747,6 +869,16 @@ export class ShippingService {
       params.quotedCurrency?.trim() ||
       params.quoteFingerprint?.currency?.trim() ||
       'USD';
+    const hubId = (params.fields.shippingHubId || '').trim();
+    if (
+      String(params.fields.shippingDeliveryType) === 'hub' &&
+      params.quoteFingerprint &&
+      (params.quoteFingerprint.hubId || '').trim() !== hubId
+    ) {
+      throw new BadRequestException(
+        'Quote is stale after hub selection changed. Refresh the quote and confirm the new rate before sending.',
+      );
+    }
 
     if (
       params.quoteFingerprint &&
@@ -762,6 +894,7 @@ export class ShippingService {
         weightKg: params.fields.shippingPackageType === 'envelope' ? 1 : weight,
         destinationKey,
         partsKey: params.partsKey ?? params.quoteFingerprint.partsKey ?? '',
+        hubId,
       })
     ) {
       this.logger.debug(
@@ -788,6 +921,7 @@ export class ShippingService {
         governorate: params.governorate ?? undefined,
         city: params.city ?? undefined,
         neighborhood: params.neighborhood ?? undefined,
+        ...(hubId ? { hubId } : {}),
       });
     } catch (err) {
       if (err instanceof BadRequestException) throw err;
@@ -812,21 +946,26 @@ export class ShippingService {
   async connectProvider(
     code: string,
     username: string,
-    password: string,
-    userId: string,
+    password?: string,
+    userId?: string,
+    webhookSecret?: string,
   ): Promise<ShippingProviderAdminView> {
     const provider = await this.requireProvider(code);
     if (!this.registry.has(code)) {
       throw new BadRequestException(`Provider "${code}" is not supported.`);
     }
+    const cleanUser = username.trim();
+    const cleanPass = password?.trim() || (code === SILA_SY_CODE || code === SENA_EXPRESS_CODE ? 'N/A' : '');
+    const cleanSecret = webhookSecret?.trim() || undefined;
+
     const adapter = this.registry.get(code);
-    const test = await adapter.testConnection({ username, password });
+    const test = await adapter.testConnection({ username: cleanUser, password: cleanPass });
     if (!test.ok) {
       throw new BadRequestException(test.message ?? 'Connection test failed.');
     }
 
-    const encryptedUsername = this.encryption.encrypt(username);
-    const encryptedPassword = this.encryption.encrypt(password);
+    const encryptedUsername = this.encryption.encrypt(cleanUser);
+    const encryptedPassword = this.encryption.encrypt(cleanPass);
 
     await this.prisma.shippingProviderConnection.upsert({
       where: { providerId: provider.id },
@@ -835,6 +974,7 @@ export class ShippingService {
         status: ShippingProviderConnectionStatus.connected,
         encryptedUsername,
         encryptedPassword,
+        webhookSecret: cleanSecret,
         connectedByUserId: userId,
         lastTestedAt: new Date(),
         lastTestStatus: 'ok',
@@ -844,6 +984,7 @@ export class ShippingService {
         status: ShippingProviderConnectionStatus.connected,
         encryptedUsername,
         encryptedPassword,
+        ...(cleanSecret ? { webhookSecret: cleanSecret } : {}),
         connectedByUserId: userId,
         lastTestedAt: new Date(),
         lastTestStatus: 'ok',
@@ -942,6 +1083,7 @@ export class ShippingService {
             district: true,
             addressLine1: true,
             shippingServiceId: true,
+            shippingHubId: true,
           },
         },
       },
@@ -1029,21 +1171,34 @@ export class ShippingService {
     }
 
     // Partial success reuse: AWB already stored on outbound or linked OMS — never call provider again.
+    // Do not reuse a previous carrier's AWB after the merchant selected a different provider.
     const existingAwb =
       order.trackingNumber?.trim() ||
       order.omsOrder?.trackingNumber?.trim() ||
       null;
-    if (existingAwb) {
-      await this.persistCreatedFromExistingAwb({
-        outboundOrderId,
-        companyId: order.companyId,
-        status: order.status,
-        providerCode: order.shippingProviderCode?.trim() || BABEL_EXPRESS_CODE,
-        awb: existingAwb,
-        carrierLabel: order.carrier ?? order.omsOrder?.carrier ?? null,
-        omsOrderId: order.omsOrder?.id ?? null,
+    const selectedProvider = order.shippingProviderCode?.trim() || BABEL_EXPRESS_CODE;
+    const leftoverCarrier = order.carrier ?? order.omsOrder?.carrier ?? null;
+    if (existingAwb && leftoverAwbCompatibleWithProvider(selectedProvider, leftoverCarrier)) {
+      const otherProviderAwb = await this.prisma.carrierShipment.findFirst({
+        where: {
+          outboundOrderId,
+          providerCode: { not: selectedProvider },
+          OR: [{ trackingNumber: existingAwb }, { externalAwb: existingAwb }],
+        },
+        select: { id: true },
       });
-      return;
+      if (!otherProviderAwb) {
+        await this.persistCreatedFromExistingAwb({
+          outboundOrderId,
+          companyId: order.companyId,
+          status: order.status,
+          providerCode: selectedProvider,
+          awb: existingAwb,
+          carrierLabel: leftoverCarrier,
+          omsOrderId: order.omsOrder?.id ?? null,
+        });
+        return;
+      }
     }
 
     const providerCode = order.shippingProviderCode?.trim() || BABEL_EXPRESS_CODE;
@@ -1384,6 +1539,7 @@ export class ShippingService {
         receiverPhone: phoneTail(order.recipientPhone),
         receiverCity,
         receiverNeighborhood,
+        receiverAddress: address.trim(),
         senderName: pickup.name,
         senderPhone: phoneTail(pickup.phoneLocal),
         senderNeighborhood: pickup.neighborhood ?? pickup.address,
@@ -1453,6 +1609,22 @@ export class ShippingService {
           // Non-COD: amount 0 disables COD per Babel OpenAPI. COD: business amount + currency.
           codAmount: isCod && Number.isFinite(codAmount) ? codAmount : 0,
           currency: codCurrency,
+          items: (order.lines ?? []).map((line) => ({
+            name: line.product?.name ?? 'item',
+            quantity: Math.max(1, Number(line.requestedQuantity) || 1),
+            weight:
+              line.product?.weightKg != null && Number(line.product.weightKg) > 0
+                ? Number(line.product.weightKg)
+                : 0.1,
+          })),
+          ...(order.shippingDeliveryType === 'hub'
+            ? {
+                hubId:
+                  order.shippingHubId ??
+                  order.omsOrder?.shippingHubId ??
+                  undefined,
+              }
+            : {}),
         },
       );
 
@@ -1472,10 +1644,9 @@ export class ShippingService {
         }
 
         const courierTracking = result.trackingNumber?.trim() || '';
-        if (provider.code === 'SILA_SY' && !courierTracking) {
-          throw new Error('Sila shipment is missing the courier tracking number.');
-        }
-        const storedTracking = courierTracking || result.awb.trim();
+        // Sila's cargo id stays on externalAwb. The carrier AWB may arrive later.
+        const storedTracking =
+          provider.code === 'SILA_SY' ? courierTracking || null : courierTracking || result.awb.trim();
         await tx.carrierShipment.update({
           where: { id: claimId },
           data: {
@@ -1485,6 +1656,7 @@ export class ShippingService {
             lastErrorSafe: null,
             rawResultMeta: {
               ...(result.raw && typeof result.raw === 'object' ? (result.raw as object) : { awb: result.awb }),
+              ...(result.partBarcodes ? { partBarcodes: result.partBarcodes } : {}),
               codCollection: {
                 originalAmount,
                 originalCurrency: orderCurrency ?? null,
@@ -1498,27 +1670,18 @@ export class ShippingService {
           },
         });
 
-        const resolvedCarrierName =
-          resolveShippingCarrierName({
-            carrier: order.carrier,
-            shippingProviderCode: provider.code,
-            shippingServiceId: order.shippingServiceId ?? order.omsOrder?.shippingServiceId,
-            outboundOrder: {
-              ...order,
-              carrierShipments: [
-                {
-                  providerCode: provider.code,
-                  rawResultMeta: (result.raw ?? { awb: result.awb }) as any,
-                },
-              ],
-            },
-          }) || (provider.code === BABEL_EXPRESS_CODE ? 'Babel Express' : provider.name);
+        const identity = confirmedCarrierIdentityPatch({
+          providerCode: provider.code,
+          providerName: provider.name,
+          serviceId: confirmedServiceIdForProvider(provider.code, order),
+          trackingNumber: storedTracking,
+          raw: result.raw ?? { awb: result.awb },
+        });
 
         await tx.outboundOrder.update({
           where: { id: outboundOrderId },
           data: {
-            carrier: resolvedCarrierName,
-            trackingNumber: courierTracking,
+            ...identity,
             shippingPickupType: 'address',
           },
         });
@@ -1526,10 +1689,7 @@ export class ShippingService {
         if (order.omsOrder?.id) {
           await tx.omsOrder.update({
             where: { id: order.omsOrder.id },
-            data: {
-              carrier: resolvedCarrierName,
-              trackingNumber: courierTracking,
-            },
+            data: identity,
           });
         }
       });
@@ -1554,15 +1714,39 @@ export class ShippingService {
         try {
           const found = await adapter.findShipmentByReference({ username, password }, reference);
           if (found?.awb) {
+            const reconciledTracking =
+              provider.code === 'SILA_SY'
+                ? found.trackingNumber?.trim() || null
+                : found.trackingNumber ?? found.awb;
+            const identity = confirmedCarrierIdentityPatch({
+              providerCode: provider.code,
+              providerName: provider.name,
+              serviceId: confirmedServiceIdForProvider(provider.code, order),
+              trackingNumber: reconciledTracking,
+              raw: { awb: found.awb },
+            });
             await this.prisma.carrierShipment.update({
               where: { id: claimId },
               data: {
                 status: CarrierShipmentStatus.created,
                 externalAwb: found.awb,
-                trackingNumber: found.trackingNumber ?? found.awb,
+                trackingNumber: reconciledTracking,
                 lastErrorSafe: null,
               },
             });
+            await this.prisma.outboundOrder.update({
+              where: { id: outboundOrderId },
+              data: {
+                ...identity,
+                shippingPickupType: 'address',
+              },
+            });
+            if (order.omsOrder?.id) {
+              await this.prisma.omsOrder.update({
+                where: { id: order.omsOrder.id },
+                data: identity,
+              });
+            }
             this.logger.warn(
               JSON.stringify({
                 msg: 'carrier_ambiguous_reconciled',
@@ -1618,13 +1802,21 @@ export class ShippingService {
     message: string,
     failure?: ShippingFailure,
   ) {
+    const existing = await this.prisma.carrierShipment.findUnique({
+      where: { id: claimId },
+      select: { rawResultMeta: true },
+    });
     await this.prisma.carrierShipment.update({
       where: { id: claimId },
       data: {
         status: CarrierShipmentStatus.failed,
         lastErrorSafe: (failure ? packShippingError(failure) : message).slice(0, 2000),
         ...(failure
-          ? { rawResultMeta: { shippingError: failure } as Prisma.InputJsonValue }
+          ? {
+              rawResultMeta: mergeShipmentRawMeta(existing?.rawResultMeta, {
+                shippingError: failure,
+              }) as Prisma.InputJsonValue,
+            }
           : {}),
       },
     });
@@ -1846,6 +2038,7 @@ export class ShippingService {
       }
     }
     const connected = conn?.status === ShippingProviderConnectionStatus.connected;
+    const adapter = this.registry.has(provider.code) ? this.registry.get(provider.code) : null;
     return {
       code: provider.code,
       name: provider.name,
@@ -1863,6 +2056,8 @@ export class ShippingService {
       lastTestedAt: conn?.lastTestedAt?.toISOString() ?? null,
       lastTestStatus: conn?.lastTestStatus ?? null,
       lastErrorSafe: conn?.lastErrorSafe ?? null,
+      webhookRegistered: Boolean(conn?.webhookSecret?.trim()),
+      supportsWebhooks: Boolean(adapter?.capabilities?.supportsWebhooks),
     };
   }
 
@@ -1928,6 +2123,239 @@ export class ShippingService {
         lastErrorSafe: params.error.slice(0, 500),
       },
     });
+  }
+
+  /**
+   * Submits a reshipment request to the original carrier API for an order being rolled back to Out for Delivery.
+   * Returns { ok: true, awb, trackingNumber, providerCode } only if the carrier API accepts the shipment.
+   */
+  async reshipOutboundWithCarrier(params: {
+    outboundOrderId: string;
+  }): Promise<{
+    ok: boolean;
+    awb?: string;
+    trackingNumber?: string;
+    providerCode?: string;
+    message?: string;
+    raw?: unknown;
+  }> {
+    const { outboundOrderId } = params;
+    const order = await this.prisma.outboundOrder.findUnique({
+      where: { id: outboundOrderId },
+      include: {
+        lines: {
+          include: {
+            product: {
+              select: {
+                weightKg: true,
+                lengthCm: true,
+                widthCm: true,
+                heightCm: true,
+                name: true,
+              },
+            },
+          },
+        },
+        omsOrder: {
+          select: {
+            orderNumber: true,
+            id: true,
+            trackingNumber: true,
+            carrier: true,
+            status: true,
+            paymentMethod: true,
+            codAmount: true,
+            currency: true,
+            codCollectionCurrency: true,
+            babelNeighbourhoodId: true,
+            city: true,
+            district: true,
+            addressLine1: true,
+            shippingServiceId: true,
+            shippingHubId: true,
+          },
+        },
+        carrierShipments: {
+          orderBy: { createdAt: 'desc' },
+        },
+      },
+    });
+
+    if (!order) {
+      return { ok: false, message: `Outbound order ${outboundOrderId} not found.` };
+    }
+
+    const lastShipment = order.carrierShipments?.[0];
+    const providerCode =
+      order.shippingProviderCode?.trim() ||
+      lastShipment?.providerCode?.trim() ||
+      BABEL_EXPRESS_CODE;
+
+    if (providerCode === 'manual' || order.shippingMethod === ShippingMethod.manual) {
+      const generatedAwb = `RESENT-MANUAL-${Date.now().toString().slice(-6)}`;
+      return {
+        ok: true,
+        awb: generatedAwb,
+        trackingNumber: generatedAwb,
+        providerCode: 'manual',
+        message: 'Manual carrier reshipment recorded.',
+      };
+    }
+
+    let provider;
+    try {
+      provider = await this.requireProvider(providerCode);
+    } catch {
+      return { ok: false, message: `Provider ${providerCode} is not configured.` };
+    }
+
+    const connection = await this.prisma.shippingProviderConnection.findUnique({
+      where: { providerId: provider.id },
+    });
+    if (
+      !connection ||
+      connection.status !== ShippingProviderConnectionStatus.connected ||
+      !connection.encryptedUsername ||
+      !connection.encryptedPassword
+    ) {
+      return { ok: false, message: `${provider.name} is not connected.` };
+    }
+
+    let username: string;
+    let password: string;
+    try {
+      username = this.encryption.decrypt(connection.encryptedUsername);
+      password = this.encryption.decrypt(connection.encryptedPassword);
+    } catch {
+      return { ok: false, message: 'Failed to decrypt provider credentials.' };
+    }
+
+    const adapter = this.registry.get(providerCode);
+    if (!adapter) {
+      return { ok: false, message: `No adapter registered for provider ${providerCode}.` };
+    }
+
+    const pickup = await this.getConfiguredPickupParty();
+    if (!pickup) {
+      return { ok: false, message: 'Pickup origin address is not configured.' };
+    }
+
+    const weightKg = Number(order.shippingWeightKg) || 1;
+    if (!order.recipientName?.trim()) {
+      return { ok: false, message: 'Recipient name is missing.' };
+    }
+    const phone = parsePhoneForBabel(order.recipientPhone, order.shippingPhoneCountry);
+    if (!phone) {
+      return { ok: false, message: 'Recipient phone number is invalid.' };
+    }
+
+    const address =
+      composeDestinationAddress({
+        destinationAddress: order.destinationAddress,
+        addressLine1: order.addressLine1 ?? undefined,
+        addressLine2: order.addressLine2 ?? undefined,
+        district: order.district ?? undefined,
+        city: order.city ?? undefined,
+      }) || order.destinationAddress || '';
+
+    const receiverCity = order.city ?? order.omsOrder?.city;
+    const receiverNeighborhood = order.addressLine1 ?? order.omsOrder?.addressLine1;
+    const babelNeighbourhoodId =
+      order.babelNeighbourhoodId ?? order.omsOrder?.babelNeighbourhoodId ?? undefined;
+
+    const oms = order.omsOrder;
+    const paymentMethod = order.paymentMethod ?? oms?.paymentMethod ?? null;
+    const isCod = paymentMethod === 'COD';
+    const rawCodAmount = oms?.codAmount != null ? oms.codAmount : order.codAmount;
+    const codAmount = isCod && rawCodAmount != null ? Number(rawCodAmount) : 0;
+    const orderCurrency = oms?.currency?.trim() ? oms.currency : order.currency;
+    const codCurrency = resolveBabelCodCurrency(orderCurrency);
+
+    // Reshipment requires a fresh unique reference to prevent duplicate rejection by carrier
+    const reference = `${oms?.orderNumber ?? order.orderNumber}-R${Date.now().toString().slice(-4)}`;
+
+    const physicalParts = buildPhysicalShipmentParts(
+      (order.lines ?? []).map((line) => ({
+        productId: line.productId,
+        productName: line.product?.name ?? 'item',
+        quantity: Number(line.requestedQuantity),
+        weightKg: line.product?.weightKg != null ? Number(line.product.weightKg) : null,
+        lengthCm: line.product?.lengthCm != null ? Number(line.product.lengthCm) : null,
+        widthCm: line.product?.widthCm != null ? Number(line.product.widthCm) : null,
+        heightCm: line.product?.heightCm != null ? Number(line.product.heightCm) : null,
+      })),
+    );
+    const weightByProductId = new Map(
+      (order.lines ?? []).map((line) => [
+        line.productId,
+        line.product?.weightKg != null && Number(line.product.weightKg) > 0
+          ? Number(line.product.weightKg)
+          : 0.1,
+      ]),
+    );
+    const savedCartons = parseShippingCartons(
+      (order as { shippingPackages?: unknown }).shippingPackages,
+    );
+    const packageType = order.shippingPackageType === 'envelope' ? 'envelope' : 'box';
+    const babelParts = savedCartons
+      ? babelPartsFromCartons(savedCartons, weightByProductId, packageType)
+      : toBabelWeightParts(physicalParts, packageType);
+
+    try {
+      const result = await adapter.createShipment(
+        { username, password },
+        {
+          reference,
+          serviceId: order.shippingServiceId ?? order.omsOrder?.shippingServiceId ?? undefined,
+          receiver: {
+            name: order.recipientName.trim(),
+            phoneCountry: phone.country,
+            phoneLocal: phone.phone,
+            address: address.trim(),
+            lat: Number(order.shippingReceiverLat) || 0,
+            lng: Number(order.shippingReceiverLng) || 0,
+            neighbourhoodId:
+              babelNeighbourhoodId != null ? Number(babelNeighbourhoodId) : undefined,
+            governorate: receiverCity ?? undefined,
+            city: order.district ?? undefined,
+            neighborhood: receiverNeighborhood ?? undefined,
+          },
+          packageType: order.shippingPackageType || 'box',
+          weightKg: order.shippingPackageType === 'envelope' ? 1 : weightKg,
+          parts: babelParts,
+          contents: order.shippingContents?.trim() || 'Items',
+          deliveryType: order.shippingDeliveryType || 'address',
+          pickupType: 'address',
+          pickup,
+          payer: order.shippingPayer || 'sender',
+          codAmount: isCod && Number.isFinite(codAmount) ? codAmount : 0,
+          currency: codCurrency,
+          items: (order.lines ?? []).map((line) => ({
+            name: line.product?.name ?? 'item',
+            quantity: Math.max(1, Number(line.requestedQuantity) || 1),
+            weight:
+              line.product?.weightKg != null && Number(line.product.weightKg) > 0
+                ? Number(line.product.weightKg)
+                : 0.1,
+          })),
+        },
+      );
+
+      return {
+        ok: true,
+        awb: result.awb,
+        trackingNumber: result.trackingNumber || result.awb,
+        providerCode: provider.code,
+        raw: result.raw,
+      };
+    } catch (err: any) {
+      const msg = safeErrorMessage(err);
+      this.logger.error(`reshipOutboundWithCarrier failed for order ${order.orderNumber}: ${msg}`, err.stack);
+      return {
+        ok: false,
+        message: msg,
+      };
+    }
   }
 
   private emitOutboundShippingUpdate(

@@ -14,9 +14,13 @@ import { BabelExpressAdapter } from './providers/babel-express/babel-express.ada
 import { BabelExpressHttpClient } from './providers/babel-express/babel-express.http-client';
 import { BabelGeoSyncService } from './providers/babel-express/babel-geo-sync.service';
 import { MockCarrierAdapter } from './providers/mock-carrier/mock-carrier.adapter';
+import { SenaExpressAdapter } from './providers/sena-express/sena-express.adapter';
+import { SenaExpressHttpClient } from './providers/sena-express/sena-express.http-client';
 import { SilaSyAdapter } from './providers/sila-sy/sila-sy.adapter';
 import { SilaSyHttpClient } from './providers/sila-sy/sila-sy.http-client';
 import { ShippingController } from './shipping.controller';
+import { ShippingFeeController } from './shipping-fee.controller';
+import { ShippingFeeService } from './shipping-fee.service';
 import { ShippingWebhookController } from './shipping-webhook.controller';
 import { ShippingGeoService } from './shipping-geo.service';
 import { ShippingProviderRegistry } from './shipping-provider.registry';
@@ -25,6 +29,7 @@ import { ShippingService } from './shipping.service';
 import { ShippingAutoReturnService } from './shipping-auto-return.service';
 import { ShippingTrackingService } from './shipping-tracking.service';
 import { ShippingSyncScheduler } from './shipping-sync.scheduler';
+import { SilaEventSyncService } from './sila-event-sync.service';
 
 @Module({
   imports: [
@@ -36,12 +41,14 @@ import { ShippingSyncScheduler } from './shipping-sync.scheduler';
     InventoryModule,
     CodModule,
   ],
-  controllers: [ShippingController, ShippingWebhookController],
+  controllers: [ShippingController, ShippingWebhookController, ShippingFeeController],
   providers: [
     BabelExpressHttpClient,
     BabelExpressAdapter,
     BabelAddressAdapter,
     BabelGeoSyncService,
+    SenaExpressHttpClient,
+    SenaExpressAdapter,
     SilaSyHttpClient,
     SilaSyAdapter,
     MockCarrierAdapter,
@@ -53,7 +60,9 @@ import { ShippingSyncScheduler } from './shipping-sync.scheduler';
     BulkShippingService,
     ShippingAutoReturnService,
     ShippingTrackingService,
+    SilaEventSyncService,
     ShippingSyncScheduler,
+    ShippingFeeService,
   ],
   exports: [
     ShippingFxService,
@@ -64,10 +73,12 @@ import { ShippingSyncScheduler } from './shipping-sync.scheduler';
     BabelGeoSyncService,
     BabelExpressAdapter,
     BabelAddressAdapter,
+    SenaExpressAdapter,
     SilaSyAdapter,
     AddressResolveService,
     ShippingAutoReturnService,
     ShippingTrackingService,
+    ShippingFeeService,
   ],
 })
 export class ShippingModule {}

@@ -103,4 +103,9 @@ export class QuoteShippingRatesDto {
   @IsOptional()
   @IsString()
   providerCode?: string;
+
+  /** Provider hub/branch id when requoting a Hub Delivery selection. */
+  @IsOptional()
+  @IsString()
+  hubId?: string;
 }

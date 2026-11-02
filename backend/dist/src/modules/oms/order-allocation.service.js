@@ -8,6 +8,9 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
 var __metadata = (this && this.__metadata) || function (k, v) {
     if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
 };
+var __param = (this && this.__param) || function (paramIndex, decorator) {
+    return function (target, key) { decorator(target, key, paramIndex); }
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.OrderAllocationService = void 0;
 const common_1 = require("@nestjs/common");
@@ -17,12 +20,15 @@ const domain_exceptions_1 = require("../../common/errors/domain-exceptions");
 const task_allocation_helper_1 = require("../warehouse-workflow/task-allocation.helper");
 const feature_flags_1 = require("../warehouse-workflow/feature-flags");
 const oms_order_events_service_1 = require("./oms-order-events.service");
+const inbound_traceability_service_1 = require("./inbound-traceability.service");
 let OrderAllocationService = class OrderAllocationService {
     config;
     events;
-    constructor(config, events) {
+    traceability;
+    constructor(config, events, traceability) {
         this.config = config;
         this.events = events;
+        this.traceability = traceability;
     }
     isEnabled() {
         return (0, feature_flags_1.allocateOnOrderCreate)(this.config);
@@ -106,6 +112,42 @@ let OrderAllocationService = class OrderAllocationService {
                 throw new domain_exceptions_1.InsufficientStockException();
             }
         }
+        if (this.traceability) {
+            let omsOrderId = params.omsOrderId;
+            let omsLines = [];
+            if (!omsOrderId) {
+                const oms = await tx.omsOrder.findFirst({
+                    where: { outboundOrderId: params.outboundOrderId },
+                    select: { id: true, lines: { select: { id: true, productId: true } } },
+                });
+                if (oms) {
+                    omsOrderId = oms.id;
+                    omsLines = oms.lines;
+                }
+            }
+            else {
+                const oms = await tx.omsOrder.findUnique({
+                    where: { id: omsOrderId },
+                    select: { lines: { select: { id: true, productId: true } } },
+                });
+                if (oms)
+                    omsLines = oms.lines;
+            }
+            if (omsOrderId) {
+                await this.traceability.allocateInboundSources(tx, {
+                    companyId: params.companyId,
+                    omsOrderId,
+                    outboundOrderId: params.outboundOrderId,
+                    lines: params.lines.map((l) => ({
+                        outboundOrderLineId: l.outboundOrderLineId,
+                        omsOrderLineId: omsLines.find((ol) => ol.productId === l.productId)?.id,
+                        productId: l.productId,
+                        requestedQty: l.requestedQty,
+                        specificLotId: l.specificLotId,
+                    })),
+                });
+            }
+        }
         if (!createdAny && existingRows.length > 0) {
             return;
         }
@@ -174,6 +216,11 @@ let OrderAllocationService = class OrderAllocationService {
             createdBy: params.actorUserId,
             payload: { reservationCount: active.length },
         });
+        if (this.traceability) {
+            await this.traceability.releaseAllocations(tx, {
+                outboundOrderId: params.outboundOrderId,
+            });
+        }
     }
     async fulfillReservations(tx, params) {
         const active = await tx.stockReservation.count({
@@ -202,6 +249,11 @@ let OrderAllocationService = class OrderAllocationService {
             createdBy: params.actorUserId,
             payload: { reservationCount: active },
         });
+        if (this.traceability) {
+            await this.traceability.markFulfilled(tx, {
+                outboundOrderId: params.outboundOrderId,
+            });
+        }
     }
     async assertAllocatable(tx, outboundOrderId) {
         const order = await tx.outboundOrder.findUnique({
@@ -223,7 +275,9 @@ let OrderAllocationService = class OrderAllocationService {
 exports.OrderAllocationService = OrderAllocationService;
 exports.OrderAllocationService = OrderAllocationService = __decorate([
     (0, common_1.Injectable)(),
+    __param(2, (0, common_1.Optional)()),
     __metadata("design:paramtypes", [config_1.ConfigService,
-        oms_order_events_service_1.OmsOrderEventsService])
+        oms_order_events_service_1.OmsOrderEventsService,
+        inbound_traceability_service_1.InboundTraceabilityService])
 ], OrderAllocationService);
 //# sourceMappingURL=order-allocation.service.js.map

@@ -13,6 +13,7 @@ import type {
   ShippingQuoteInput,
   ShippingQuoteResult,
   ShippingTestResult,
+  ShippingCancelResult,
   UnifiedShipmentMovementEvent,
 } from '../../shipping-provider.interface';
 import { SILA_SY_CODE } from '../../shipping.constants';
@@ -23,8 +24,18 @@ import {
   type SilaAreaHints,
   type SilaAreaRow,
 } from './sila-area.util';
-import { pickNearestSilaBranch } from './sila-branch.util';
+import { pickNearestSilaBranch, resolveSilaHubOptions } from './sila-branch.util';
 import { logSanitizedProviderRequest, sanitizeSilaCargoBody } from '../../provider-request-log';
+import {
+  extractSilaCarrierAwb,
+  extractSilaProviderId,
+} from './sila-identifiers';
+import {
+  buildSilaNormalizedEvent,
+  headerValue,
+  isSilaWebhookTest,
+  verifySilaSignature,
+} from './sila-webhook.util';
 import { SilaSyApiError, SilaSyHttpClient } from './sila-sy.http-client';
 
 /** Sila-SY courier as returned by POST /cargos/quote */
@@ -124,7 +135,7 @@ type SilaStatusMapping = {
  * Map Sila cargo/shipment status strings to our normalized tracking model.
  * Kept provider-local so Babel Express mapping is untouched.
  */
-function mapSilaStatus(raw: string | null | undefined): SilaStatusMapping {
+export function mapSilaStatus(raw: string | null | undefined): SilaStatusMapping {
   const status = (raw || '').toLowerCase().trim();
   switch (status) {
     case 'delivered':
@@ -164,6 +175,12 @@ function mapSilaStatus(raw: string | null | undefined): SilaStatusMapping {
     case 'delivery_failed':
     case 'rejected':
       return { normalized: 'delivery_failed', labelAr: 'فشل تسليم الشحنة', color: 'error' };
+    case 'postponed':
+    case 'postponed_delivery':
+      // A postponement is a movement note. It must not move the OMS order.
+      return { normalized: 'unknown', labelAr: 'تم تأجيل التسليم', color: 'warning' };
+    case 'in_transit_intercity':
+      return { normalized: 'in_transit', labelAr: 'الشحنة في الطريق بين المدن', color: 'info' };
     case 'cancelled':
     case 'canceled':
       return { normalized: 'cancelled', labelAr: 'تم إلغاء الشحنة', color: 'error' };
@@ -179,9 +196,9 @@ function mapSilaStatus(raw: string | null | undefined): SilaStatusMapping {
       return { normalized: 'in_transit', labelAr: 'الشحنة في الطريق', color: 'info' };
     default:
       return {
-        normalized: 'unknown',
-        labelAr: status ? `تحديث حالة الشحنة: ${status}` : 'تحديث حالة الشحنة',
-        color: 'default',
+        normalized: 'in_transit',
+        labelAr: status ? `تحديث حالة الشحنة: ${status}` : 'الشحنة في الطريق',
+        color: 'info',
       };
   }
 }
@@ -209,6 +226,35 @@ function cargoMatchesToken(cargo: Record<string, any> | null | undefined, token:
   return candidates.some((c) => typeof c === 'string' && c.trim() === token);
 }
 
+function silaCargoRows(data: unknown): Record<string, any>[] {
+  if (Array.isArray(data)) {
+    return data.filter((row) => row && typeof row === 'object');
+  }
+  if (!data || typeof data !== 'object') return [];
+  const record = data as Record<string, unknown>;
+  for (const key of ['items', 'cargos', 'data', 'results']) {
+    const value = record[key];
+    if (Array.isArray(value)) {
+      return value.filter((row) => row && typeof row === 'object');
+    }
+  }
+  if (typeof record.id === 'string' || typeof record.barcode === 'string') {
+    return [record];
+  }
+  return [];
+}
+
+function silaCourierDisplayName(tracking: Record<string, any> | null, cargo: Record<string, any> | null): string {
+  const fromTracking = tracking?.courier;
+  const fromCargo = cargo?.courier;
+  const name =
+    firstNonEmptyString(
+      typeof fromTracking === 'object' ? fromTracking?.name : fromTracking,
+      typeof fromCargo === 'object' ? fromCargo?.name : fromCargo,
+    ) || '';
+  return name || 'Sila-SY';
+}
+
 function extractDeliveryRoute(cargo: Record<string, any>): any[] {
   const shipment = Array.isArray(cargo.shipments) ? cargo.shipments[0] : null;
   const remote =
@@ -217,6 +263,137 @@ function extractDeliveryRoute(cargo: Record<string, any>): any[] {
       : null;
   const route = remote?.deliveryRoute;
   return Array.isArray(route) ? route : [];
+}
+
+/** Courier raw codes that are more specific than Sila's lifecycle label. */
+const SILA_REMOTE_STATUS_AR: Record<string, string> = {
+  SCANNED_BY_DRIVER_AND_IN_CAR: 'تم مسح الشحنة وهي مع السائق في المركبة',
+  SCANNED_BY_HANDLER_AND_UNLOADED: 'تم مسح الشحنة وتفريغها في المركز',
+  PENDING_CUSTOMER_CARE_APPROVAL: 'بانتظار موافقة خدمة العملاء',
+  APPROVED_BY_CUSTOMER_CARE_AND_WAITING_FOR_DISPATCHER: 'تمت الموافقة وبانتظار التوزيع',
+  POSTPONED_DELIVERY: 'تم تأجيل التسليم',
+  DELIVERED_TO_RECIPIENT: 'تم التسليم للمستلم',
+  RETURNED_BY_RECIPIENT: 'أعاد المستلم الشحنة',
+  DELIVERED_TO_SENDER: 'تم تسليم الشحنة للمرسل',
+};
+
+const SILA_TIMELINE_SOURCE_NOTES = new Set(['courier', 'system', 'admin']);
+
+function hasArabic(value: string): boolean {
+  return /[\u0600-\u06FF]/.test(value);
+}
+
+function silaEventTitle(
+  status: string,
+  labelAr?: string | null,
+  labelEn?: string | null,
+): string {
+  const ar = (labelAr || '').trim();
+  if (ar && hasArabic(ar)) return ar;
+  const en = (labelEn || '').trim();
+  if (en) return en;
+  return mapSilaStatus(status).labelAr;
+}
+
+function firstShipment(cargo: Record<string, any> | null | undefined): Record<string, any> | null {
+  const shipment = Array.isArray(cargo?.shipments) ? cargo.shipments[0] : null;
+  return shipment && typeof shipment === 'object' ? shipment : null;
+}
+
+type SilaTrackingTimelineItem = {
+  status?: string;
+  label_ar?: string;
+  label_en?: string;
+  timestamp?: string;
+  note?: string | null;
+};
+
+function eventIdentity(event: UnifiedShipmentMovementEvent): string {
+  return `${event.timestamp}|${event.code || ''}|${event.title}`;
+}
+
+function pushUnique(
+  events: UnifiedShipmentMovementEvent[],
+  event: UnifiedShipmentMovementEvent | null,
+): void {
+  if (!event?.title || !event.timestamp) return;
+  const key = eventIdentity(event);
+  if (events.some((existing) => eventIdentity(existing) === key)) return;
+  events.push(event);
+}
+
+function timelineItemToEvent(item: SilaTrackingTimelineItem): UnifiedShipmentMovementEvent | null {
+  const status = typeof item.status === 'string' ? item.status.trim() : '';
+  const timestamp = toIsoOrNull(item.timestamp);
+  if (!status || !timestamp) return null;
+  const mapped = mapSilaStatus(status);
+  const rawNote = typeof item.note === 'string' ? item.note.trim() : '';
+  const notes =
+    rawNote && !SILA_TIMELINE_SOURCE_NOTES.has(rawNote.toLowerCase()) ? rawNote : null;
+  const originalDescription = item.label_ar || item.label_en || null;
+  return {
+    timestamp,
+    title: silaEventTitle(status, item.label_ar, item.label_en),
+    originalDescription,
+    location: null,
+    notes,
+    color: mapped.color,
+    code: status,
+    source: 'carrier',
+  };
+}
+
+/**
+ * Current-state detail from the cargo (postpone reason, courier raw status).
+ * Sila keeps this on the shipment, not as extra timeline rows.
+ */
+function attachNoteToMatching(
+  events: UnifiedShipmentMovementEvent[],
+  codes: string[],
+  text: string | null,
+): void {
+  if (!text) return;
+  const idx = events.findIndex((event) => codes.includes((event.code || '').toLowerCase()));
+  if (idx < 0) return;
+  const current = events[idx];
+  const merged = [current.notes, text].filter((part): part is string => Boolean(part && part.trim()));
+  const unique = [...new Set(merged)];
+  events[idx] = { ...current, notes: unique.length ? unique.join(' — ') : null };
+}
+
+function attachSilaCurrentDetail(
+  events: UnifiedShipmentMovementEvent[],
+  cargo: Record<string, any> | null,
+): void {
+  if (!events.length || !cargo) return;
+  const shipment = firstShipment(cargo);
+  attachNoteToMatching(
+    events,
+    ['failed', 'undelivered', 'delivery_failed', 'rejected'],
+    firstNonEmptyString(shipment?.remote_failure_notes) || null,
+  );
+  const postponedDate = firstNonEmptyString(shipment?.remote_postponed_date);
+  attachNoteToMatching(
+    events,
+    ['postponed', 'postponed_delivery'],
+    postponedDate ? `الموعد المؤجل: ${postponedDate}` : firstNonEmptyString(shipment?.remote_failure_notes) || null,
+  );
+  attachNoteToMatching(
+    events,
+    ['returned', 'returned_to_sender'],
+    firstNonEmptyString(cargo.return_reason, cargo.rejection_reason) || null,
+  );
+  const raw = typeof shipment?.remote_status_raw === 'string' ? shipment.remote_status_raw.trim() : '';
+  const gloss = SILA_REMOTE_STATUS_AR[raw];
+  if (gloss) {
+    const target =
+      events.find((event) => event.title === gloss) ??
+      events[0];
+    if (target && target.title !== gloss && !target.title.includes(gloss)) {
+      const merged = [target.notes, gloss].filter((part): part is string => Boolean(part && part.trim()));
+      target.notes = [...new Set(merged)].join(' — ') || null;
+    }
+  }
 }
 
 function buildSilaTimelineEvents(cargo: Record<string, any>): UnifiedShipmentMovementEvent[] {
@@ -232,9 +409,11 @@ function buildSilaTimelineEvents(cargo: Record<string, any>): UnifiedShipmentMov
     events.push({
       timestamp,
       title,
+      originalDescription: title,
       location: null,
       color: arrived ? 'info' : 'default',
       code: typeof step.typeKey === 'string' ? step.typeKey : null,
+      source: 'carrier',
     });
   }
 
@@ -269,64 +448,28 @@ function buildSilaTimelineEvents(cargo: Record<string, any>): UnifiedShipmentMov
       events.push({
         timestamp: ts,
         title: extra.title,
+        originalDescription: extra.title,
         location: typeof cargo.city === 'string' ? cargo.city : null,
         color: extra.color,
         code: extra.code,
+        source: 'carrier',
       });
     }
   } else {
-    // Fallback when courier does not expose deliveryRoute: synthesize from cargo timestamps.
-    const fallbackSteps: Array<{
-      at: unknown;
-      title: string;
-      color: UnifiedShipmentMovementEvent['color'];
-      code: string;
-    }> = [
-      { at: cargo.created_at, title: 'تم تكوين الشحنة', color: 'default', code: 'created' },
-      {
-        at: cargo.forwarded_to_courier_at,
-        title: 'تم إرسال الشحنة لشركة النقل',
-        color: 'info',
-        code: 'forwarded',
-      },
-      { at: cargo.confirmed_at, title: 'تم تأكيد الشحنة', color: 'info', code: 'confirmed' },
-      { at: cargo.scanned_at, title: 'تم مسح الشحنة', color: 'info', code: 'scanned' },
-      { at: cargo.pod_delivered_at, title: 'تم تسليم الشحنة', color: 'success', code: 'delivered' },
-      { at: cargo.rejected_at, title: 'رفض استلام الشحنة', color: 'error', code: 'rejected' },
-      {
-        at: cargo.return_arrived_at_branch_at,
-        title: 'وصلت الشحنة المرتجعة إلى الفرع',
-        color: 'warning',
-        code: 'return_arrived',
-      },
-      {
-        at: cargo.return_picked_up_at,
-        title: 'تم استلام الشحنة المرتجعة',
-        color: 'warning',
-        code: 'return_picked_up',
-      },
-      {
-        at: cargo.merchant_collected_at,
-        title: 'تم استلام المرتجع من التاجر',
-        color: 'warning',
-        code: 'merchant_collected',
-      },
-      { at: cargo.updated_at, title: mapSilaStatus(cargo.status).labelAr, color: mapSilaStatus(cargo.status).color, code: String(cargo.status || 'status') },
-    ];
-
-    const seen = new Set<string>();
-    for (const step of fallbackSteps) {
-      const ts = toIsoOrNull(step.at);
-      if (!ts) continue;
-      const key = `${ts}:${step.code}`;
-      if (seen.has(key)) continue;
-      seen.add(key);
+    // DO NOT invent synthetic intermediate events when no timeline exists.
+    // Return only the current status event if present.
+    const rawStatus = resolveCargoStatus(cargo);
+    const ts = toIsoOrNull(cargo.updated_at) || toIsoOrNull(cargo.created_at);
+    if (ts && rawStatus) {
+      const mapped = mapSilaStatus(rawStatus);
       events.push({
         timestamp: ts,
-        title: step.title,
+        title: mapped.labelAr,
+        originalDescription: rawStatus,
         location: typeof cargo.city === 'string' ? cargo.city : null,
-        color: step.color,
-        code: step.code,
+        color: mapped.color,
+        code: rawStatus,
+        source: 'carrier',
       });
     }
   }
@@ -542,6 +685,24 @@ export class SilaSyAdapter implements ShippingProvider {
             ? 'hub'
             : 'address';
 
+      const hubResolution =
+        effectiveDeliveryType === 'hub'
+          ? resolveSilaHubOptions(
+              (courier.branches ?? [])
+                .map((branch) => ({
+                  id: branch.id?.trim() || '',
+                  name: branch.name?.trim() || '',
+                }))
+                .filter((branch) => branch.id && branch.name),
+              {
+                governorate: rawGov || province,
+                neighborhood: rawHood || rawCity || district,
+                lat: input.receiverLat,
+                lng: input.receiverLng,
+              },
+            )
+          : { hubs: [], nearestId: null, nearestDetermined: false };
+
       results.push({
         price: fee,
         currency: (typeof courier.currency === 'string' && courier.currency.trim()) || 'USD',
@@ -560,6 +721,13 @@ export class SilaSyAdapter implements ShippingProvider {
         providerName: 'Sila-SY.com',
         logoUrl:
           typeof courier.logo === 'string' && courier.logo.trim() ? courier.logo.trim() : undefined,
+        ...(effectiveDeliveryType === 'hub' && hubResolution.hubs.length > 0
+          ? {
+              hubs: hubResolution.hubs,
+              nearestHubId: hubResolution.nearestId,
+              nearestHubDetermined: hubResolution.nearestDetermined,
+            }
+          : {}),
       });
     }
     return results;
@@ -822,7 +990,7 @@ export class SilaSyAdapter implements ShippingProvider {
       district,
       (input.currency ?? 'USD').trim().toUpperCase(),
     );
-    const branchId = pickNearestSilaBranch(
+    const hubResolution = resolveSilaHubOptions(
       (quotedCourier?.branches ?? [])
         .map((branch) => ({
           id: branch.id?.trim() || '',
@@ -830,11 +998,33 @@ export class SilaSyAdapter implements ShippingProvider {
         }))
         .filter((branch) => branch.id && branch.name),
       {
-      governorate: input.receiver.governorate || province,
-      neighborhood: input.receiver.neighborhood || district,
-      lat: input.receiver.lat,
-      lng: input.receiver.lng,
-    })?.id ?? null;
+        governorate: input.receiver.governorate || province,
+        neighborhood: input.receiver.neighborhood || district,
+        lat: input.receiver.lat,
+        lng: input.receiver.lng,
+      },
+    );
+    const requestedHub = input.hubId?.trim() || '';
+    const requestedValid = hubResolution.hubs.some((hub) => hub.id === requestedHub);
+    let branchId: string | null = null;
+    if (requestedValid) {
+      branchId = requestedHub;
+    } else if (hubResolution.nearestDetermined && hubResolution.nearestId) {
+      branchId = hubResolution.nearestId;
+    } else if (hubResolution.hubs.length === 1) {
+      branchId = hubResolution.hubs[0].id;
+    } else if (input.deliveryType === 'hub' || quotedCourier?.requires_branch) {
+      throw new BadRequestException(
+        'Select a delivery hub before sending. The nearest hub could not be determined automatically.',
+      );
+    } else {
+      branchId = pickNearestSilaBranch(hubResolution.hubs, {
+        governorate: input.receiver.governorate || province,
+        neighborhood: input.receiver.neighborhood || district,
+        lat: input.receiver.lat,
+        lng: input.receiver.lng,
+      })?.id ?? null;
+    }
 
     const codCurrency = (input.currency ?? 'USD').trim().toUpperCase();
     const quoteCurrency = (quotedCourier?.currency ?? '').trim().toUpperCase();
@@ -879,7 +1069,7 @@ export class SilaSyAdapter implements ShippingProvider {
       // "does not serve this area (or this service type)".
       service_type: branchId || input.deliveryType === 'hub' ? 'pickup_at_branch' : 'home_delivery',
       pay_on_delivery: {
-        amount: Math.max(1, input.codAmount > 0 ? input.codAmount : 1),
+        amount: Math.max(0, Number(input.codAmount) || 0),
         currency: (input.currency ?? 'USD').toUpperCase(),
       },
       // Sila accepts only merchant | receiver. Sender is the merchant. Reseller has no Sila value.
@@ -892,7 +1082,9 @@ export class SilaSyAdapter implements ShippingProvider {
         return input.payer === 'receiver' ? 'receiver' : 'merchant';
       })(),
       merchant_pays_shipping: input.payer !== 'receiver',
-      ...(input.reference ? { reference: input.reference } : {}),
+      ...(input.reference?.trim()
+        ? { reference: input.reference.trim().slice(0, 120) }
+        : {}),
     };
 
     logSanitizedProviderRequest(
@@ -907,53 +1099,148 @@ export class SilaSyAdapter implements ShippingProvider {
     try {
       raw = await this.http.post<any>('cargos', apiKey(credentials), body);
     } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      if (/reference already used/i.test(msg) && input.reference) {
-        this.logger.warn(`Sila reference "${input.reference}" already used. Retrying with unique timestamp suffix.`);
-        body.reference = `${input.reference}-${Date.now().toString().slice(-6)}`;
-        raw = await this.http.post<any>('cargos', apiKey(credentials), body);
-      } else if (isSilaProvinceAreaError(msg) && areaId) {
-        const narrowed = await this.narrowProvinceArea(credentials, areaId, areaHints, true);
-        if (narrowed === areaId) {
-          throw new BadRequestException(
-            'Sila area is a whole province. Missing city. Set the receiver city or neighbourhood so a child area can be selected, then send again.',
-          );
-        }
-        (body.recipient as Record<string, unknown>).area_id = narrowed;
-        raw = await this.http.post<any>('cargos', apiKey(credentials), body);
+      if (err instanceof SilaSyApiError && err.code === 'duplicate_reference') {
+        raw = await this.resolveDuplicateReference(
+          credentials,
+          input.reference,
+          err,
+          courierId,
+          body,
+        );
+      } else if (err instanceof SilaSyApiError && err.code === 'possible_duplicate') {
+        throw new BadRequestException(
+          'Sila found a possible duplicate cargo for this order. Do not resend with allow_duplicate. Open the existing shipment and continue from there.',
+        );
       } else {
-        throw err;
+        const msg = err instanceof Error ? err.message : String(err);
+        if (isSilaProvinceAreaError(msg) && areaId) {
+          const narrowed = await this.narrowProvinceArea(credentials, areaId, areaHints, true);
+          if (narrowed === areaId) {
+            throw new BadRequestException(
+              'Sila area is a whole province. Missing city. Set the receiver city or neighbourhood so a child area can be selected, then send again.',
+            );
+          }
+          (body.recipient as Record<string, unknown>).area_id = narrowed;
+          raw = await this.http.post<any>('cargos', apiKey(credentials), body);
+        } else {
+          throw err;
+        }
       }
     }
 
     const rawData = raw?.data ?? raw;
-    // Platform/provider id (Sila barcode) — used for label/API lookups.
-    const providerId =
-      (typeof rawData?.id === 'string' && rawData.id.trim()) ||
-      (typeof rawData?.barcode === 'string' && rawData.barcode.trim()) ||
-      (typeof rawData?.awb_number === 'string' && rawData.awb_number.trim()) ||
-      (typeof rawData?.code === 'string' && rawData.code.trim()) ||
-      '';
+    // Sila cargo id / tracking token — API and webhook lookup only, not the carrier AWB.
+    const providerId = extractSilaProviderId(rawData);
     if (!providerId) {
       throw new SilaSyApiError('Sila-SY createShipment succeeded without a provider reference.', undefined, raw);
     }
     const loaded = await this.fetchCargo(credentials, providerId);
     const cargo = loaded ?? rawData;
-    const courierTracking =
-      (typeof cargo?.courier_barcode === 'string' && cargo.courier_barcode.trim()) ||
-      (typeof cargo?.tracking_number === 'string' && cargo.tracking_number.trim()) ||
-      (typeof cargo?.courier_tracking === 'string' && cargo.courier_tracking.trim()) ||
-      (typeof cargo?.tracking_token === 'string' && cargo.tracking_token.trim()) ||
-      '';
-    if (!courierTracking) {
-      throw new SilaSyApiError(
-        'Sila-SY did not return the actual courier tracking number. The Sila reference is not a tracking number.',
-        undefined,
-        cargo,
+    const courierTracking = extractSilaCarrierAwb(cargo);
+
+    return {
+      awb: providerId,
+      ...(courierTracking ? { trackingNumber: courierTracking } : {}),
+      raw: cargo,
+    };
+  }
+
+  private async resolveDuplicateReference(
+    credentials: ShippingCredentials,
+    reference: string | undefined,
+    err: SilaSyApiError,
+    requestedCourierId?: string | null,
+    body?: Record<string, unknown>,
+  ): Promise<Record<string, unknown>> {
+    const details =
+      err.details && typeof err.details === 'object' ? (err.details as Record<string, unknown>) : {};
+    const existingId = firstNonEmptyString(
+      details.existing_cargo_id,
+      details.existing_id,
+      details.id,
+    );
+    let loaded: Record<string, any> | null = null;
+    if (existingId) {
+      loaded = await this.fetchCargo(credentials, existingId);
+    }
+    if (!loaded && reference?.trim()) {
+      const found = await this.findShipmentByReference(credentials, reference.trim());
+      if (found?.raw && typeof found.raw === 'object') {
+        loaded = found.raw as Record<string, any>;
+      }
+    }
+
+    if (loaded) {
+      const existingCourierId = firstNonEmptyString(
+        loaded.courier_id,
+        loaded.courier?.id,
+      ).toLowerCase();
+      const targetCourierId = (requestedCourierId || '').toLowerCase().trim();
+      const status = (loaded.status || '').toLowerCase().trim();
+      const isDead = ['cancelled', 'returned', 'rejected', 'failed', 'delivered'].includes(status);
+      const isSameCourier = !targetCourierId || !existingCourierId || existingCourierId === targetCourierId;
+      const createdAtMs = loaded.created_at ? new Date(loaded.created_at).getTime() : 0;
+      const isRecent = createdAtMs === 0 || Date.now() - createdAtMs < 2 * 60 * 60 * 1000;
+
+      // Only reuse if it's the exact same courier, active status, and created recently (network retry)
+      if (isSameCourier && !isDead && isRecent) {
+        return loaded;
+      }
+
+      this.logger.warn(
+        `Sila duplicate_reference for "${reference}" matched an incompatible cargo (id=${loaded.id}, courier=${existingCourierId}, targetCourier=${targetCourierId}, status=${status}, isRecent=${isRecent}). Retrying create with unique reference suffix.`,
       );
     }
 
-    return { awb: providerId, trackingNumber: courierTracking, raw: cargo };
+    // Existing cargo is from a different carrier, terminal state, or ancient run:
+    // Retry creating in Sila with a unique attempt suffix so the new shipment can be dispatched
+    if (body) {
+      const baseRef = (reference || 'ORD').trim().slice(0, 100);
+      const suffix = Date.now().toString().slice(-4);
+      body.reference = `${baseRef}-${suffix}`;
+
+      try {
+        const retryRes = await this.http.post<any>('cargos', apiKey(credentials), body);
+        return retryRes?.data ?? retryRes;
+      } catch (retryErr) {
+        this.logger.error(
+          `Sila retry with reference "${body.reference}" failed: ${(retryErr as Error)?.message}`,
+        );
+        throw retryErr;
+      }
+    }
+
+    throw err;
+  }
+
+  async findShipmentByReference(
+    credentials: ShippingCredentials,
+    reference: string,
+  ): Promise<{ awb: string; trackingNumber?: string; raw?: unknown } | null> {
+    const trimmed = reference.trim().slice(0, 120);
+    if (!trimmed) return null;
+    try {
+      const envelope = await this.http.getEnvelope<any>(
+        `cargos?reference=${encodeURIComponent(trimmed)}`,
+        apiKey(credentials),
+      );
+      const rows = silaCargoRows(envelope.data);
+      const cargo =
+        rows.find((row) => firstNonEmptyString(row.reference) === trimmed) ?? rows[0] ?? null;
+      if (!cargo) return null;
+      const providerId = extractSilaProviderId(cargo);
+      if (!providerId) return null;
+      const courierTracking = extractSilaCarrierAwb(cargo);
+      return {
+        awb: providerId,
+        ...(courierTracking ? { trackingNumber: courierTracking } : {}),
+        raw: cargo,
+      };
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      this.logger.warn(`Sila findShipmentByReference failed for ${trimmed}: ${msg}`);
+      return null;
+    }
   }
 
   /**
@@ -1023,10 +1310,15 @@ export class SilaSyAdapter implements ShippingProvider {
     const trimmed = token.trim();
     if (!trimmed) return null;
 
-    const data = await this.http.get<any>(
-      `cargos/${encodeURIComponent(trimmed)}`,
-      apiKey(credentials),
-    );
+    let data: any;
+    try {
+      data = await this.http.get<any>(
+        `cargos/${encodeURIComponent(trimmed)}`,
+        apiKey(credentials),
+      );
+    } catch {
+      return null;
+    }
     const cargo = data && typeof data === 'object' && !Array.isArray(data) ? data : null;
     if (!cargo || !cargoMatchesToken(cargo, trimmed)) {
       return null;
@@ -1034,26 +1326,55 @@ export class SilaSyAdapter implements ShippingProvider {
     return cargo;
   }
 
+  /**
+   * Sila status history. GET /cargos/{token} is the cargo record;
+   * GET /cargos/{token}/tracking is the movement timeline.
+   */
+  private async fetchCargoTracking(
+    credentials: ShippingCredentials,
+    token: string,
+  ): Promise<Record<string, any> | null> {
+    const trimmed = token.trim();
+    if (!trimmed) return null;
+    try {
+      const data = await this.http.get<any>(
+        `cargos/${encodeURIComponent(trimmed)}/tracking`,
+        apiKey(credentials),
+      );
+      return data && typeof data === 'object' && !Array.isArray(data) ? data : null;
+    } catch {
+      return null;
+    }
+  }
+
   verifyWebhook(
     headers: Record<string, string | string[] | undefined>,
-    _body: unknown,
+    rawBody: string | Buffer,
     secret?: string,
   ): boolean {
-    if (!secret || !secret.trim()) return true;
-    const headerSecret =
-      headers['x-webhook-secret'] ||
-      headers['x-api-key'] ||
-      (typeof headers.authorization === 'string' && headers.authorization.replace(/^Bearer\s+/i, ''));
-    return headerSecret === secret.trim();
+    const signature =
+      headerValue(headers, 'x-sila-signature') || headerValue(headers, 'X-Sila-Signature');
+    if (secret?.trim() && signature) {
+      return verifySilaSignature(rawBody, signature, secret);
+    }
+    // Staging fallback when Sila has not issued a secret yet: reject rather than skip HMAC.
+    return false;
   }
 
   normalizeWebhook(
-    _headers: Record<string, string | string[] | undefined>,
+    headers: Record<string, string | string[] | undefined>,
     body: unknown,
   ): NormalizedTrackingEvent | null {
+    if (isSilaWebhookTest(headers, body)) return null;
     if (!body || typeof body !== 'object') return null;
+    const built = buildSilaNormalizedEvent({
+      headers,
+      body,
+      mapStatus: (raw) => mapSilaStatus(raw),
+    });
+    if (built) return built;
+
     const b = body as Record<string, any>;
-    // Sila webhooks commonly send tracking_token (not barcode/awb).
     const awb = firstNonEmptyString(
       b.tracking_token,
       b.barcode,
@@ -1065,15 +1386,16 @@ export class SilaSyAdapter implements ShippingProvider {
     if (!awb && !rawStatus) return null;
 
     const mapped = mapSilaStatus(rawStatus);
-    const returnReason =
-      firstNonEmptyString(
-        b.return_reason,
-        b.rejection_reason,
-        b.failed_reason,
-        b.reason,
-        b.note,
-        b.notes,
-      ) || undefined;
+    const detailNote =
+      firstNonEmptyString(b.remote_failure_notes, b.failure_notes, b.reason) || undefined;
+    const returnReason = mapped.carrierReturnStage
+      ? firstNonEmptyString(
+          b.return_reason,
+          b.rejection_reason,
+          b.failed_reason,
+          detailNote,
+        ) || undefined
+      : undefined;
 
     return {
       providerCode: this.code,
@@ -1081,11 +1403,192 @@ export class SilaSyAdapter implements ShippingProvider {
       awb,
       eventType: rawStatus || 'WEBHOOK',
       normalizedStatus: mapped.normalized,
+      notes: detailNote,
       returnReason,
       originalCarrierStatus: String(b.status || rawStatus || 'WEBHOOK'),
+      eventDescription: mapped.labelAr || rawStatus,
+      sourceType: 'webhook',
+      isCarrierEvent: true,
       carrierReturnStage: mapped.carrierReturnStage,
       timestamp: b.updated_at ? new Date(b.updated_at) : new Date(),
       rawPayload: b,
+    };
+  }
+
+  async registerWebhook(
+    credentials: ShippingCredentials,
+    webhookUrl: string,
+    _secret: string,
+  ): Promise<{ ok: boolean; message?: string; secret?: string; webhookId?: string }> {
+    try {
+      const raw = await this.http.post<any>('webhooks', apiKey(credentials), {
+        url: webhookUrl,
+        events: ['*'],
+        description: 'Emdad WMS staging',
+      });
+      const data = raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : {};
+      const nested =
+        data.data && typeof data.data === 'object' && !Array.isArray(data.data)
+          ? (data.data as Record<string, unknown>)
+          : {};
+      const secret = firstNonEmptyString(data.secret, nested.secret, data.webhook_secret);
+      const webhookId = firstNonEmptyString(
+        data.id,
+        data.webhook_id,
+        nested.id,
+        nested.webhook_id,
+      );
+      this.logger.log(
+        `Sila webhook registered at provider id=${webhookId || 'n/a'} secret=${secret ? 'saved_once' : 'missing'}`,
+      );
+      return {
+        ok: true,
+        webhookId: webhookId || undefined,
+        secret: secret || undefined,
+        message: secret
+          ? 'Sila webhook registered. Signing secret stored server-side; it is not logged.'
+          : 'Sila webhook registered but the provider did not return a signing secret.',
+      };
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      return { ok: false, message: msg };
+    }
+  }
+
+  async testRegisteredWebhook(
+    credentials: ShippingCredentials,
+    webhookId: string,
+  ): Promise<{ ok: boolean; message?: string }> {
+    const id = webhookId.trim();
+    if (!id) return { ok: false, message: 'Missing Sila webhook id.' };
+    try {
+      await this.http.post<any>(`webhooks/${encodeURIComponent(id)}/test`, apiKey(credentials), {});
+      this.logger.log(`Sila official webhook.test ping accepted for webhookId=${id}`);
+      return { ok: true, message: 'Sila webhook.test ping sent.' };
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      this.logger.warn(`Sila webhook.test ping failed for webhookId=${id}: ${msg}`);
+      return { ok: false, message: msg };
+    }
+  }
+
+  async cancelShipment(
+    credentials: ShippingCredentials,
+    providerId: string,
+  ): Promise<ShippingCancelResult> {
+    const trimmed = providerId.trim();
+    if (!trimmed) {
+      return { outcome: 'refused', message: 'Missing Sila cargo id.', errorCode: 'missing_id' };
+    }
+    try {
+      const raw = await this.http.put<any>(
+        `cargos/${encodeURIComponent(trimmed)}/cancel`,
+        apiKey(credentials),
+        {},
+      );
+      const data = raw && typeof raw === 'object' ? raw : {};
+      const courierCancel = firstNonEmptyString(data.courier_cancel).toLowerCase();
+      const cargoStatus = firstNonEmptyString(data.status).toLowerCase();
+      if (courierCancel === 'pending_confirmation') {
+        return {
+          outcome: 'pending_confirmation',
+          courierCancel,
+          cargoStatus,
+          message: 'Sila cancelled the cargo and is waiting for the courier to confirm. The OMS order is not cancelled yet.',
+          raw: data,
+        };
+      }
+      if (courierCancel === 'already' || cargoStatus === 'cancelled') {
+        return {
+          outcome: courierCancel === 'already' ? 'already_cancelled' : 'cancelled',
+          courierCancel: courierCancel || 'already',
+          cargoStatus,
+          message: 'Sila cargo is already cancelled.',
+          raw: data,
+        };
+      }
+      if (courierCancel === 'not_needed' || courierCancel === 'confirmed') {
+        return {
+          outcome: 'cancelled',
+          courierCancel,
+          cargoStatus,
+          message: 'Sila accepted the cancel request.',
+          raw: data,
+        };
+      }
+      if (cargoStatus === 'cancelled') {
+        return {
+          outcome: 'cancelled',
+          courierCancel: courierCancel || 'confirmed',
+          cargoStatus,
+          message: 'Sila cargo is cancelled.',
+          raw: data,
+        };
+      }
+      return {
+        outcome: 'cancelled',
+        courierCancel: courierCancel || undefined,
+        cargoStatus,
+        message: 'Sila accepted the cancel request.',
+        raw: data,
+      };
+    } catch (err) {
+      if (err instanceof SilaSyApiError) {
+        const code = (err.code || '').toLowerCase();
+        if (code === 'dispatch_in_progress') {
+          const waitMs = Math.min(Math.max((err.retryAfterSeconds ?? 1) * 1000, 500), 15_000);
+          await sleep(waitMs);
+          try {
+            const retryRaw = await this.http.put<any>(
+              `cargos/${encodeURIComponent(trimmed)}/cancel`,
+              apiKey(credentials),
+              {},
+            );
+            const retryData = retryRaw && typeof retryRaw === 'object' ? retryRaw : {};
+            const retryCancel = firstNonEmptyString(retryData.courier_cancel).toLowerCase();
+            if (retryCancel === 'pending_confirmation') {
+              return {
+                outcome: 'pending_confirmation',
+                courierCancel: retryCancel,
+                cargoStatus: firstNonEmptyString(retryData.status).toLowerCase(),
+                message:
+                  'Sila cancelled the cargo and is waiting for the courier to confirm. The OMS order is not cancelled yet.',
+                raw: retryData,
+              };
+            }
+            return {
+              outcome: retryCancel === 'already' ? 'already_cancelled' : 'cancelled',
+              courierCancel: retryCancel || undefined,
+              cargoStatus: firstNonEmptyString(retryData.status).toLowerCase(),
+              message: 'Sila accepted the cancel request.',
+              raw: retryData,
+            };
+          } catch (retryErr) {
+            if (retryErr instanceof SilaSyApiError) return silaCancelErrorResult(retryErr);
+            throw retryErr;
+          }
+        }
+        return silaCancelErrorResult(err);
+      }
+      throw err;
+    }
+  }
+
+  async listCargosUpdatedSince(
+    credentials: ShippingCredentials,
+    updatedSince: string,
+    page = 1,
+    pageSize = 200,
+  ): Promise<{ cargos: Record<string, any>[]; hasMore: boolean; requestId?: string }> {
+    const size = Math.min(Math.max(pageSize, 1), 200);
+    const path =
+      `cargos?updated_since=${encodeURIComponent(updatedSince)}` +
+      `&page=${page}&page_size=${size}`;
+    const envelope = await this.http.getEnvelope<any>(path, apiKey(credentials));
+    return {
+      cargos: silaCargoRows(envelope.data),
+      hasMore: envelope.meta?.has_more === true,
+      requestId: envelope.requestId,
     };
   }
 
@@ -1102,14 +1605,12 @@ export class SilaSyAdapter implements ShippingProvider {
 
       const rawStatus = resolveCargoStatus(cargo);
       const mapped = mapSilaStatus(rawStatus);
-      const returnReason =
-        firstNonEmptyString(
-          cargo.return_reason,
-          cargo.rejection_reason,
-          cargo.failed_reason,
-          cargo.reason,
-          cargo.note,
-        ) || undefined;
+      const shipment = firstShipment(cargo);
+      const detailNote =
+        firstNonEmptyString(shipment?.remote_failure_notes, cargo.rejection_reason) || undefined;
+      const returnReason = mapped.carrierReturnStage
+        ? firstNonEmptyString(cargo.return_reason, cargo.rejection_reason, detailNote) || undefined
+        : undefined;
 
       const updatedAt = cargo.updated_at ? new Date(cargo.updated_at) : new Date();
       const cargoToken = firstNonEmptyString(cargo.tracking_token, cargo.barcode, cargo.id) || trimmed;
@@ -1120,8 +1621,12 @@ export class SilaSyAdapter implements ShippingProvider {
         awb: cargoToken,
         eventType: rawStatus || 'CARGO_STATUS',
         normalizedStatus: mapped.normalized,
+        notes: detailNote,
         returnReason,
         originalCarrierStatus: String(cargo.status || rawStatus || 'CARGO_STATUS'),
+        eventDescription: mapped.labelAr || rawStatus,
+        sourceType: 'poll',
+        isCarrierEvent: true,
         carrierReturnStage: mapped.carrierReturnStage,
         timestamp: updatedAt,
         rawPayload: cargo,
@@ -1139,8 +1644,11 @@ export class SilaSyAdapter implements ShippingProvider {
     if (!trimmed) return null;
 
     try {
-      const cargo = await this.fetchCargo(credentials, trimmed);
-      if (!cargo) {
+      const [tracking, cargo] = await Promise.all([
+        this.fetchCargoTracking(credentials, trimmed),
+        this.fetchCargo(credentials, trimmed),
+      ]);
+      if (!tracking && !cargo) {
         return {
           providerCode: this.code,
           providerName: 'Sila-SY',
@@ -1150,19 +1658,80 @@ export class SilaSyAdapter implements ShippingProvider {
         };
       }
 
-      const rawStatus = resolveCargoStatus(cargo);
+      const events: UnifiedShipmentMovementEvent[] = [];
+      const timeline = Array.isArray(tracking?.timeline) ? tracking.timeline : [];
+      for (const item of timeline) {
+        if (!item || typeof item !== 'object') continue;
+        pushUnique(events, timelineItemToEvent(item as SilaTrackingTimelineItem));
+      }
+
+      if (cargo) {
+        for (const step of extractDeliveryRoute(cargo)) {
+          if (!step || typeof step !== 'object') continue;
+          const title = firstNonEmptyString(step.arabicName, step.name);
+          const timestamp = toIsoOrNull(step.deliveryDate);
+          if (!title || !timestamp) continue;
+          pushUnique(events, {
+            timestamp,
+            title,
+            originalDescription: title,
+            location: null,
+            color: step.isArrived !== false ? 'info' : 'default',
+            code: typeof step.typeKey === 'string' ? step.typeKey : null,
+            source: 'carrier',
+          });
+        }
+      }
+
+      if (events.length === 0 && cargo) {
+        for (const event of buildSilaTimelineEvents(cargo)) pushUnique(events, event);
+      }
+
+      events.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+      attachSilaCurrentDetail(events, cargo);
+
+      const identityCargo =
+        cargo && typeof cargo === 'object'
+          ? {
+              ...cargo,
+              courier: tracking?.courier || cargo.courier,
+            }
+          : cargo;
+
+      if (events.length === 0) {
+        return {
+          providerCode: this.code,
+          providerName: silaCourierDisplayName(tracking, cargo),
+          awb: trimmed,
+          events: [],
+          rawPayload: identityCargo || undefined,
+          message: 'لا توجد بيانات لحركة الشحنة من شركة الشحن.',
+        };
+      }
+
+      const rawStatus =
+        (typeof tracking?.current_status === 'string' && tracking.current_status.trim()) ||
+        (cargo ? resolveCargoStatus(cargo) : '');
       const mapped = mapSilaStatus(rawStatus);
-      const events = buildSilaTimelineEvents(cargo);
-      const cargoToken = firstNonEmptyString(cargo.tracking_token, cargo.barcode, cargo.id) || trimmed;
+      const cargoToken =
+        firstNonEmptyString(
+          tracking?.barcode,
+          cargo?.tracking_token,
+          cargo?.barcode,
+          cargo?.id,
+        ) || trimmed;
+      const carrierAwb = extractSilaCarrierAwb(cargo);
+      const providerName = silaCourierDisplayName(tracking, cargo);
 
       return {
         providerCode: this.code,
-        providerName: 'Sila-SY',
-        awb: cargoToken,
+        providerName,
+        awb: carrierAwb || cargoToken,
         isDelivered: mapped.normalized === 'delivered',
         statusLabel: mapped.labelAr,
         statusColor: mapped.color,
         events,
+        rawPayload: identityCargo || undefined,
       };
     } catch (err: any) {
       return {
@@ -1174,4 +1743,40 @@ export class SilaSyAdapter implements ShippingProvider {
       };
     }
   }
+}
+
+function silaCancelErrorResult(err: SilaSyApiError): ShippingCancelResult {
+  const code = (err.code || '').toLowerCase();
+  const retryable = code === 'courier_cancel_failed' || err.statusCode === 502 || err.statusCode === 503;
+  if (
+    code === 'cargo_locked' ||
+    code === 'cancel_window_closed' ||
+    code === 'courier_refused_cancel'
+  ) {
+    return {
+      outcome: 'refused',
+      errorCode: code,
+      message: err.message,
+      raw: err.body,
+    };
+  }
+  if (retryable || code === 'rate_limit_exceeded' || code === 'dispatch_in_progress') {
+    return {
+      outcome: 'retry',
+      errorCode: code || 'retryable',
+      message: err.message,
+      retryAfterSeconds: err.retryAfterSeconds,
+      raw: err.body,
+    };
+  }
+  return {
+    outcome: 'refused',
+    errorCode: code || 'cancel_failed',
+    message: err.message,
+    raw: err.body,
+  };
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }

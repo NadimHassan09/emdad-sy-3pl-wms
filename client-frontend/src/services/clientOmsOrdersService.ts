@@ -20,6 +20,7 @@ export type ClientOmsOrderStatus =
   | 'shipped'
   | 'delivered'
   | 'failed_delivery'
+  | 'return_pending_receipt'
   | 'completed'
   | 'returned'
   | 'cancelled';
@@ -161,7 +162,11 @@ export interface ClientCodReportPage {
   total: number;
   limit: number;
   offset: number;
-  summary: { orderCount: number; totalCodAmount: string };
+  summary: {
+    orderCount: number;
+    totalCodAmount: string;
+    statusCounts?: Record<string, number>;
+  };
 }
 
 export type ClientOmsTotalOp = 'eq' | 'gt' | 'gte' | 'lt' | 'lte';
@@ -243,10 +248,12 @@ export async function fetchClientOmsTimeline(id: string): Promise<ClientOmsOrder
 export type ClientShipmentMovementEvent = {
   timestamp: string;
   title: string;
+  originalDescription?: string | null;
   location?: string | null;
   notes?: string | null;
   color?: 'default' | 'info' | 'success' | 'error' | 'warning';
   code?: string | null;
+  source?: 'carrier' | 'emdad';
 };
 
 export type ClientOmsShippingMovementResult = {
@@ -257,6 +264,9 @@ export type ClientOmsShippingMovementResult = {
   events: ClientShipmentMovementEvent[];
   message?: string;
   error?: string;
+  lookupState?: 'ok' | 'not_found' | 'error' | null;
+  shipmentState?: 'active' | 'cancelled' | 'superseded' | null;
+  cancellationUnconfirmed?: boolean;
   /** Always null for clients — company name must not appear. */
   providerName?: null;
   providerCode?: null;
@@ -368,4 +378,24 @@ export async function fetchClientCodReport(params: {
 }): Promise<ClientCodReportPage> {
   const { data } = await apiClient.get<ClientCodReportPage>('/oms/cod-report', { params });
   return data;
+}
+
+export async function downloadClientCodReportExcel(params: {
+  codStatus?: string;
+  dateFrom?: string;
+  dateTo?: string;
+}): Promise<void> {
+  const response = await apiClient.get<Blob>('/oms/cod-report/export', {
+    params,
+    responseType: 'blob',
+  });
+  const disposition = response.headers['content-disposition'] as string | undefined;
+  const match = disposition?.match(/filename="([^"]+)"/);
+  const filename = match?.[1] ?? `cod-report-${new Date().toISOString().slice(0, 10)}.xlsx`;
+  const url = URL.createObjectURL(response.data);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
 }

@@ -1,13 +1,18 @@
 import {
   BadRequestException,
+  ForbiddenException,
   Inject,
   Injectable,
   NotFoundException,
   forwardRef,
 } from '@nestjs/common';
 import {
+  CarrierShipmentStatus,
+  LedgerRefType,
+  MovementType,
   OmsOrderStatus,
   OmsReturnStatus,
+  OutboundOrderStatus,
   Prisma,
   ProductTrackingType,
   ReturnItemDisposition,
@@ -20,9 +25,13 @@ import { CompanyAccessService } from '../../common/company-access/company-access
 import { InvalidStateException } from '../../common/errors/domain-exceptions';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { withTenantRls } from '../../common/prisma/tenant-rls';
+import { StockHelpers } from '../inventory/stock.helpers';
+import { LedgerIdempotencyService } from '../inventory/ledger-idempotency.service';
 import { CodRecordsService } from '../cod/cod-records.service';
 import { RealtimeService } from '../realtime/realtime.service';
 import { ReturnsService } from '../returns/returns.service';
+import { ShippingService } from '../shipping/shipping.service';
+import { carrierUnlinkPatch } from '../shipping/shipping-lifecycle.util';
 import {
   ApproveOmsReturnDto,
   CreateOmsReturnDto,
@@ -265,6 +274,10 @@ export class OmsReturnsService {
     private readonly warehouseReturns: ReturnsService,
     private readonly cod: CodRecordsService,
     private readonly realtime: RealtimeService,
+    private readonly stockHelpers: StockHelpers,
+    private readonly ledger: LedgerIdempotencyService,
+    @Inject(forwardRef(() => ShippingService))
+    private readonly shipping: ShippingService,
   ) {}
 
   private emitReturn(
@@ -343,7 +356,20 @@ export class OmsReturnsService {
 
     if (!isOmsReturnEligibleStatus(order.status)) {
       throw new InvalidStateException(
-        'OMS returns can only be created for Delivered or Out for Delivery orders.',
+        'OMS returns can only be created from Field Delivery, Delivered, or Out for Delivery orders.',
+      );
+    }
+
+    const existingActive = await this.prisma.omsReturn.findFirst({
+      where: {
+        omsOrderId: order.id,
+        status: { in: [OmsReturnStatus.requested, OmsReturnStatus.approved] },
+      },
+      select: { id: true, returnNumber: true },
+    });
+    if (existingActive) {
+      throw new InvalidStateException(
+        `Return ${existingActive.returnNumber} is already awaiting warehouse receipt.`,
       );
     }
 
@@ -469,14 +495,29 @@ export class OmsReturnsService {
       created.omsOrderId,
     );
 
-    // Auto-complete: approve, receive, putaway → inventory goes to "returns" location
-    try {
-      await this.autoCompleteReturn(created.id, user);
-      return this.findById(created.id, user);
-    } catch {
-      // If auto-complete fails, return is still created as "requested"
-      return serialize(created);
+    // Creating a return only opens pending receipt. Stock moves on confirm.
+    if (
+      order.status === OmsOrderStatus.failed_delivery ||
+      order.status === OmsOrderStatus.delivered ||
+      order.status === OmsOrderStatus.shipped ||
+      order.status === OmsOrderStatus.out_for_delivery
+    ) {
+      await this.prisma.omsOrder.update({
+        where: { id: order.id },
+        data: { status: OmsOrderStatus.return_pending_receipt },
+      });
+      await this.prisma.omsOrderEvent.create({
+        data: {
+          omsOrderId: order.id,
+          companyId: order.companyId,
+          eventType: 'oms.return_pending_receipt',
+          createdBy: user.id,
+          payload: { omsReturnId: created.id, previousStatus: order.status },
+        },
+      });
     }
+
+    return this.findById(created.id, user);
   }
 
   /**
@@ -485,6 +526,11 @@ export class OmsReturnsService {
    * returns are returned as-is.
    */
   async confirmReturn(id: string, user: AuthPrincipal) {
+    if (user.role === 'client_admin' || user.role === 'client_staff') {
+      throw new ForbiddenException(
+        'Warehouse return receipt can only be confirmed by warehouse staff.',
+      );
+    }
     const existing = await this.prisma.omsReturn.findUnique({ where: { id } });
     if (!existing) throw new NotFoundException('OMS return not found.');
     this.companyAccess.validateResourceOwnership(user, existing);
@@ -2355,5 +2401,596 @@ export class OmsReturnsService {
       select: { lotId: true },
     });
     return reservation?.lotId ?? null;
+  }
+
+  /**
+   * Safe Post-Receipt Rollback Return Action:
+   * Reverses the physical inventory receipt using a compensating ledger movement,
+   * transitions the return to cancelled with audit trail, and restores the original OMS order.
+   * Strictly authorized to super_admin and wh_manager.
+   */
+  async rollbackReturn(
+    id: string,
+    user: AuthPrincipal,
+    options?: { targetStatus?: 'out_for_delivery' | 'ready_to_ship' },
+  ): Promise<{
+    returnId: string;
+    returnNumber: string;
+    omsOrderId: string;
+    orderNumber: string;
+    restoredStatus: string;
+    carrierReactivationStatus: 'active' | 'reshipment_required' | 'reshipped';
+    reversedLinesCount: number;
+    message: string;
+    newAwb?: string;
+  }> {
+    if (
+      user.role !== 'super_admin' &&
+      user.role !== 'wh_manager' &&
+      user.role !== 'wh_operator'
+    ) {
+      throw new ForbiddenException(
+        'Rollback of confirmed returns is restricted to warehouse staff and administrators.',
+      );
+    }
+
+    const requestedTarget: 'out_for_delivery' | 'ready_to_ship' =
+      options?.targetStatus === 'out_for_delivery' ? 'out_for_delivery' : 'ready_to_ship';
+
+    const omsReturn = await this.prisma.omsReturn.findUnique({
+      where: { id },
+      include: {
+        company: true,
+        lines: {
+          include: {
+            product: { select: { id: true, sku: true, name: true } },
+          },
+        },
+        omsOrder: {
+          include: {
+            outboundOrder: {
+              select: {
+                id: true,
+                orderNumber: true,
+                status: true,
+                carrierShipments: {
+                  where: { supersededAt: null },
+                  orderBy: { createdAt: 'desc' },
+                },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!omsReturn) {
+      throw new NotFoundException('OMS return not found.');
+    }
+    this.companyAccess.validateResourceOwnership(user, omsReturn);
+
+    if (
+      omsReturn.status === OmsReturnStatus.cancelled &&
+      omsReturn.notes?.includes('Rollback executed')
+    ) {
+      const order = omsReturn.omsOrder;
+      return {
+        returnId: omsReturn.id,
+        returnNumber: omsReturn.returnNumber,
+        omsOrderId: omsReturn.omsOrderId,
+        orderNumber: order?.orderNumber ?? omsReturn.omsOrderId,
+        restoredStatus: order?.status ?? 'unknown',
+        carrierReactivationStatus: 'active',
+        reversedLinesCount: omsReturn.lines?.length ?? 0,
+        message: 'This return was already rolled back.',
+      };
+    }
+
+    if (omsReturn.status !== OmsReturnStatus.completed) {
+      throw new BadRequestException(
+        `Only confirmed-received returns can be rolled back (current return status: ${omsReturn.status}).`,
+      );
+    }
+
+    const order = omsReturn.omsOrder;
+    if (!order) {
+      throw new BadRequestException('Linked OMS order not found.');
+    }
+
+    // 1. Idempotency Check: check if any compensating movements already exist for this return
+    const alreadyRolledBack = await this.prisma.inventoryLedger.findFirst({
+      where: {
+        idempotencyKey: { startsWith: `return:rollback:${omsReturn.id}:` },
+      },
+      select: { id: true },
+    });
+    if (alreadyRolledBack) {
+      throw new BadRequestException('This return was already rolled back.');
+    }
+
+    // 2. Identify the original receipt ledger movements
+    const receiptMovements = await this.prisma.inventoryLedger.findMany({
+      where: {
+        referenceType: LedgerRefType.return_order,
+        referenceId: omsReturn.warehouseReturnId
+          ? { in: [omsReturn.id, omsReturn.warehouseReturnId] }
+          : omsReturn.id,
+        movementType: MovementType.return_receive,
+      },
+    });
+
+    if (receiptMovements.length === 0) {
+      throw new BadRequestException(
+        'No inventory receipt ledger entries found for this return; cannot safely reverse stock.',
+      );
+    }
+
+    // 3. Pre-verify stock availability in return location
+    for (const movement of receiptMovements) {
+      if (!movement.toLocationId) {
+        throw new BadRequestException(
+          `Receipt ledger entry ${movement.id} is missing location information.`,
+        );
+      }
+      const lid = movement.lotId;
+      const rows = lid === null
+        ? await this.prisma.$queryRaw<Array<{ quantity_on_hand: string | null; quantity_reserved: string | null }>>(
+            Prisma.sql`
+              SELECT quantity_on_hand::text, quantity_reserved::text
+                FROM current_stock
+               WHERE company_id = ${movement.companyId}::uuid
+                 AND product_id = ${movement.productId}::uuid
+                 AND location_id = ${movement.toLocationId}::uuid
+                 AND lot_id IS NULL
+                 AND package_id IS NULL
+            `,
+          )
+        : await this.prisma.$queryRaw<Array<{ quantity_on_hand: string | null; quantity_reserved: string | null }>>(
+            Prisma.sql`
+              SELECT quantity_on_hand::text, quantity_reserved::text
+                FROM current_stock
+               WHERE company_id = ${movement.companyId}::uuid
+                 AND product_id = ${movement.productId}::uuid
+                 AND location_id = ${movement.toLocationId}::uuid
+                 AND lot_id = ${lid}::uuid
+                 AND package_id IS NULL
+            `,
+          );
+      const row = rows[0];
+      if (!row || row.quantity_on_hand === null) {
+        throw new BadRequestException(
+          `Cannot rollback return: No stock found at the return location for product ${movement.productId}. Stock may have been moved or transferred.`,
+        );
+      }
+      const onHand = new Prisma.Decimal(row.quantity_on_hand);
+      const reserved = new Prisma.Decimal(row.quantity_reserved ?? '0');
+      const available = onHand.sub(reserved);
+
+      if (available.lessThan(movement.quantity)) {
+        const product = omsReturn.lines.find((l) => l.productId === movement.productId)?.product;
+        const skuDisplay = product?.sku ?? movement.productId;
+        throw new BadRequestException(
+          `Cannot rollback return: Stock for SKU "${skuDisplay}" has already been transferred, reserved, or consumed from the return location ` +
+            `(required: ${movement.quantity.toString()}, available: ${available.toString()}).`,
+        );
+      }
+    }
+
+    const now = new Date();
+    const rollbackNote = `Rollback executed on ${now.toISOString()} by user ${user.id} (${user.role}). Target: ${requestedTarget}.`;
+
+    // ─── OPTION A: Rollback to Out for Delivery (with carrier reshipment) ───
+    if (requestedTarget === 'out_for_delivery') {
+      if (!order.outboundOrderId) {
+        throw new BadRequestException(
+          'Cannot rollback to out for delivery: linked outbound order not found.',
+        );
+      }
+
+      // Submit reshipment request to carrier API. Out for delivery must NOT be set until carrier confirms acceptance!
+      const reshipRes = await this.shipping.reshipOutboundWithCarrier({
+        outboundOrderId: order.outboundOrderId,
+      });
+
+      if (!reshipRes.ok) {
+        await this.prisma.omsOrderEvent.create({
+          data: {
+            omsOrderId: order.id,
+            companyId: order.companyId,
+            eventType: 'return.rollback_reship_failed',
+            createdBy: user.id,
+            payload: {
+              omsReturnId: omsReturn.id,
+              returnNumber: omsReturn.returnNumber,
+              reason: reshipRes.message,
+              targetStatus: 'out_for_delivery',
+            },
+          },
+        });
+        throw new BadRequestException(
+          `Carrier reshipment failed: ${reshipRes.message || 'The carrier API rejected the shipment request'}. The order remains in Return Received.`,
+        );
+      }
+
+      // Carrier accepted! Proceed with atomic state transition
+      await this.prisma.$transaction(async (tx) => {
+        // Step A: Lock and verify stock availability
+        for (const movement of receiptMovements) {
+          const lid = movement.lotId;
+          if (lid === null) {
+            await tx.$queryRaw(
+              Prisma.sql`
+                SELECT quantity_on_hand FROM current_stock
+                 WHERE company_id = ${movement.companyId}::uuid
+                   AND product_id = ${movement.productId}::uuid
+                   AND location_id = ${movement.toLocationId}::uuid
+                   AND lot_id IS NULL
+                   AND package_id IS NULL
+                 FOR UPDATE
+              `,
+            );
+          } else {
+            await tx.$queryRaw(
+              Prisma.sql`
+                SELECT quantity_on_hand FROM current_stock
+                 WHERE company_id = ${movement.companyId}::uuid
+                   AND product_id = ${movement.productId}::uuid
+                   AND location_id = ${movement.toLocationId}::uuid
+                   AND lot_id = ${lid}::uuid
+                   AND package_id IS NULL
+                 FOR UPDATE
+              `,
+            );
+          }
+        }
+
+        // Step B: Compensating Stock Decrement & Ledger Insertion
+        for (const movement of receiptMovements) {
+          const qtyNum = Number(movement.quantity);
+          await this.stockHelpers.decrementWithMeta(tx, {
+            companyId: movement.companyId,
+            productId: movement.productId,
+            locationId: movement.toLocationId!,
+            lotId: movement.lotId,
+            quantity: qtyNum,
+          });
+
+          const compensatingIdemKey = `return:rollback:${omsReturn.id}:${movement.id}`;
+          await this.ledger.appendIfAbsent(tx, compensatingIdemKey, {
+            companyId: movement.companyId,
+            productId: movement.productId,
+            lotId: movement.lotId,
+            fromLocationId: movement.toLocationId!,
+            toLocationId: null,
+            movementType: MovementType.adjustment_negative,
+            quantity: movement.quantity,
+            referenceType: LedgerRefType.return_order,
+            referenceId: omsReturn.id,
+            operatorId: user.id,
+            notes: `Compensating reversal for return receipt ${movement.id}`,
+          });
+        }
+
+        // Step C: Supersede previous carrier shipments
+        if (order.outboundOrderId) {
+          await tx.carrierShipment.updateMany({
+            where: {
+              outboundOrderId: order.outboundOrderId,
+              supersededAt: null,
+            },
+            data: {
+              supersededAt: now,
+              lastErrorSafe: `Superseded by return rollback reshipment (new AWB: ${reshipRes.awb})`,
+            },
+          });
+        }
+
+        // Step D: Create new CarrierShipment record
+        let providerId = order.outboundOrder?.carrierShipments?.[0]?.providerId;
+        if (!providerId) {
+          const prov = await tx.shippingProvider.findFirst({
+            where: { code: reshipRes.providerCode },
+          });
+          providerId = prov?.id ?? (await tx.shippingProvider.findFirst())?.id;
+        }
+
+        if (order.outboundOrderId && providerId) {
+          await tx.carrierShipment.create({
+            data: {
+              outboundOrderId: order.outboundOrderId,
+              providerId,
+              providerCode: reshipRes.providerCode || 'carrier',
+              externalAwb: reshipRes.awb,
+              trackingNumber: reshipRes.trackingNumber || reshipRes.awb,
+              status: CarrierShipmentStatus.created,
+              lastErrorSafe: null,
+              rawResultMeta: (reshipRes.raw && typeof reshipRes.raw === 'object'
+                ? reshipRes.raw
+                : { awb: reshipRes.awb }) as object,
+            },
+          });
+        }
+
+        // Step E: Mark OmsReturn cancelled
+        await tx.omsReturn.update({
+          where: { id: omsReturn.id },
+          data: {
+            status: OmsReturnStatus.cancelled,
+            notes: omsReturn.notes ? `${omsReturn.notes}\n${rollbackNote}` : rollbackNote,
+          },
+        });
+
+        // Step F: Restore OmsOrder to out_for_delivery with new waybill
+        await tx.omsOrder.update({
+          where: { id: order.id },
+          data: {
+            status: OmsOrderStatus.out_for_delivery,
+            carrier: reshipRes.providerCode,
+            trackingNumber: reshipRes.trackingNumber || reshipRes.awb,
+            returnedAt: null,
+          },
+        });
+
+        // Step G: Restore OutboundOrder to out_for_delivery
+        if (order.outboundOrderId) {
+          await tx.outboundOrder.update({
+            where: { id: order.outboundOrderId },
+            data: {
+              status: OutboundOrderStatus.out_for_delivery,
+              carrier: reshipRes.providerCode,
+              trackingNumber: reshipRes.trackingNumber || reshipRes.awb,
+              returnedAt: null,
+            },
+          });
+        }
+
+        // Step H: Audit log
+        await tx.omsOrderEvent.create({
+          data: {
+            omsOrderId: order.id,
+            companyId: order.companyId,
+            eventType: 'return.rollback_to_out_for_delivery',
+            createdBy: user.id,
+            payload: {
+              omsReturnId: omsReturn.id,
+              returnNumber: omsReturn.returnNumber,
+              restoredStatus: 'out_for_delivery',
+              newAwb: reshipRes.awb,
+              providerCode: reshipRes.providerCode,
+              reversedMovementsCount: receiptMovements.length,
+            },
+          },
+        });
+
+        // Step I: Safe COD rollback handling
+        await this.handleCodRollbackReversal(tx, omsReturn.id);
+      });
+
+      // Realtime events
+      this.emitReturn(
+        omsReturn.companyId,
+        omsReturn.id,
+        'cancelled',
+        'oms_return.rolled_back',
+        order.id,
+      );
+
+      this.realtime.emitOmsOrderEvent(order.companyId, {
+        orderId: order.id,
+        status: OmsOrderStatus.out_for_delivery,
+        event: 'oms.order_restored_after_return_rollback',
+      });
+
+      for (const m of receiptMovements) {
+        this.realtime.emitInventoryChanged(order.companyId, {
+          source: 'return_rollback',
+          orderId: omsReturn.id,
+          productId: m.productId,
+        });
+      }
+
+      return {
+        returnId: omsReturn.id,
+        returnNumber: omsReturn.returnNumber,
+        omsOrderId: order.id,
+        orderNumber: order.orderNumber,
+        restoredStatus: 'out_for_delivery',
+        carrierReactivationStatus: 'reshipped',
+        reversedLinesCount: receiptMovements.length,
+        newAwb: reshipRes.awb,
+        message: `تم قبول إعادة الشحن من شركة النقل بنجاح (بوليصة: ${reshipRes.awb}) وإعادة الطلب إلى (خارج للتسليم).`,
+      };
+    }
+
+    // ─── OPTION B: Rollback to Ready to Ship (Shipment Preparation) ───
+    const unlink = carrierUnlinkPatch();
+
+    await this.prisma.$transaction(async (tx) => {
+      // Step A: Lock and verify stock availability
+      for (const movement of receiptMovements) {
+        const lid = movement.lotId;
+        if (lid === null) {
+          await tx.$queryRaw(
+            Prisma.sql`
+              SELECT quantity_on_hand FROM current_stock
+               WHERE company_id = ${movement.companyId}::uuid
+                 AND product_id = ${movement.productId}::uuid
+                 AND location_id = ${movement.toLocationId}::uuid
+                 AND lot_id IS NULL
+                 AND package_id IS NULL
+               FOR UPDATE
+            `,
+          );
+        } else {
+          await tx.$queryRaw(
+            Prisma.sql`
+              SELECT quantity_on_hand FROM current_stock
+               WHERE company_id = ${movement.companyId}::uuid
+                 AND product_id = ${movement.productId}::uuid
+                 AND location_id = ${movement.toLocationId}::uuid
+                 AND lot_id = ${lid}::uuid
+                 AND package_id IS NULL
+               FOR UPDATE
+            `,
+          );
+        }
+      }
+
+      // Step B: Compensating Stock Decrement & Ledger Insertion
+      for (const movement of receiptMovements) {
+        const qtyNum = Number(movement.quantity);
+        await this.stockHelpers.decrementWithMeta(tx, {
+          companyId: movement.companyId,
+          productId: movement.productId,
+          locationId: movement.toLocationId!,
+          lotId: movement.lotId,
+          quantity: qtyNum,
+        });
+
+        const compensatingIdemKey = `return:rollback:${omsReturn.id}:${movement.id}`;
+        await this.ledger.appendIfAbsent(tx, compensatingIdemKey, {
+          companyId: movement.companyId,
+          productId: movement.productId,
+          lotId: movement.lotId,
+          fromLocationId: movement.toLocationId!,
+          toLocationId: null,
+          movementType: MovementType.adjustment_negative,
+          quantity: movement.quantity,
+          referenceType: LedgerRefType.return_order,
+          referenceId: omsReturn.id,
+          operatorId: user.id,
+          notes: `Compensating reversal for return receipt ${movement.id}`,
+        });
+      }
+
+      // Step C: Supersede previous carrier shipments
+      if (order.outboundOrderId) {
+        await tx.carrierShipment.updateMany({
+          where: {
+            outboundOrderId: order.outboundOrderId,
+            supersededAt: null,
+          },
+          data: {
+            supersededAt: now,
+            lastErrorSafe: 'Superseded by return rollback to Ready to Ship',
+          },
+        });
+      }
+
+      // Step D: Mark OmsReturn cancelled
+      await tx.omsReturn.update({
+        where: { id: omsReturn.id },
+        data: {
+          status: OmsReturnStatus.cancelled,
+          notes: omsReturn.notes ? `${omsReturn.notes}\n${rollbackNote}` : rollbackNote,
+        },
+      });
+
+      // Step E: Restore OmsOrder to ready_to_ship with unlinked carrier fields
+      await tx.omsOrder.update({
+        where: { id: order.id },
+        data: {
+          ...unlink,
+          status: OmsOrderStatus.ready_to_ship,
+          returnedAt: null,
+        },
+      });
+
+      // Step F: Restore OutboundOrder to waiting_for_shipping_details
+      if (order.outboundOrderId) {
+        await tx.outboundOrder.update({
+          where: { id: order.outboundOrderId },
+          data: {
+            ...unlink,
+            status: OutboundOrderStatus.waiting_for_shipping_details,
+            returnedAt: null,
+          },
+        });
+      }
+
+      // Step G: Audit log
+      await tx.omsOrderEvent.create({
+        data: {
+          omsOrderId: order.id,
+          companyId: order.companyId,
+          eventType: 'return.rollback_to_ready_to_ship',
+          createdBy: user.id,
+          payload: {
+            omsReturnId: omsReturn.id,
+            returnNumber: omsReturn.returnNumber,
+            restoredStatus: 'ready_to_ship',
+            reversedMovementsCount: receiptMovements.length,
+          },
+        },
+      });
+
+      // Step H: Safe COD rollback handling
+      await this.handleCodRollbackReversal(tx, omsReturn.id);
+    });
+
+    // Realtime events
+    this.emitReturn(
+      omsReturn.companyId,
+      omsReturn.id,
+      'cancelled',
+      'oms_return.rolled_back',
+      order.id,
+    );
+
+    this.realtime.emitOmsOrderEvent(order.companyId, {
+      orderId: order.id,
+      status: OmsOrderStatus.ready_to_ship,
+      event: 'oms.order_restored_after_return_rollback',
+    });
+
+    for (const m of receiptMovements) {
+      this.realtime.emitInventoryChanged(order.companyId, {
+        source: 'return_rollback',
+        orderId: omsReturn.id,
+        productId: m.productId,
+      });
+    }
+
+    return {
+      returnId: omsReturn.id,
+      returnNumber: omsReturn.returnNumber,
+      omsOrderId: order.id,
+      orderNumber: order.orderNumber,
+      restoredStatus: 'ready_to_ship',
+      carrierReactivationStatus: 'reshipment_required',
+      reversedLinesCount: receiptMovements.length,
+      message:
+        'تم التراجع عن استلام المرتجع وعكس حركات المخزون، وإعادة الطلب إلى (جاهز للشحن / تفاصيل الشحن) لإعادة تجهيزه واختيار شركة الشحن.',
+    };
+  }
+
+  private async handleCodRollbackReversal(tx: any, omsReturnId: string): Promise<void> {
+    const codAdj = await tx.codAdjustment.findUnique({
+      where: { omsReturnId },
+    });
+    if (codAdj) {
+      await tx.codAdjustment.delete({
+        where: { id: codAdj.id },
+      });
+      const remainingAdjs = await tx.codAdjustment.findMany({
+        where: { codRecordId: codAdj.codRecordId },
+      });
+      const codRec = await tx.codRecord.findUnique({
+        where: { id: codAdj.codRecordId },
+      });
+      if (codRec && codRec.status === 'returned') {
+        const totalAdjusted = remainingAdjs.reduce(
+          (sum: any, a: any) => sum.add(a.amount),
+          new Prisma.Decimal(0),
+        );
+        const currentBalance = codRec.originalAmount.add(totalAdjusted);
+        if (currentBalance.greaterThan(0)) {
+          await tx.codRecord.update({
+            where: { id: codRec.id },
+            data: { status: 'pending' },
+          });
+        }
+      }
+    }
   }
 }

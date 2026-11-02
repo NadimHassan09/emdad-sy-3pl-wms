@@ -18,11 +18,23 @@ export type ShippingProviderAdminView = {
   lastTestedAt: string | null;
   lastTestStatus: string | null;
   lastErrorSafe: string | null;
+  webhookRegistered: boolean;
+  supportsWebhooks: boolean;
+};
+
+export type RegisterShippingWebhookResult = {
+  ok: boolean;
+  webhookId?: string;
+  secretSaved?: boolean;
+  secretPrefix?: string | null;
+  testPing?: { ok: boolean; message?: string };
+  message?: string;
 };
 
 export type ConnectShippingProviderInput = {
   username: string;
-  password: string;
+  password?: string;
+  webhookSecret?: string;
 };
 
 export type ShippingOriginAddress = {
@@ -100,6 +112,9 @@ export type ShippingRateQuote = {
   restrictions?: string[];
   providerName?: string;
   logoUrl?: string;
+  hubs?: Array<{ id: string; name: string; nearest?: boolean }>;
+  nearestHubId?: string | null;
+  nearestHubDetermined?: boolean;
   /** Verified COD currencies for this service. Empty means unknown, not both. */
   supportedCodCurrencies?: string[];
   isCheapest?: boolean;
@@ -140,6 +155,8 @@ export type QuoteShippingRatesInput = {
   collectionMode?: 'all' | 'explicit';
   /** Shipping-fee payer. Changing it must refetch availability. */
   payer?: ShippingPayer;
+  /** Provider hub/branch id when requoting a Hub Delivery selection. */
+  hubId?: string;
 };
 
 export type QuoteShippingRatesResult = {
@@ -159,6 +176,7 @@ export type CarrierShipment = {
   shippingCost?: string | number | null;
   currency?: string | null;
   lastErrorSafe: string | null;
+  supersededAt?: string | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -168,6 +186,7 @@ export type ShippingConfigPayload = {
   shippingMethod?: ShippingMethod;
   shippingProviderCode?: string | null;
   shippingServiceId?: string | null;
+  shippingHubId?: string | null;
   shippingReceiverLat?: number | null;
   shippingReceiverLng?: number | null;
   shippingPackageType?: ShippingPackageType | null;
@@ -192,6 +211,7 @@ export type OrderShippingFieldsValue = {
   shippingMethod: ShippingMethod;
   shippingProviderCode: string;
   shippingServiceId: string;
+  shippingHubId: string;
   shippingReceiverLat: string;
   shippingReceiverLng: string;
   shippingPackageType: ShippingPackageType | '';
@@ -210,6 +230,7 @@ export function emptyOrderShippingFields(): OrderShippingFieldsValue {
     shippingMethod: 'manual',
     shippingProviderCode: '',
     shippingServiceId: '',
+    shippingHubId: '',
     shippingReceiverLat: '',
     shippingReceiverLng: '',
     shippingPackageType: '',
@@ -238,6 +259,7 @@ export function orderShippingFieldsFromApi(
     shippingMethod: src.shippingMethod === 'carrier' ? 'carrier' : 'manual',
     shippingProviderCode: src.shippingProviderCode?.trim() ?? '',
     shippingServiceId: src.shippingServiceId?.trim() ?? '',
+    shippingHubId: src.shippingHubId?.trim() ?? '',
     shippingReceiverLat: numOrEmpty(src.shippingReceiverLat),
     shippingReceiverLng: numOrEmpty(src.shippingReceiverLng),
     shippingPackageType: (src.shippingPackageType as ShippingPackageType | null) ?? '',
@@ -271,6 +293,8 @@ export function orderShippingFieldsToPayload(
     shippingMethod: 'carrier',
     shippingProviderCode: value.shippingProviderCode.trim() || null,
     shippingServiceId: value.shippingServiceId?.trim() || null,
+    shippingHubId:
+      value.shippingDeliveryType === 'hub' ? value.shippingHubId?.trim() || null : null,
     shippingReceiverLat: parseOptionalNumber(value.shippingReceiverLat) ?? null,
     shippingReceiverLng: parseOptionalNumber(value.shippingReceiverLng) ?? null,
     shippingPackageType: value.shippingPackageType || null,
@@ -311,6 +335,10 @@ export function orderShippingDetailsToPayload(
       value.shippingMethod === 'carrier' ? value.shippingProviderCode.trim() || null : null,
     shippingServiceId:
       value.shippingMethod === 'carrier' ? value.shippingServiceId?.trim() || null : null,
+    shippingHubId:
+      value.shippingMethod === 'carrier' && value.shippingDeliveryType === 'hub'
+        ? value.shippingHubId?.trim() || null
+        : null,
     shippingReceiverLat: parseOptionalNumber(value.shippingReceiverLat) ?? null,
     shippingReceiverLng: parseOptionalNumber(value.shippingReceiverLng) ?? null,
     shippingPackageType: value.shippingPackageType || null,
@@ -479,6 +507,18 @@ export const ShippingApi = {
     return api
       .post<ShippingProviderAdminView>(
         `/shipping/providers/${encodeURIComponent(code)}/disconnect`,
+      )
+      .then((r) => r.data);
+  },
+
+  registerWebhook(
+    code: string,
+    body: { webhookUrl: string; secret?: string },
+  ): Promise<RegisterShippingWebhookResult> {
+    return api
+      .post<RegisterShippingWebhookResult>(
+        `/shipping/providers/${encodeURIComponent(code)}/register-webhook`,
+        body,
       )
       .then((r) => r.data);
   },

@@ -11,9 +11,13 @@ import { QK } from '../../constants/query-keys';
 import { isOmsAdminCancellableStatus } from '../../lib/oms-order-cancel';
 import { isOmsOrderDeletable } from '../../lib/oms-order-delete';
 import { mapOmsCommercialDisplayStatus } from '../../lib/oms-commercial-status';
+import { orderOperationalStage } from '../../lib/oms-operational-stage';
 import { OmsOrderFormModal } from './OmsOrderFormModal';
 import { OmsSingleShippingModal } from './OmsSingleShippingModal';
 import { OmsWaybillModal } from './OmsWaybillModal';
+import { OmsEditShippingFeeModal } from './OmsEditShippingFeeModal';
+import { CancelShipmentModal } from './CancelShipmentModal';
+import { useAuth } from '../../auth/AuthContext';
 
 const WAYBILL_STATUSES = new Set([
   'ready_to_ship',
@@ -21,6 +25,7 @@ const WAYBILL_STATUSES = new Set([
   'out_for_delivery',
   'delivered',
   'failed_delivery',
+  'return_pending_receipt',
   'returned',
   'cancelled',
 ]);
@@ -46,11 +51,24 @@ export function useOmsOrderRowActions({
   const navigate = useNavigate();
   const qc = useQueryClient();
   const toast = useToast();
+  const { user } = useAuth();
+  const canEditShippingFee =
+    !user ||
+    user?.role === 'super_admin' ||
+    user?.role === 'wh_manager' ||
+    user?.role === 'admin' ||
+    user?.authGroup === 'ADMIN';
   const [editOrderId, setEditOrderId] = useState<string | null>(null);
   const [deleteOrder, setDeleteOrder] = useState<OmsOrderListItem | null>(null);
   const [cancelOrder, setCancelOrder] = useState<OmsOrderListItem | null>(null);
+  const [cancelShipmentOrder, setCancelShipmentOrder] = useState<OmsOrderListItem | null>(null);
+  const [rollbackModalOrder, setRollbackModalOrder] = useState<{
+    order: OmsOrderListItem;
+    target: 'out_for_delivery' | 'ready_to_ship';
+  } | null>(null);
   const [shippingOrder, setShippingOrder] = useState<OmsOrderListItem | null>(null);
   const [waybillOrderId, setWaybillOrderId] = useState<string | null>(null);
+  const [shippingFeeOrder, setShippingFeeOrder] = useState<OmsOrderListItem | null>(null);
 
   const refresh = () => {
     void qc.invalidateQueries({ queryKey: QK.omsOrders });
@@ -100,13 +118,27 @@ export function useOmsOrderRowActions({
     mutationFn: (orderId: string) => OmsApi.delivered(orderId),
     ...success(isArabic ? 'تم تأكيد تسليم الطلب.' : 'Order marked as delivered.'),
   });
+  const ofdMut = useMutation({
+    mutationFn: (orderId: string) => OmsApi.outForDelivery(orderId),
+    ...success(isArabic ? 'تم إعادة الطلب للخروج للتسليم.' : 'Order resumed out for delivery.'),
+  });
   const failedMut = useMutation({
     mutationFn: (orderId: string) => OmsApi.failedDelivery(orderId),
-    ...success(isArabic ? 'تم تسجيل تعذر التسليم.' : 'Order marked as failed delivery.'),
+    ...success(isArabic ? 'تم تسجيل فشل التسليم.' : 'Order marked as Field Delivery.'),
   });
   const returnedMut = useMutation({
     mutationFn: (orderId: string) => OmsApi.returned(orderId),
-    ...success(isArabic ? 'تم إنشاء طلب الإرجاع.' : 'Return request created.'),
+    ...success(
+      isArabic
+        ? 'تم إنشاء مرتجع بانتظار الاستلام.'
+        : 'Return pending receipt created.',
+    ),
+  });
+  const confirmReceiptMut = useMutation({
+    mutationFn: (orderId: string) => OmsApi.confirmReturnReceipt(orderId),
+    ...success(
+      isArabic ? 'تم تأكيد استلام المرتجع وإعادة المخزون.' : 'Return receipt confirmed and stock updated.',
+    ),
   });
   const cancelMut = useMutation({
     mutationFn: (orderId: string) => OmsApi.cancel(orderId),
@@ -122,6 +154,19 @@ export function useOmsOrderRowActions({
     onSuccess: () => {
       toast.success(isArabic ? 'تم حذف الطلب.' : 'Order deleted.');
       setDeleteOrder(null);
+      refresh();
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+
+
+
+  const rollbackReturnMut = useMutation({
+    mutationFn: ({ orderId, target }: { orderId: string; target: 'out_for_delivery' | 'ready_to_ship' }) =>
+      OmsApi.rollbackReturn(orderId, { targetStatus: target }),
+    onSuccess: (res) => {
+      toast.success(res.message || (isArabic ? 'تم التراجع وتحديث دورة الشحن.' : 'Return rolled back successfully.'));
+      setRollbackModalOrder(null);
       refresh();
     },
     onError: (error: Error) => toast.error(error.message),
@@ -206,12 +251,36 @@ export function useOmsOrderRowActions({
       }
     }
 
-    if (row.status === 'ready_to_ship' && outboundId) {
-      items.push({
-        key: 'completeDispatch',
-        label: isArabic ? 'إكمال الإرسال والخروج للتسليم' : 'Mark Dispatch as Complete',
-        onClick: () => dispatchMut.mutate(outboundId),
-      });
+    if (row.status === 'ready_to_ship') {
+      const stage = orderOperationalStage(row);
+      if (stage === 'shipping_details') {
+        items.push({
+          key: 'completeShipping',
+          label: isArabic ? 'إكمال تفاصيل الشحن' : 'Complete Shipping Details',
+          onClick: () => setShippingOrder(row),
+        });
+      } else if (stage === 'shipping_confirmation') {
+        items.push({
+          key: 'cancelShipment',
+          label: isArabic ? 'إلغاء الشحنة والعودة لتفاصيل الشحن' : 'Cancel Shipment',
+          danger: true,
+          onClick: () => setCancelShipmentOrder(row),
+        });
+        if (outboundId) {
+          items.push({
+            key: 'confirmShippingComplete',
+            label: isArabic ? 'تأكيد اكتمال الشحن' : 'Confirm Shipping Complete',
+            onClick: () => shippingConfirmMut.mutate(outboundId),
+          });
+        }
+      }
+      if (outboundId) {
+        items.push({
+          key: 'completeDispatch',
+          label: isArabic ? 'إكمال الإرسال والخروج للتسليم' : 'Mark Dispatch as Complete',
+          onClick: () => dispatchMut.mutate(outboundId),
+        });
+      }
     }
 
     if (row.status === 'shipped' || row.status === 'out_for_delivery') {
@@ -219,18 +288,49 @@ export function useOmsOrderRowActions({
         { key: 'markDelivered', label: isArabic ? 'تم التسليم بنجاح' : 'Mark as Delivered', onClick: () => deliveredMut.mutate(row.id) },
         {
           key: 'markFailedDelivery',
-          label: isArabic ? 'تعذر التسليم' : 'Mark as Failed Delivery',
+          label: isArabic ? 'فشل التسليم' : 'Field Delivery',
           danger: true,
           onClick: () => failedMut.mutate(row.id),
         },
       );
     } else if (row.status === 'failed_delivery') {
+      items.push(
+        {
+          key: 'resumeOfd',
+          label: isArabic ? 'خارج للتسليم' : 'Out for Delivery',
+          onClick: () => ofdMut.mutate(row.id),
+        },
+        {
+          key: 'markDelivered',
+          label: isArabic ? 'تم التسليم' : 'Delivered',
+          onClick: () => deliveredMut.mutate(row.id),
+        },
+        {
+          key: 'markReturned',
+          label: isArabic ? 'مرتجع بانتظار الاستلام' : 'Return Pending Receipt',
+          danger: true,
+          onClick: () => returnedMut.mutate(row.id),
+        },
+      );
+    } else if (row.status === 'return_pending_receipt') {
       items.push({
-        key: 'markReturned',
-        label: isArabic ? 'تحويل لمرتجع' : 'Mark as Return',
-        danger: true,
-        onClick: () => returnedMut.mutate(row.id),
+        key: 'confirmReceipt',
+        label: isArabic ? 'تأكيد استلام المرتجع' : 'Confirm Return Receipt',
+        onClick: () => confirmReceiptMut.mutate(row.id),
       });
+    } else if (row.status === 'returned') {
+      items.push(
+        {
+          key: 'rollbackOfd',
+          label: isArabic ? 'إعادة الإرسال مع الناقل الأصلي (خارج للتسليم)' : 'Rollback to Out for Delivery (Reship with original carrier)',
+          onClick: () => setRollbackModalOrder({ order: row, target: 'out_for_delivery' }),
+        },
+        {
+          key: 'rollbackReady',
+          label: isArabic ? 'إعادة لتجهيز الشحن (جاهز للشحن)' : 'Rollback to Ready to Ship',
+          onClick: () => setRollbackModalOrder({ order: row, target: 'ready_to_ship' }),
+        },
+      );
     }
 
     if (
@@ -254,7 +354,13 @@ export function useOmsOrderRowActions({
       });
     }
 
-    if (row.status === 'delivered' || row.status === 'completed') {
+    if (canEditShippingFee) {
+      items.push({
+        key: 'editShippingFee',
+        label: isArabic ? 'تعديل رسوم الشحن' : 'Edit Shipping Fee',
+        onClick: () => setShippingFeeOrder(row),
+      });
+    } else if (row.status === 'delivered' || row.status === 'completed') {
       items.push({
         key: 'shippingFee',
         label: isArabic ? 'تحديد رسوم الشحن' : 'Specify shipping fee',
@@ -333,6 +439,69 @@ export function useOmsOrderRowActions({
         <p className="text-sm">
           {isArabic ? 'سيتم تحويل حالة الطلب إلى ملغي ولن يتم تنفيذ الشحنة.' : 'The order will be marked cancelled.'}
         </p>
+      </ConfirmModal>
+      <OmsEditShippingFeeModal
+        open={Boolean(shippingFeeOrder)}
+        orders={shippingFeeOrder ? [shippingFeeOrder] : []}
+        onClose={() => setShippingFeeOrder(null)}
+        onSuccess={() => {
+          setShippingFeeOrder(null);
+          refresh();
+        }}
+        isArabic={isArabic}
+      />
+      <CancelShipmentModal
+        open={Boolean(cancelShipmentOrder)}
+        order={cancelShipmentOrder}
+        onClose={() => setCancelShipmentOrder(null)}
+        onSuccess={() => {
+          setCancelShipmentOrder(null);
+          refresh();
+        }}
+        isArabic={isArabic}
+      />
+      <ConfirmModal
+        open={Boolean(rollbackModalOrder)}
+        title={
+          rollbackModalOrder?.target === 'out_for_delivery'
+            ? isArabic
+              ? `إعادة الإرسال مع الناقل الأصلي (${rollbackModalOrder?.order?.orderNumber ?? ''})؟`
+              : `Reship with original carrier (${rollbackModalOrder?.order?.orderNumber ?? ''})?`
+            : isArabic
+            ? `إعادة الطلب لتجهيز الشحن (${rollbackModalOrder?.order?.orderNumber ?? ''})؟`
+            : `Rollback to Ready to Ship (${rollbackModalOrder?.order?.orderNumber ?? ''})?`
+        }
+        confirmLabel={
+          rollbackModalOrder?.target === 'out_for_delivery'
+            ? isArabic ? 'إعادة الإرسال وخروج للتسليم' : 'Reship & Out for Delivery'
+            : isArabic ? 'إعادة لتفاصيل الشحن' : 'Rollback to Ready to Ship'
+        }
+        cancelLabel={isArabic ? 'إلغاء' : 'Close'}
+        loading={rollbackReturnMut.isPending}
+        onClose={() => !rollbackReturnMut.isPending && setRollbackModalOrder(null)}
+        onConfirm={() =>
+          rollbackModalOrder &&
+          rollbackReturnMut.mutate({
+            orderId: rollbackModalOrder.order.id,
+            target: rollbackModalOrder.target,
+          })
+        }
+      >
+        <div className="space-y-2 text-sm">
+          {rollbackModalOrder?.target === 'out_for_delivery' ? (
+            <p>
+              {isArabic
+                ? 'سيتم عكس المخزون من موقع المرتجعات، وإرسال شحنة جديدة للناقل الأصلي فوراً عبر الـ API. لن يتم تحويل حالة الطلب إلى "خارج للتسليم" إلا بعد قبول الناقل للشحنة بنجاح.'
+                : 'Inventory will be reversed from the Returns location and a reshipment will be submitted to the original carrier via API. The order will ONLY advance to Out for Delivery upon confirmed carrier acceptance.'}
+            </p>
+          ) : (
+            <p>
+              {isArabic
+                ? 'سيتم عكس المخزون من موقع المرتجعات وإعادة الطلب إلى حالة "جاهز للشحن" في مرحلة "تفاصيل الشحن". لن يتم إنشاء أي شحنة للناقل تلقائياً، مما يتيح لك مراجعة البيانات أو اختيار شركة شحن أخرى.'
+                : 'Inventory will be reversed from the Returns location and the order will return to "Ready to Ship" / "Shipping Details". No shipment will be auto-submitted, allowing you to review details or select a different carrier.'}
+            </p>
+          )}
+        </div>
       </ConfirmModal>
     </>
   );

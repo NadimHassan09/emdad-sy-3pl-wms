@@ -11,6 +11,7 @@ import {
   Query,
   Res,
   UploadedFile,
+  UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
@@ -20,7 +21,12 @@ import { memoryStorage } from 'multer';
 
 import { CurrentUser } from '../../common/auth/current-user.decorator';
 import { AuthPrincipal } from '../../common/auth/current-user.types';
+import { InternalAdminGuard } from '../../common/auth/internal-admin.guard';
 import { ParseUuidLoosePipe } from '../../common/pipes/parse-uuid-loose.pipe';
+import {
+  AdjustShippingFeeBulkDto,
+  AdjustShippingFeeDto,
+} from './dto/adjust-shipping-fee.dto';
 import {
   AllocateOmsOrderDto,
   ApproveOmsOrderDto,
@@ -41,6 +47,9 @@ import { ExportWaybillsDto } from './dto/export-waybills.dto';
 import { OmsWaybillService } from './oms-waybill.service';
 import { OmsInstructionPdfService } from './oms-instruction-pdf.service';
 import { OmsClientImportService } from '../client-portal/order-import/oms-client-import.service';
+import { OmsShippingScanService } from './oms-shipping-scan.service';
+import { ScanShippingTransitionDto } from './dto/scan-shipping-transition.dto';
+import { InboundTraceabilityService } from './inbound-traceability.service';
 
 @Controller('oms')
 export class OmsController {
@@ -52,6 +61,8 @@ export class OmsController {
     private readonly clientImport: OmsClientImportService,
     private readonly waybillService: OmsWaybillService,
     private readonly instructionPdf: OmsInstructionPdfService,
+    private readonly shippingScan: OmsShippingScanService,
+    private readonly traceability: InboundTraceabilityService,
   ) {}
 
   @Get('dashboard')
@@ -116,7 +127,18 @@ export class OmsController {
     @Body() dto: OmsOrdersExportDto,
     @Res({ passthrough: true }) res: Response,
   ) {
-    const { columnIds, arabicHeaders, ids, ...query } = dto;
+    const { columnIds, arabicHeaders, ids, format = 'csv', ...query } = dto;
+    if (format === 'xlsx') {
+      const result = await this.csv.exportXlsx(user, query, { columnIds, arabicHeaders, ids });
+      res.setHeader(
+        'Content-Type',
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      );
+      res.setHeader('Content-Disposition', `attachment; filename="${result.filename}"`);
+      res.setHeader('X-Export-Row-Count', String(result.rowCount));
+      res.setHeader('X-Export-Truncated', result.truncated ? 'true' : 'false');
+      return result.buffer;
+    }
     const result = await this.csv.exportCsv(user, query, { columnIds, arabicHeaders, ids });
     res.setHeader('Content-Type', 'text/csv; charset=utf-8');
     res.setHeader('Content-Disposition', `attachment; filename="${result.filename}"`);
@@ -192,6 +214,16 @@ export class OmsController {
     return this.orders.create(user, dto);
   }
 
+  /** QR confirm ready-to-ship / physical handover. Must stay before `orders/:id`. */
+  @Post('orders/scan-shipping-transition')
+  @Throttle({ default: { limit: 60, ttl: 60_000 } })
+  scanShippingTransition(
+    @CurrentUser() user: AuthPrincipal,
+    @Body() dto: ScanShippingTransitionDto,
+  ) {
+    return this.shippingScan.apply(user, dto.code, dto.action);
+  }
+
   /** Bulk approve — must stay declared before the `orders/:id` routes. */
   @Post('orders/approve-bulk')
   @Throttle({ default: { limit: 30, ttl: 60_000 } })
@@ -213,6 +245,13 @@ export class OmsController {
     return this.bulk.cancelBulk(user, dto.ids);
   }
 
+  /** Bulk cancel shipments */
+  @Post('orders/cancel-shipments-bulk')
+  @Throttle({ default: { limit: 30, ttl: 60_000 } })
+  cancelShipmentsBulk(@CurrentUser() user: AuthPrincipal, @Body() dto: BulkApproveOmsOrdersDto) {
+    return this.orders.cancelShipmentsBulk(dto.ids, user);
+  }
+
   /** Bulk delivered */
   @Post('orders/delivered-bulk')
   @Throttle({ default: { limit: 30, ttl: 60_000 } })
@@ -232,6 +271,17 @@ export class OmsController {
   @Throttle({ default: { limit: 30, ttl: 60_000 } })
   returnedBulk(@CurrentUser() user: AuthPrincipal, @Body() dto: BulkApproveOmsOrdersDto) {
     return this.bulk.returnedBulk(user, dto.ids);
+  }
+
+  /** Bulk manual shipping fee adjustment — must stay declared before the `orders/:id` routes. */
+  @Post('orders/adjust-shipping-fee-bulk')
+  @UseGuards(InternalAdminGuard)
+  @Throttle({ default: { limit: 30, ttl: 60_000 } })
+  adjustShippingFeeBulk(
+    @CurrentUser() user: AuthPrincipal,
+    @Body() dto: AdjustShippingFeeBulkDto,
+  ) {
+    return this.bulk.adjustShippingFeeBulk(user, dto);
   }
 
   @Post('orders/waybills/export-excel')
@@ -301,6 +351,14 @@ export class OmsController {
     return this.orders.findById(id, user);
   }
 
+  @Get('orders/:id/traceability')
+  getTraceability(
+    @CurrentUser() user: AuthPrincipal,
+    @Param('id', ParseUuidLoosePipe) id: string,
+  ) {
+    return this.traceability.getTraceabilityForOrder(id, user);
+  }
+
   @Patch('orders/:id')
   update(
     @CurrentUser() user: AuthPrincipal,
@@ -336,6 +394,17 @@ export class OmsController {
     return this.orders.approve(id, user, dto);
   }
 
+  /** Single order manual shipping fee adjustment. */
+  @Post('orders/:id/adjust-shipping-fee')
+  @UseGuards(InternalAdminGuard)
+  adjustShippingFee(
+    @CurrentUser() user: AuthPrincipal,
+    @Param('id', ParseUuidLoosePipe) id: string,
+    @Body() dto: AdjustShippingFeeDto,
+  ) {
+    return this.orders.adjustShippingFee(user, id, dto, { mode: 'single' });
+  }
+
   @Post('orders/:id/reject')
   reject(
     @CurrentUser() user: AuthPrincipal,
@@ -351,6 +420,15 @@ export class OmsController {
     @Param('id', ParseUuidLoosePipe) id: string,
   ) {
     return this.orders.cancel(id, user);
+  }
+
+  @Post('orders/:id/cancel-shipment')
+  cancelShipment(
+    @CurrentUser() user: AuthPrincipal,
+    @Param('id', ParseUuidLoosePipe) id: string,
+    @Body() body?: { reason?: string; force?: boolean },
+  ) {
+    return this.orders.cancelShipment(id, user, body?.reason, body?.force);
   }
 
   @Post('orders/:id/cancel-revert')
@@ -444,6 +522,15 @@ export class OmsController {
     return this.orders.undoConfirmedReturn(id, user);
   }
 
+  @Post('orders/:id/rollback-return')
+  rollbackReturn(
+    @CurrentUser() user: AuthPrincipal,
+    @Param('id', ParseUuidLoosePipe) id: string,
+    @Body() body?: { targetStatus?: 'out_for_delivery' | 'ready_to_ship' },
+  ) {
+    return this.orders.rollbackReturn(id, user, body);
+  }
+
   @Post('orders/:id/returned')
   returned(
     @CurrentUser() user: AuthPrincipal,
@@ -496,6 +583,7 @@ export class OmsController {
   }
 
   @Get('orders/:id/waybill')
+  @Header('Cache-Control', 'no-store, no-cache, must-revalidate')
   getWaybill(
     @CurrentUser() user: AuthPrincipal,
     @Param('id', ParseUuidLoosePipe) id: string,
@@ -504,6 +592,8 @@ export class OmsController {
   }
 
   @Get('orders/:id/waybill/pdf')
+  @Header('Cache-Control', 'no-store, no-cache, must-revalidate')
+  @Header('Pragma', 'no-cache')
   async downloadWaybillPdf(
     @CurrentUser() user: AuthPrincipal,
     @Param('id', ParseUuidLoosePipe) id: string,
@@ -513,6 +603,8 @@ export class OmsController {
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
     res.setHeader('Content-Length', buffer.byteLength.toString());
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+    res.setHeader('Pragma', 'no-cache');
     res.end(buffer);
   }
 

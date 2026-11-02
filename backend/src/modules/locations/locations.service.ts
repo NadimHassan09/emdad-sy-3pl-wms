@@ -48,13 +48,17 @@ export class LocationsService {
       const row: {
         parentId: string | null;
         warehouseId: string;
+        status: LocationStatus;
       } | null = await this.prisma.location.findUnique({
         where: { id: cur },
-        select: { parentId: true, warehouseId: true },
+        select: { parentId: true, warehouseId: true, status: true },
       });
       if (!row) throw new NotFoundException('Parent location not found.');
       if (row.warehouseId !== warehouseId) {
         throw new BadRequestException('Parent location belongs to a different warehouse.');
+      }
+      if (row.status === LocationStatus.archived) {
+        throw new BadRequestException('Cannot assign an archived location as parent.');
       }
       cur = row.parentId;
     }
@@ -183,6 +187,10 @@ export class LocationsService {
       and.push({ type: query.type });
     }
 
+    if (query.excludeId) {
+      and.push({ id: { not: query.excludeId } });
+    }
+
     const search = query.search?.trim();
     if (search) {
       and.push({
@@ -270,7 +278,53 @@ export class LocationsService {
     assertNotDeprecatedLocationType(dto.type);
 
     let parentFullPath: string | null = null;
-    if (loc.parentId) {
+    const currentParentId = loc.parentId;
+    let newParentId = currentParentId;
+    const parentChanged = dto.parentId !== undefined && dto.parentId !== currentParentId;
+
+    if (parentChanged) {
+      if (dto.parentId) {
+        if (dto.parentId === id) {
+          throw new BadRequestException('A location cannot be its own parent.');
+        }
+        // Assert target parent is not within this location's subtree
+        let checkCur: string | null = dto.parentId;
+        const seenCheck = new Set<string>();
+        while (checkCur) {
+          if (checkCur === id) {
+            throw new BadRequestException('Cannot set parent to a descendant location (cycle detected).');
+          }
+          if (seenCheck.has(checkCur)) {
+            throw new BadRequestException('Circular location parent reference detected.');
+          }
+          seenCheck.add(checkCur);
+          const checkRow: { parentId: string | null; warehouseId: string; status: LocationStatus } | null =
+            await this.prisma.location.findUnique({
+              where: { id: checkCur },
+              select: { parentId: true, warehouseId: true, status: true },
+            });
+          if (!checkRow) throw new NotFoundException('Parent location not found.');
+          if (checkRow.warehouseId !== loc.warehouseId) {
+            throw new BadRequestException('Parent location belongs to a different warehouse.');
+          }
+          if (checkRow.status === LocationStatus.archived) {
+            throw new BadRequestException('Cannot assign an archived location as parent.');
+          }
+          checkCur = checkRow.parentId;
+        }
+
+        await this.assertParentChainValid(dto.parentId, loc.warehouseId);
+        newParentId = dto.parentId;
+        const p = await this.prisma.location.findUnique({
+          where: { id: dto.parentId },
+          select: { fullPath: true },
+        });
+        parentFullPath = p?.fullPath ?? null;
+      } else {
+        newParentId = null;
+        parentFullPath = null;
+      }
+    } else if (loc.parentId) {
       const p = await this.prisma.location.findUnique({
         where: { id: loc.parentId },
         select: { fullPath: true },
@@ -279,6 +333,9 @@ export class LocationsService {
     }
 
     const data: Prisma.LocationUpdateInput = {};
+    if (parentChanged) {
+      data.parent = newParentId ? { connect: { id: newParentId } } : { disconnect: true };
+    }
     if (dto.barcode !== undefined) data.barcode = dto.barcode.trim();
     if (dto.sortOrder !== undefined) data.sortOrder = dto.sortOrder;
     if (dto.type !== undefined) data.type = dto.type;
@@ -297,7 +354,7 @@ export class LocationsService {
       dto.name !== undefined && dto.name.trim() !== loc.name;
     const newName = nameChanged ? dto.name!.trim() : loc.name;
     let remappedSubtreeRoot: string | undefined;
-    if (nameChanged) {
+    if (nameChanged || parentChanged) {
       data.name = newName;
       const newFullPath = parentFullPath
         ? `${parentFullPath}/${newName}`

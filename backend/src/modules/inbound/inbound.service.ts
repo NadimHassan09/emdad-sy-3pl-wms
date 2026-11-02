@@ -138,7 +138,7 @@ export class InboundService {
     const productIds = Array.from(new Set(dto.lines.map((l) => l.productId)));
     const products = await tx.product.findMany({
       where: { id: { in: productIds } },
-      select: { id: true, companyId: true, status: true, trackingType: true, uom: true },
+      select: { id: true, companyId: true, sku: true, status: true, trackingType: true, uom: true },
     });
     if (products.length !== productIds.length) {
       throw new NotFoundException('One or more products not found.');
@@ -151,6 +151,19 @@ export class InboundService {
     }
     for (const p of products) {
       assertProductOrderableForOrders(p.status);
+    }
+
+    const seenProductIds = new Set<string>();
+    for (const l of dto.lines) {
+      if (seenProductIds.has(l.productId)) {
+        const p = products.find((prod) => prod.id === l.productId);
+        throw new BadRequestException(
+          p?.sku
+            ? `Duplicate product line: SKU "${p.sku}" appears more than once in the order. Each product can only appear once.`
+            : 'Duplicate product line: Each product can only appear once in an order.',
+        );
+      }
+      seenProductIds.add(l.productId);
     }
 
     assertCalendarDateNotBeforeToday(dto.expectedArrivalDate, 'Expected arrival date');
@@ -431,6 +444,17 @@ export class InboundService {
     const companyId = this.companyAccess.resolveWriteCompanyId(user, dto.companyId);
     await this.billingAccess.assertOperationalBilling(companyId);
     assertCalendarDateNotBeforeToday(dto.expectedArrivalDate, 'Expected arrival date');
+
+    const seenProductIds = new Set<string>();
+    for (const l of dto.lines) {
+      if (seenProductIds.has(l.productId)) {
+        throw new BadRequestException(
+          'Duplicate product lines are not allowed in a single order.',
+        );
+      }
+      seenProductIds.add(l.productId);
+    }
+
     const productIds = Array.from(new Set(dto.lines.map((l) => l.productId)));
     const products = await this.prisma.product.findMany({
       where: { id: { in: productIds } },
@@ -457,7 +481,8 @@ export class InboundService {
     const where = await this.buildListWhere(user, query);
 
     return withTenantRls(this.prisma, user, async (tx) => {
-      const [items, total] = await Promise.all([
+      const statusWhere = await this.buildListWhere(user, { ...query, status: undefined });
+      const [items, total, statusGroup] = await Promise.all([
         tx.inboundOrder.findMany({
           where,
           orderBy: { createdAt: 'desc' },
@@ -472,7 +497,17 @@ export class InboundService {
           skip: query.offset,
         }),
         tx.inboundOrder.count({ where }),
+        tx.inboundOrder.groupBy({
+          by: ['status'],
+          where: statusWhere,
+          _count: { id: true },
+        }),
       ]);
+      const statusCounts: Record<string, number> = { all: 0 };
+      for (const g of statusGroup) {
+        statusCounts[g.status] = g._count.id;
+        statusCounts.all += g._count.id;
+      }
       return {
         items: items.map((o) => ({
           ...o,
@@ -485,6 +520,7 @@ export class InboundService {
         total,
         limit: query.limit,
         offset: query.offset,
+        statusCounts,
       };
     });
   }

@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 
 import { ClientPrincipal } from '../../../common/auth/client-principal.types';
+import { buildExcelBuffer, ExcelExportColumn } from '../../../common/utils/excel-export.util';
 import { rowsToCsv } from '../../oms/oms-orders-csv.util';
 import { ClientOutboundOrdersService } from '../outbound/client-outbound-orders.service';
 import { ClientOutboundOrdersExportDto } from '../outbound/dto/client-outbound-export.dto';
@@ -30,7 +31,7 @@ function cell(order: Record<string, unknown>, id: string): string {
         ? new Date(String(order.requiredShipDate)).toISOString().slice(0, 10)
         : '';
     case 'carrier':
-      return String(order.carrier ?? '');
+      return '';
     case 'tracking_number':
       return String(order.trackingNumber ?? '');
     case 'lines':
@@ -81,6 +82,46 @@ export class ClientOutboundExportService {
     return {
       filename: `outbound-orders-${stamp}.csv`,
       body: rowsToCsv(headers, rows),
+      rowCount: items.length,
+      truncated,
+    };
+  }
+
+  async exportXlsx(client: ClientPrincipal, dto: ClientOutboundOrdersExportDto) {
+    const columnIds = orderedColumnIds(CLIENT_OUTBOUND_EXPORT_COLUMNS, dto.columnIds);
+    if (columnIds.length === 0) {
+      throw new BadRequestException('Select at least one valid export column.');
+    }
+
+    const { items, truncated } = await this.outbound.listForExport(
+      client,
+      { orderSearch: dto.orderSearch, status: dto.status },
+      { maxRows: MAX_ROWS, ids: dto.ids },
+    );
+
+    const arabic = Boolean(dto.arabicHeaders);
+    const headers = headerLabels(CLIENT_OUTBOUND_EXPORT_COLUMNS, columnIds, arabic);
+    const columns: ExcelExportColumn[] = columnIds.map((id, idx) => ({
+      header: headers[idx] ?? id,
+      key: id,
+    }));
+    const rows = items.map((order) => {
+      const rowObj: Record<string, string> = {};
+      for (const id of columnIds) {
+        rowObj[id] = cell(order as unknown as Record<string, unknown>, id);
+      }
+      return rowObj;
+    });
+
+    const buffer = await buildExcelBuffer({
+      sheetName: 'Outbound Orders',
+      columns,
+      rows,
+    });
+    const stamp = new Date().toISOString().slice(0, 10);
+    return {
+      filename: `outbound-orders-${stamp}.xlsx`,
+      buffer,
       rowCount: items.length,
       truncated,
     };

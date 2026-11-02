@@ -13,10 +13,10 @@ Object.defineProperty(exports, "isBabelAddressDeliveryAvailable", { enumerable: 
 var babel_quote_util_2 = require("./babel-quote.util");
 Object.defineProperty(exports, "isBabelCalculatePriceShippable", { enumerable: true, get: function () { return babel_quote_util_2.isBabelCalculatePriceShippable; } });
 function resolveBabelPickupType(pickupType) {
-    return pickupType === 'address' ? 'hub' : pickupType;
+    return pickupType === 'hub' ? 'hub' : 'address';
 }
 function resolveBabelPayer(payer) {
-    return payer === 'reseller' ? 'reseller' : 'receiver';
+    return payer === 'reseller' || payer === 'receiver' ? payer : 'sender';
 }
 function resolveBabelCodCurrency(currency) {
     const normalized = currency?.trim().toUpperCase();
@@ -35,6 +35,27 @@ function resolveParts(input) {
     }
     const w = Number(input.weightKg);
     return [{ weight: Number.isFinite(w) && w > 0 ? w : 0.1 }];
+}
+function mapBabelSender(party) {
+    const hasId = party.neighbourhoodId != null && Number.isFinite(Number(party.neighbourhoodId));
+    const hasCoords = Number.isFinite(party.lat) && Number.isFinite(party.lng);
+    return {
+        name: party.name,
+        phone: {
+            country: party.phoneCountry,
+            phone: party.phoneLocal,
+        },
+        address: party.address,
+        ...(hasId || hasCoords
+            ? {
+                neighbourhood: resolveNeighbourhood({
+                    neighbourhoodId: party.neighbourhoodId,
+                    lat: party.lat,
+                    lng: party.lng,
+                }),
+            }
+            : {}),
+    };
 }
 function resolveNeighbourhood(input) {
     if (input.neighbourhoodId != null && Number.isFinite(Number(input.neighbourhoodId))) {
@@ -57,6 +78,7 @@ function mapCreateShipmentPayload(input) {
     });
     return {
         shipment: {
+            ...(input.pickup ? { sender: mapBabelSender(input.pickup) } : {}),
             receiver: {
                 name: input.receiver.name,
                 phone: {
@@ -95,13 +117,27 @@ function mapCalculatePricePayload(input) {
         });
     return {
         delivery: {
+            ...(input.pickup &&
+                ((input.pickup.neighbourhoodId != null &&
+                    Number.isFinite(Number(input.pickup.neighbourhoodId))) ||
+                    (Number.isFinite(input.pickup.lat) && Number.isFinite(input.pickup.lng)))
+                ? {
+                    sender: {
+                        neighbourhood: resolveNeighbourhood({
+                            neighbourhoodId: input.pickup.neighbourhoodId,
+                            lat: input.pickup.lat,
+                            lng: input.pickup.lng,
+                        }),
+                    },
+                }
+                : {}),
             receiver: {
                 neighbourhood,
             },
             type: input.packageType,
             parts: input.packageType === 'envelope' ? [{ weight: 1 }] : parts,
             deliveryType: input.deliveryType,
-            pickupType: resolveBabelPickupType(input.pickupType ?? 'hub'),
+            pickupType: resolveBabelPickupType(input.pickupType),
         },
     };
 }

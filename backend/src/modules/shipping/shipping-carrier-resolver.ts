@@ -1,5 +1,5 @@
 import type { Prisma } from '@prisma/client';
-import { BABEL_EXPRESS_CODE, SILA_SY_CODE } from './shipping.constants';
+import { BABEL_EXPRESS_CODE, SENA_EXPRESS_CODE, SILA_SY_CODE } from './shipping.constants';
 
 export const KNOWN_COURIERS: Record<string, string> = {
   '9575208d-3587-4d23-84b3-cdc97d09b60e': 'كرم للشحن',
@@ -7,6 +7,7 @@ export const KNOWN_COURIERS: Record<string, string> = {
   'fd4f088d-243b-4582-bb72-bb97c69b589c': 'ترابط',
   '3237a246-e521-461a-9417-ad859176e846': 'ديليفرو جود',
   '268f9ddf-a3b8-44bf-8bb3-cf06b2f22f1f': 'مرسال',
+  '6e8fd4bb-f438-44c8-ad88-f1650512908b': 'الفاتح (Fatih Cargo)',
 };
 
 const dynamicCourierRegistry = new Map<string, string>();
@@ -27,11 +28,13 @@ export function normalizeCourierDisplayName(raw: string): string {
   const trimmed = raw.trim();
   const lower = trimmed.toLowerCase();
   if (lower.includes('babel')) return 'Babel Express';
+  if (lower.includes('sena') || trimmed.includes('سينا')) return 'شركة سينا (SENA Express)';
   if (lower === 'masarat' || lower.includes('مسارات')) return 'مسارات';
   if (lower.includes('karam') || lower.includes('كرم')) return 'كرم للشحن';
   if (lower === 'tarabut' || lower.includes('ترابط')) return 'ترابط';
   if (lower.includes('deliveroo') || lower.includes('ديليفرو')) return 'ديليفرو جود';
   if (lower.includes('mersal') || lower.includes('مرسال')) return 'مرسال';
+  if (lower.includes('fatih') || lower.includes('الفاتح')) return 'الفاتح (Fatih Cargo)';
   if (lower.includes('takamol') || lower.includes('تكامل')) return 'تكامل';
   return trimmed;
 }
@@ -58,64 +61,144 @@ export type CarrierResolutionInput = {
     shippingProviderCode?: string | null;
     shippingServiceId?: string | null;
     carrierShipments?: Array<{
+      status?: string | null;
+      supersededAt?: Date | string | null;
       providerCode?: string | null;
       rawResultMeta?: any;
     }> | null;
   } | null;
 };
 
+function courierNameFromMeta(meta: unknown): { courierId: string | null; courierName: string | null } {
+  if (!meta || typeof meta !== 'object' || Array.isArray(meta)) {
+    return { courierId: null, courierName: null };
+  }
+  const record = meta as Record<string, unknown>;
+  const nested =
+    record.courier && typeof record.courier === 'object' && !Array.isArray(record.courier)
+      ? (record.courier as Record<string, unknown>)
+      : null;
+  const courierId = [record.courier_id, record.courierId, nested?.id]
+    .find((value) => typeof value === 'string' && value.trim()) as string | undefined;
+  const courierName = [record.courier_name, record.courierName, nested?.name]
+    .find((value) => typeof value === 'string' && value.trim()) as string | undefined;
+  return {
+    courierId: courierId?.trim().toLowerCase() || null,
+    courierName: courierName?.trim() || null,
+  };
+}
+
+function nameFromCourierId(courierId: string | null): string | null {
+  if (!courierId) return null;
+  if (KNOWN_COURIERS[courierId]) return KNOWN_COURIERS[courierId];
+  if (dynamicCourierRegistry.has(courierId)) return dynamicCourierRegistry.get(courierId)!;
+  return null;
+}
+
+export function serviceIdBelongsToProvider(
+  serviceId: string | null | undefined,
+  providerCode: string | null | undefined,
+): boolean {
+  const service = (serviceId || '').trim().toUpperCase();
+  const code = (providerCode || '').trim().toUpperCase();
+  if (!service || !code) return false;
+  return service === code || service.startsWith(`${code}:`);
+}
+
+export function displayNameForProviderCode(providerCode: string | null | undefined): string | null {
+  const code = (providerCode || '').trim().toUpperCase();
+  if (code === BABEL_EXPRESS_CODE || code === 'BABEL') return 'Babel Express';
+  if (code === SENA_EXPRESS_CODE || code === 'SENA') return 'شركة سينا (SENA Express)';
+  return null;
+}
+
 /**
  * Resolve the actual shipping company name (not provider/aggregator like Sila).
+ * The active shipment's provider identity always wins over leftover OMS/outbound
+ * fields from a previous carrier (e.g. TARABUT after a successful Babel send).
  */
 export function resolveShippingCarrierName(order: CarrierResolutionInput): string | null {
-  // 1. If carrier is set and not a generic provider/gateway name
-  const rawCarrier = order.carrier?.trim() || order.outboundOrder?.carrier?.trim();
-  if (rawCarrier && !isProviderName(rawCarrier)) {
+  const shipments = (order.outboundOrder?.carrierShipments ?? []).filter((shipment) => {
+    if (shipment.supersededAt) return false;
+    const status = (shipment.status || '').trim();
+    return status !== 'failed' && status !== 'cancelled';
+  });
+  const activeShipment = shipments[0] ?? null;
+  const activeProvider =
+    activeShipment?.providerCode?.trim() ||
+    order.outboundOrder?.shippingProviderCode?.trim() ||
+    order.shippingProviderCode?.trim() ||
+    '';
+
+  if (activeShipment?.providerCode?.trim().toUpperCase() === BABEL_EXPRESS_CODE) {
+    return 'Babel Express';
+  }
+  if (activeShipment?.providerCode?.trim().toUpperCase() === SENA_EXPRESS_CODE) {
+    return 'شركة سينا (SENA Express)';
+  }
+
+  const fromMeta = courierNameFromMeta(activeShipment?.rawResultMeta);
+  if (fromMeta.courierName && !isProviderName(fromMeta.courierName)) {
+    if (
+      activeShipment?.providerCode?.trim().toUpperCase() !== BABEL_EXPRESS_CODE &&
+      activeShipment?.providerCode?.trim().toUpperCase() !== SENA_EXPRESS_CODE
+    ) {
+      return normalizeCourierDisplayName(fromMeta.courierName);
+    }
+  }
+  const fromMetaId = nameFromCourierId(fromMeta.courierId);
+  if (
+    fromMetaId &&
+    activeShipment?.providerCode?.trim().toUpperCase() !== BABEL_EXPRESS_CODE &&
+    activeShipment?.providerCode?.trim().toUpperCase() !== SENA_EXPRESS_CODE
+  ) {
+    return fromMetaId;
+  }
+
+  const selectedProvider = (
+    activeShipment?.providerCode ||
+    order.outboundOrder?.shippingProviderCode ||
+    order.shippingProviderCode ||
+    ''
+  ).trim();
+  const fromSelected = displayNameForProviderCode(selectedProvider);
+  if (fromSelected) return fromSelected;
+
+  const serviceId =
+    order.outboundOrder?.shippingServiceId?.trim() ||
+    order.shippingServiceId?.trim();
+  if (
+    serviceId?.startsWith(`${SILA_SY_CODE}:`) &&
+    (!selectedProvider || selectedProvider.toUpperCase() === SILA_SY_CODE) &&
+    (!activeShipment?.providerCode ||
+      activeShipment.providerCode.trim().toUpperCase() === SILA_SY_CODE)
+  ) {
+    const parts = serviceId.split(':');
+    const courierId = parts.length >= 2 && parts[1].trim() ? parts[1].trim().toLowerCase() : null;
+    const fromService = nameFromCourierId(courierId);
+    if (fromService) return fromService;
+  }
+
+  const rawCarrier = order.outboundOrder?.carrier?.trim() || order.carrier?.trim();
+  if (
+    rawCarrier &&
+    !isProviderName(rawCarrier) &&
+    selectedProvider.toUpperCase() !== BABEL_EXPRESS_CODE &&
+    selectedProvider.toUpperCase() !== SENA_EXPRESS_CODE &&
+    activeShipment?.providerCode?.trim().toUpperCase() !== BABEL_EXPRESS_CODE &&
+    activeShipment?.providerCode?.trim().toUpperCase() !== SENA_EXPRESS_CODE
+  ) {
     return normalizeCourierDisplayName(rawCarrier);
   }
 
-  // 2. Extract courierId from shippingServiceId
-  const serviceId =
-    order.shippingServiceId?.trim() ||
-    order.outboundOrder?.shippingServiceId?.trim();
-  let courierId: string | null = null;
-  if (serviceId && serviceId.startsWith(`${SILA_SY_CODE}:`)) {
-    const parts = serviceId.split(':');
-    if (parts.length >= 2 && parts[1].trim()) {
-      courierId = parts[1].trim().toLowerCase();
-    }
-  }
-
-  // 3. Extract courierId from carrierShipments rawResultMeta
-  if (!courierId && order.outboundOrder?.carrierShipments?.length) {
-    for (const cs of order.outboundOrder.carrierShipments) {
-      const meta = cs.rawResultMeta as any;
-      if (meta && typeof meta.courier_id === 'string' && meta.courier_id.trim()) {
-        courierId = meta.courier_id.trim().toLowerCase();
-        break;
-      }
-    }
-  }
-
-  if (courierId) {
-    if (KNOWN_COURIERS[courierId]) {
-      return KNOWN_COURIERS[courierId];
-    }
-    if (dynamicCourierRegistry.has(courierId)) {
-      return dynamicCourierRegistry.get(courierId)!;
-    }
-  }
-
-  // 4. Provider code fallback
-  const providerCode =
-    order.shippingProviderCode?.trim() ||
-    order.outboundOrder?.shippingProviderCode?.trim();
-  if (providerCode === BABEL_EXPRESS_CODE || (rawCarrier && rawCarrier.toLowerCase().includes('babel'))) {
+  if (rawCarrier && rawCarrier.toLowerCase().includes('babel')) {
     return 'Babel Express';
   }
+  if (rawCarrier && (rawCarrier.toLowerCase().includes('sena') || rawCarrier.includes('سينا'))) {
+    return 'شركة سينا (SENA Express)';
+  }
 
-  // Never return aggregator/provider name as carrier
-  return null;
+  return displayNameForProviderCode(activeProvider);
 }
 
 /**
@@ -135,6 +218,13 @@ export function buildCarrierFilterPrismaCondition(rawCarrier: string): Prisma.Om
     orConditions.push(
       { shippingProviderCode: BABEL_EXPRESS_CODE },
       { outboundOrder: { shippingProviderCode: BABEL_EXPRESS_CODE } },
+    );
+  }
+
+  if (lower.includes('sena') || t.includes('سينا')) {
+    orConditions.push(
+      { shippingProviderCode: SENA_EXPRESS_CODE },
+      { outboundOrder: { shippingProviderCode: SENA_EXPRESS_CODE } },
     );
   }
 

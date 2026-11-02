@@ -74,6 +74,9 @@ let PdfService = PdfService_1 = class PdfService {
     get logo() {
         return this.logoDataUri;
     }
+    get fontFaceCss() {
+        return this.fontFace;
+    }
     async loadPuppeteer() {
         if (!this.puppeteerMod) {
             const mod = await importPuppeteer();
@@ -84,34 +87,87 @@ let PdfService = PdfService_1 = class PdfService {
     async getBrowser() {
         if (this.browser?.connected)
             return this.browser;
-        if (!this.browserPromise) {
-            this.browserPromise = (async () => {
-                const pptr = await this.loadPuppeteer();
-                const executablePath = resolveChromeExecutable();
-                if (executablePath) {
-                    this.logger.log(`PDF Chromium executable: ${executablePath}`);
-                }
-                else {
-                    this.logger.warn('No system Chrome found; falling back to Puppeteer-managed browser cache');
-                }
-                const browser = await pptr.launch({
-                    headless: true,
-                    executablePath,
-                    args: [
-                        '--no-sandbox',
-                        '--disable-setuid-sandbox',
-                        '--disable-dev-shm-usage',
-                        '--font-render-hinting=none',
-                    ],
-                });
-                this.browser = browser;
-                return browser;
-            })().catch((err) => {
-                this.browserPromise = null;
-                throw err;
-            });
+        if (!this.browserPromise || (this.browser && !this.browser.connected)) {
+            this.browser = null;
+            this.browserPromise = this.launchBrowser();
         }
+        const browser = await this.browserPromise;
+        if (browser.connected)
+            return browser;
+        this.browser = null;
+        this.browserPromise = this.launchBrowser();
         return this.browserPromise;
+    }
+    launchBrowser() {
+        return (async () => {
+            const pptr = await this.loadPuppeteer();
+            const executablePath = resolveChromeExecutable();
+            if (executablePath) {
+                this.logger.log(`PDF Chromium executable: ${executablePath}`);
+            }
+            else {
+                this.logger.warn('No system Chrome found; falling back to Puppeteer-managed browser cache');
+            }
+            const browser = await pptr.launch({
+                headless: true,
+                executablePath,
+                args: [
+                    '--no-sandbox',
+                    '--disable-setuid-sandbox',
+                    '--disable-dev-shm-usage',
+                    '--font-render-hinting=none',
+                ],
+            });
+            browser.once('disconnected', () => {
+                if (this.browser === browser) {
+                    this.logger.warn('PDF Chromium disconnected; the next render will relaunch it');
+                    this.browser = null;
+                    this.browserPromise = null;
+                }
+            });
+            this.browser = browser;
+            return browser;
+        })().catch((err) => {
+            this.browser = null;
+            this.browserPromise = null;
+            throw err;
+        });
+    }
+    isConnectionClosed(err) {
+        const name = err instanceof Error ? err.name : '';
+        const message = err instanceof Error ? err.message : String(err);
+        return (name === 'ConnectionClosedError' ||
+            name === 'TargetCloseError' ||
+            /Connection closed/i.test(message) ||
+            /Target closed/i.test(message));
+    }
+    async withPage(work) {
+        let lastError;
+        for (let attempt = 0; attempt < 2; attempt++) {
+            const browser = await this.getBrowser();
+            let page;
+            try {
+                page = await browser.newPage();
+                return await work(page);
+            }
+            catch (err) {
+                lastError = err;
+                if (attempt === 0 && this.isConnectionClosed(err)) {
+                    this.logger.warn('PDF Chromium connection closed; relaunching and retrying once');
+                    if (this.browser === browser) {
+                        this.browser = null;
+                        this.browserPromise = null;
+                    }
+                    await browser.close().catch(() => undefined);
+                    continue;
+                }
+                throw err;
+            }
+            finally {
+                await page?.close().catch(() => undefined);
+            }
+        }
+        throw lastError;
     }
     async render(template, context, footer) {
         const content = this.contentTpl[template](context);
@@ -121,9 +177,7 @@ let PdfService = PdfService_1 = class PdfService {
             fontFace: this.fontFace,
             content,
         });
-        const browser = await this.getBrowser();
-        const page = await browser.newPage();
-        try {
+        return this.withPage(async (page) => {
             await page.setContent(html, { waitUntil: 'load' });
             await page.evaluateHandle('document.fonts.ready');
             const pdf = await page.pdf({
@@ -136,23 +190,23 @@ let PdfService = PdfService_1 = class PdfService {
                 margin: { top: '12mm', bottom: '18mm', left: '10mm', right: '10mm' },
             });
             return Buffer.from(pdf);
-        }
-        finally {
-            await page.close().catch(() => undefined);
-        }
+        });
     }
     async renderHtml(html, options) {
-        const browser = await this.getBrowser();
-        const page = await browser.newPage();
-        try {
+        return this.withPage(async (page) => {
             await page.setContent(html, { waitUntil: 'load' });
             await page.evaluateHandle('document.fonts.ready').catch(() => undefined);
             const pdfOptions = {
                 landscape: options?.landscape || false,
                 printBackground: true,
-                preferCSSPageSize: true,
+                preferCSSPageSize: options?.preferCSSPageSize ?? true,
                 margin: options?.margin || { top: '8mm', bottom: '8mm', left: '8mm', right: '8mm' },
             };
+            if (options?.footerTemplate) {
+                pdfOptions.displayHeaderFooter = true;
+                pdfOptions.headerTemplate = '<div></div>';
+                pdfOptions.footerTemplate = options.footerTemplate;
+            }
             if (options?.width && options?.height) {
                 pdfOptions.width = options.width;
                 pdfOptions.height = options.height;
@@ -162,10 +216,7 @@ let PdfService = PdfService_1 = class PdfService {
             }
             const pdf = await page.pdf(pdfOptions);
             return Buffer.from(pdf);
-        }
-        finally {
-            await page.close().catch(() => undefined);
-        }
+        });
     }
     footerTemplate(f) {
         return `

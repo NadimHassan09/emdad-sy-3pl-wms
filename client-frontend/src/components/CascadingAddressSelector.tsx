@@ -87,7 +87,6 @@ export function CascadingAddressSelector({
         disabled={disabled}
         required={cityRequired}
         clearable={!cityRequired}
-        allowCustomValue
         emptyMessage={cityOptions.length === 0 ? 'No governorates available' : 'No matches'}
       />
       <Combobox
@@ -107,7 +106,6 @@ export function CascadingAddressSelector({
         disabled={disabled}
         required={districtRequired}
         clearable={!districtRequired}
-        allowCustomValue
         emptyMessage={
           districtOptions.length === 0
             ? 'Type a city/region or pick a governorate for suggestions'
@@ -129,7 +127,6 @@ export function CascadingAddressSelector({
         disabled={disabled}
         required={addressLine1Required}
         clearable={!addressLine1Required}
-        allowCustomValue
         emptyMessage={
           addressOptions.length === 0
             ? 'Type a town/neighborhood or pick a city/region for suggestions'

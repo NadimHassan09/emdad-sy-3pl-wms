@@ -1,4 +1,5 @@
-import { Controller, Get, Param, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Param, Query, Res, UseGuards } from '@nestjs/common';
+import type { Response } from 'express';
 
 import { Public } from '../../../common/auth/public.decorator';
 import { ClientPrincipal } from '../../../common/auth/client-principal.types';
@@ -43,6 +44,24 @@ export class ClientBillingController {
       });
     }
     return this.billing.listInvoices(client);
+  }
+
+  @Get('invoices/export')
+  async exportInvoices(
+    @ClientUser() client: ClientPrincipal,
+    @Res() res: Response,
+    @Query('status') status?: string,
+  ) {
+    const buffer = await this.billing.exportInvoicesXlsx(client, status);
+    res.setHeader(
+      'Content-Type',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    );
+    res.setHeader(
+      'Content-Disposition',
+      'attachment; filename="invoices-report.xlsx"',
+    );
+    res.send(buffer);
   }
 
   @Get('invoices/:id')

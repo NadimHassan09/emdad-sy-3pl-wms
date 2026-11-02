@@ -109,8 +109,8 @@ async function mockBackupListApis(page: import('@playwright/test').Page) {
     });
   });
 
-  await page.route('**/api/backups?**', async (route) => {
-    if (route.request().method() !== 'GET') return route.continue();
+  await page.route(/\/api\/backups\/?(\?|$)/, async (route) => {
+    if (route.request().method() !== 'GET') return route.fallback();
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -119,6 +119,30 @@ async function mockBackupListApis(page: import('@playwright/test').Page) {
         data: { items: [], total: 0, limit: 20, offset: 0 },
       }),
     });
+  });
+
+  await page.route('**/api/backups/manual-cooldown', async (route) => {
+    if (route.request().method() === 'GET') {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          success: true,
+          data: {
+            cooldownSeconds: 900,
+            cooldownMinutes: 15,
+            minMinutes: 1,
+            maxMinutes: 1440,
+            remainingSeconds: 0,
+            nextAllowedAt: null,
+            runningManualJobId: null,
+            canCreate: true,
+          },
+        }),
+      });
+      return;
+    }
+    await route.continue();
   });
 
   await page.route('**/api/backups/storage-policy', async (route) => {
@@ -205,30 +229,66 @@ async function openBackupHistory(
   }
 }
 
+function mockManualJob(status: 'pending' | 'running' | 'completed' | 'failed') {
+  const createdAt = new Date().toISOString();
+  return {
+    id: MOCK_JOB_ID,
+    jobId: MOCK_JOB_ID,
+    type: 'manual',
+    status,
+    label: 'E2E UI create test',
+    progressPercent: status === 'completed' ? 100 : status === 'running' ? 45 : 0,
+    bytesWritten: status === 'completed' ? 8_192_000 : 0,
+    createdAt,
+    completedAt: status === 'completed' || status === 'failed' ? createdAt : null,
+    triggeredBy: {
+      id: SUPER_USER.id,
+      email: SUPER_EMAIL,
+      fullName: SUPER_USER.fullName,
+    },
+    manifest: null,
+    storagePolicy: 'local_only',
+    gdriveSyncStatus: null,
+    gdriveSyncedAt: null,
+    downloadable: status === 'completed',
+    errorMessage: status === 'failed' ? 'Mock dump failure' : null,
+  };
+}
+
 async function mockCreateFlow(
   page: import('@playwright/test').Page,
   finalStatus: 'completed' | 'failed',
 ) {
   let pollCount = 0;
 
-  await page.route('**/api/backups', async (route, request) => {
+  await page.route(/\/api\/backups\/?$/, async (route, request) => {
     if (request.method() === 'POST') {
       await route.fulfill({
         status: 201,
         contentType: 'application/json',
         body: JSON.stringify({
           success: true,
-          data: {
-            jobId: MOCK_JOB_ID,
-            status: 'pending',
-            storagePolicy: 'local_only',
-            createdAt: new Date().toISOString(),
-          },
+          data: mockManualJob('pending'),
         }),
       });
       return;
     }
     await route.continue();
+  });
+
+  await page.route(/\/api\/backups\/?(\?|$)/, async (route) => {
+    if (route.request().method() !== 'GET') return route.fallback();
+    const status =
+      finalStatus === 'failed' ? 'failed' : pollCount < 2 ? (pollCount === 0 ? 'pending' : 'running') : 'completed';
+    const job = mockManualJob(status);
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        success: true,
+        data: { items: [job], total: 1, limit: 20, offset: 0 },
+      }),
+    });
   });
 
   await page.route(`**/api/backups/${MOCK_JOB_ID}/status`, async (route) => {
@@ -266,7 +326,9 @@ test.describe('BACKUP-UI-CREATE — super_admin', () => {
   test('history page shows Create backup button and audit panel', async ({ page }) => {
     await openBackupHistory(page, SUPER_USER);
     await expect(page.getByTestId('create-backup-btn')).toBeVisible();
-    await expect(page.getByText(/Recent backup audit events/i)).toBeVisible();
+    await expect(page.getByTestId('manual-backup-cooldown-card')).toBeVisible();
+    await expect(page.getByTestId('manual-backup-cooldown-input')).toHaveValue('15');
+    await expect(page.getByText(/Recent backup audit events|Backup Activity/i)).toBeVisible();
   });
 
   test('create modal shows label and storage policy fields', async ({ page }) => {
@@ -283,23 +345,26 @@ test.describe('BACKUP-UI-CREATE — super_admin', () => {
   });
 
   test('successful create shows progress then success state', async ({ page }) => {
-    await mockCreateFlow(page, 'completed');
     await openBackupHistory(page, SUPER_USER);
+    await mockCreateFlow(page, 'completed');
     await page.getByTestId('create-backup-btn').click();
     await page.getByTestId('create-backup-label').fill('E2E UI create test');
     await page.getByTestId('create-backup-submit').click();
     await expect(page.getByTestId('create-backup-progress')).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByTestId(`backup-row-${MOCK_JOB_ID}`)).toBeVisible({ timeout: 10_000 });
     await expect(page.getByTestId('create-backup-success')).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByTestId(`backup-download-${MOCK_JOB_ID}`)).toBeVisible({ timeout: 15_000 });
   });
 
   test('failed create shows failure state', async ({ page }) => {
-    await mockCreateFlow(page, 'failed');
     await openBackupHistory(page, SUPER_USER);
+    await mockCreateFlow(page, 'failed');
     await page.getByTestId('create-backup-btn').click();
     await page.getByTestId('create-backup-submit').click();
     const failure = page.getByTestId('create-backup-failure');
     await expect(failure).toBeVisible({ timeout: 15_000 });
     await expect(failure.getByText(/Mock dump failure/i)).toBeVisible();
+    await expect(page.getByTestId(`backup-download-${MOCK_JOB_ID}`)).toHaveCount(0);
   });
 });
 
@@ -307,6 +372,7 @@ test.describe('BACKUP-UI-CREATE — wh_manager RBAC', () => {
   test('manager can view history but not create backup', async ({ page }) => {
     await openBackupHistory(page, MANAGER_USER);
     await expect(page.getByTestId('create-backup-btn')).toHaveCount(0);
+    await expect(page.getByTestId('manual-backup-cooldown-card')).toHaveCount(0);
     await expect(page.getByText(/Recent backup audit events/i)).toHaveCount(0);
   });
 });

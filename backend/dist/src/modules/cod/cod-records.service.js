@@ -11,13 +11,20 @@ var __metadata = (this && this.__metadata) || function (k, v) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.CodRecordsService = void 0;
 const common_1 = require("@nestjs/common");
+const config_1 = require("@nestjs/config");
 const client_1 = require("@prisma/client");
 const company_read_scope_1 = require("../../common/auth/company-read-scope");
 const company_access_service_1 = require("../../common/company-access/company-access.service");
 const domain_exceptions_1 = require("../../common/errors/domain-exceptions");
 const prisma_service_1 = require("../../common/prisma/prisma.service");
 const tenant_rls_1 = require("../../common/prisma/tenant-rls");
+const branding_1 = require("../../pdf/branding");
+const pdf_service_1 = require("../../pdf/pdf.service");
 const realtime_service_1 = require("../realtime/realtime.service");
+const cod_list_filter_util_1 = require("./cod-list-filter.util");
+const cod_export_pdf_util_1 = require("./cod-export-pdf.util");
+const cod_export_util_1 = require("./cod-export.util");
+const EXPORT_PAGE_SIZE = 500;
 const INCLUDE = {
     company: { select: { id: true, name: true } },
     omsOrder: {
@@ -27,6 +34,15 @@ const INCLUDE = {
             status: true,
             recipientName: true,
             paymentMethod: true,
+            trackingNumber: true,
+            outboundOrderId: true,
+            outboundOrder: {
+                select: {
+                    id: true,
+                    orderNumber: true,
+                    trackingNumber: true,
+                },
+            },
         },
     },
     adjustments: { orderBy: { createdAt: 'asc' } },
@@ -64,10 +80,14 @@ let CodRecordsService = class CodRecordsService {
     prisma;
     companyAccess;
     realtime;
-    constructor(prisma, companyAccess, realtime) {
+    pdf;
+    config;
+    constructor(prisma, companyAccess, realtime, pdf, config) {
         this.prisma = prisma;
         this.companyAccess = companyAccess;
         this.realtime = realtime;
+        this.pdf = pdf;
+        this.config = config;
     }
     async recordEvent(tx, params) {
         await tx.omsOrderEvent.create({
@@ -80,23 +100,21 @@ let CodRecordsService = class CodRecordsService {
             },
         });
     }
-    async list(user, query) {
-        const where = {};
+    resolveListWhere(user, query) {
         const companyId = (0, company_read_scope_1.readCompanyIdCatalogFilter)(this.companyAccess, user, query.companyId);
-        if (companyId)
-            where.companyId = companyId;
-        if (query.status)
-            where.status = query.status;
-        if (query.omsOrderId)
-            where.omsOrderId = query.omsOrderId;
-        const search = query.search?.trim();
-        if (search) {
-            where.OR = [
-                { company: { name: { contains: search, mode: 'insensitive' } } },
-                { omsOrder: { orderNumber: { contains: search, mode: 'insensitive' } } },
-                { omsOrder: { recipientName: { contains: search, mode: 'insensitive' } } },
-            ];
-        }
+        return (0, cod_list_filter_util_1.buildCodRecordWhere)({
+            companyId,
+            status: query.status,
+            omsOrderId: query.omsOrderId,
+            search: query.search,
+            createdFrom: query.createdFrom,
+            createdTo: query.createdTo,
+            amountMin: query.amountMin,
+            amountMax: query.amountMax,
+        });
+    }
+    async list(user, query) {
+        const where = this.resolveListWhere(user, query);
         return (0, tenant_rls_1.withTenantRls)(this.prisma, user, async (tx) => {
             const [items, total] = await Promise.all([
                 tx.codRecord.findMany({
@@ -115,6 +133,87 @@ let CodRecordsService = class CodRecordsService {
                 offset: query.offset,
             };
         });
+    }
+    async loadExportDataset(user, query) {
+        const where = this.resolveListWhere(user, query);
+        const records = await (0, tenant_rls_1.withTenantRls)(this.prisma, user, async (tx) => {
+            const rows = [];
+            let offset = 0;
+            for (;;) {
+                const page = await tx.codRecord.findMany({
+                    where,
+                    include: INCLUDE,
+                    orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+                    take: EXPORT_PAGE_SIZE,
+                    skip: offset,
+                });
+                for (const record of page) {
+                    const serialized = serialize(record);
+                    rows.push({
+                        id: serialized.id,
+                        companyName: serialized.company?.name ?? null,
+                        omsOrderId: serialized.omsOrderId,
+                        orderNumber: serialized.omsOrder?.orderNumber ?? null,
+                        outboundOrderNumber: serialized.omsOrder?.outboundOrder?.orderNumber ?? null,
+                        recipientName: serialized.omsOrder?.recipientName ?? null,
+                        trackingNumber: serialized.omsOrder?.trackingNumber?.trim() ||
+                            serialized.omsOrder?.outboundOrder?.trackingNumber?.trim() ||
+                            null,
+                        currentAmount: serialized.currentAmount,
+                        currency: serialized.currency,
+                        status: serialized.status,
+                        availableAt: serialized.availableAt,
+                        paidOutAt: serialized.paidOutAt,
+                    });
+                }
+                if (page.length < EXPORT_PAGE_SIZE)
+                    break;
+                offset += page.length;
+            }
+            return rows;
+        });
+        let clientLabel = 'All Clients';
+        const scopedCompanyId = where.companyId;
+        if (typeof scopedCompanyId === 'string' && scopedCompanyId) {
+            const company = await this.prisma.company.findUnique({
+                where: { id: scopedCompanyId },
+                select: { name: true },
+            });
+            clientLabel = company?.name?.trim() || scopedCompanyId;
+        }
+        return { records, clientLabel };
+    }
+    async exportXlsx(user, query) {
+        const { records, clientLabel } = await this.loadExportDataset(user, query);
+        const buffer = await (0, cod_export_util_1.buildCodReportWorkbook)({
+            records,
+            exportedAt: new Date(),
+            clientLabel,
+        });
+        return { buffer, filename: (0, cod_export_util_1.codExportFilename)(clientLabel, 'xlsx') };
+    }
+    async exportPdf(user, query) {
+        const { records, clientLabel } = await this.loadExportDataset(user, query);
+        const branding = (0, branding_1.resolveBranding)(this.config);
+        const html = (0, cod_export_pdf_util_1.buildCodReportHtml)({
+            records,
+            clientLabel,
+            brand: {
+                companyName: branding.companyName,
+                companyNameAr: branding.companyNameAr,
+                tagline: branding.tagline,
+                logoDataUri: this.pdf.logo,
+                fontFaceCss: this.pdf.fontFaceCss,
+            },
+        });
+        const buffer = await this.pdf.renderHtml(html, {
+            format: 'A4',
+            landscape: true,
+            preferCSSPageSize: false,
+            margin: { top: '10mm', bottom: '16mm', left: '10mm', right: '10mm' },
+            footerTemplate: (0, cod_export_pdf_util_1.buildCodPdfFooterTemplate)(branding.companyName),
+        });
+        return { buffer, filename: (0, cod_export_util_1.codExportFilename)(clientLabel, 'pdf') };
     }
     async findById(id, user) {
         const record = await (0, tenant_rls_1.withTenantRls)(this.prisma, user, async (tx) => tx.codRecord.findUnique({ where: { id }, include: INCLUDE }));
@@ -177,6 +276,17 @@ let CodRecordsService = class CodRecordsService {
                         createdBy: user.id,
                     },
                     include: INCLUDE,
+                });
+                await tx.clientFinancialAccount.upsert({
+                    where: { companyId: order.companyId },
+                    create: {
+                        companyId: order.companyId,
+                        pendingBalance: amount,
+                        currency: order.currency ?? 'USD',
+                    },
+                    update: {
+                        pendingBalance: { increment: amount },
+                    },
                 });
                 await tx.omsOrder.update({
                     where: { id: omsOrderId },
@@ -247,6 +357,14 @@ let CodRecordsService = class CodRecordsService {
         }
         await (0, tenant_rls_1.withTenantRls)(this.prisma, user, async (tx) => {
             await tx.codRecord.delete({ where: { id: existing.id } });
+            if (existing.status === client_1.CodRecordStatus.pending) {
+                await tx.clientFinancialAccount.updateMany({
+                    where: { companyId: existing.companyId },
+                    data: {
+                        pendingBalance: { decrement: existing.originalAmount },
+                    },
+                });
+            }
             await tx.omsOrder.update({
                 where: { id: omsOrderId },
                 data: {
@@ -274,6 +392,140 @@ let CodRecordsService = class CodRecordsService {
             status: 'voided',
         });
         return { voided: true, previousCodRecordId: existing.id };
+    }
+    async setStatusByScan(user, rawCode, status) {
+        const trimmed = (rawCode || '').trim();
+        if (!trimmed) {
+            throw new common_1.BadRequestException('Please scan or enter a valid code.');
+        }
+        let cleanCode = trimmed;
+        try {
+            if (cleanCode.startsWith('http://') || cleanCode.startsWith('https://')) {
+                const url = new URL(cleanCode);
+                const segments = url.pathname.split('/').filter(Boolean);
+                if (segments.length > 0) {
+                    cleanCode = decodeURIComponent(segments[segments.length - 1]);
+                }
+            }
+        }
+        catch {
+        }
+        const strippedEmd = cleanCode.replace(/^emd-/i, '');
+        const candidates = Array.from(new Set([cleanCode, trimmed, strippedEmd].filter(Boolean)));
+        const uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+        let matchedOrder = null;
+        for (const candidate of candidates) {
+            const isUuid = uuidRe.test(candidate);
+            const order = await this.prisma.omsOrder.findFirst({
+                where: {
+                    OR: [
+                        ...(isUuid ? [{ id: candidate }] : []),
+                        { orderNumber: { equals: candidate, mode: 'insensitive' } },
+                        { clientReference: { equals: candidate, mode: 'insensitive' } },
+                        { trackingNumber: { equals: candidate, mode: 'insensitive' } },
+                    ],
+                },
+                select: {
+                    id: true,
+                    companyId: true,
+                    orderNumber: true,
+                    company: { select: { name: true } },
+                },
+            });
+            if (order) {
+                matchedOrder = order;
+                break;
+            }
+        }
+        if (!matchedOrder) {
+            for (const candidate of candidates) {
+                const outbound = await this.prisma.outboundOrder.findFirst({
+                    where: {
+                        OR: [
+                            { trackingNumber: { equals: candidate, mode: 'insensitive' } },
+                            { orderNumber: { equals: candidate, mode: 'insensitive' } },
+                        ],
+                    },
+                    select: {
+                        omsOrder: {
+                            select: {
+                                id: true,
+                                companyId: true,
+                                orderNumber: true,
+                                company: { select: { name: true } },
+                            },
+                        },
+                    },
+                });
+                if (outbound?.omsOrder) {
+                    matchedOrder = outbound.omsOrder;
+                    break;
+                }
+                const carrierShipment = await this.prisma.carrierShipment.findFirst({
+                    where: {
+                        OR: [
+                            { trackingNumber: { equals: candidate, mode: 'insensitive' } },
+                            { externalAwb: { equals: candidate, mode: 'insensitive' } },
+                        ],
+                    },
+                    select: {
+                        outboundOrder: {
+                            select: {
+                                omsOrder: {
+                                    select: {
+                                        id: true,
+                                        companyId: true,
+                                        orderNumber: true,
+                                        company: { select: { name: true } },
+                                    },
+                                },
+                            },
+                        },
+                    },
+                });
+                if (carrierShipment?.outboundOrder?.omsOrder) {
+                    matchedOrder = carrierShipment.outboundOrder.omsOrder;
+                    break;
+                }
+            }
+        }
+        if (!matchedOrder) {
+            throw new common_1.NotFoundException(`No order found for code (${cleanCode}). Scan the correct waybill QR.`);
+        }
+        this.companyAccess.validateResourceOwnership(user, matchedOrder);
+        const record = await this.prisma.codRecord.findUnique({
+            where: { omsOrderId: matchedOrder.id },
+            select: { id: true, status: true, companyId: true },
+        });
+        if (!record) {
+            throw new common_1.NotFoundException(`Order ${matchedOrder.orderNumber} has no COD record.`);
+        }
+        this.companyAccess.validateResourceOwnership(user, record);
+        const orderNumber = matchedOrder.orderNumber;
+        const clientName = matchedOrder.company?.name ?? '—';
+        if (record.status === status) {
+            return {
+                ok: true,
+                action: 'unchanged',
+                codRecordId: record.id,
+                orderNumber,
+                clientName,
+                previousStatus: record.status,
+                status,
+                message: `${orderNumber} is already ${status}; no change.`,
+            };
+        }
+        await this.setStatus(record.id, user, status);
+        return {
+            ok: true,
+            action: 'updated',
+            codRecordId: record.id,
+            orderNumber,
+            clientName,
+            previousStatus: record.status,
+            status,
+            message: `${orderNumber} COD status set to ${status}.`,
+        };
     }
     async setStatus(id, user, status) {
         const existing = await this.prisma.codRecord.findUnique({ where: { id } });
@@ -475,6 +727,8 @@ exports.CodRecordsService = CodRecordsService = __decorate([
     (0, common_1.Injectable)(),
     __metadata("design:paramtypes", [prisma_service_1.PrismaService,
         company_access_service_1.CompanyAccessService,
-        realtime_service_1.RealtimeService])
+        realtime_service_1.RealtimeService,
+        pdf_service_1.PdfService,
+        config_1.ConfigService])
 ], CodRecordsService);
 //# sourceMappingURL=cod-records.service.js.map

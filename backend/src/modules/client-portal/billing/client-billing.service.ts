@@ -8,6 +8,7 @@ import { BillingAccessService } from '../../billing/billing-access.service';
 import { BillingCyclesService } from '../../billing/billing-cycles.service';
 import { BillingInvoicesService } from '../../billing/billing-invoices.service';
 import { BillingPlansService } from '../../billing/billing-plans.service';
+import { buildExcelBuffer, ExcelExportColumn } from '../../../common/utils/excel-export.util';
 
 const MS_PER_DAY = 86_400_000;
 
@@ -115,7 +116,8 @@ export class ClientBillingService {
         : undefined;
 
     const where = { companyId, ...(statusFilter ? { status: statusFilter } : {}) };
-    const [items, total] = await Promise.all([
+
+    const [items, total, statusGroup] = await Promise.all([
       this.prisma.invoice.findMany({
         where,
         orderBy: { createdAt: 'desc' },
@@ -151,9 +153,80 @@ export class ClientBillingService {
         },
       }),
       this.prisma.invoice.count({ where }),
+      this.prisma.invoice.groupBy({
+        by: ['status'],
+        where: { companyId },
+        _count: { id: true },
+      }),
     ]);
 
-    return { items, total, limit, offset };
+    const statusCounts: Record<string, number> = {
+      all: 0,
+      unpaid: 0,
+      paid: 0,
+      draft: 0,
+      cancelled: 0,
+    };
+    for (const g of statusGroup) {
+      statusCounts[g.status] = g._count.id;
+      statusCounts.all += g._count.id;
+    }
+
+    return { items, total, limit, offset, statusCounts };
+  }
+
+  async exportInvoicesXlsx(client: ClientPrincipal, status?: string): Promise<Buffer> {
+    this.assertBillingAccess(client);
+    const companyId = client.companyId;
+    const allowedStatuses = ['draft', 'unpaid', 'paid', 'cancelled'] as const;
+    const statusFilter =
+      status && allowedStatuses.includes(status as (typeof allowedStatuses)[number])
+        ? (status as (typeof allowedStatuses)[number])
+        : undefined;
+
+    const where = { companyId, ...(statusFilter ? { status: statusFilter } : {}) };
+    const items = await this.prisma.invoice.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+      take: 5000,
+      include: {
+        billingCycle: {
+          select: { startsAt: true, endsAt: true },
+        },
+      },
+    });
+
+    const columns: ExcelExportColumn[] = [
+      { header: 'Invoice Number', key: 'invoiceNumber', width: 22 },
+      { header: 'Status', key: 'status', width: 14 },
+      { header: 'Created Date', key: 'createdAt', width: 16 },
+      { header: 'Due Date', key: 'dueDate', width: 16 },
+      { header: 'Billing Period', key: 'billingCycle', width: 26 },
+      { header: 'Subtotal Amount (USD)', key: 'subtotalAmount', width: 22 },
+      { header: 'VAT Amount (USD)', key: 'vatAmount', width: 18 },
+      { header: 'Total Amount (USD)', key: 'totalAmount', width: 20 },
+      { header: 'Issued Date', key: 'issuedAt', width: 16 },
+    ];
+
+    const rows = items.map((row) => ({
+      invoiceNumber: row.invoiceNumber,
+      status: row.status.toUpperCase(),
+      createdAt: row.createdAt.toISOString().slice(0, 10),
+      dueDate: row.dueDate ? row.dueDate.toISOString().slice(0, 10) : '—',
+      billingCycle: row.billingCycle
+        ? `${row.billingCycle.startsAt.toISOString().slice(0, 10)} to ${row.billingCycle.endsAt.toISOString().slice(0, 10)}`
+        : 'Ad-hoc',
+      subtotalAmount: row.subtotalAmount.toString(),
+      vatAmount: row.vatAmount.toString(),
+      totalAmount: row.totalAmount.toString(),
+      issuedAt: row.issuedAt ? row.issuedAt.toISOString().slice(0, 10) : '—',
+    }));
+
+    return buildExcelBuffer({
+      sheetName: 'Invoices',
+      columns,
+      rows,
+    });
   }
 
   async listInvoices(client: ClientPrincipal) {

@@ -30,6 +30,10 @@ export class ShippingConfigDto {
   shippingServiceId?: string | null;
 
   @IsOptional()
+  @IsString()
+  shippingHubId?: string | null;
+
+  @IsOptional()
   @Type(() => Number)
   @IsNumber({ maxDecimalPlaces: 8 })
   shippingReceiverLat?: number | null;

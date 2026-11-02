@@ -8,7 +8,9 @@ import { CarrierShippingDetailsForm } from '../shipping/CarrierShippingDetailsFo
 import {
   buildCarrierShippingFormFromOrder,
   carrierFormToSavePayload,
+  getBabelPackingValidationError,
   hasOverPacking,
+  isBabelProvider,
   packingSummary,
   type CarrierShippingFormValue,
 } from '../shipping/carrier-shipping-form';
@@ -86,9 +88,15 @@ export function ShippingMethodStageCard({ order }: Props) {
     onError: (err: Error) => toast.error(err.message),
   });
 
+  const isBabel = isBabelProvider(form.shippingProviderCode);
+  const babelValidationError = useMemo(
+    () => (isBabel && form.packageType === 'box' ? getBabelPackingValidationError(form.cartons, form.catalog, false) : null),
+    [isBabel, form.packageType, form.cartons, form.catalog],
+  );
+
   const packingInvalid = useMemo(
-    () => hasOverPacking(packingSummary(form.cartons, form.catalog)),
-    [form.cartons, form.catalog],
+    () => hasOverPacking(packingSummary(form.cartons, form.catalog)) || Boolean(babelValidationError),
+    [form.cartons, form.catalog, babelValidationError],
   );
 
   const canSubmit =
@@ -96,6 +104,7 @@ export function ShippingMethodStageCard({ order }: Props) {
     (method === 'carrier' &&
       !quotesRefreshing &&
       !packingInvalid &&
+      (!isBabel || !babelValidationError) &&
       selectedCarrierAvailable &&
       form.shippingProviderCode.trim() !== '' &&
       form.city.trim() !== '' &&

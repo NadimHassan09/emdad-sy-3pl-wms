@@ -104,4 +104,14 @@ describe('mayCreateShipment', () => {
       }).reason,
     ).toBe('created');
   });
+
+  it('still blocks a replacement while the current Babel shipment is created and cancellation is unconfirmed', () => {
+    expect(
+      mayCreateShipment({
+        hasCreated: true,
+        ambiguousOutstanding: false,
+        acknowledged: false,
+      }),
+    ).toEqual({ allow: false, reason: 'created' });
+  });
 });

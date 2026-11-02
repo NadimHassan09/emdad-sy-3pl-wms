@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 
+import { StatusCardNav, STATUS_CARD_TONES, type StatusCardItem } from '@ds';
 import { OmsApi, type OmsBatchSummary } from '../api/oms';
 import { AdminListPageShell } from '../components/AdminListPageShell';
 import { DataTable, type Column } from '../components/DataTable';
@@ -43,6 +44,7 @@ export function OmsBatchesPage() {
   const navigate = useNavigate();
   const [search, setSearch] = useState('');
   const [applied, setApplied] = useState('');
+  const [statusFilter, setStatusFilter] = useState('');
   const query = useQuery({
     queryKey: [...QK.omsBatches, applied],
     queryFn: () => OmsApi.listBatches(applied),
@@ -57,6 +59,50 @@ export function OmsBatchesPage() {
     }),
     [rows],
   );
+
+  const statusItems: StatusCardItem[] = useMemo(
+    () => [
+      {
+        value: '',
+        label: isArabic ? 'كل المجموعات' : 'All batches',
+        count: totals.total,
+        ...STATUS_CARD_TONES.slate,
+      },
+      {
+        value: 'active',
+        label: isArabic ? 'قيد العمل' : 'Active batches',
+        count: totals.active,
+        ...STATUS_CARD_TONES.blue,
+      },
+      {
+        value: 'issues',
+        label: isArabic ? 'فيها مشكلات' : 'Batches with issues',
+        count: totals.issues,
+        ...STATUS_CARD_TONES.rose,
+      },
+      {
+        value: 'completed',
+        label: isArabic ? 'مكتملة' : 'Completed batches',
+        count: totals.completed,
+        ...STATUS_CARD_TONES.emerald,
+      },
+    ],
+    [totals, isArabic],
+  );
+
+  const filteredRows = useMemo(() => {
+    if (!statusFilter) return rows;
+    if (statusFilter === 'active') {
+      return rows.filter((row) => row.orderCount > 0 && row.completedCount < row.orderCount);
+    }
+    if (statusFilter === 'issues') {
+      return rows.filter((row) => row.issueCount > 0);
+    }
+    if (statusFilter === 'completed') {
+      return rows.filter((row) => row.orderCount > 0 && row.completedCount === row.orderCount);
+    }
+    return rows;
+  }, [rows, statusFilter]);
 
   const columns: Column<OmsBatchSummary>[] = [
     {
@@ -126,11 +172,12 @@ export function OmsBatchesPage() {
       }
       isArabic={isArabic}
     >
-      <div className="mb-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <Card label={isArabic ? 'كل المجموعات' : 'Total batches'} value={totals.total} />
-        <Card label={isArabic ? 'قيد العمل' : 'Active batches'} value={totals.active} />
-        <Card label={isArabic ? 'فيها مشكلات' : 'Batches with issues'} value={totals.issues} />
-        <Card label={isArabic ? 'مكتملة' : 'Completed batches'} value={totals.completed} />
+      <div className="mb-4">
+        <StatusCardNav
+          items={statusItems}
+          value={statusFilter}
+          onChange={(val) => setStatusFilter(val)}
+        />
       </div>
       <form
         className="mb-3 flex gap-2"
@@ -151,21 +198,12 @@ export function OmsBatchesPage() {
       </form>
       <DataTable
         columns={columns}
-        rows={rows}
+        rows={filteredRows}
         rowKey={(row) => row.id}
         loading={query.isLoading}
         onRowClick={(row) => navigate(`/oms/batches/${row.id}`)}
         empty={isArabic ? 'لا توجد مجموعات بعد.' : 'No batches yet.'}
       />
     </AdminListPageShell>
-  );
-}
-
-function Card({ label, value }: { label: string; value: number }) {
-  return (
-    <div className="rounded-xl border border-border-subtle bg-surface px-4 py-3">
-      <div className="text-sm text-text-muted">{label}</div>
-      <div className="text-2xl font-bold text-text-strong">{value}</div>
-    </div>
   );
 }

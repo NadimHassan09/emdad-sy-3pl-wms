@@ -9,6 +9,7 @@ export type OmsCommercialDisplayStatus =
   | 'delivered'
   | 'cancelled'
   | 'failed_delivery'
+  | 'return_pending_receipt'
   | 'returned'
   | 'legacy';
 
@@ -20,8 +21,9 @@ const EN_LABELS: Record<OmsCommercialDisplayStatus, string> = {
   shipped: 'Out for Delivery',
   delivered: 'Delivered',
   cancelled: 'Cancelled',
-  failed_delivery: 'Failed Delivery',
-  returned: 'Returned',
+  failed_delivery: 'Field Delivery',
+  return_pending_receipt: 'Return Pending Receipt',
+  returned: 'Return Received',
   legacy: 'Legacy',
 };
 
@@ -34,7 +36,8 @@ const AR_LABELS: Record<OmsCommercialDisplayStatus, string> = {
   delivered: 'تم التسليم',
   cancelled: 'ملغي',
   failed_delivery: 'فشل التسليم',
-  returned: 'مرتجع',
+  return_pending_receipt: 'مرتجع بانتظار الاستلام',
+  returned: 'مرتجع مستلم',
   legacy: 'قديم',
 };
 
@@ -77,6 +80,7 @@ export function omsCommercialStatusBadgeKey(status: string): string {
   if (mapped === 'ready_to_ship') return 'ready to ship';
   if (mapped === 'shipped') return 'out for delivery';
   if (mapped === 'failed_delivery') return 'failed delivery';
+  if (mapped === 'return_pending_receipt') return 'return pending receipt';
   if (mapped === 'legacy') return 'pending';
   return mapped.replace(/_/g, ' ');
 }
@@ -92,8 +96,9 @@ export const OMS_COMMERCIAL_FILTER_OPTIONS = [
   { value: 'ready_to_ship', label: 'Ready for Shipping' },
   { value: 'shipped', label: 'Out for Delivery' },
   { value: 'delivered', label: 'Delivered' },
-  { value: 'failed_delivery', label: 'Failed Delivery' },
-  { value: 'returned', label: 'Returned' },
+  { value: 'failed_delivery', label: 'Field Delivery' },
+  { value: 'return_pending_receipt', label: 'Return Pending Receipt' },
+  { value: 'returned', label: 'Return Received' },
   { value: 'cancelled', label: 'Cancelled' },
 ] as const;
 
@@ -105,6 +110,7 @@ export const OMS_COMMERCIAL_STATUS_COLORS: Record<string, string> = {
   shipped: '#0891b2',
   delivered: '#15803d',
   failed_delivery: '#dc2626',
+  return_pending_receipt: '#c026d3',
   returned: '#ef4444',
   cancelled: '#94a3b8',
   legacy: '#64748b',

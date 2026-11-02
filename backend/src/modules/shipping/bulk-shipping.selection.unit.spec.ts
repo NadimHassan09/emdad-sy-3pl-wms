@@ -16,6 +16,7 @@ describe('bulkSelectionPatch', () => {
       shippingMethod: ShippingMethod.carrier,
       shippingProviderCode: 'SILA_SY',
       shippingServiceId: 'SILA_SY:fd4f088d-243b-4582-bb72-bb97c69b589c:area',
+      shippingHubId: null,
       shippingDeliveryType: 'address',
       shippingPayer: 'sender',
       shippingQuotedCurrency: 'SYP',

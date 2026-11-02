@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { FormEvent, useEffect, useState } from 'react';
-import { Navigate } from 'react-router-dom';
+import { Link, Navigate } from 'react-router-dom';
 import { SectionContainer } from '@ds';
 
 import {
@@ -146,22 +146,54 @@ function ProviderCard({
 
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [webhookSecret, setWebhookSecret] = useState('');
+  const [updatedSecret, setUpdatedSecret] = useState('');
   const [disconnectOpen, setDisconnectOpen] = useState(false);
+  const [webhookOpen, setWebhookOpen] = useState(false);
+  const [senaSecretModalOpen, setSenaSecretModalOpen] = useState(false);
+
+  const isSila = provider.code === 'SILA_SY';
+  const isSena = provider.code === 'SENA_EXPRESS';
 
   const connectMutation = useMutation({
     mutationFn: () =>
       ShippingApi.connectProvider(provider.code, {
         username,
-        password: provider.code === 'SILA_SY' ? 'N/A' : password,
+        password: isSila || isSena ? 'N/A' : password,
+        webhookSecret: isSena && webhookSecret.trim() ? webhookSecret.trim() : undefined,
       }),
     onSuccess: () => {
       setUsername('');
       setPassword('');
+      setWebhookSecret('');
       toast.success(
         t([
           `${provider.name} connected.`,
           `تم ربط ${provider.name}.`,
         ]),
+      );
+      void queryClient.invalidateQueries({ queryKey: QK.shipping.providers });
+    },
+    onError: (err: Error) => toast.error(err.message),
+  });
+
+  const stagingWebhookUrl =
+    typeof window !== 'undefined'
+      ? `${window.location.origin}/api/shipping/webhooks/${provider.code}`
+      : `https://staging-admin.emdadsy.com/api/shipping/webhooks/${provider.code}`;
+
+  const updateSenaSecretMutation = useMutation({
+    mutationFn: () =>
+      ShippingApi.registerWebhook(provider.code, {
+        webhookUrl: stagingWebhookUrl,
+        secret: updatedSecret.trim(),
+      }),
+    onSuccess: (result) => {
+      setSenaSecretModalOpen(false);
+      setUpdatedSecret('');
+      toast.success(
+        result.message ||
+          t(['Webhook secret updated successfully.', 'تم حفظ سر الويب هوك بنجاح.']),
       );
       void queryClient.invalidateQueries({ queryKey: QK.shipping.providers });
     },
@@ -186,6 +218,30 @@ function ProviderCard({
     onError: (err: Error) => toast.error(err.message),
   });
 
+  const registerWebhookMutation = useMutation({
+    mutationFn: () =>
+      ShippingApi.registerWebhook(provider.code, { webhookUrl: stagingWebhookUrl }),
+    onSuccess: (result) => {
+      setWebhookOpen(false);
+      if (!result.ok) {
+        toast.error(result.message ?? t(['Webhook registration failed.', 'فشل تسجيل الويب هوك.']));
+        return;
+      }
+      toast.success(
+        t([
+          result.secretSaved
+            ? 'Webhook registered with the carrier. Signing secret stored on the server.'
+            : result.message || 'Webhook registered.',
+          result.secretSaved
+            ? 'تم تسجيل الويب هوك لدى شركة الشحن. تم حفظ سر التوقيع على الخادم.'
+            : result.message || 'تم تسجيل الويب هوك.',
+        ]),
+      );
+      void queryClient.invalidateQueries({ queryKey: QK.shipping.providers });
+    },
+    onError: (err: Error) => toast.error(err.message),
+  });
+
   const disconnectMutation = useMutation({
     mutationFn: () => ShippingApi.disconnectProvider(provider.code),
     onSuccess: () => {
@@ -201,13 +257,11 @@ function ProviderCard({
     onError: (err: Error) => toast.error(err.message),
   });
 
-  const isSila = provider.code === 'SILA_SY';
-
   const onConnect = (e: FormEvent) => {
     e.preventDefault();
-    if (!username.trim() || (!isSila && !password)) {
+    if (!username.trim() || (!isSila && !isSena && !password)) {
       toast.error(
-        isSila
+        isSila || isSena
           ? t(['API Key is required.', 'مفتاح API مطلوب.'])
           : t(['Username and password are required.', 'اسم المستخدم وكلمة المرور مطلوبان.']),
       );
@@ -242,6 +296,26 @@ function ProviderCard({
             >
               {t(['Test connection', 'اختبار الاتصال'])}
             </Button>
+            {isSila ? (
+              <Button
+                variant="secondary"
+                loading={registerWebhookMutation.isPending}
+                onClick={() => setWebhookOpen(true)}
+              >
+                {t(['Register webhook', 'تسجيل الويب هوك'])}
+              </Button>
+            ) : null}
+            {isSena ? (
+              <Button
+                variant="secondary"
+                onClick={() => {
+                  setUpdatedSecret('');
+                  setSenaSecretModalOpen(true);
+                }}
+              >
+                {t(['Configure Webhook Secret', 'ضبط سر الويب هوك'])}
+              </Button>
+            ) : null}
             <Button variant="danger" onClick={() => setDisconnectOpen(true)}>
               {t(['Disconnect', 'فصل'])}
             </Button>
@@ -268,7 +342,7 @@ function ProviderCard({
 
         <div className="rounded-xl border border-border bg-surface-card p-4">
           <p className="text-xs font-medium uppercase tracking-wide text-text-muted">
-            {isSila ? t(['API Key', 'مفتاح API']) : t(['Username', 'اسم المستخدم'])}
+            {isSila || isSena ? t(['API Key', 'مفتاح API']) : t(['Username', 'اسم المستخدم'])}
           </p>
           <p className="mt-1 font-mono text-sm font-semibold text-text-strong">
             {provider.connected
@@ -276,7 +350,7 @@ function ProviderCard({
               : t(['Not saved', 'غير محفوظ'])}
           </p>
           <p className="mt-1 text-xs text-text-muted">
-            {isSila
+            {isSila || isSena
               ? t(['API key is stored encrypted.', 'يتم تخزين مفتاح API مشفراً.'])
               : t([
                   'Password is never shown after save.',
@@ -304,13 +378,22 @@ function ProviderCard({
       {canMutate && !provider.connected ? (
         <form onSubmit={onConnect} className="mt-4 grid gap-3 md:grid-cols-2">
           <TextField
-            label={isSila ? t(['API Key', 'مفتاح API']) : t(['Username', 'اسم المستخدم'])}
+            label={isSila || isSena ? t(['API Key', 'مفتاح API']) : t(['Username', 'اسم المستخدم'])}
             value={username}
             autoComplete="off"
-            placeholder={isSila ? 'sila_live_...' : ''}
+            placeholder={isSila ? 'sila_live_...' : isSena ? 'e.g. sena_api_key_...' : ''}
             onChange={(e) => setUsername(e.target.value)}
           />
-          {!isSila ? (
+          {isSena ? (
+            <TextField
+              label={t(['Webhook Secret (Optional)', 'سر الويب هوك (اختياري)'])}
+              type="password"
+              value={webhookSecret}
+              autoComplete="new-password"
+              placeholder={t(['Webhook secret from SENA settings', 'سر الويب هوك من إعدادات سينا'])}
+              onChange={(e) => setWebhookSecret(e.target.value)}
+            />
+          ) : !isSila ? (
             <TextField
               label={t(['Password', 'كلمة المرور'])}
               type="password"
@@ -325,6 +408,93 @@ function ProviderCard({
             </Button>
           </div>
         </form>
+      ) : null}
+
+      {provider.connected ? (
+        <div className="mt-4 rounded-xl border border-border bg-surface-card p-4">
+          <div className="flex items-center justify-between">
+            <p className="text-xs font-medium uppercase tracking-wide text-text-muted">
+              {t(['Webhook receive URL', 'عنوان استقبال الويب هوك'])}
+            </p>
+            {isSena && (
+              <span
+                className={`inline-flex items-center rounded px-2 py-0.5 text-xs font-medium ${
+                  provider.webhookRegistered
+                    ? 'bg-status-success-bg text-status-success-fg'
+                    : 'bg-status-warning-bg text-status-warning-fg'
+                }`}
+              >
+                {provider.webhookRegistered
+                  ? t(['Secret Configured', 'السر مُعد'])
+                  : t(['No Secret Configured', 'لم يُضبط السر'])}
+              </span>
+            )}
+          </div>
+          <p className="mt-1 break-all font-mono text-xs text-text-strong">{stagingWebhookUrl}</p>
+          <p className="mt-1 text-xs text-text-muted">
+            {isSena
+              ? t([
+                  'Copy this URL and configure it in SENA merchant dashboard under Settings > API / Webhooks along with your Webhook Secret.',
+                  'انسخ هذا الرابط واضبطه في لوحة تحكم تاجر SENA تحت إعدادات الربط والـ Webhook مع سر التوقيع الخاص بك.',
+                ])
+              : provider.webhookRegistered
+                ? t(['Signing secret is stored on the server.', 'سر التوقيع محفوظ على الخادم.'])
+                : isSila
+                  ? t([
+                      'Not registered at Sila yet. Register writes the URL to Sila and stores the secret here.',
+                      'غير مسجّل عند صلة بعد. التسجيل يكتب العنوان عند صلة ويحفظ السر هنا.',
+                    ])
+                  : t([
+                      'Babel webhook registration is disabled until dummy receive and signature checks pass.',
+                      'تسجيل ويب هوك بابل متوقف حتى نجاح الاستقبال الوهمي والتحقق من التوقيع.',
+                    ])}
+          </p>
+        </div>
+      ) : null}
+
+      {canMutate && isSila ? (
+        <ConfirmModal
+          open={webhookOpen}
+          title={t(['Register Sila webhook?', 'تسجيل ويب هوك صلة؟'])}
+          confirmLabel={t(['Register at Sila', 'تسجيل عند صلة'])}
+          cancelLabel={t(['Cancel', 'إلغاء'])}
+          loading={registerWebhookMutation.isPending}
+          onConfirm={() => registerWebhookMutation.mutate()}
+          onClose={() => setWebhookOpen(false)}
+        >
+          {t([
+            `This posts the staging URL to Sila and stores the signing secret on this server only. URL: ${stagingWebhookUrl}`,
+            `سيتم إرسال عنوان الستيجينج إلى صلة وحفظ سر التوقيع على هذا الخادم فقط. العنوان: ${stagingWebhookUrl}`,
+          ])}
+        </ConfirmModal>
+      ) : null}
+
+      {canMutate && isSena ? (
+        <ConfirmModal
+          open={senaSecretModalOpen}
+          title={t(['Configure SENA Webhook Secret', 'ضبط سر ويب هوك SENA'])}
+          confirmLabel={t(['Save Secret', 'حفظ السر'])}
+          cancelLabel={t(['Cancel', 'إلغاء'])}
+          loading={updateSenaSecretMutation.isPending}
+          onConfirm={() => updateSenaSecretMutation.mutate()}
+          onClose={() => setSenaSecretModalOpen(false)}
+        >
+          <div className="space-y-3">
+            <p className="text-sm text-text-muted">
+              {t([
+                'Enter the Webhook Secret provided by SENA merchant settings. This will be used to verify the x-sena-signature HMAC on incoming events.',
+                'أدخل سر الويب هوك المتاح في إعدادات تاجر SENA للتحقق من توقيع HMAC x-sena-signature على الإشعارات الواردة.',
+              ])}
+            </p>
+            <TextField
+              label={t(['Webhook Secret', 'سر الويب هوك'])}
+              type="password"
+              value={updatedSecret}
+              placeholder="e.g. sena_sec_..."
+              onChange={(e) => setUpdatedSecret(e.target.value)}
+            />
+          </div>
+        </ConfirmModal>
       ) : null}
 
       {canMutate ? (
@@ -499,6 +669,11 @@ export function ShippingCompaniesPage() {
 
   return (
     <div className="space-y-4 animate-enter">
+      {canEditPickup ? (
+        <Link to="/shipping/fee-rates" className="text-sm font-medium text-brand-700 hover:underline">
+          {t(['Shipping Fee Rate', 'أسعار الشحن للعملاء'])}
+        </Link>
+      ) : null}
       <SectionContainer
         title={t(['Shipping Companies', 'شركات الشحن'])}
         description={t([

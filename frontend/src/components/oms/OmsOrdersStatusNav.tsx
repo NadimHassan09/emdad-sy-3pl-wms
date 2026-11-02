@@ -3,8 +3,8 @@ import type { ReactElement } from 'react';
 import type { OmsOrdersNavCounts } from '../../api/oms';
 import { omsCommercialStatusLabel } from '../../lib/oms-commercial-status';
 import {
-  OMS_OPERATIONAL_STAGES,
   omsOperationalStageLabel,
+  operationalStagesForStatus,
   type OmsOperationalStage,
 } from '../../lib/oms-operational-stage';
 
@@ -71,14 +71,21 @@ const STATUS_CARDS: StatusCard[] = [
   {
     value: 'failed_delivery',
     labelAr: 'فشل التسليم',
-    labelEn: 'Failed delivery',
+    labelEn: 'Field Delivery',
     tone: 'border-rose-200 bg-rose-50 text-rose-950 dark:border-rose-800 dark:bg-rose-950/40 dark:text-rose-100',
     ring: 'ring-rose-500',
   },
   {
+    value: 'return_pending_receipt',
+    labelAr: 'مرتجع بانتظار الاستلام',
+    labelEn: 'Return Pending Receipt',
+    tone: 'border-fuchsia-200 bg-fuchsia-50 text-fuchsia-950 dark:border-fuchsia-800 dark:bg-fuchsia-950/40 dark:text-fuchsia-100',
+    ring: 'ring-fuchsia-500',
+  },
+  {
     value: 'returned',
-    labelAr: 'مرتجع',
-    labelEn: 'Returned',
+    labelAr: 'مرتجع مستلم',
+    labelEn: 'Return Received',
     tone: 'border-violet-200 bg-violet-50 text-violet-950 dark:border-violet-800 dark:bg-violet-950/40 dark:text-violet-100',
     ring: 'ring-violet-500',
   },
@@ -114,8 +121,13 @@ export function OmsOrdersStatusNav({
   onStageChange,
 }: Props): ReactElement {
   const selectedStatus = status || '';
-  const showStages = selectedStatus === 'processing';
+  const showStages = selectedStatus === 'processing' || selectedStatus === 'ready_to_ship';
+  const stageOptions = operationalStagesForStatus(selectedStatus);
   const selectedStage = showStages ? operationalStage : '';
+  const allCount =
+    selectedStatus === 'ready_to_ship'
+      ? counts?.byStatus?.ready_to_ship
+      : counts?.byStatus?.processing;
 
   return (
     <div className="mt-3 flex flex-col gap-3">
@@ -158,7 +170,7 @@ export function OmsOrdersStatusNav({
         </div>
       </section>
 
-      {showStages ? (
+      {showStages && stageOptions.length > 0 ? (
         <section aria-label={isArabic ? 'المراحل التشغيلية' : 'Operational stages'}>
           <h2 className="mb-2 text-sm font-medium text-text-muted">
             {isArabic ? 'المراحل التشغيلية' : 'Operational stages'}
@@ -166,11 +178,11 @@ export function OmsOrdersStatusNav({
           <div className="flex flex-wrap items-center gap-2" role="group">
             <StageChip
               label={isArabic ? 'الكل' : 'All'}
-              count={counts?.byStatus?.processing}
+              count={allCount}
               active={!selectedStage}
               onClick={() => onStageChange('')}
             />
-            {OMS_OPERATIONAL_STAGES.map((stage) => (
+            {stageOptions.map((stage) => (
               <StageChip
                 key={stage}
                 label={omsOperationalStageLabel(stage, isArabic)}

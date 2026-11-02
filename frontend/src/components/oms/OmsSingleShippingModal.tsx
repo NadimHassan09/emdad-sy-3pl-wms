@@ -10,7 +10,9 @@ import { CarrierShippingDetailsForm } from '../shipping/CarrierShippingDetailsFo
 import {
   buildCarrierShippingFormFromOrder,
   carrierFormToSavePayload,
+  getBabelPackingValidationError,
   hasOverPacking,
+  isBabelProvider,
   packingSummary,
   type CarrierShippingFormValue,
 } from '../shipping/carrier-shipping-form';
@@ -71,16 +73,24 @@ export function OmsSingleShippingModal({
     latestShipment?.status === 'created' || Boolean(latestShipment?.externalAwb);
   const awb = latestShipment?.externalAwb ?? outbound?.trackingNumber ?? null;
 
+  const isBabel = form ? isBabelProvider(form.shippingProviderCode) : false;
+  const babelValidationError = useMemo(() => {
+    if (!form || !isBabel || form.packageType !== 'box') return null;
+    return getBabelPackingValidationError(form.cartons, form.catalog, isArabic);
+  }, [form, isBabel, isArabic]);
+
   const packingInvalid = useMemo(() => {
     if (!form) return false;
-    return hasOverPacking(packingSummary(form.cartons, form.catalog));
-  }, [form]);
+    return hasOverPacking(packingSummary(form.cartons, form.catalog)) || Boolean(babelValidationError);
+  }, [form, babelValidationError]);
 
   const canSave =
     Boolean(form) &&
     !quotesRefreshing &&
     !packingInvalid &&
+    (!isBabel || !babelValidationError) &&
     Boolean(form?.shippingProviderCode?.trim()) &&
+    Boolean(form?.addressLine2?.trim() && form.addressLine2.trim().length > 10) &&
     selectedCarrierAvailable;
 
   const invalidate = () => {
@@ -127,7 +137,9 @@ export function OmsSingleShippingModal({
         },
         outbound.companyId,
       );
-      return OutboundApi.sendShippingDetails(outbound.id, outbound.companyId);
+      return OutboundApi.sendShippingDetails(outbound.id, outbound.companyId, {
+        ...(form.quoteFingerprint ? { quoteFingerprint: form.quoteFingerprint } : {}),
+      });
     },
     onSuccess: () => {
       toast.success(
@@ -307,6 +319,7 @@ export function OmsSingleShippingModal({
                   locked={shipmentCreated}
                   codAmount={codAmount}
                   showTitle={false}
+                  isArabic={isArabic}
                   onQuotesRefreshingChange={setQuotesRefreshing}
                   onSelectedCarrierAvailableChange={setSelectedCarrierAvailable}
                 />

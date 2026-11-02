@@ -15,6 +15,10 @@ describe('oms-client-import.validation', () => {
       ok: true,
       value: 'WA-20260822-001',
     });
+    expect(validateImportOrderNumber('WA_20260822_001')).toEqual({
+      ok: true,
+      value: 'WA_20260822_001',
+    });
     expect(validateImportOrderNumber('WA-طلب-88435').ok).toBe(false);
     expect(validateImportOrderNumber('WA-88435&^%').ok).toBe(false);
   });
@@ -30,10 +34,11 @@ describe('oms-client-import.validation', () => {
     expect(stripLeadingZeros('0000')).toBe('0');
   });
 
-  it('parses only M/DD/YYYY ship dates', () => {
+  it('parses ISO YYYY-MM-DD and legacy M/DD/YYYY ship dates', () => {
+    expect(parseImportShipDateMdY('2026-09-01')).toEqual({ ok: true, ymd: '2026-09-01' });
     expect(parseImportShipDateMdY('9/01/2026')).toEqual({ ok: true, ymd: '2026-09-01' });
     expect(parseImportShipDateMdY('12/31/2026')).toEqual({ ok: true, ymd: '2026-12-31' });
-    expect(parseImportShipDateMdY('2026-09-01').ok).toBe(false);
+    // Ambiguous hyphenated format (DD-MM-YYYY) must be rejected
     expect(parseImportShipDateMdY('01-09-2026').ok).toBe(false);
   });
 
@@ -96,5 +101,16 @@ describe('oms-client-import.validation', () => {
     expect(validateImportAsciiPositiveInt('12', 'Quantity')).toEqual({ ok: true, value: 12 });
     expect(validateImportAsciiPositiveInt('12a', 'Quantity').ok).toBe(false);
     expect(validateImportAsciiPositiveInt('١٢', 'Quantity').ok).toBe(false);
+  });
+
+  it('validates import positive decimal quantities (F-06)', () => {
+    const { validateImportPositiveQuantity } = require('./oms-client-import.validation');
+    expect(validateImportPositiveQuantity('12', 'Quantity')).toEqual({ ok: true, value: 12 });
+    expect(validateImportPositiveQuantity('2.5', 'Quantity')).toEqual({ ok: true, value: 2.5 });
+    expect(validateImportPositiveQuantity('0.1234', 'Quantity')).toEqual({ ok: true, value: 0.1234 });
+    expect(validateImportPositiveQuantity('0.12345', 'Quantity').ok).toBe(false);
+    expect(validateImportPositiveQuantity('-5', 'Quantity').ok).toBe(false);
+    expect(validateImportPositiveQuantity('0', 'Quantity').ok).toBe(false);
+    expect(validateImportPositiveQuantity('abc', 'Quantity').ok).toBe(false);
   });
 });

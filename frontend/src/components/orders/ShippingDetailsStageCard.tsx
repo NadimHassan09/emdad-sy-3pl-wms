@@ -9,13 +9,16 @@ import { CarrierShippingDetailsForm } from '../shipping/CarrierShippingDetailsFo
 import {
   buildCarrierShippingFormFromOrder,
   carrierFormToSavePayload,
+  getBabelPackingValidationError,
   hasOverPacking,
+  isBabelProvider,
   packingSummary,
   type CarrierShippingFormValue,
 } from '../shipping/carrier-shipping-form';
 import { useToast } from '../ToastProvider';
 import { QK } from '../../constants/query-keys';
 import { invalidateWorkflowTasksInventory } from '../../lib/invalidate-wms-queries';
+import { formatStoredPayerLabel } from '../../lib/shipping-payer';
 
 type Props = {
   order: OutboundOrder;
@@ -96,7 +99,10 @@ export function ShippingDetailsStageCard({
   });
 
   const sendMut = useMutation({
-    mutationFn: () => OutboundApi.sendShippingDetails(order.id, order.companyId),
+    mutationFn: () =>
+      OutboundApi.sendShippingDetails(order.id, order.companyId, {
+        ...(form.quoteFingerprint ? { quoteFingerprint: form.quoteFingerprint } : {}),
+      }),
     onSuccess: () => {
       toast.success('Shipment sent to carrier. AWB created.');
       setSendOpen(false);
@@ -115,10 +121,17 @@ export function ShippingDetailsStageCard({
     onError: (err: Error) => toast.error(err.message),
   });
 
+  const isBabel = isBabelProvider(form.shippingProviderCode);
+  const babelValidationError = useMemo(
+    () => (isBabel && form.packageType === 'box' ? getBabelPackingValidationError(form.cartons, form.catalog, false) : null),
+    [isBabel, form.packageType, form.cartons, form.catalog],
+  );
+
   const canSend =
     allowSendAndComplete &&
     carrierMethod &&
     !shipmentCreated &&
+    (!isBabel || !babelValidationError) &&
     order.status === 'waiting_for_shipping_details';
   const canComplete =
     allowSendAndComplete &&
@@ -130,16 +143,17 @@ export function ShippingDetailsStageCard({
       ? 'Branch delivery'
       : order.shippingDeliveryType === 'address'
         ? 'Home delivery'
-        : order.shippingDeliveryType?.trim() || '—';
+        : String(order.shippingDeliveryType || '').trim() || '—';
 
   const packingInvalid = useMemo(
-    () => hasOverPacking(packingSummary(form.cartons, form.catalog)),
-    [form.cartons, form.catalog],
+    () => hasOverPacking(packingSummary(form.cartons, form.catalog)) || Boolean(babelValidationError),
+    [form.cartons, form.catalog, babelValidationError],
   );
 
   const canSaveEdit =
     !quotesRefreshing &&
     !packingInvalid &&
+    (!isBabel || !babelValidationError) &&
     form.shippingProviderCode.trim() !== '' &&
     selectedCarrierAvailable;
 
@@ -226,6 +240,15 @@ export function ShippingDetailsStageCard({
             </Alert>
           ) : null}
 
+          {carrierMethod &&
+          shipmentCreated &&
+          /cancellation is not confirmed/i.test(latestShipment?.lastErrorSafe || '') ? (
+            <Alert variant="warning" title="Carrier lookup pending">
+              The carrier did not return this shipment. Cancellation is not confirmed. The current
+              AWB stays assigned until you replace the carrier from Shipping Details.
+            </Alert>
+          ) : null}
+
           {!allowSendAndComplete && carrierMethod ? (
             <Alert variant="info" title="Admin completes carrier handoff">
               Save package details here. An admin must Send Shipment and Mark Complete on the
@@ -274,7 +297,7 @@ export function ShippingDetailsStageCard({
                         ? 'Envelope'
                         : order.shippingPackageType === 'box'
                           ? 'Parcel'
-                          : order.shippingPackageType?.trim() || '—'
+                          : '—'
                     }
                   />
                   <DetailRow
@@ -291,13 +314,9 @@ export function ShippingDetailsStageCard({
                   <DetailRow
                     label="Payer"
                     value={
-                      order.shippingPayer === 'sender'
-                        ? 'Sender (المرسل)'
-                        : order.shippingPayer === 'receiver'
-                          ? 'Receiver (المستلم)'
-                          : order.shippingPayer === 'reseller'
-                            ? 'Reseller (الموزع)'
-                            : 'Sender (المرسل)'
+                      order.shippingPayer === 'receiver'
+                        ? `${formatStoredPayerLabel(order.shippingPayer, false)} (المستلم يتحمل تكلفة الشحن)`
+                        : `${formatStoredPayerLabel(order.shippingPayer, false)} (إمداد تتحمل تكلفة الشحن)`
                     }
                   />
                   <DetailRow

@@ -9,6 +9,7 @@ export type ClientOmsCommercialDisplayStatus =
   | 'delivered'
   | 'cancelled'
   | 'failed_delivery'
+  | 'return_pending_receipt'
   | 'returned'
   | 'legacy';
 
@@ -20,8 +21,9 @@ const EN_LABELS: Record<ClientOmsCommercialDisplayStatus, string> = {
   shipped: 'Out for Delivery',
   delivered: 'Delivered',
   cancelled: 'Cancelled',
-  failed_delivery: 'Failed Delivery',
-  returned: 'Returned',
+  failed_delivery: 'Field Delivery',
+  return_pending_receipt: 'Return Pending Receipt',
+  returned: 'Return Received',
   legacy: 'Legacy',
 };
 
@@ -34,7 +36,8 @@ const AR_LABELS: Record<ClientOmsCommercialDisplayStatus, string> = {
   delivered: 'تم التسليم',
   cancelled: 'ملغي',
   failed_delivery: 'فشل التسليم',
-  returned: 'مرتجع',
+  return_pending_receipt: 'مرتجع بانتظار الاستلام',
+  returned: 'مرتجع مستلم',
   legacy: 'قديم',
 };
 
@@ -77,6 +80,7 @@ export function clientOmsCommercialStatusBadgeKey(status: string): string {
   if (mapped === 'ready_to_ship') return 'ready to ship';
   if (mapped === 'shipped') return 'out for delivery';
   if (mapped === 'failed_delivery') return 'failed delivery';
+  if (mapped === 'return_pending_receipt') return 'return pending receipt';
   if (mapped === 'legacy') return 'pending';
   return mapped.replace(/_/g, ' ');
 }
@@ -92,7 +96,8 @@ export const CLIENT_OMS_COMMERCIAL_FILTER_OPTIONS = [
   { value: 'ready_to_ship', label: 'Ready to Ship' },
   { value: 'shipped', label: 'Out for Delivery' },
   { value: 'delivered', label: 'Delivered' },
-  { value: 'failed_delivery', label: 'Failed Delivery' },
-  { value: 'returned', label: 'Returned' },
+  { value: 'failed_delivery', label: 'Field Delivery' },
+  { value: 'return_pending_receipt', label: 'Return Pending Receipt' },
+  { value: 'returned', label: 'Return Received' },
   { value: 'cancelled', label: 'Cancelled' },
 ] as const;

@@ -20,9 +20,13 @@ const company_access_service_1 = require("../../common/company-access/company-ac
 const domain_exceptions_1 = require("../../common/errors/domain-exceptions");
 const prisma_service_1 = require("../../common/prisma/prisma.service");
 const tenant_rls_1 = require("../../common/prisma/tenant-rls");
+const stock_helpers_1 = require("../inventory/stock.helpers");
+const ledger_idempotency_service_1 = require("../inventory/ledger-idempotency.service");
 const cod_records_service_1 = require("../cod/cod-records.service");
 const realtime_service_1 = require("../realtime/realtime.service");
 const returns_service_1 = require("../returns/returns.service");
+const shipping_service_1 = require("../shipping/shipping.service");
+const shipping_lifecycle_util_1 = require("../shipping/shipping-lifecycle.util");
 const oms_return_admin_stages_1 = require("./oms-return-admin-stages");
 const oms_return_eligibility_1 = require("../oms/oms-return-eligibility");
 const express_return_resolve_1 = require("./express-return-resolve");
@@ -167,12 +171,18 @@ let OmsReturnsService = class OmsReturnsService {
     warehouseReturns;
     cod;
     realtime;
-    constructor(prisma, companyAccess, warehouseReturns, cod, realtime) {
+    stockHelpers;
+    ledger;
+    shipping;
+    constructor(prisma, companyAccess, warehouseReturns, cod, realtime, stockHelpers, ledger, shipping) {
         this.prisma = prisma;
         this.companyAccess = companyAccess;
         this.warehouseReturns = warehouseReturns;
         this.cod = cod;
         this.realtime = realtime;
+        this.stockHelpers = stockHelpers;
+        this.ledger = ledger;
+        this.shipping = shipping;
     }
     emitReturn(companyId, returnId, status, event, omsOrderId) {
         this.realtime.emitOmsReturnEvent(companyId, {
@@ -236,7 +246,17 @@ let OmsReturnsService = class OmsReturnsService {
             throw new common_1.NotFoundException('OMS order not found.');
         this.companyAccess.validateResourceOwnership(user, order);
         if (!(0, oms_return_eligibility_1.isOmsReturnEligibleStatus)(order.status)) {
-            throw new domain_exceptions_1.InvalidStateException('OMS returns can only be created for Delivered or Out for Delivery orders.');
+            throw new domain_exceptions_1.InvalidStateException('OMS returns can only be created from Field Delivery, Delivered, or Out for Delivery orders.');
+        }
+        const existingActive = await this.prisma.omsReturn.findFirst({
+            where: {
+                omsOrderId: order.id,
+                status: { in: [client_1.OmsReturnStatus.requested, client_1.OmsReturnStatus.approved] },
+            },
+            select: { id: true, returnNumber: true },
+        });
+        if (existingActive) {
+            throw new domain_exceptions_1.InvalidStateException(`Return ${existingActive.returnNumber} is already awaiting warehouse receipt.`);
         }
         const productIds = Array.from(new Set(dto.lines.map((l) => l.productId)));
         const products = await this.prisma.product.findMany({
@@ -331,15 +351,30 @@ let OmsReturnsService = class OmsReturnsService {
             return row;
         });
         this.emitReturn(created.companyId, created.id, created.status, 'oms_return.created', created.omsOrderId);
-        try {
-            await this.autoCompleteReturn(created.id, user);
-            return this.findById(created.id, user);
+        if (order.status === client_1.OmsOrderStatus.failed_delivery ||
+            order.status === client_1.OmsOrderStatus.delivered ||
+            order.status === client_1.OmsOrderStatus.shipped ||
+            order.status === client_1.OmsOrderStatus.out_for_delivery) {
+            await this.prisma.omsOrder.update({
+                where: { id: order.id },
+                data: { status: client_1.OmsOrderStatus.return_pending_receipt },
+            });
+            await this.prisma.omsOrderEvent.create({
+                data: {
+                    omsOrderId: order.id,
+                    companyId: order.companyId,
+                    eventType: 'oms.return_pending_receipt',
+                    createdBy: user.id,
+                    payload: { omsReturnId: created.id, previousStatus: order.status },
+                },
+            });
         }
-        catch {
-            return serialize(created);
-        }
+        return this.findById(created.id, user);
     }
     async confirmReturn(id, user) {
+        if (user.role === 'client_admin' || user.role === 'client_staff') {
+            throw new common_1.ForbiddenException('Warehouse return receipt can only be confirmed by warehouse staff.');
+        }
         const existing = await this.prisma.omsReturn.findUnique({ where: { id } });
         if (!existing)
             throw new common_1.NotFoundException('OMS return not found.');
@@ -1686,15 +1721,471 @@ let OmsReturnsService = class OmsReturnsService {
         });
         return reservation?.lotId ?? null;
     }
+    async rollbackReturn(id, user, options) {
+        if (user.role !== 'super_admin' &&
+            user.role !== 'wh_manager' &&
+            user.role !== 'wh_operator') {
+            throw new common_1.ForbiddenException('Rollback of confirmed returns is restricted to warehouse staff and administrators.');
+        }
+        const requestedTarget = options?.targetStatus === 'out_for_delivery' ? 'out_for_delivery' : 'ready_to_ship';
+        const omsReturn = await this.prisma.omsReturn.findUnique({
+            where: { id },
+            include: {
+                company: true,
+                lines: {
+                    include: {
+                        product: { select: { id: true, sku: true, name: true } },
+                    },
+                },
+                omsOrder: {
+                    include: {
+                        outboundOrder: {
+                            select: {
+                                id: true,
+                                orderNumber: true,
+                                status: true,
+                                carrierShipments: {
+                                    where: { supersededAt: null },
+                                    orderBy: { createdAt: 'desc' },
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        });
+        if (!omsReturn) {
+            throw new common_1.NotFoundException('OMS return not found.');
+        }
+        this.companyAccess.validateResourceOwnership(user, omsReturn);
+        if (omsReturn.status === client_1.OmsReturnStatus.cancelled &&
+            omsReturn.notes?.includes('Rollback executed')) {
+            const order = omsReturn.omsOrder;
+            return {
+                returnId: omsReturn.id,
+                returnNumber: omsReturn.returnNumber,
+                omsOrderId: omsReturn.omsOrderId,
+                orderNumber: order?.orderNumber ?? omsReturn.omsOrderId,
+                restoredStatus: order?.status ?? 'unknown',
+                carrierReactivationStatus: 'active',
+                reversedLinesCount: omsReturn.lines?.length ?? 0,
+                message: 'This return was already rolled back.',
+            };
+        }
+        if (omsReturn.status !== client_1.OmsReturnStatus.completed) {
+            throw new common_1.BadRequestException(`Only confirmed-received returns can be rolled back (current return status: ${omsReturn.status}).`);
+        }
+        const order = omsReturn.omsOrder;
+        if (!order) {
+            throw new common_1.BadRequestException('Linked OMS order not found.');
+        }
+        const alreadyRolledBack = await this.prisma.inventoryLedger.findFirst({
+            where: {
+                idempotencyKey: { startsWith: `return:rollback:${omsReturn.id}:` },
+            },
+            select: { id: true },
+        });
+        if (alreadyRolledBack) {
+            throw new common_1.BadRequestException('This return was already rolled back.');
+        }
+        const receiptMovements = await this.prisma.inventoryLedger.findMany({
+            where: {
+                referenceType: client_1.LedgerRefType.return_order,
+                referenceId: omsReturn.warehouseReturnId
+                    ? { in: [omsReturn.id, omsReturn.warehouseReturnId] }
+                    : omsReturn.id,
+                movementType: client_1.MovementType.return_receive,
+            },
+        });
+        if (receiptMovements.length === 0) {
+            throw new common_1.BadRequestException('No inventory receipt ledger entries found for this return; cannot safely reverse stock.');
+        }
+        for (const movement of receiptMovements) {
+            if (!movement.toLocationId) {
+                throw new common_1.BadRequestException(`Receipt ledger entry ${movement.id} is missing location information.`);
+            }
+            const lid = movement.lotId;
+            const rows = lid === null
+                ? await this.prisma.$queryRaw(client_1.Prisma.sql `
+              SELECT quantity_on_hand::text, quantity_reserved::text
+                FROM current_stock
+               WHERE company_id = ${movement.companyId}::uuid
+                 AND product_id = ${movement.productId}::uuid
+                 AND location_id = ${movement.toLocationId}::uuid
+                 AND lot_id IS NULL
+                 AND package_id IS NULL
+            `)
+                : await this.prisma.$queryRaw(client_1.Prisma.sql `
+              SELECT quantity_on_hand::text, quantity_reserved::text
+                FROM current_stock
+               WHERE company_id = ${movement.companyId}::uuid
+                 AND product_id = ${movement.productId}::uuid
+                 AND location_id = ${movement.toLocationId}::uuid
+                 AND lot_id = ${lid}::uuid
+                 AND package_id IS NULL
+            `);
+            const row = rows[0];
+            if (!row || row.quantity_on_hand === null) {
+                throw new common_1.BadRequestException(`Cannot rollback return: No stock found at the return location for product ${movement.productId}. Stock may have been moved or transferred.`);
+            }
+            const onHand = new client_1.Prisma.Decimal(row.quantity_on_hand);
+            const reserved = new client_1.Prisma.Decimal(row.quantity_reserved ?? '0');
+            const available = onHand.sub(reserved);
+            if (available.lessThan(movement.quantity)) {
+                const product = omsReturn.lines.find((l) => l.productId === movement.productId)?.product;
+                const skuDisplay = product?.sku ?? movement.productId;
+                throw new common_1.BadRequestException(`Cannot rollback return: Stock for SKU "${skuDisplay}" has already been transferred, reserved, or consumed from the return location ` +
+                    `(required: ${movement.quantity.toString()}, available: ${available.toString()}).`);
+            }
+        }
+        const now = new Date();
+        const rollbackNote = `Rollback executed on ${now.toISOString()} by user ${user.id} (${user.role}). Target: ${requestedTarget}.`;
+        if (requestedTarget === 'out_for_delivery') {
+            if (!order.outboundOrderId) {
+                throw new common_1.BadRequestException('Cannot rollback to out for delivery: linked outbound order not found.');
+            }
+            const reshipRes = await this.shipping.reshipOutboundWithCarrier({
+                outboundOrderId: order.outboundOrderId,
+            });
+            if (!reshipRes.ok) {
+                await this.prisma.omsOrderEvent.create({
+                    data: {
+                        omsOrderId: order.id,
+                        companyId: order.companyId,
+                        eventType: 'return.rollback_reship_failed',
+                        createdBy: user.id,
+                        payload: {
+                            omsReturnId: omsReturn.id,
+                            returnNumber: omsReturn.returnNumber,
+                            reason: reshipRes.message,
+                            targetStatus: 'out_for_delivery',
+                        },
+                    },
+                });
+                throw new common_1.BadRequestException(`Carrier reshipment failed: ${reshipRes.message || 'The carrier API rejected the shipment request'}. The order remains in Return Received.`);
+            }
+            await this.prisma.$transaction(async (tx) => {
+                for (const movement of receiptMovements) {
+                    const lid = movement.lotId;
+                    if (lid === null) {
+                        await tx.$queryRaw(client_1.Prisma.sql `
+                SELECT quantity_on_hand FROM current_stock
+                 WHERE company_id = ${movement.companyId}::uuid
+                   AND product_id = ${movement.productId}::uuid
+                   AND location_id = ${movement.toLocationId}::uuid
+                   AND lot_id IS NULL
+                   AND package_id IS NULL
+                 FOR UPDATE
+              `);
+                    }
+                    else {
+                        await tx.$queryRaw(client_1.Prisma.sql `
+                SELECT quantity_on_hand FROM current_stock
+                 WHERE company_id = ${movement.companyId}::uuid
+                   AND product_id = ${movement.productId}::uuid
+                   AND location_id = ${movement.toLocationId}::uuid
+                   AND lot_id = ${lid}::uuid
+                   AND package_id IS NULL
+                 FOR UPDATE
+              `);
+                    }
+                }
+                for (const movement of receiptMovements) {
+                    const qtyNum = Number(movement.quantity);
+                    await this.stockHelpers.decrementWithMeta(tx, {
+                        companyId: movement.companyId,
+                        productId: movement.productId,
+                        locationId: movement.toLocationId,
+                        lotId: movement.lotId,
+                        quantity: qtyNum,
+                    });
+                    const compensatingIdemKey = `return:rollback:${omsReturn.id}:${movement.id}`;
+                    await this.ledger.appendIfAbsent(tx, compensatingIdemKey, {
+                        companyId: movement.companyId,
+                        productId: movement.productId,
+                        lotId: movement.lotId,
+                        fromLocationId: movement.toLocationId,
+                        toLocationId: null,
+                        movementType: client_1.MovementType.adjustment_negative,
+                        quantity: movement.quantity,
+                        referenceType: client_1.LedgerRefType.return_order,
+                        referenceId: omsReturn.id,
+                        operatorId: user.id,
+                        notes: `Compensating reversal for return receipt ${movement.id}`,
+                    });
+                }
+                if (order.outboundOrderId) {
+                    await tx.carrierShipment.updateMany({
+                        where: {
+                            outboundOrderId: order.outboundOrderId,
+                            supersededAt: null,
+                        },
+                        data: {
+                            supersededAt: now,
+                            lastErrorSafe: `Superseded by return rollback reshipment (new AWB: ${reshipRes.awb})`,
+                        },
+                    });
+                }
+                let providerId = order.outboundOrder?.carrierShipments?.[0]?.providerId;
+                if (!providerId) {
+                    const prov = await tx.shippingProvider.findFirst({
+                        where: { code: reshipRes.providerCode },
+                    });
+                    providerId = prov?.id ?? (await tx.shippingProvider.findFirst())?.id;
+                }
+                if (order.outboundOrderId && providerId) {
+                    await tx.carrierShipment.create({
+                        data: {
+                            outboundOrderId: order.outboundOrderId,
+                            providerId,
+                            providerCode: reshipRes.providerCode || 'carrier',
+                            externalAwb: reshipRes.awb,
+                            trackingNumber: reshipRes.trackingNumber || reshipRes.awb,
+                            status: client_1.CarrierShipmentStatus.created,
+                            lastErrorSafe: null,
+                            rawResultMeta: (reshipRes.raw && typeof reshipRes.raw === 'object'
+                                ? reshipRes.raw
+                                : { awb: reshipRes.awb }),
+                        },
+                    });
+                }
+                await tx.omsReturn.update({
+                    where: { id: omsReturn.id },
+                    data: {
+                        status: client_1.OmsReturnStatus.cancelled,
+                        notes: omsReturn.notes ? `${omsReturn.notes}\n${rollbackNote}` : rollbackNote,
+                    },
+                });
+                await tx.omsOrder.update({
+                    where: { id: order.id },
+                    data: {
+                        status: client_1.OmsOrderStatus.out_for_delivery,
+                        carrier: reshipRes.providerCode,
+                        trackingNumber: reshipRes.trackingNumber || reshipRes.awb,
+                        returnedAt: null,
+                    },
+                });
+                if (order.outboundOrderId) {
+                    await tx.outboundOrder.update({
+                        where: { id: order.outboundOrderId },
+                        data: {
+                            status: client_1.OutboundOrderStatus.out_for_delivery,
+                            carrier: reshipRes.providerCode,
+                            trackingNumber: reshipRes.trackingNumber || reshipRes.awb,
+                            returnedAt: null,
+                        },
+                    });
+                }
+                await tx.omsOrderEvent.create({
+                    data: {
+                        omsOrderId: order.id,
+                        companyId: order.companyId,
+                        eventType: 'return.rollback_to_out_for_delivery',
+                        createdBy: user.id,
+                        payload: {
+                            omsReturnId: omsReturn.id,
+                            returnNumber: omsReturn.returnNumber,
+                            restoredStatus: 'out_for_delivery',
+                            newAwb: reshipRes.awb,
+                            providerCode: reshipRes.providerCode,
+                            reversedMovementsCount: receiptMovements.length,
+                        },
+                    },
+                });
+                await this.handleCodRollbackReversal(tx, omsReturn.id);
+            });
+            this.emitReturn(omsReturn.companyId, omsReturn.id, 'cancelled', 'oms_return.rolled_back', order.id);
+            this.realtime.emitOmsOrderEvent(order.companyId, {
+                orderId: order.id,
+                status: client_1.OmsOrderStatus.out_for_delivery,
+                event: 'oms.order_restored_after_return_rollback',
+            });
+            for (const m of receiptMovements) {
+                this.realtime.emitInventoryChanged(order.companyId, {
+                    source: 'return_rollback',
+                    orderId: omsReturn.id,
+                    productId: m.productId,
+                });
+            }
+            return {
+                returnId: omsReturn.id,
+                returnNumber: omsReturn.returnNumber,
+                omsOrderId: order.id,
+                orderNumber: order.orderNumber,
+                restoredStatus: 'out_for_delivery',
+                carrierReactivationStatus: 'reshipped',
+                reversedLinesCount: receiptMovements.length,
+                newAwb: reshipRes.awb,
+                message: `تم قبول إعادة الشحن من شركة النقل بنجاح (بوليصة: ${reshipRes.awb}) وإعادة الطلب إلى (خارج للتسليم).`,
+            };
+        }
+        const unlink = (0, shipping_lifecycle_util_1.carrierUnlinkPatch)();
+        await this.prisma.$transaction(async (tx) => {
+            for (const movement of receiptMovements) {
+                const lid = movement.lotId;
+                if (lid === null) {
+                    await tx.$queryRaw(client_1.Prisma.sql `
+              SELECT quantity_on_hand FROM current_stock
+               WHERE company_id = ${movement.companyId}::uuid
+                 AND product_id = ${movement.productId}::uuid
+                 AND location_id = ${movement.toLocationId}::uuid
+                 AND lot_id IS NULL
+                 AND package_id IS NULL
+               FOR UPDATE
+            `);
+                }
+                else {
+                    await tx.$queryRaw(client_1.Prisma.sql `
+              SELECT quantity_on_hand FROM current_stock
+               WHERE company_id = ${movement.companyId}::uuid
+                 AND product_id = ${movement.productId}::uuid
+                 AND location_id = ${movement.toLocationId}::uuid
+                 AND lot_id = ${lid}::uuid
+                 AND package_id IS NULL
+               FOR UPDATE
+            `);
+                }
+            }
+            for (const movement of receiptMovements) {
+                const qtyNum = Number(movement.quantity);
+                await this.stockHelpers.decrementWithMeta(tx, {
+                    companyId: movement.companyId,
+                    productId: movement.productId,
+                    locationId: movement.toLocationId,
+                    lotId: movement.lotId,
+                    quantity: qtyNum,
+                });
+                const compensatingIdemKey = `return:rollback:${omsReturn.id}:${movement.id}`;
+                await this.ledger.appendIfAbsent(tx, compensatingIdemKey, {
+                    companyId: movement.companyId,
+                    productId: movement.productId,
+                    lotId: movement.lotId,
+                    fromLocationId: movement.toLocationId,
+                    toLocationId: null,
+                    movementType: client_1.MovementType.adjustment_negative,
+                    quantity: movement.quantity,
+                    referenceType: client_1.LedgerRefType.return_order,
+                    referenceId: omsReturn.id,
+                    operatorId: user.id,
+                    notes: `Compensating reversal for return receipt ${movement.id}`,
+                });
+            }
+            if (order.outboundOrderId) {
+                await tx.carrierShipment.updateMany({
+                    where: {
+                        outboundOrderId: order.outboundOrderId,
+                        supersededAt: null,
+                    },
+                    data: {
+                        supersededAt: now,
+                        lastErrorSafe: 'Superseded by return rollback to Ready to Ship',
+                    },
+                });
+            }
+            await tx.omsReturn.update({
+                where: { id: omsReturn.id },
+                data: {
+                    status: client_1.OmsReturnStatus.cancelled,
+                    notes: omsReturn.notes ? `${omsReturn.notes}\n${rollbackNote}` : rollbackNote,
+                },
+            });
+            await tx.omsOrder.update({
+                where: { id: order.id },
+                data: {
+                    ...unlink,
+                    status: client_1.OmsOrderStatus.ready_to_ship,
+                    returnedAt: null,
+                },
+            });
+            if (order.outboundOrderId) {
+                await tx.outboundOrder.update({
+                    where: { id: order.outboundOrderId },
+                    data: {
+                        ...unlink,
+                        status: client_1.OutboundOrderStatus.waiting_for_shipping_details,
+                        returnedAt: null,
+                    },
+                });
+            }
+            await tx.omsOrderEvent.create({
+                data: {
+                    omsOrderId: order.id,
+                    companyId: order.companyId,
+                    eventType: 'return.rollback_to_ready_to_ship',
+                    createdBy: user.id,
+                    payload: {
+                        omsReturnId: omsReturn.id,
+                        returnNumber: omsReturn.returnNumber,
+                        restoredStatus: 'ready_to_ship',
+                        reversedMovementsCount: receiptMovements.length,
+                    },
+                },
+            });
+            await this.handleCodRollbackReversal(tx, omsReturn.id);
+        });
+        this.emitReturn(omsReturn.companyId, omsReturn.id, 'cancelled', 'oms_return.rolled_back', order.id);
+        this.realtime.emitOmsOrderEvent(order.companyId, {
+            orderId: order.id,
+            status: client_1.OmsOrderStatus.ready_to_ship,
+            event: 'oms.order_restored_after_return_rollback',
+        });
+        for (const m of receiptMovements) {
+            this.realtime.emitInventoryChanged(order.companyId, {
+                source: 'return_rollback',
+                orderId: omsReturn.id,
+                productId: m.productId,
+            });
+        }
+        return {
+            returnId: omsReturn.id,
+            returnNumber: omsReturn.returnNumber,
+            omsOrderId: order.id,
+            orderNumber: order.orderNumber,
+            restoredStatus: 'ready_to_ship',
+            carrierReactivationStatus: 'reshipment_required',
+            reversedLinesCount: receiptMovements.length,
+            message: 'تم التراجع عن استلام المرتجع وعكس حركات المخزون، وإعادة الطلب إلى (جاهز للشحن / تفاصيل الشحن) لإعادة تجهيزه واختيار شركة الشحن.',
+        };
+    }
+    async handleCodRollbackReversal(tx, omsReturnId) {
+        const codAdj = await tx.codAdjustment.findUnique({
+            where: { omsReturnId },
+        });
+        if (codAdj) {
+            await tx.codAdjustment.delete({
+                where: { id: codAdj.id },
+            });
+            const remainingAdjs = await tx.codAdjustment.findMany({
+                where: { codRecordId: codAdj.codRecordId },
+            });
+            const codRec = await tx.codRecord.findUnique({
+                where: { id: codAdj.codRecordId },
+            });
+            if (codRec && codRec.status === 'returned') {
+                const totalAdjusted = remainingAdjs.reduce((sum, a) => sum.add(a.amount), new client_1.Prisma.Decimal(0));
+                const currentBalance = codRec.originalAmount.add(totalAdjusted);
+                if (currentBalance.greaterThan(0)) {
+                    await tx.codRecord.update({
+                        where: { id: codRec.id },
+                        data: { status: 'pending' },
+                    });
+                }
+            }
+        }
+    }
 };
 exports.OmsReturnsService = OmsReturnsService;
 exports.OmsReturnsService = OmsReturnsService = __decorate([
     (0, common_1.Injectable)(),
     __param(2, (0, common_1.Inject)((0, common_1.forwardRef)(() => returns_service_1.ReturnsService))),
+    __param(7, (0, common_1.Inject)((0, common_1.forwardRef)(() => shipping_service_1.ShippingService))),
     __metadata("design:paramtypes", [prisma_service_1.PrismaService,
         company_access_service_1.CompanyAccessService,
         returns_service_1.ReturnsService,
         cod_records_service_1.CodRecordsService,
-        realtime_service_1.RealtimeService])
+        realtime_service_1.RealtimeService,
+        stock_helpers_1.StockHelpers,
+        ledger_idempotency_service_1.LedgerIdempotencyService,
+        shipping_service_1.ShippingService])
 ], OmsReturnsService);
 //# sourceMappingURL=oms-returns.service.js.map

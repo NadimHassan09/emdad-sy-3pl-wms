@@ -422,6 +422,8 @@ enum OmsOrderStatus {
   shipped
   delivered
   failed_delivery
+  /// Return created; warehouse has not confirmed physical receipt.
+  return_pending_receipt
   completed
   returned
   cancelled
@@ -769,6 +771,12 @@ model Company {
   codRecords             CodRecord[]
   omsReturns             OmsReturn[]
   apiCredentials         ApiCredential[]
+  inboundSourceAllocations InboundSourceAllocation[]
+  shippingFeeGroups      ShippingFeeGroup[]
+  shippingFeeGroupLocations ShippingFeeGroupLocation[]
+  financialAccount      ClientFinancialAccount?
+  financialTransactions FinancialTransaction[]
+  payoutRequests        ClientPayoutRequest[]
 
   @@map("companies")
 }
@@ -1077,10 +1085,12 @@ model ApiCredential {
 }
 
 model BackupStorageSettings {
-  id               String              @id @default("00000000-0000-4000-8000-0000000000d1") @db.Uuid
-  defaultPolicy    BackupStoragePolicy @default(local_and_drive) @map("default_policy")
-  updatedByUserId  String?             @map("updated_by_user_id") @db.Uuid
-  updatedAt        DateTime            @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  id                 String              @id @default("00000000-0000-4000-8000-0000000000d1") @db.Uuid
+  defaultPolicy      BackupStoragePolicy @default(local_and_drive) @map("default_policy")
+  /// Seconds between manual backup *starts*. Default 15 minutes.
+  manualCooldownSec  Int                 @default(900) @map("manual_cooldown_sec")
+  updatedByUserId    String?             @map("updated_by_user_id") @db.Uuid
+  updatedAt          DateTime            @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   updatedBy User? @relation("BackupStorageSettingsUpdatedBy", fields: [updatedByUserId], references: [id])
 
@@ -1294,6 +1304,7 @@ model Product {
   stockReservations          StockReservation[]
   omsOrderLines              OmsOrderLine[]
   omsReturnLines             OmsReturnLine[]
+  inboundSourceAllocations   InboundSourceAllocation[]
 
   @@unique([companyId, sku], map: "uq_product_sku_per_company")
   @@map("products")
@@ -1317,6 +1328,7 @@ model Lot {
   returnOrderLines       ReturnOrderLine[]
   packages               Package[]
   stockReservations      StockReservation[]
+  inboundSourceAllocations InboundSourceAllocation[]
 
   @@unique([productId, lotNumber], map: "uq_lot_per_product")
   @@map("lots")
@@ -1610,6 +1622,7 @@ model InboundOrder {
   company Company            @relation(fields: [companyId], references: [id])
   creator User               @relation("InboundCreatedBy", fields: [createdBy], references: [id])
   lines   InboundOrderLine[]
+  sourceAllocations InboundSourceAllocation[]
 
   @@map("inbound_orders")
 }
@@ -1631,6 +1644,7 @@ model InboundOrderLine {
 
   order   InboundOrder @relation(fields: [inboundOrderId], references: [id], onDelete: Cascade)
   product Product      @relation(fields: [productId], references: [id])
+  sourceAllocations InboundSourceAllocation[]
 
   @@map("inbound_order_lines")
 }
@@ -1706,6 +1720,8 @@ model OutboundOrder {
   shippingPhoneCountry String?             @map("shipping_phone_country")
   /// Opaque sub-carrier routing token from quote (e.g. "SILA_SY:{courier_id}"). Null for Babel orders.
   shippingServiceId    String?             @map("shipping_service_id")
+  /// Provider hub/branch id for Hub Delivery. Null for home delivery and carriers without hubs.
+  shippingHubId        String?             @map("shipping_hub_id") @db.VarChar(64)
   /// Soft-assigned quote amount from Shipping Details (not COD). Used for batch cost analysis.
   shippingQuotedPrice  Decimal?            @map("shipping_quoted_price") @db.Decimal(15, 4)
   shippingQuotedCurrency String?           @map("shipping_quoted_currency") @db.VarChar(8)
@@ -1725,6 +1741,7 @@ model OutboundOrder {
   omsOrder            OmsOrder?
   carrierShipments    CarrierShipment[]
   bulkShippingItems   BulkShippingJobItem[]
+  sourceAllocations   InboundSourceAllocation[]
 
   @@map("outbound_orders")
 }
@@ -1748,6 +1765,7 @@ model OutboundOrderLine {
   product            Product            @relation(fields: [productId], references: [id])
   returnOrderLines   ReturnOrderLine[]
   stockReservations  StockReservation[]
+  sourceAllocations  InboundSourceAllocation[]
 
   @@map("outbound_order_lines")
 }
@@ -1827,8 +1845,15 @@ model OmsOrder {
   shippingPhoneCountry String?             @map("shipping_phone_country")
   /// Opaque sub-carrier routing token from quote (e.g. "SILA_SY:{courier_id}"). Null for Babel orders.
   shippingServiceId    String?             @map("shipping_service_id")
+  /// Provider hub/branch id for Hub Delivery. Null for home delivery and carriers without hubs.
+  shippingHubId        String?             @map("shipping_hub_id") @db.VarChar(64)
   /// Babel Express neighbourhood id — only Babel geo id required on OMS for quote/create.
   babelNeighbourhoodId Int?                @map("babel_neighbourhood_id")
+  /// Set when the client shipping rate is locked. Later rate-config edits do not rewrite it.
+  clientShippingRateAppliedAt DateTime?    @map("client_shipping_rate_applied_at") @db.Timestamptz(6)
+  clientShippingRateGroupId   String?      @map("client_shipping_rate_group_id") @db.Uuid
+  clientShippingRateWeightKg  Decimal?     @map("client_shipping_rate_weight_kg") @db.Decimal(12, 4)
+  clientShippingRateBreakdown Json?        @map("client_shipping_rate_breakdown") @db.JsonB
   createdBy            String              @map("created_by") @db.Uuid
   createdAt            DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt            DateTime            @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
@@ -1844,6 +1869,7 @@ model OmsOrder {
   codRecord     CodRecord?
   omsReturns    OmsReturn[]
   batchMemberships OmsBatchOrder[]
+  sourceAllocations InboundSourceAllocation[]
 
   @@index([companyId, createdAt(sort: Desc)], map: "idx_oms_orders_created")
   @@index([companyId, status], map: "idx_oms_orders_status")
@@ -1899,9 +1925,43 @@ model OmsOrderLine {
 
   order   OmsOrder @relation(fields: [omsOrderId], references: [id], onDelete: Cascade)
   product Product  @relation(fields: [productId], references: [id])
+  sourceAllocations InboundSourceAllocation[]
 
   @@index([omsOrderId], map: "idx_oms_order_lines_order")
   @@map("oms_order_lines")
+}
+
+model InboundSourceAllocation {
+  id                  String             @id @default(uuid()) @db.Uuid
+  companyId           String             @map("company_id") @db.Uuid
+  omsOrderId          String             @map("oms_order_id") @db.Uuid
+  omsOrderLineId      String?            @map("oms_order_line_id") @db.Uuid
+  outboundOrderId     String?            @map("outbound_order_id") @db.Uuid
+  outboundOrderLineId String?            @map("outbound_order_line_id") @db.Uuid
+  productId           String             @map("product_id") @db.Uuid
+  inboundOrderId      String             @map("inbound_order_id") @db.Uuid
+  inboundOrderLineId  String?            @map("inbound_order_line_id") @db.Uuid
+  lotId               String?            @map("lot_id") @db.Uuid
+  quantity            Decimal            @db.Decimal(15, 4)
+  status              String             @default("allocated") @db.VarChar(32)
+  createdAt           DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt           DateTime           @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  company           Company            @relation(fields: [companyId], references: [id])
+  omsOrder          OmsOrder           @relation(fields: [omsOrderId], references: [id], onDelete: Cascade)
+  omsOrderLine      OmsOrderLine?      @relation(fields: [omsOrderLineId], references: [id], onDelete: SetNull)
+  outboundOrder     OutboundOrder?     @relation(fields: [outboundOrderId], references: [id], onDelete: SetNull)
+  outboundOrderLine OutboundOrderLine? @relation(fields: [outboundOrderLineId], references: [id], onDelete: SetNull)
+  product           Product            @relation(fields: [productId], references: [id])
+  inboundOrder      InboundOrder       @relation(fields: [inboundOrderId], references: [id], onDelete: Cascade)
+  inboundOrderLine  InboundOrderLine?  @relation(fields: [inboundOrderLineId], references: [id], onDelete: SetNull)
+  lot               Lot?               @relation(fields: [lotId], references: [id])
+
+  @@index([omsOrderId], map: "idx_source_alloc_oms_order")
+  @@index([outboundOrderId], map: "idx_source_alloc_outbound_order")
+  @@index([inboundOrderId], map: "idx_source_alloc_inbound_order")
+  @@index([companyId, productId, status], map: "idx_source_alloc_company_prod_status")
+  @@map("inbound_source_allocations")
 }
 
 /// Drives current_stock.quantity_reserved via DB trigger (see 0_init migration).
@@ -1964,6 +2024,13 @@ model CodRecord {
   updatedAt      DateTime        @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
   availableAt    DateTime?       @map("available_at") @db.Timestamptz(6)
   paidOutAt      DateTime?       @map("paid_out_at") @db.Timestamptz(6)
+  carrierCollectedAt     DateTime?       @map("carrier_collected_at") @db.Timestamptz(6)
+  carrierRemittedAt      DateTime?       @map("carrier_remitted_at") @db.Timestamptz(6)
+  collectionConfirmedBy String?         @map("collection_confirmed_by") @db.Uuid
+  remittanceConfirmedBy String?         @map("remittance_confirmed_by") @db.Uuid
+  remittanceReference   String?         @map("remittance_reference")
+  creditedToAccountAt    DateTime?       @map("credited_to_account_at") @db.Timestamptz(6)
+  financialTransactionId String?         @map("financial_transaction_id") @db.Uuid
 
   company     Company         @relation(fields: [companyId], references: [id])
   omsOrder    OmsOrder        @relation(fields: [omsOrderId], references: [id], onDelete: Cascade)
@@ -2482,6 +2549,7 @@ model ShippingProviderConnection {
   lastTestStatus    String?                          @map("last_test_status")
   lastErrorSafe     String?                          @map("last_error_safe")
   webhookSecret     String?                          @map("webhook_secret")
+  silaEventSyncAt   DateTime?                        @map("sila_event_sync_at") @db.Timestamptz(6)
   createdAt         DateTime                         @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt         DateTime                         @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
@@ -2528,6 +2596,66 @@ model ShippingFxSettings {
   @@map("shipping_fx_settings")
 }
 
+/// Singleton weight and currency assumptions for client shipping rates.
+/// Amounts are what EMDAD charges the client. They are not carrier costs.
+model ShippingFeeSettings {
+  id               String   @id @default("default")
+  currency         String   @default("USD") @db.VarChar(8)
+  baseWeightKg     Decimal? @map("base_weight_kg") @db.Decimal(12, 4)
+  incrementKg      Decimal? @map("increment_kg") @db.Decimal(12, 4)
+  incrementCharge  Decimal? @map("increment_charge") @db.Decimal(15, 4)
+  /// ceil_partial: each started increment above the included weight is billed in full.
+  roundingPolicy   String   @default("ceil_partial") @map("rounding_policy") @db.VarChar(32)
+  externalPerKg    Decimal? @map("external_per_kg") @db.Decimal(15, 4)
+  externalCurrency String?  @map("external_currency") @db.VarChar(8)
+  updatedByUserId  String?  @map("updated_by_user_id") @db.Uuid
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@map("shipping_fee_settings")
+}
+
+/// A pricing group of existing Syria hierarchy locations. One location belongs to one group per scope.
+model ShippingFeeGroup {
+  id           String   @id @default(uuid()) @db.Uuid
+  companyId    String?  @map("company_id") @db.Uuid
+  nameAr       String   @map("name_ar")
+  nameEn       String?  @map("name_en")
+  /// Display label chosen by the admin (region, rural, mixed, custom). Not a resolver rule.
+  areaCategory String   @default("custom") @map("area_category") @db.VarChar(32)
+  baseRate     Decimal  @map("base_rate") @db.Decimal(15, 4)
+  active       Boolean  @default(true)
+  sortOrder    Int      @default(0) @map("sort_order")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  company   Company?                   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  locations ShippingFeeGroupLocation[]
+
+  @@index([companyId], map: "idx_shipping_fee_groups_company")
+  @@index([active, sortOrder], map: "idx_shipping_fee_groups_active_sort")
+  @@map("shipping_fee_groups")
+}
+
+model ShippingFeeGroupLocation {
+  id               String  @id @default(uuid()) @db.Uuid
+  groupId          String  @map("group_id") @db.Uuid
+  companyId        String? @map("company_id") @db.Uuid
+  /// governorate [+ city/region] [+ town], joined by the hierarchy separator. Exact key, not a name search.
+  locationKey      String  @map("location_key")
+  level            String  @db.VarChar(16)
+  governorate      String
+  cityRegion       String? @map("city_region")
+  townNeighborhood String? @map("town_neighborhood")
+
+  group   ShippingFeeGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  company Company?         @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([groupId], map: "idx_shipping_fee_group_locations_group")
+  @@index([companyId, locationKey], map: "idx_shipping_fee_group_locations_lookup")
+  @@map("shipping_fee_group_locations")
+}
+
 /// Idempotent carrier shipment records for outbound orders.
 model CarrierShipment {
   id                 String                 @id @default(uuid()) @db.Uuid
@@ -2542,15 +2670,25 @@ model CarrierShipment {
   lastErrorSafe      String?                @map("last_error_safe")
   rawResultMeta      Json?                  @map("raw_result_meta") @db.JsonB
   lastTrackingStatus String?                @map("last_tracking_status")
+  originalCarrierStatus String?             @map("original_carrier_status")
+  originalCarrierDescription String?        @map("original_carrier_description")
   lastTrackingAt     DateTime?              @map("last_tracking_at") @db.Timestamptz(6)
   nextPollAt         DateTime?              @map("next_poll_at") @db.Timestamptz(6)
   pollAttemptsCount  Int                    @default(0) @map("poll_attempts_count")
+  /// Set when a pre-dispatch carrier cancel unlinks this shipment from the active order view.
+  supersededAt       DateTime?              @map("superseded_at") @db.Timestamptz(6)
+  /// Provider event time of the cost currently stored in shippingCost. Older events must not overwrite it.
+  shippingCostEventAt DateTime?         @map("shipping_cost_event_at") @db.Timestamptz(6)
+  shippingCostSource  String?           @map("shipping_cost_source") @db.VarChar(16)
+  costPaidAt          DateTime?         @map("cost_paid_at") @db.Timestamptz(6)
+  costPaidReference   String?           @map("cost_paid_reference")
   createdAt          DateTime               @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt          DateTime               @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   outboundOrder OutboundOrder          @relation(fields: [outboundOrderId], references: [id], onDelete: Cascade)
   provider      ShippingProvider       @relation(fields: [providerId], references: [id])
   events        CarrierShipmentEvent[]
+  costChanges   CarrierCostChange[]
 
   @@index([outboundOrderId], map: "idx_carrier_shipments_outbound")
   @@index([providerId, status], map: "idx_carrier_shipments_provider")
@@ -2560,26 +2698,57 @@ model CarrierShipment {
 
 /// Audit log and idempotency tracking for external carrier webhook and polling events.
 model CarrierShipmentEvent {
-  id                String           @id @default(uuid()) @db.Uuid
-  carrierShipmentId String?          @map("carrier_shipment_id") @db.Uuid
-  providerCode      String           @map("provider_code")
-  externalEventId   String?          @map("external_event_id")
-  awb               String?
-  eventType         String           @map("event_type")
-  normalizedStatus  String?          @map("normalized_status")
-  status            String           @default("processed")
-  payloadHash       String           @map("payload_hash")
-  payload           Json             @db.JsonB
-  errorMessage      String?          @map("error_message")
-  processedAt       DateTime?        @map("processed_at") @db.Timestamptz(6)
-  createdAt         DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  id                    String           @id @default(uuid()) @db.Uuid
+  carrierShipmentId     String?          @map("carrier_shipment_id") @db.Uuid
+  providerCode          String           @map("provider_code")
+  externalEventId       String?          @map("external_event_id")
+  awb                   String?
+  eventType             String           @map("event_type")
+  normalizedStatus      String?          @map("normalized_status")
+  originalCarrierStatus String?          @map("original_carrier_status")
+  eventDescription      String?          @map("event_description")
+  eventTimestamp        DateTime?        @map("event_timestamp") @db.Timestamptz(6)
+  sourceType            String?          @map("source_type") @db.VarChar(32)
+  isCarrierEvent        Boolean          @default(true) @map("is_carrier_event")
+  locationText          String?          @map("location_text")
+  notes                 String?
+  status                String           @default("processed")
+  payloadHash           String           @map("payload_hash")
+  payload               Json             @db.JsonB
+  errorMessage          String?          @map("error_message")
+  processedAt           DateTime?        @map("processed_at") @db.Timestamptz(6)
+  createdAt             DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
 
   carrierShipment   CarrierShipment? @relation(fields: [carrierShipmentId], references: [id], onDelete: SetNull)
 
   @@index([providerCode, externalEventId], map: "idx_carrier_events_provider_event_id")
   @@index([awb], map: "idx_carrier_events_awb")
   @@index([payloadHash], map: "idx_carrier_events_payload_hash")
+  @@index([carrierShipmentId, eventTimestamp(sort: Desc)], map: "idx_carrier_events_shipment_time")
   @@map("carrier_shipment_events")
+}
+
+/// Auditable actual carrier cost changes. Does not touch the client shipping fee.
+model CarrierCostChange {
+  id                String   @id @default(uuid()) @db.Uuid
+  carrierShipmentId String   @map("carrier_shipment_id") @db.Uuid
+  previousAmount    Decimal? @map("previous_amount") @db.Decimal(15, 4)
+  previousCurrency  String?  @map("previous_currency") @db.VarChar(8)
+  amount            Decimal  @db.Decimal(15, 4)
+  currency          String?  @db.VarChar(8)
+  providerCode      String   @map("provider_code")
+  externalEventId   String?  @map("external_event_id")
+  eventAt           DateTime? @map("event_at") @db.Timestamptz(6)
+  source            String   @db.VarChar(16)
+  applied           Boolean  @default(true)
+  skipReason        String?  @map("skip_reason")
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  carrierShipment CarrierShipment @relation(fields: [carrierShipmentId], references: [id], onDelete: Cascade)
+
+  @@index([carrierShipmentId, createdAt(sort: Desc)], map: "idx_carrier_cost_changes_shipment")
+  @@index([providerCode, externalEventId], map: "idx_carrier_cost_changes_event")
+  @@map("carrier_cost_changes")
 }
 
 /// Admin bulk shipping processing job (audit + progress).
@@ -2631,4 +2800,138 @@ model BulkShippingJobItem {
   @@index([jobId, status], map: "idx_bulk_shipping_job_items_job_status")
   @@index([outboundOrderId], map: "idx_bulk_shipping_job_items_outbound")
   @@map("bulk_shipping_job_items")
+}
+
+// ==========================================
+// Financial Management System (MVP)
+// ==========================================
+
+enum FinancialAccountStatus {
+  active
+  restricted
+  frozen
+
+  @@map("financial_account_status")
+}
+
+enum FinancialTransactionType {
+  credit
+  debit
+
+  @@map("financial_transaction_type")
+}
+
+enum FinancialTransactionCategory {
+  cod_credit
+  shipping_fee
+  manual_adjustment
+  payout_disbursement
+  return_fee
+  subscription_fee
+  other
+
+  @@map("financial_transaction_category")
+}
+
+enum FinancialTransactionStatus {
+  posted
+  reversed
+
+  @@map("financial_transaction_status")
+}
+
+enum ClientPayoutStatus {
+  requested
+  approved
+  rejected
+  paid
+  failed
+
+  @@map("client_payout_status")
+}
+
+model ClientFinancialAccount {
+  id               String                 @id @default(uuid()) @db.Uuid
+  companyId        String                 @unique @map("company_id") @db.Uuid
+  currentBalance   Decimal                @default(0) @map("current_balance") @db.Decimal(15, 4)
+  availableBalance Decimal                @default(0) @map("available_balance") @db.Decimal(15, 4)
+  pendingBalance   Decimal                @default(0) @map("pending_balance") @db.Decimal(15, 4)
+  payoutLocked     Decimal                @default(0) @map("payout_locked") @db.Decimal(15, 4)
+  totalCredits     Decimal                @default(0) @map("total_credits") @db.Decimal(15, 4)
+  totalDebits      Decimal                @default(0) @map("total_debits") @db.Decimal(15, 4)
+  currency         String                 @default("USD")
+  status           FinancialAccountStatus @default(active)
+  lastTransactionAt DateTime?             @map("last_transaction_at") @db.Timestamptz(6)
+  createdAt        DateTime               @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime               @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  company          Company                @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([status], map: "idx_financial_accounts_status")
+  @@map("client_financial_accounts")
+}
+
+model FinancialTransaction {
+  id                String                       @id @default(uuid()) @db.Uuid
+  companyId         String                       @map("company_id") @db.Uuid
+  transactionNumber String                       @unique @map("transaction_number") @db.VarChar(64)
+  type              FinancialTransactionType
+  category          FinancialTransactionCategory
+  amount            Decimal                      @db.Decimal(15, 4)
+  currency          String                       @default("USD")
+  description       String
+  referenceType     String?                      @map("reference_type") @db.VarChar(64)
+  referenceId       String?                      @map("reference_id") @db.VarChar(128)
+  status            FinancialTransactionStatus   @default(posted)
+  idempotencyKey    String?                      @unique @map("idempotency_key") @db.VarChar(128)
+  metadata          Json?                        @db.JsonB
+  createdBy         String?                      @map("created_by") @db.Uuid
+  createdAt         DateTime                     @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime                     @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  company           Company                      @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId, createdAt(sort: Desc)], map: "idx_financial_txns_company_created")
+  @@index([referenceType, referenceId], map: "idx_financial_txns_reference")
+  @@index([category], map: "idx_financial_txns_category")
+  @@map("financial_transactions")
+}
+
+model ClientPayoutRequest {
+  id              String             @id @default(uuid()) @db.Uuid
+  payoutNumber    String             @unique @map("payout_number") @db.VarChar(64)
+  companyId       String             @map("company_id") @db.Uuid
+  amount          Decimal            @db.Decimal(15, 4)
+  currency        String             @default("USD")
+  status          ClientPayoutStatus @default(requested)
+  bankName        String?            @map("bank_name")
+  accountHolder   String?            @map("account_holder")
+  accountNumber   String?            @map("account_number")
+  iban            String?            @map("iban")
+  notes           String?
+  rejectionReason String?            @map("rejection_reason")
+  payoutReference String?            @map("payout_reference")
+  requestedBy     String?            @map("requested_by") @db.Uuid
+  reviewedBy      String?            @map("reviewed_by") @db.Uuid
+  reviewedAt      DateTime?          @map("reviewed_at") @db.Timestamptz(6)
+  paidAt          DateTime?          @map("paid_at") @db.Timestamptz(6)
+  createdAt       DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime           @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  company         Company            @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId, status], map: "idx_client_payouts_company_status")
+  @@index([status, createdAt(sort: Desc)], map: "idx_client_payouts_status_created")
+  @@map("client_payout_requests")
+}
+
+model FinancialPolicy {
+  id          String   @id @default(uuid()) @db.Uuid
+  key         String   @unique @db.VarChar(64)
+  value       String
+  description String?
+  updatedBy   String?  @map("updated_by") @db.Uuid
+  updatedAt   DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@map("financial_policies")
 }

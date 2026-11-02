@@ -235,24 +235,71 @@ export function OmsOrderTrackingPanel({ order }: Props): ReactElement {
           </h3>
           {order.timeline && order.timeline.length > 0 ? (
             <ol className="mt-2 m-0 list-none space-y-0 p-0">
-              {order.timeline.map((ev) => (
-                <li
-                  key={ev.id}
-                  className="flex flex-wrap items-baseline justify-between gap-2 border-b border-border-subtle py-3 last:border-b-0"
-                >
-                  <span className="text-sm font-medium text-text-strong">
-                    {ev.eventType.replace(/\./g, ' ')}
-                    {ev.creator?.fullName ? (
-                      <span className="ms-2 text-xs font-normal text-text-muted">
-                        · {ev.creator.fullName}
+              {order.timeline.map((ev) => {
+                const isShippingFeeAdjusted = ev.eventType === 'shipping_fee.adjusted';
+                const payload = (ev.payload ?? {}) as Record<string, any>;
+
+                return (
+                  <li
+                    key={ev.id}
+                    className="flex flex-col gap-1 border-b border-border-subtle py-3 last:border-b-0"
+                  >
+                    <div className="flex flex-wrap items-baseline justify-between gap-2">
+                      <span className="text-sm font-medium text-text-strong">
+                        {isShippingFeeAdjusted ? 'Shipping fee adjusted' : ev.eventType.replace(/\./g, ' ')}
+                        {ev.creator?.fullName ? (
+                          <span className="ms-2 text-xs font-normal text-text-muted">
+                            · {ev.creator.fullName}
+                          </span>
+                        ) : null}
                       </span>
+                      <time className="text-xs tabular-nums text-text-muted" dateTime={ev.createdAt}>
+                        {new Date(ev.createdAt).toLocaleString()}
+                      </time>
+                    </div>
+
+                    {isShippingFeeAdjusted ? (
+                      <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-text-body">
+                        <span>
+                          <span className="text-text-muted">Fee:</span>{' '}
+                          <span className="line-through text-text-muted">
+                            {payload.previousShippingFee ?? '—'}
+                          </span>{' '}
+                          → <strong className="text-text-strong">{payload.newShippingFee}</strong>
+                        </span>
+                        {payload.difference != null ? (
+                          <span
+                            className={`font-semibold ${
+                              payload.difference > 0
+                                ? 'text-amber-700'
+                                : payload.difference < 0
+                                  ? 'text-emerald-700'
+                                  : 'text-text-muted'
+                            }`}
+                          >
+                            ({payload.difference > 0 ? `+${payload.difference}` : payload.difference})
+                          </span>
+                        ) : null}
+                        {payload.reason ? (
+                          <span className="text-text-muted">
+                            Reason: <span className="italic text-text-body">"{payload.reason}"</span>
+                          </span>
+                        ) : null}
+                        {payload.mode === 'bulk' ? (
+                          <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-600">
+                            Bulk action
+                          </span>
+                        ) : null}
+                        {payload.invoiceReference ? (
+                          <span className="rounded bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium text-amber-800">
+                            Invoice: {payload.invoiceReference.invoiceNumber} ({payload.invoiceReference.status})
+                          </span>
+                        ) : null}
+                      </div>
                     ) : null}
-                  </span>
-                  <time className="text-xs tabular-nums text-text-muted" dateTime={ev.createdAt}>
-                    {new Date(ev.createdAt).toLocaleString()}
-                  </time>
-                </li>
-              ))}
+                  </li>
+                );
+              })}
             </ol>
           ) : (
             <p className="mt-2 text-sm text-text-muted">No tracking events yet.</p>

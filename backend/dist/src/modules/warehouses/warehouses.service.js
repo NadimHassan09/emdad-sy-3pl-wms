@@ -63,19 +63,44 @@ let WarehousesService = class WarehousesService {
         this.realtime.emitWarehouseCreated((0, realtime_master_data_payload_1.warehouseRealtimePayload)(created));
         return created;
     }
-    list(query) {
+    async list(query) {
         const includeInactive = (0, coerce_boolean_1.coerceOptionalBool)(query?.includeInactive) === true;
         const where = {};
         if (!includeInactive) {
             where.status = 'active';
         }
-        return this.prisma.warehouse.findMany({ where, orderBy: { code: 'asc' } });
+        const rows = await this.prisma.warehouse.findMany({
+            where,
+            orderBy: { code: 'asc' },
+            include: {
+                _count: {
+                    select: { locations: true },
+                },
+            },
+        });
+        return rows.map(({ _count, ...wh }) => ({
+            ...wh,
+            locationCount: _count?.locations ?? 0,
+            _count,
+        }));
     }
     async findById(id) {
-        const wh = await this.prisma.warehouse.findUnique({ where: { id } });
+        const wh = await this.prisma.warehouse.findUnique({
+            where: { id },
+            include: {
+                _count: {
+                    select: { locations: true },
+                },
+            },
+        });
         if (!wh)
             throw new common_1.NotFoundException('Warehouse not found.');
-        return wh;
+        const { _count, ...rest } = wh;
+        return {
+            ...rest,
+            locationCount: _count?.locations ?? 0,
+            _count,
+        };
     }
     async nextCode() {
         const code = await this.computeNextCode(this.prisma);

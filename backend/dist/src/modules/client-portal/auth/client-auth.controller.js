@@ -20,7 +20,9 @@ const multer_1 = require("multer");
 const public_decorator_1 = require("../../../common/auth/public.decorator");
 const client_user_decorator_1 = require("./client-user.decorator");
 const client_auth_service_1 = require("./client-auth.service");
+const client_change_password_dto_1 = require("./dto/client-change-password.dto");
 const client_login_dto_1 = require("./dto/client-login.dto");
+const client_update_profile_dto_1 = require("./dto/client-update-profile.dto");
 const jwt_client_auth_guard_1 = require("./jwt-client-auth.guard");
 const MAX_AVATAR_BYTES = 8 * 1024 * 1024;
 function assertUploadedImage(file) {
@@ -55,6 +57,12 @@ let ClientAuthController = class ClientAuthController {
     }
     deleteAvatar(user) {
         return this.auth.deleteAvatar(user);
+    }
+    updateProfile(user, dto) {
+        return this.auth.updateProfile(user, dto);
+    }
+    changePassword(user, dto) {
+        return this.auth.changePassword(user, dto);
     }
 };
 exports.ClientAuthController = ClientAuthController;
@@ -112,6 +120,27 @@ __decorate([
     __metadata("design:paramtypes", [Object]),
     __metadata("design:returntype", void 0)
 ], ClientAuthController.prototype, "deleteAvatar", null);
+__decorate([
+    (0, public_decorator_1.Public)(),
+    (0, common_1.Patch)('profile'),
+    (0, common_1.UseGuards)(jwt_client_auth_guard_1.JwtClientAuthGuard),
+    __param(0, (0, client_user_decorator_1.ClientUser)()),
+    __param(1, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, client_update_profile_dto_1.ClientUpdateProfileDto]),
+    __metadata("design:returntype", void 0)
+], ClientAuthController.prototype, "updateProfile", null);
+__decorate([
+    (0, public_decorator_1.Public)(),
+    (0, common_1.Post)('change-password'),
+    (0, common_1.HttpCode)(200),
+    (0, common_1.UseGuards)(jwt_client_auth_guard_1.JwtClientAuthGuard),
+    __param(0, (0, client_user_decorator_1.ClientUser)()),
+    __param(1, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, client_change_password_dto_1.ClientChangePasswordDto]),
+    __metadata("design:returntype", void 0)
+], ClientAuthController.prototype, "changePassword", null);
 exports.ClientAuthController = ClientAuthController = __decorate([
     (0, common_1.Controller)('client/auth'),
     __metadata("design:paramtypes", [client_auth_service_1.ClientAuthService])

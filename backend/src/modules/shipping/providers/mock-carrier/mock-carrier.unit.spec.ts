@@ -28,10 +28,20 @@ describe('MOCK_CARRIER', () => {
   it('is absent from the registry unless SHIPPING_MOCK_ENABLED=true', () => {
     const previous = process.env.SHIPPING_MOCK_ENABLED;
     delete process.env.SHIPPING_MOCK_ENABLED;
-    const off = new ShippingProviderRegistry({ code: 'BABEL_EXPRESS' } as never, { code: 'SILA_SY' } as never, adapter);
+    const off = new ShippingProviderRegistry(
+      { code: 'BABEL_EXPRESS' } as never,
+      { code: 'SILA_SY' } as never,
+      { code: 'SENA_EXPRESS' } as never,
+      adapter,
+    );
     expect(off.listCodes()).not.toContain(MOCK_CARRIER_CODE);
     process.env.SHIPPING_MOCK_ENABLED = 'true';
-    const on = new ShippingProviderRegistry({ code: 'BABEL_EXPRESS' } as never, { code: 'SILA_SY' } as never, adapter);
+    const on = new ShippingProviderRegistry(
+      { code: 'BABEL_EXPRESS' } as never,
+      { code: 'SILA_SY' } as never,
+      { code: 'SENA_EXPRESS' } as never,
+      adapter,
+    );
     expect(on.has(MOCK_CARRIER_CODE)).toBe(true);
     if (previous === undefined) delete process.env.SHIPPING_MOCK_ENABLED;
     else process.env.SHIPPING_MOCK_ENABLED = previous;

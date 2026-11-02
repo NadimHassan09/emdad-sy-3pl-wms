@@ -47,18 +47,44 @@ let BillingInvoiceCalculationService = BillingInvoiceCalculationService_1 = clas
     prisma;
     audit;
     log = new common_1.Logger(BillingInvoiceCalculationService_1.name);
+    pendingRecalc = new Map();
     constructor(prisma, audit) {
         this.prisma = prisma;
         this.audit = audit;
     }
     async recalculateForCompany(companyId, trigger) {
+        return new Promise((resolve) => {
+            const existing = this.pendingRecalc.get(companyId);
+            if (existing) {
+                existing.trigger = trigger;
+                existing.waiters.push(resolve);
+                clearTimeout(existing.timer);
+                existing.timer = setTimeout(() => void this.flushRecalc(companyId), 400);
+                return;
+            }
+            const entry = {
+                trigger,
+                waiters: [resolve],
+                timer: setTimeout(() => void this.flushRecalc(companyId), 400),
+            };
+            this.pendingRecalc.set(companyId, entry);
+        });
+    }
+    async flushRecalc(companyId) {
+        const entry = this.pendingRecalc.get(companyId);
+        if (!entry)
+            return;
+        this.pendingRecalc.delete(companyId);
+        let result = null;
         try {
-            return await this.recalculateForCompanyInternal(companyId, trigger);
+            result = await this.recalculateForCompanyInternal(companyId, entry.trigger);
         }
         catch (err) {
-            this.log.error(`Invoice recalculation failed company=${companyId} trigger=${trigger}`, err instanceof Error ? err.stack : String(err));
-            return null;
+            this.log.error(`Invoice recalculation failed company=${companyId} trigger=${entry.trigger}`, err instanceof Error ? err.stack : String(err));
+            result = null;
         }
+        for (const w of entry.waiters)
+            w(result);
     }
     async finalizeCycleInvoice(tx, billingCycleId) {
         const now = new Date();

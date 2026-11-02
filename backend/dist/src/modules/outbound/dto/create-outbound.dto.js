@@ -55,6 +55,9 @@ __decorate([
 ], CreateOutboundOrderDto.prototype, "companyId", void 0);
 __decorate([
     (0, class_validator_1.IsString)(),
+    (0, class_validator_1.IsNotEmpty)({ message: 'Destination address is required.' }),
+    (0, class_transformer_1.Transform)(({ value }) => (typeof value === 'string' ? value.trim() : value)),
+    (0, class_validator_1.MinLength)(1, { message: 'Destination address cannot be empty.' }),
     __metadata("design:type", String)
 ], CreateOutboundOrderDto.prototype, "destinationAddress", void 0);
 __decorate([

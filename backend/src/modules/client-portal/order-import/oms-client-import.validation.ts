@@ -11,7 +11,7 @@ import {
   countryDisplayName,
 } from '../../../common/validators/recipient-contact';
 
-const ORDER_NUMBER_PATTERN = /^[A-Za-z0-9-]+$/;
+const ORDER_NUMBER_PATTERN = /^[A-Za-z0-9-_]+$/;
 const ASCII_DIGITS_ONLY = /^[0-9]+$/;
 /** Three slash-separated ASCII digit groups (leading zeros allowed; normalized later). */
 const SHIP_DATE_MDY_RAW_PARTS = /^(\d+)\/(\d+)\/(\d+)$/;
@@ -39,7 +39,7 @@ export function validateImportOrderNumber(
     return {
       ok: false,
       message:
-        'Order number may only contain English letters, English digits (0-9), and hyphen (-).',
+        'Order number may only contain English letters, English digits (0-9), hyphen (-), and underscore (_).',
     };
   }
   return { ok: true, value };
@@ -56,19 +56,55 @@ export function parseImportMdYDate(
 ): { ok: true; ymd: string } | { ok: false; message: string } {
   const t = raw.trim();
   if (!t) {
-    return { ok: false, message: `${fieldLabel} is required (M/DD/YYYY).` };
+    return { ok: false, message: `${fieldLabel} is required (YYYY-MM-DD or M/DD/YYYY).` };
   }
   if (/[٠-٩۰-۹]/.test(t)) {
     return {
       ok: false,
-      message: `${fieldLabel} must use English digits only in M/DD/YYYY format.`,
+      message: `${fieldLabel} must use English digits only.`,
     };
   }
+
+  // 1. Try ISO YYYY-MM-DD (preferred machine format)
+  const isoMatch = /^(\d{4})-(\d{1,2})-(\d{1,2})$/.exec(t);
+  if (isoMatch) {
+    const year = Number(isoMatch[1]);
+    const month = Number(isoMatch[2]);
+    const day = Number(isoMatch[3]);
+    if (month < 1 || month > 12) {
+      return { ok: false, message: `${fieldLabel} month must be between 1 and 12.` };
+    }
+    if (day < 1 || day > 31) {
+      return { ok: false, message: `${fieldLabel} day must be between 1 and 31.` };
+    }
+    const dt = new Date(Date.UTC(year, month - 1, day));
+    if (
+      dt.getUTCFullYear() !== year ||
+      dt.getUTCMonth() !== month - 1 ||
+      dt.getUTCDate() !== day
+    ) {
+      return { ok: false, message: `${fieldLabel} is not a valid calendar date.` };
+    }
+    return {
+      ok: true,
+      ymd: `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`,
+    };
+  }
+
+  // Reject ambiguous hyphenated non-ISO formats (e.g. DD-MM-YYYY or MM-DD-YYYY)
+  if (t.includes('-')) {
+    return {
+      ok: false,
+      message: `${fieldLabel} has an ambiguous date format. Use ISO YYYY-MM-DD (example: 2026-09-01) or M/DD/YYYY (example: 9/01/2026).`,
+    };
+  }
+
+  // 2. Try legacy M/DD/YYYY format
   const rawParts = SHIP_DATE_MDY_RAW_PARTS.exec(t);
   if (!rawParts) {
     return {
       ok: false,
-      message: `${fieldLabel} must be M/DD/YYYY (example: 9/01/2026).`,
+      message: `${fieldLabel} must be ISO YYYY-MM-DD or M/DD/YYYY (example: 2026-09-01 or 9/01/2026).`,
     };
   }
   const normalized = [
@@ -80,7 +116,7 @@ export function parseImportMdYDate(
   if (!m) {
     return {
       ok: false,
-      message: `${fieldLabel} must be M/DD/YYYY (example: 9/01/2026).`,
+      message: `${fieldLabel} must be ISO YYYY-MM-DD or M/DD/YYYY (example: 2026-09-01 or 9/01/2026).`,
     };
   }
   const month = Number(m[1]);
@@ -237,3 +273,34 @@ export function validateImportAsciiNonNegativeInt(
   }
   return { ok: true, value: n };
 }
+
+const ASCII_DECIMAL_POSITIVE_PATTERN = /^\d+(\.\d+)?$/;
+
+export function validateImportPositiveQuantity(
+  raw: string,
+  fieldLabel: string,
+): { ok: true; value: number } | { ok: false; message: string } {
+  const value = raw.trim();
+  if (!value) {
+    return { ok: false, message: `${fieldLabel} is required.` };
+  }
+  if (!ASCII_DECIMAL_POSITIVE_PATTERN.test(value)) {
+    return {
+      ok: false,
+      message: `${fieldLabel} must contain English digits only (0-9) and optional decimal point, with no letters, symbols, or Arabic digits.`,
+    };
+  }
+  const parts = value.split('.');
+  if (parts[1] && parts[1].length > 4) {
+    return {
+      ok: false,
+      message: `${fieldLabel} cannot have more than 4 decimal places.`,
+    };
+  }
+  const n = Number(value);
+  if (!Number.isFinite(n) || n <= 0) {
+    return { ok: false, message: `${fieldLabel} must be greater than 0.` };
+  }
+  return { ok: true, value: n };
+}
+

@@ -55,6 +55,14 @@ let ClientInboundOrdersController = class ClientInboundOrdersController {
         return this.exportSvc.columns();
     }
     async exportOrders(client, dto, res) {
+        if (dto.format === 'xlsx') {
+            const result = await this.exportSvc.exportXlsx(client, dto);
+            res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+            res.setHeader('Content-Disposition', `attachment; filename="${result.filename}"`);
+            res.setHeader('X-Export-Row-Count', String(result.rowCount));
+            res.setHeader('X-Export-Truncated', result.truncated ? 'true' : 'false');
+            return res.send(result.buffer);
+        }
         const result = await this.exportSvc.exportCsv(client, dto);
         res.setHeader('Content-Type', 'text/csv; charset=utf-8');
         res.setHeader('Content-Disposition', `attachment; filename="${result.filename}"`);

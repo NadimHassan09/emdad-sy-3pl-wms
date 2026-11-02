@@ -75,6 +75,7 @@ function sidebarLabel(label: string, isArabic: boolean): string {
     Warehouses: 'المستودعات',
     Customers: 'العملاء',
     Clients: 'العملاء',
+    Finance: 'الإدارة المالية',
     Forms: 'النماذج',
     Users: 'المستخدمون',
     'Audit logs': 'سجل التدقيق',

@@ -73,6 +73,7 @@ export class BulkShippingService {
     {
       serviceId: string | null;
       deliveryType: string | null;
+      hubId: string | null;
       payer: string | null;
       quotedCurrency: string | null;
     }
@@ -301,6 +302,7 @@ export class BulkShippingService {
         this.pendingSelections.set(item.outboundOrderId, {
           serviceId,
           deliveryType,
+          hubId: item.hubId?.trim() || null,
           payer,
           quotedCurrency: item.quotedCurrency ?? null,
         });
@@ -675,6 +677,7 @@ export class BulkShippingService {
         providerCode,
         serviceId: pending?.serviceId ?? existing?.shippingServiceId,
         deliveryType: pending?.deliveryType ?? existing?.shippingDeliveryType,
+        hubId: pending?.hubId ?? (existing as { shippingHubId?: string | null })?.shippingHubId,
         payer: pending?.payer ?? existing?.shippingPayer,
         quotedCurrency: item.quotedCurrency ?? pending?.quotedCurrency,
       });
@@ -692,6 +695,7 @@ export class BulkShippingService {
           shippingMethod: patch.shippingMethod,
           shippingProviderCode: patch.shippingProviderCode,
           shippingServiceId: patch.shippingServiceId,
+          shippingHubId: patch.shippingHubId,
           ...(patch.shippingDeliveryType
             ? { shippingDeliveryType: patch.shippingDeliveryType }
             : {}),
@@ -724,11 +728,11 @@ export class BulkShippingService {
 
       if (created?.externalAwb) {
         if (item.quotedPrice != null) {
-          await this.prisma.carrierShipment.update({
-            where: { id: created.id },
+          await this.prisma.outboundOrder.update({
+            where: { id: item.outboundOrderId },
             data: {
-              shippingCost: item.quotedPrice,
-              currency: item.quotedCurrency ?? created.currency,
+              shippingQuotedPrice: item.quotedPrice,
+              shippingQuotedCurrency: item.quotedCurrency ?? undefined,
             },
           });
         }

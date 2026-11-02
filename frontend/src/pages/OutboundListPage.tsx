@@ -5,7 +5,16 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { OutboundApi, OutboundOrder } from '../api/outbound';
 import { CompaniesApi } from '../api/companies';
 import { useAuth } from '../auth/AuthContext';
-import { Alert, AdvancedFilterSection, Button as DsButton, Combobox, countNonEmptyFilters } from '@ds';
+import {
+  Alert,
+  AdvancedFilterSection,
+  Button as DsButton,
+  Combobox,
+  StatusCardNav,
+  STATUS_CARD_TONES,
+  type StatusCardItem,
+  countNonEmptyFilters,
+} from '@ds';
 import { AdminListPageShell } from '../components/AdminListPageShell';
 import { CompanyNameCell } from '../components/CompanyNameCell';
 import { ConfirmModal } from '../components/ConfirmModal';
@@ -183,6 +192,82 @@ export function OutboundListPage() {
     chunkQueryKeyPrefix: 'outbound-orders-chunk',
     enabled: !!wid,
   });
+
+  const summaryParams = useMemo(
+    () => buildOutboundListParams({ ...appliedFilters, status: '' }, wid),
+    [appliedFilters, wid],
+  );
+  const summaryQuery = useQuery({
+    queryKey: [...QK.outboundOrders, 'status-summary', summaryParams],
+    queryFn: () => OutboundApi.list({ ...summaryParams, limit: 1 }),
+    enabled: !!wid,
+  });
+  const statusCounts = summaryQuery.data?.statusCounts ?? {};
+
+  const statusItems: StatusCardItem[] = useMemo(
+    () => [
+      {
+        value: '',
+        label: t('All statuses'),
+        count: statusCounts.all ?? pagination.total,
+        ...STATUS_CARD_TONES.slate,
+      },
+      {
+        value: 'draft',
+        label: t('Draft'),
+        count: statusCounts.draft ?? 0,
+        ...STATUS_CARD_TONES.slate,
+      },
+      {
+        value: 'pending_approval',
+        label: t('Pending approval'),
+        count: statusCounts.pending_approval ?? 0,
+        ...STATUS_CARD_TONES.amber,
+      },
+      {
+        value: 'confirmed',
+        label: t('Confirmed'),
+        count: statusCounts.confirmed ?? 0,
+        ...STATUS_CARD_TONES.blue,
+      },
+      {
+        value: 'allocated',
+        label: t('Allocated'),
+        count: statusCounts.allocated ?? 0,
+        ...STATUS_CARD_TONES.cyan,
+      },
+      {
+        value: 'picking',
+        label: t('Picking'),
+        count: statusCounts.picking ?? 0,
+        ...STATUS_CARD_TONES.purple,
+      },
+      {
+        value: 'packing',
+        label: t('Packing'),
+        count: statusCounts.packing ?? 0,
+        ...STATUS_CARD_TONES.purple,
+      },
+      {
+        value: 'shipped',
+        label: t('Shipped'),
+        count: statusCounts.shipped ?? 0,
+        ...STATUS_CARD_TONES.emerald,
+      },
+      {
+        value: 'cancelled',
+        label: t('Cancelled'),
+        count: statusCounts.cancelled ?? 0,
+        ...STATUS_CARD_TONES.rose,
+      },
+    ],
+    [statusCounts, pagination.total, isArabic],
+  );
+
+  const handleSelectStatus = (newStatus: string) => {
+    applyPatch({ status: newStatus });
+    setDraft((prev) => ({ ...prev, status: newStatus }));
+  };
 
   useEffect(() => {
     setSelectedIds(new Set());
@@ -368,7 +453,7 @@ export function OutboundListPage() {
     [isArabic, isAdmin, selectedIds, allPageEligibleSelected, pageEligibleIds],
   );
 
-  const onExportSubmit = async (payload: { columnIds: string[]; arabicHeaders: boolean }) => {
+  const onExportSubmit = async (payload: { columnIds: string[]; arabicHeaders: boolean; format?: 'xlsx' | 'csv' }) => {
     if (exporting) return;
     setExporting(true);
     try {
@@ -376,7 +461,9 @@ export function OutboundListPage() {
       await OutboundApi.exportDownloadPost({ ...listParams, ...payload, ids });
       setExportOpen(false);
       toast.success(
-        isArabic ? 'تم تنزيل ملف CSV.' : 'Exported outbound orders to CSV.',
+        payload.format === 'xlsx'
+          ? (isArabic ? 'تم تنزيل ملف Excel بنجاح.' : 'Exported to Excel.')
+          : (isArabic ? 'تم تنزيل ملف CSV بنجاح.' : 'Exported to CSV.'),
       );
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Export failed.');
@@ -463,6 +550,14 @@ export function OutboundListPage() {
           <Alert.Action onClick={() => pagination.refetch()}>Retry</Alert.Action>
         </Alert>
       )}
+
+      <div className="mb-4">
+        <StatusCardNav
+          items={statusItems}
+          value={appliedFilters.status}
+          onChange={handleSelectStatus}
+        />
+      </div>
 
       <AdvancedFilterSection
         advancedOpen={advancedOpen}

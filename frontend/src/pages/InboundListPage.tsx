@@ -2,7 +2,17 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 
-import { AdvancedFilterSection, Alert, Button, Combobox, EmptyState, countNonEmptyFilters } from '@ds';
+import {
+  AdvancedFilterSection,
+  Alert,
+  Button,
+  Combobox,
+  EmptyState,
+  StatusCardNav,
+  STATUS_CARD_TONES,
+  type StatusCardItem,
+  countNonEmptyFilters,
+} from '@ds';
 
 import { CompaniesApi } from '../api/companies';
 import { InboundApi, InboundOrder } from '../api/inbound';
@@ -170,6 +180,76 @@ export function InboundListPage() {
     enabled: !!wid,
   });
 
+  const summaryParams = useMemo(
+    () => buildInboundListParams({ ...appliedFilters, status: '' }, wid),
+    [appliedFilters, wid],
+  );
+  const summaryQuery = useQuery({
+    queryKey: [...QK.inboundOrders, 'status-summary', summaryParams],
+    queryFn: () => InboundApi.list({ ...summaryParams, limit: 1 }),
+    enabled: !!wid,
+  });
+  const statusCounts = summaryQuery.data?.statusCounts ?? {};
+
+  const statusItems: StatusCardItem[] = useMemo(
+    () => [
+      {
+        value: '',
+        label: t('All statuses'),
+        count: statusCounts.all ?? pagination.total,
+        ...STATUS_CARD_TONES.slate,
+      },
+      {
+        value: 'draft',
+        label: t('Draft'),
+        count: statusCounts.draft ?? 0,
+        ...STATUS_CARD_TONES.slate,
+      },
+      {
+        value: 'pending_approval',
+        label: t('Pending approval'),
+        count: statusCounts.pending_approval ?? 0,
+        ...STATUS_CARD_TONES.amber,
+      },
+      {
+        value: 'confirmed',
+        label: t('Confirmed'),
+        count: statusCounts.confirmed ?? 0,
+        ...STATUS_CARD_TONES.blue,
+      },
+      {
+        value: 'in_progress',
+        label: t('In progress'),
+        count: statusCounts.in_progress ?? 0,
+        ...STATUS_CARD_TONES.cyan,
+      },
+      {
+        value: 'partially_received',
+        label: t('Partially received'),
+        count: statusCounts.partially_received ?? 0,
+        ...STATUS_CARD_TONES.purple,
+      },
+      {
+        value: 'completed',
+        label: t('Completed'),
+        count: statusCounts.completed ?? 0,
+        ...STATUS_CARD_TONES.emerald,
+      },
+      {
+        value: 'cancelled',
+        label: t('Cancelled'),
+        count: statusCounts.cancelled ?? 0,
+        ...STATUS_CARD_TONES.rose,
+      },
+    ],
+    [statusCounts, pagination.total, isArabic],
+  );
+
+  const handleSelectStatus = (newStatus: string) => {
+    applyPatch({ status: newStatus });
+    setDraft((prev) => ({ ...prev, status: newStatus }));
+  };
+
   const statusFilterOptions = useMemo(
     () => [
       { value: '', label: t('All statuses') },
@@ -267,14 +347,18 @@ export function InboundListPage() {
     });
   };
 
-  const onExportSubmit = async (payload: { columnIds: string[]; arabicHeaders: boolean }) => {
+  const onExportSubmit = async (payload: { columnIds: string[]; arabicHeaders: boolean; format?: 'xlsx' | 'csv' }) => {
     if (exporting) return;
     setExporting(true);
     try {
       const ids = selectedIds.size > 0 ? Array.from(selectedIds) : undefined;
       await InboundApi.exportDownloadPost({ ...listParams, ...payload, ids });
       setExportOpen(false);
-      toast.success(isArabic ? 'تم تنزيل ملف CSV.' : 'Exported to CSV.');
+      toast.success(
+        payload.format === 'xlsx'
+          ? (isArabic ? 'تم تنزيل ملف Excel بنجاح.' : 'Exported to Excel.')
+          : (isArabic ? 'تم تنزيل ملف CSV بنجاح.' : 'Exported to CSV.'),
+      );
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Export failed.');
     } finally {
@@ -439,6 +523,14 @@ export function InboundListPage() {
           }
         />
       )}
+
+      <div className="mb-4">
+        <StatusCardNav
+          items={statusItems}
+          value={appliedFilters.status}
+          onChange={handleSelectStatus}
+        />
+      </div>
 
       <AdvancedFilterSection
         advancedOpen={advancedOpen}

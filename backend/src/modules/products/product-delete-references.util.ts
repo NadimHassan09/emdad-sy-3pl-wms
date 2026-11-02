@@ -31,6 +31,7 @@ export const OMS_ORDER_STATUSES_BLOCKING_PRODUCT_DELETE = [
   'shipped',
   'delivered',
   'failed_delivery',
+  'return_pending_receipt',
   'completed',
   'returned',
 ] as const;

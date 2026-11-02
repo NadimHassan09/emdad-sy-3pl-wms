@@ -6,6 +6,7 @@ export const OMS_RETURN_ELIGIBLE_STATUSES: ReadonlySet<OmsOrderStatus> = new Set
   OmsOrderStatus.shipped,
   OmsOrderStatus.out_for_delivery,
   OmsOrderStatus.failed_delivery,
+  OmsOrderStatus.return_pending_receipt,
 ]);
 
 export function isOmsReturnEligibleStatus(

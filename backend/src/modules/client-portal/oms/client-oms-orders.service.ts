@@ -10,11 +10,47 @@ import { CreateOmsOrderDto } from '../../oms/dto/oms-order.dto';
 import { serializeOmsOrder } from '../../oms/oms-order.mapper';
 import { OmsOrdersService } from '../../oms/oms-orders.service';
 import { buildOmsOrderStatusDateFilter } from '../../oms/oms-order-status-filter.util';
+import { buildExcelBuffer, ExcelExportColumn } from '../../../common/utils/excel-export.util';
 import { CreateClientOmsOrderDto } from './dto/create-client-oms-order.dto';
 import { ClientCodReportQueryDto } from './dto/client-cod-report-query.dto';
 import { ClientOmsStatusSummaryQueryDto } from './dto/client-oms-status-summary-query.dto';
 import { ListClientOmsOrdersQueryDto } from './dto/list-client-oms-orders-query.dto';
 import { portalCodStatusFromRecord } from './portal-cod-status.util';
+
+/** Clients see the configured shipping fee. Carrier quotes, actual costs, and cost history stay internal. */
+function stripClientCarrierCosts<T extends Record<string, unknown>>(order: T): T {
+  const linked = order.linkedOutboundOrder;
+  const next = { ...order } as T & {
+    clientShippingRateBreakdown?: unknown;
+    clientShippingRateGroupId?: unknown;
+    carrier?: unknown;
+    shippingCarrierName?: unknown;
+    shippingProviderCode?: unknown;
+    shippingServiceId?: unknown;
+    shippingHubId?: unknown;
+  };
+  delete next.clientShippingRateBreakdown;
+  delete next.clientShippingRateGroupId;
+  delete next.carrier;
+  delete next.shippingCarrierName;
+  delete next.shippingProviderCode;
+  delete next.shippingServiceId;
+  delete next.shippingHubId;
+  if (linked && typeof linked === 'object') {
+    const copy = { ...(linked as Record<string, unknown>) };
+    delete copy.shippingCost;
+    delete copy.shippingCostCurrency;
+    delete copy.shippingQuotedPrice;
+    delete copy.shippingQuotedCurrency;
+    delete copy.shippingProviderCode;
+    delete copy.shippingServiceId;
+    delete copy.carrier;
+    delete copy.shippingCarrierName;
+    delete copy.shippingHubId;
+    (next as { linkedOutboundOrder?: unknown }).linkedOutboundOrder = copy;
+  }
+  return next;
+}
 
 function matchesPortalCodFilter(
   portalStatus: string | null | undefined,
@@ -42,7 +78,11 @@ export class ClientOmsOrdersService {
       ...query,
       companyId: client.companyId,
     };
-    return this.omsOrders.list(user, scoped);
+    const result = await this.omsOrders.list(user, scoped);
+    return {
+      ...result,
+      items: result.items.map((item) => stripClientCarrierCosts(item as Record<string, unknown>)),
+    };
   }
 
   /**
@@ -97,7 +137,7 @@ export class ClientOmsOrdersService {
           },
         });
         return {
-          items: rows.map(serializeOmsOrder),
+          items: rows.map((row) => stripClientCarrierCosts(serializeOmsOrder(row))),
           total: rows.length,
           truncated: unique.length > rows.length,
         };
@@ -200,8 +240,6 @@ export class ClientOmsOrdersService {
         productId: l.productId,
         requestedQuantity: l.requestedQuantity,
         unitPrice: l.unitPrice,
-        lineTotal:
-          l.unitPrice != null ? l.unitPrice * l.requestedQuantity : undefined,
       })),
     };
     return this.omsOrders.create(user, payload);
@@ -240,8 +278,6 @@ export class ClientOmsOrdersService {
         productId: l.productId,
         requestedQuantity: l.requestedQuantity,
         unitPrice: l.unitPrice,
-        lineTotal:
-          l.unitPrice != null ? l.unitPrice * l.requestedQuantity : undefined,
       })),
     };
     return this.omsOrders.create(user, payload);
@@ -388,7 +424,7 @@ export class ClientOmsOrdersService {
   async findOne(client: ClientPrincipal, id: string) {
     const user = clientAuthPrincipal(client);
     const order = await this.omsOrders.findById(id, user);
-    return {
+    return stripClientCarrierCosts({
       ...order,
       trackingNumber: null,
       carrier: null,
@@ -400,7 +436,7 @@ export class ClientOmsOrdersService {
             shippingServiceId: null,
           }
         : order.linkedOutboundOrder,
-    };
+    });
   }
 
   /**
@@ -424,7 +460,7 @@ export class ClientOmsOrdersService {
 
     // Strip known carrier brand strings from client-visible titles/notes.
     const brandPattern =
-      /\b(sila(?:-sy)?(?:\.com)?|babel(?:\s*express)?|masarat|مسارات|بابيل|بابل|صلة|ترابط|logestechs|deliveroo(?:\s*joud)?|ديليفرو)\b/gi;
+      /\b(sila(?:-sy)?(?:\.com)?|babel(?:\s*express)?|sena(?:\s*express)?|سينا|masarat|مسارات|بابيل|بابل|صلة|ترابط|logestechs|deliveroo(?:\s*joud)?|ديليفرو)\b/gi;
     const scrub = (value: unknown): string | null | undefined => {
       if (typeof value !== 'string') return value as null | undefined;
       const cleaned = value.replace(brandPattern, '').replace(/\s{2,}/g, ' ').trim();
@@ -624,6 +660,15 @@ export class ClientOmsOrdersService {
         return sum + (Number.isFinite(n) ? n : 0);
       }, 0);
 
+      const statusCounts = {
+        all: rows.length,
+        pending: rows.filter((r) => matchesPortalCodFilter(r.codStatus, 'pending')).length,
+        collected: rows.filter((r) => matchesPortalCodFilter(r.codStatus, 'collected')).length,
+        remitted: rows.filter((r) => matchesPortalCodFilter(r.codStatus, 'remitted')).length,
+        settled: rows.filter((r) => matchesPortalCodFilter(r.codStatus, 'settled')).length,
+        returned: rows.filter((r) => matchesPortalCodFilter(r.codStatus, 'returned')).length,
+      };
+
       return {
         items: page,
         total,
@@ -632,8 +677,54 @@ export class ClientOmsOrdersService {
         summary: {
           orderCount: total,
           totalCodAmount: String(totalCodAmount),
+          statusCounts,
         },
       };
     });
+  }
+
+  async exportCodReportXlsx(client: ClientPrincipal, query: ClientCodReportQueryDto) {
+    const report = await this.codReport(client, {
+      ...query,
+      offset: 0,
+      limit: 10_000,
+    });
+
+    const columns: ExcelExportColumn[] = [
+      { header: 'Order #', key: 'orderNumber', width: 20 },
+      { header: 'Recipient', key: 'recipientName', width: 25 },
+      { header: 'COD Amount', key: 'codAmount', width: 16 },
+      { header: 'Currency', key: 'currency', width: 12 },
+      { header: 'COD Status', key: 'codStatus', width: 16 },
+      { header: 'Created At', key: 'createdAt', width: 22 },
+      { header: 'Delivered At', key: 'deliveredAt', width: 22 },
+      { header: 'Collected At', key: 'codCollectedAt', width: 22 },
+      { header: 'Remitted At', key: 'codRemittedAt', width: 22 },
+    ];
+
+    const rows = report.items.map((r) => ({
+      orderNumber: r.orderNumber,
+      recipientName: r.recipientName ?? '',
+      codAmount: r.codAmount ?? '0',
+      currency: r.currency ?? 'SYP',
+      codStatus: r.codStatus ?? '',
+      createdAt: r.createdAt ? new Date(r.createdAt).toISOString() : '',
+      deliveredAt: r.deliveredAt ? new Date(r.deliveredAt).toISOString() : '',
+      codCollectedAt: r.codCollectedAt ? new Date(r.codCollectedAt).toISOString() : '',
+      codRemittedAt: r.codRemittedAt ? new Date(r.codRemittedAt).toISOString() : '',
+    }));
+
+    const buffer = await buildExcelBuffer({
+      sheetName: 'COD Report',
+      columns,
+      rows,
+    });
+
+    const stamp = new Date().toISOString().slice(0, 10);
+    return {
+      filename: `cod-report-${stamp}.xlsx`,
+      buffer,
+      rowCount: report.items.length,
+    };
   }
 }

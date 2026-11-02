@@ -21,6 +21,8 @@ import { OmsOrderScanSearchModal } from '../components/oms/OmsOrderScanSearchMod
 import { OmsSingleShippingModal } from '../components/oms/OmsSingleShippingModal';
 import { BulkActionResultModal } from '../components/oms/BulkActionResultModal';
 import { BulkShippingProcessingModal } from '../components/shipping/BulkShippingProcessingModal';
+import { OmsEditShippingFeeModal } from '../components/oms/OmsEditShippingFeeModal';
+import { useAuth } from '../auth/AuthContext';
 import { ConfirmModal } from '../components/ConfirmModal';
 import { Column, DataTable } from '../components/DataTable';
 import { FILTER_PRIMARY_BUTTON_CLASS } from '../components/FilterPanel';
@@ -51,6 +53,7 @@ import { isOmsAdminCancellableStatus } from '../lib/oms-order-cancel';
 import { mapOmsCommercialDisplayStatus } from '../lib/oms-commercial-status';
 import {
   orderOperationalStage,
+  orderMainStatus,
   shouldShowOmsStageColumn,
 } from '../lib/oms-operational-stage';
 import {
@@ -256,6 +259,7 @@ function canOrderHaveWaybill(row: OmsOrderListItem): boolean {
     'out_for_delivery',
     'delivered',
     'failed_delivery',
+    'return_pending_receipt',
     'returned',
     'cancelled',
   ];
@@ -278,7 +282,7 @@ function FilterFieldLabel({ children }: { children: string }) {
   );
 }
 
-type OmsQrStatusAction = 'confirm' | 'approve' | 'handover' | 'delivered' | 'failed';
+type OmsQrStatusAction = 'confirm' | 'approve' | 'ready' | 'handover' | 'delivered' | 'failed';
 
 const MAX_PAGE_SIZE = 1000;
 const PAGE_SIZE_PRESETS = ['50', '100', '200', '500', '1000'] as const;
@@ -292,12 +296,15 @@ function resolveChunkSize(pageSize: number): number {
   return pageSize;
 }
 
+import type { CancelShipmentResult } from '../api/oms';
+
 type BulkResult =
   | OmsBulkApproveResponse
   | OmsBulkConfirmResponse
   | OmsBulkCancelResponse
   | OmsBulkStatusTransitionResponse
-  | BulkIdsResponse;
+  | BulkIdsResponse
+  | CancelShipmentResult[];
 
 function statusScanCopy(
   action: OmsQrStatusAction | null,
@@ -317,6 +324,13 @@ function statusScanCopy(
         hint: isArabic
           ? 'وجّه الكاميرا إلى QR البوليصة لاعتماد الطلب (بانتظار الاعتماد فقط)، ثم امسح الطلب التالي.'
           : 'Point the camera at the waybill QR to approve the order (waiting-for-approval only), then scan the next one.',
+      };
+    case 'ready':
+      return {
+        title: isArabic ? 'تأكيد الجاهزية للشحن بالـ QR' : 'Confirm ready to ship by QR',
+        hint: isArabic
+          ? 'وجّه الكاميرا إلى QR البوليصة. الطلب بانتظار تأكيد الشحن يصبح جاهزًا للشحن، ويمكنك مسح الطلب التالي.'
+          : 'Point the camera at the waybill QR. A waiting-for-shipping-confirmation order is marked ready to ship, then scan the next one.',
       };
     case 'handover':
       return {
@@ -355,6 +369,7 @@ export function OmsOrdersListPage() {
   const [singleCancelOrder, setSingleCancelOrder] = useState<OmsOrderListItem | null>(null);
   const [singleShippingOrder, setSingleShippingOrder] = useState<OmsOrderListItem | null>(null);
   const [bulkCancelConfirmOpen, setBulkCancelConfirmOpen] = useState(false);
+  const [bulkCancelShipmentsConfirmOpen, setBulkCancelShipmentsConfirmOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
   const [scanSearchOpen, setScanSearchOpen] = useState(false);
@@ -371,6 +386,14 @@ export function OmsOrdersListPage() {
   );
 
   // ─── Bulk state ─────────────────────────────────────────────────────────────
+  const { user } = useAuth();
+  const canEditShippingFee =
+    !user ||
+    user?.role === 'super_admin' ||
+    user?.role === 'wh_manager' ||
+    user?.role === 'admin' ||
+    user?.authGroup === 'ADMIN';
+  const [editShippingFeeOpen, setEditShippingFeeOpen] = useState(false);
   const [loadingAction, setLoadingAction] = useState<string | null>(null);
   const [processModalOpen, setProcessModalOpen] = useState(false);
   const [shippingDetailsModalOpen, setShippingDetailsModalOpen] = useState(false);
@@ -628,16 +651,10 @@ export function OmsOrdersListPage() {
   const shippingDetailsEligibleOrders = useMemo(
     () =>
       selectedOrders.filter((o) => {
-        const outboundStatus = o.linkedOutboundOrder?.status;
-        const isShippingStage =
-          outboundStatus === 'waiting_for_shipping_method' ||
-          outboundStatus === 'waiting_for_shipping_details';
-        const hasShipmentSent = Boolean(
-          o.trackingNumber?.trim() ||
-          o.linkedOutboundOrder?.trackingNumber?.trim() ||
-          o.linkedOutboundOrder?.hasCarrierShipment,
+        return (
+          (o.status === 'ready_to_ship' || orderMainStatus(o) === 'ready_to_ship') &&
+          orderOperationalStage(o) === 'shipping_details'
         );
-        return isShippingStage && !hasShipmentSent;
       }),
     [selectedOrders],
   );
@@ -645,16 +662,10 @@ export function OmsOrdersListPage() {
   const shippingConfirmEligibleOrders = useMemo(
     () =>
       selectedOrders.filter((o) => {
-        const outboundStatus = o.linkedOutboundOrder?.status;
-        const isShippingStage =
-          outboundStatus === 'waiting_for_shipping_method' ||
-          outboundStatus === 'waiting_for_shipping_details';
-        const hasShipmentSent = Boolean(
-          o.trackingNumber?.trim() ||
-          o.linkedOutboundOrder?.trackingNumber?.trim() ||
-          o.linkedOutboundOrder?.hasCarrierShipment,
+        return (
+          (o.status === 'ready_to_ship' || orderMainStatus(o) === 'ready_to_ship') &&
+          orderOperationalStage(o) === 'shipping_confirmation'
         );
-        return isShippingStage && hasShipmentSent;
       }),
     [selectedOrders],
   );
@@ -680,6 +691,11 @@ export function OmsOrdersListPage() {
 
   const returnEligibleOrders = useMemo(
     () => selectedOrders.filter((o) => o.status === 'failed_delivery'),
+    [selectedOrders],
+  );
+
+  const pendingReceiptEligibleOrders = useMemo(
+    () => selectedOrders.filter((o) => o.status === 'return_pending_receipt'),
     [selectedOrders],
   );
 
@@ -801,6 +817,31 @@ export function OmsOrdersListPage() {
     onError: (e: Error) => toast.error(e.message),
   });
 
+  const markOutForDeliverySingleMut = useMutation({
+    mutationFn: (orderId: string) => OmsApi.outForDelivery(orderId),
+    onSuccess: () => {
+      toast.success(
+        isArabic ? 'تم إعادة الطلب للخروج للتسليم.' : 'Order resumed out for delivery.',
+      );
+      void qc.invalidateQueries({ queryKey: QK.omsOrders });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const confirmReceiptSingleMut = useMutation({
+    mutationFn: (orderId: string) => OmsApi.confirmReturnReceipt(orderId),
+    onSuccess: () => {
+      toast.success(
+        isArabic
+          ? 'تم تأكيد استلام المرتجع وإعادة المخزون.'
+          : 'Return receipt confirmed and stock updated.',
+      );
+      void qc.invalidateQueries({ queryKey: QK.omsOrders });
+      void qc.invalidateQueries({ queryKey: ['oms-returns'] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
   const markDeliveredSingleMut = useMutation({
     mutationFn: (orderId: string) => OmsApi.delivered(orderId),
     onSuccess: () => {
@@ -896,8 +937,23 @@ export function OmsOrdersListPage() {
     }
   };
 
-  const handleBulkProcess = () => {
-    setProcessModalOpen(true);
+  const handleBulkCancelShipments = async () => {
+    const ids = shippingConfirmEligibleOrders.map((o) => o.id);
+    if (!ids.length) return;
+    setLoadingAction('cancelShipment');
+    setBulkCancelShipmentsConfirmOpen(false);
+    try {
+      const result = await OmsApi.cancelShipmentsBulk(ids);
+      setBulkResult({
+        title: isArabic ? 'نتائج إلغاء الشحنات مع شركات الشحن' : 'Carrier Shipment Cancellation Results',
+        result,
+      });
+      void qc.invalidateQueries({ queryKey: QK.omsOrders });
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Bulk shipment cancellation failed.');
+    } finally {
+      setLoadingAction(null);
+    }
   };
 
   const handleProcessConfirm = async (items: Parameters<typeof OutboundApi.bulkProcess>[0]) => {
@@ -1016,6 +1072,35 @@ export function OmsOrdersListPage() {
       };
     }
 
+    if (kind === 'ready' || kind === 'handover') {
+      try {
+        const result = await OmsApi.scanShippingTransition({
+          code,
+          action: kind === 'ready' ? 'ready_to_ship' : 'handover',
+        });
+        void qc.invalidateQueries({ queryKey: QK.omsOrders });
+        const done =
+          kind === 'ready'
+            ? isArabic
+              ? `${result.orderNumber} — جاهز للشحن`
+              : `${result.orderNumber} — ready to ship`
+            : isArabic
+              ? `${result.orderNumber} — خرج للتسليم`
+              : `${result.orderNumber} — out for delivery`;
+        return { ok: true, message: done };
+      } catch (error) {
+        return {
+          ok: false,
+          message:
+            error instanceof Error && error.message && error.message !== 'undefined'
+              ? error.message
+              : isArabic
+                ? 'تعذر تسجيل مسح البوليصة.'
+                : 'Could not record the waybill scan.',
+        };
+      }
+    }
+
     let order: OmsOrderListItem | undefined;
     for (const attempt of waybillScanAttempts(code)) {
       const page = await OmsApi.list({ orderSearch: attempt, limit: 25 });
@@ -1077,22 +1162,6 @@ export function OmsOrdersListPage() {
         };
       }
 
-      if (kind === 'handover') {
-        if (order.status !== 'ready_to_ship') {
-          return wrongState('is not ready to ship.', 'ليس جاهزًا للشحن.');
-        }
-        const outboundId = order.outboundOrderId ?? order.linkedOutboundOrder?.id;
-        if (!outboundId) {
-          return wrongState('has no warehouse order.', 'غير مرتبط بطلب مستودع.');
-        }
-        await OutboundApi.completeDispatch(outboundId, order.companyId);
-        void qc.invalidateQueries({ queryKey: QK.omsOrders });
-        return {
-          ok: true,
-          message: isArabic ? `${label} — خرج للتسليم` : `${label} — out for delivery`,
-        };
-      }
-
       if (!outForDelivery) {
         return wrongState('is not out for delivery.', 'ليس خارجًا للتسليم.');
       }
@@ -1144,12 +1213,40 @@ export function OmsOrdersListPage() {
     }
   };
 
-  const handleBulkShippingDetails = () => {
-    setShippingDetailsModalOpen(true);
+  const handleBulkConfirmReceipt = async () => {
+    const ids = pendingReceiptEligibleOrders.map((o) => o.id);
+    if (!ids.length) return;
+    setLoadingAction('confirm-receipt');
+    try {
+      let ok = 0;
+      const failures: string[] = [];
+      for (const id of ids) {
+        try {
+          await OmsApi.confirmReturnReceipt(id);
+          ok += 1;
+        } catch (error) {
+          failures.push(error instanceof Error ? error.message : id);
+        }
+      }
+      if (ok > 0) {
+        toast.success(
+          isArabic
+            ? `تم تأكيد استلام ${ok} مرتجع.`
+            : `Confirmed receipt for ${ok} return${ok === 1 ? '' : 's'}.`,
+        );
+      }
+      if (failures.length > 0) {
+        toast.error(failures[0]);
+      }
+      void qc.invalidateQueries({ queryKey: QK.omsOrders });
+      void qc.invalidateQueries({ queryKey: ['oms-returns'] });
+    } finally {
+      setLoadingAction(null);
+    }
   };
 
-  const handleBulkShip = () => {
-    setShipModalOpen(true);
+  const handleBulkShippingDetails = () => {
+    setShippingDetailsModalOpen(true);
   };
 
   // ─── Ship outbound IDs (ready_to_ship OMS orders) ────────────────────────────
@@ -1162,7 +1259,7 @@ export function OmsOrdersListPage() {
     [selectedOrders],
   );
 
-  const onExportSubmit = async (payload: { columnIds: string[]; arabicHeaders: boolean }) => {
+  const onExportSubmit = async (payload: { columnIds: string[]; arabicHeaders: boolean; format?: 'xlsx' | 'csv' }) => {
     if (exporting) return;
     setExporting(true);
     try {
@@ -1174,7 +1271,9 @@ export function OmsOrdersListPage() {
       });
       setExportOpen(false);
       toast.success(
-        isArabic ? 'تم تنزيل ملف CSV.' : 'Exported OMS orders to CSV.',
+        payload.format === 'xlsx'
+          ? (isArabic ? 'تم تنزيل ملف Excel بنجاح.' : 'Exported OMS orders to Excel.')
+          : (isArabic ? 'تم تنزيل ملف CSV بنجاح.' : 'Exported OMS orders to CSV.'),
       );
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Export failed.');
@@ -1352,7 +1451,7 @@ export function OmsOrdersListPage() {
     {
       header: isArabic ? 'الحالة' : 'Status',
       accessor: (row) => (
-        <OmsStatusBadge status={row.status} isArabic={isArabic} needsInformation={row.needsInformation} />
+        <OmsStatusBadge status={orderMainStatus(row)} isArabic={isArabic} needsInformation={row.needsInformation} />
       ),
     },
     ...(shouldShowOmsStageColumn(appliedFilters.status)
@@ -1492,17 +1591,35 @@ export function OmsOrdersListPage() {
             },
             {
               key: 'markFailedDelivery',
-              label: isArabic ? 'تعذر التسليم' : 'Mark as Failed Delivery',
+              label: isArabic ? 'فشل التسليم' : 'Field Delivery',
               danger: true,
               onClick: () => markFailedDeliverySingleMut.mutate(row.id),
             },
           );
         } else if (row.status === 'failed_delivery') {
+          actionItems.push(
+            {
+              key: 'resumeOfd',
+              label: isArabic ? 'خارج للتسليم' : 'Out for Delivery',
+              onClick: () => markOutForDeliverySingleMut.mutate(row.id),
+            },
+            {
+              key: 'markDelivered',
+              label: isArabic ? 'تم التسليم' : 'Delivered',
+              onClick: () => markDeliveredSingleMut.mutate(row.id),
+            },
+            {
+              key: 'markReturned',
+              label: isArabic ? 'مرتجع بانتظار الاستلام' : 'Return Pending Receipt',
+              danger: true,
+              onClick: () => markReturnedSingleMut.mutate(row.id),
+            },
+          );
+        } else if (row.status === 'return_pending_receipt') {
           actionItems.push({
-            key: 'markReturned',
-            label: isArabic ? 'تحويل لمرتجع' : 'Mark as Return',
-            danger: true,
-            onClick: () => markReturnedSingleMut.mutate(row.id),
+            key: 'confirmReceipt',
+            label: isArabic ? 'تأكيد استلام المرتجع' : 'Confirm Return Receipt',
+            onClick: () => confirmReceiptSingleMut.mutate(row.id),
           });
         }
 
@@ -1698,9 +1815,8 @@ export function OmsOrdersListPage() {
             className={FILTER_FIELD_CONTROL_CLASS}
           >
             <option value="">{isArabic ? 'الكل' : 'All'}</option>
-            <option value="sender">{isArabic ? 'المرسل' : 'Sender'}</option>
-            <option value="receiver">{isArabic ? 'المستلم' : 'Receiver'}</option>
-            <option value="reseller">{isArabic ? 'الوسيط' : 'Reseller'}</option>
+            <option value="sender">{isArabic ? 'إمداد تتحمل تكلفة الشحن' : 'Emdad Pays'}</option>
+            <option value="receiver">{isArabic ? 'المستلم يتحمل تكلفة الشحن' : 'Recipient Pays'}</option>
           </select>
         </div>
         <div className="min-w-0">
@@ -1792,6 +1908,16 @@ export function OmsOrdersListPage() {
         </Button>
         <Button
           type="button"
+          variant="secondary"
+          size="sm"
+          onClick={() => setStatusScan('ready')}
+          className="gap-1.5"
+        >
+          <i className="fa-solid fa-qrcode text-xs" aria-hidden="true" />
+          <span>{isArabic ? 'جاهز للشحن بالـ QR' : 'Ready to ship by QR'}</span>
+        </Button>
+        <Button
+          type="button"
           variant="primary"
           size="sm"
           onClick={() => setStatusScan('handover')}
@@ -1877,6 +2003,17 @@ export function OmsOrdersListPage() {
               <i className="fa-solid fa-folder-plus text-[11px]" aria-hidden="true" />
               <span>{isArabic ? 'إضافة إلى مجموعة موجودة' : 'Add to existing batch'}</span>
             </button>
+            {canEditShippingFee && (
+              <button
+                id="btn-edit-shipping-fee-bulk"
+                type="button"
+                onClick={() => setEditShippingFeeOpen(true)}
+                className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-lg bg-purple-600 hover:bg-purple-700 active:bg-purple-800 px-3.5 py-1.5 text-xs font-bold text-white shadow-xs focus:outline-none focus:ring-2 focus:ring-purple-400/50 transition-all cursor-pointer"
+              >
+                <i className="fa-solid fa-dollar-sign text-[11px]" aria-hidden="true" />
+                <span>{isArabic ? 'تعديل رسوم الشحن' : 'Edit Shipping Fee'}</span>
+              </button>
+            )}
             {SHOW_LEGACY_BULK_STAGE_ACTIONS && (
               <>
             {waitingConfirmOrders.length > 0 && (
@@ -2016,7 +2153,7 @@ export function OmsOrdersListPage() {
                   <span>
                     {isArabic
                       ? `تعذر التسليم (${deliveryEligibleOrders.length})`
-                      : `Failed Delivery (${deliveryEligibleOrders.length})`}
+                      : `Field Delivery (${deliveryEligibleOrders.length})`}
                   </span>
                 </button>
               </>
@@ -2031,9 +2168,41 @@ export function OmsOrdersListPage() {
               >
                 <i className="fa-solid fa-rotate-left text-[11px]" aria-hidden="true" />
                 <span>
+                    {isArabic
+                      ? `مرتجع بانتظار الاستلام (${returnEligibleOrders.length})`
+                      : `Return Pending Receipt (${returnEligibleOrders.length})`}
+                </span>
+              </button>
+            )}
+
+            {pendingReceiptEligibleOrders.length > 0 && (
+              <button
+                type="button"
+                disabled={!!loadingAction}
+                onClick={() => void handleBulkConfirmReceipt()}
+                className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-lg px-3.5 py-1.5 text-xs font-semibold transition-all shadow-xs bg-emerald-600 hover:bg-emerald-700 text-white disabled:opacity-50"
+              >
+                <i className="fa-solid fa-box-open text-[11px]" aria-hidden="true" />
+                <span>
+                    {isArabic
+                      ? `تأكيد استلام المرتجع (${pendingReceiptEligibleOrders.length})`
+                      : `Confirm Return Receipt (${pendingReceiptEligibleOrders.length})`}
+                </span>
+              </button>
+            )}
+
+            {shippingConfirmEligibleOrders.length > 0 && (
+              <button
+                type="button"
+                disabled={!!loadingAction}
+                onClick={() => setBulkCancelShipmentsConfirmOpen(true)}
+                className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-lg px-3.5 py-1.5 text-xs font-semibold transition-all shadow-xs border border-rose-400 bg-white text-rose-700 hover:bg-rose-50 dark:border-rose-800 dark:bg-rose-950/20 dark:text-rose-300 dark:hover:bg-rose-950/40 disabled:opacity-50"
+              >
+                <i className="fa-solid fa-ban text-[11px]" aria-hidden="true" />
+                <span>
                   {isArabic
-                    ? `تحويل لمرتجع (${returnEligibleOrders.length})`
-                    : `Mark as Return (${returnEligibleOrders.length})`}
+                    ? `إلغاء الشحنات (${shippingConfirmEligibleOrders.length})`
+                    : `Cancel Shipments (${shippingConfirmEligibleOrders.length})`}
                 </span>
               </button>
             )}
@@ -2178,6 +2347,39 @@ export function OmsOrdersListPage() {
         onRowClick={(row) => navigate(`/orders/oms/${row.id}`)}
       />
 
+      {/* ─── Selected Orders Floating Bulk Action Bar (fixed bottom) ─── */}
+      {selectedIds.size > 0 && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 flex items-center gap-3 rounded-2xl bg-surface-card/95 px-5 py-3 shadow-2xl border-2 border-primary/50 backdrop-blur-md animate-enter">
+          <div className="flex items-center gap-2 text-sm font-bold text-text-strong">
+            <span className="inline-flex h-6 min-w-[1.5rem] px-2 items-center justify-center rounded-full bg-primary text-white text-xs font-bold shadow-xs">
+              {selectedIds.size}
+            </span>
+            <span className="whitespace-nowrap">
+              {isArabic ? `تم تحديد ${selectedIds.size} طلب` : `${selectedIds.size} selected`}
+            </span>
+          </div>
+          <div className="h-4 w-px bg-border-subtle" />
+          {canEditShippingFee && (
+            <button
+              id="btn-edit-shipping-fee-floating"
+              type="button"
+              onClick={() => setEditShippingFeeOpen(true)}
+              className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-lg bg-purple-600 hover:bg-purple-700 active:bg-purple-800 px-4 py-2 text-xs font-bold text-white shadow-sm focus:outline-none focus:ring-2 focus:ring-purple-400/50 transition-all cursor-pointer"
+            >
+              <i className="fa-solid fa-dollar-sign text-[11px]" aria-hidden="true" />
+              <span>{isArabic ? 'تعديل رسوم الشحن' : 'Edit Shipping Fee'}</span>
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => setSelectedIds(new Set())}
+            className="text-xs font-medium text-text-muted hover:text-text-strong px-2 py-1 cursor-pointer"
+          >
+            {isArabic ? 'إلغاء' : 'Clear'}
+          </button>
+        </div>
+      )}
+
 
 
       {editOrderId ? (
@@ -2253,6 +2455,21 @@ export function OmsOrdersListPage() {
         selectedIds={Array.from(selectedIds)}
         isArabic={isArabic}
         onClose={() => setAddToBatchOpen(false)}
+      />
+      <OmsEditShippingFeeModal
+        open={editShippingFeeOpen}
+        orders={selectedOrders}
+        onClose={() => {
+          setEditShippingFeeOpen(false);
+          setSelectedIds(new Set());
+          void pagination.refetch();
+          void qc.invalidateQueries({ queryKey: QK.omsOrders });
+        }}
+        onSuccess={() => {
+          void pagination.refetch();
+          void qc.invalidateQueries({ queryKey: QK.omsOrders });
+        }}
+        isArabic={isArabic}
       />
       <OmsBulkShippingDetailsModal
         open={shippingDetailsModalOpen}
@@ -2345,6 +2562,35 @@ export function OmsOrdersListPage() {
             ? `سيتم إلغاء كافة الطلبات المحددة القابلة للإلغاء (${cancellableSelectedOrders.length} طلب).`
             : `All selected cancellable orders (${cancellableSelectedOrders.length}) will be marked cancelled.`}
         </p>
+      </ConfirmModal>
+
+      {/* ─── Bulk Cancel Shipments Modal ──────────────────────────────────────── */}
+      <ConfirmModal
+        open={bulkCancelShipmentsConfirmOpen}
+        title={
+          isArabic
+            ? `إلغاء الشحنات لـ ${shippingConfirmEligibleOrders.length} طلب؟`
+            : `Cancel carrier shipments for ${shippingConfirmEligibleOrders.length} order(s)?`
+        }
+        confirmLabel={isArabic ? 'إلغاء الشحنات' : 'Cancel Shipments'}
+        cancelLabel={isArabic ? 'تراجع' : 'Keep shipments'}
+        danger
+        loading={loadingAction === 'cancelShipment'}
+        onClose={() => loadingAction !== 'cancelShipment' && setBulkCancelShipmentsConfirmOpen(false)}
+        onConfirm={() => void handleBulkCancelShipments()}
+      >
+        <div className="space-y-2 text-sm">
+          <p>
+            {isArabic
+              ? `سيتم إرسال طلب إلغاء مستقل لكل شحنة مع شركة الشحن المحددة لها. الطلبات التي يتم تأكيد إلغاء شحنتها ستعود لمرحلة "تفاصيل الشحن".`
+              : `Each shipment will be cancelled independently with its carrier. Orders with confirmed cancellation will return to "Shipping Details".`}
+          </p>
+          <p className="text-xs text-text-muted">
+            {isArabic
+              ? 'ملاحظة: الشركات التي لا تدعم الإلغاء البرمجي (مثل بابل أو سينا) ستبقى شحناتها كما هي ولن تُحرر الطلبات.'
+              : 'Note: Carriers without API cancellation support will remain unchanged and their orders will not be released.'}
+          </p>
+        </div>
       </ConfirmModal>
 
       {/* ─── Search by QR Code Modal ─────────────────────────────────────────── */}

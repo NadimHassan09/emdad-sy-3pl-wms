@@ -7,9 +7,12 @@ export class ConnectShippingProviderDto {
   username!: string;
 
   @IsString()
-  @IsNotEmpty()
-  @MinLength(1)
-  password!: string;
+  @IsOptional()
+  password?: string;
+
+  @IsString()
+  @IsOptional()
+  webhookSecret?: string;
 }
 
 export class ShippingMethodDto {

@@ -13,6 +13,8 @@ export type QuoteFingerprint = {
   /** Neighbourhood id and/or address path */
   destinationKey: string;
   partsKey: string;
+  /** Provider hub/branch id for Hub Delivery. Empty for home delivery. */
+  hubId: string;
   quotedAt: string; // ISO
   expiresAt: string; // ISO
 };
@@ -58,6 +60,7 @@ export function createQuoteFingerprint(input: {
   weightKg: number;
   destinationKey: string;
   partsKey?: string;
+  hubId?: string | null;
   quotedAt?: Date;
   ttlMs?: number;
 }): QuoteFingerprint {
@@ -73,6 +76,7 @@ export function createQuoteFingerprint(input: {
     weightKg: Number(input.weightKg),
     destinationKey: input.destinationKey,
     partsKey: input.partsKey ?? '',
+    hubId: (input.hubId || '').trim(),
     quotedAt: quotedAt.toISOString(),
     expiresAt: new Date(quotedAt.getTime() + ttl).toISOString(),
   };
@@ -90,6 +94,7 @@ export function isQuoteFingerprintFresh(
     weightKg: number;
     destinationKey: string;
     partsKey?: string;
+    hubId?: string | null;
   },
   now: Date = new Date(),
 ): boolean {
@@ -108,5 +113,6 @@ export function isQuoteFingerprintFresh(
   if (Math.abs(Number(stored.weightKg) - Number(expected.weightKg)) > 1e-6) return false;
   if (stored.destinationKey !== expected.destinationKey) return false;
   if ((stored.partsKey || '') !== (expected.partsKey || '')) return false;
+  if ((stored.hubId || '') !== (expected.hubId || '').trim()) return false;
   return true;
 }

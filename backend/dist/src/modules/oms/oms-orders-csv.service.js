@@ -15,6 +15,9 @@ const client_1 = require("@prisma/client");
 const class_transformer_1 = require("class-transformer");
 const class_validator_1 = require("class-validator");
 const node_crypto_1 = require("node:crypto");
+const discrete_uom_quantity_1 = require("../../common/utils/discrete-uom-quantity");
+const excel_export_util_1 = require("../../common/utils/excel-export.util");
+const oms_client_import_validation_1 = require("../client-portal/order-import/oms-client-import.validation");
 const oms_client_import_schema_1 = require("../client-portal/order-import/oms-client-import.schema");
 const admin_order_export_columns_1 = require("./admin-order-export.columns");
 const order_export_product_cells_1 = require("./order-export-product-cells");
@@ -102,6 +105,77 @@ let OmsOrdersCsvService = class OmsOrdersCsvService {
         return {
             filename: `oms-orders-${stamp}.csv`,
             body: (0, oms_orders_csv_util_1.rowsToCsv)(headers, rows),
+            rowCount: items.length,
+            truncated: truncated || total > items.length,
+        };
+    }
+    async exportXlsx(user, query, opts) {
+        const columnIds = (0, admin_order_export_columns_1.adminOrderedColumnIds)(admin_order_export_columns_1.ADMIN_OMS_EXPORT_COLUMNS, opts?.columnIds);
+        if (columnIds.length === 0) {
+            throw new common_1.BadRequestException('Select at least one valid export column.');
+        }
+        const { items, total, truncated } = await this.orders.listForExport(user, query, {
+            maxRows: exports.OMS_EXPORT_MAX_ROWS,
+            ids: opts?.ids,
+        });
+        const arabic = Boolean(opts?.arabicHeaders);
+        const headers = (0, admin_order_export_columns_1.adminHeaderLabels)(admin_order_export_columns_1.ADMIN_OMS_EXPORT_COLUMNS, columnIds, arabic);
+        const rows = items.map((o) => {
+            const lineCount = o.lines?.length ?? 0;
+            const totalQty = (o.lines ?? []).reduce((sum, l) => sum + Number(l.requestedQuantity ?? 0), 0);
+            const cells = {
+                order_number: o.orderNumber,
+                status: o.status,
+                company_id: o.companyId,
+                company_name: o.company?.name ?? '',
+                external_reference: o.externalReference ?? '',
+                client_reference: o.clientReference ?? '',
+                recipient_name: o.recipientName ?? '',
+                recipient_phone: o.recipientPhone ?? '',
+                city: o.city ?? '',
+                district: o.district ?? '',
+                address_line1: o.addressLine1 ?? '',
+                store_channel: o.storeChannel ?? '',
+                payment_method: o.paymentMethod ?? '',
+                cod_status: o.codStatus ?? '',
+                cod_amount: o.codAmount ? Number(o.codAmount) : '',
+                currency: o.currency ?? '',
+                subtotal: o.subtotal ? Number(o.subtotal) : '',
+                shipping_fee: o.shippingFee ? Number(o.shippingFee) : '',
+                total: o.total ? Number(o.total) : '',
+                line_count: lineCount,
+                total_quantity: totalQty,
+                product_name: (0, order_export_product_cells_1.exportProductNames)(o.lines),
+                product_weight: (0, order_export_product_cells_1.exportProductWeights)(o.lines),
+                shipping_method: o.shippingMethod ?? '',
+                shipping_provider_code: o.shippingProviderCode ?? '',
+                carrier: o.carrier ?? '',
+                outbound_order_number: o.linkedOutboundOrder?.orderNumber ?? '',
+                required_ship_date: o.requiredShipDate
+                    ? new Date(o.requiredShipDate).toISOString().slice(0, 10)
+                    : '',
+                created_at: o.createdAt ? new Date(o.createdAt).toISOString().replace('T', ' ').slice(0, 19) : '',
+                confirmed_at: o.confirmedAt ? new Date(o.confirmedAt).toISOString().replace('T', ' ').slice(0, 19) : '',
+                approved_at: o.approvedAt ? new Date(o.approvedAt).toISOString().replace('T', ' ').slice(0, 19) : '',
+                out_for_delivery_at: o.outForDeliveryAt
+                    ? new Date(o.outForDeliveryAt).toISOString().replace('T', ' ').slice(0, 19)
+                    : '',
+                delivered_at: o.deliveredAt
+                    ? new Date(o.deliveredAt).toISOString().slice(0, 10)
+                    : '',
+            };
+            return cells;
+        });
+        const stamp = new Date().toISOString().slice(0, 10);
+        const buffer = await (0, excel_export_util_1.buildExcelBuffer)({
+            sheetName: 'OMS Orders',
+            columns: columnIds.map((id, idx) => ({ header: headers[idx] ?? id, key: id })),
+            rows,
+            isRtl: arabic,
+        });
+        return {
+            filename: `oms-orders-${stamp}.xlsx`,
+            buffer,
             rowCount: items.length,
             truncated: truncated || total > items.length,
         };
@@ -232,11 +306,21 @@ let OmsOrdersCsvService = class OmsOrdersCsvService {
         const validPayloads = [];
         for (const g of groups) {
             const ref = g.externalReference.trim();
-            if (!ref) {
+            const refResult = (0, oms_client_import_validation_1.validateImportOrderNumber)(ref);
+            if (!refResult.ok) {
                 errors.push({
                     rowNumber: g.headerRow,
-                    externalReference: null,
-                    reason: 'external_reference is required.',
+                    externalReference: ref || null,
+                    reason: refResult.message,
+                });
+                continue;
+            }
+            const dateResult = (0, oms_client_import_validation_1.parseImportShipDateMdY)(g.fields.required_ship_date || '');
+            if (!dateResult.ok) {
+                errors.push({
+                    rowNumber: g.headerRow,
+                    externalReference: ref,
+                    reason: dateResult.message,
                 });
                 continue;
             }
@@ -274,6 +358,7 @@ let OmsOrdersCsvService = class OmsOrdersCsvService {
             const products = await this.orders.findProductsBySkus(companyId, skus);
             const bySku = new Map(products.map((p) => [p.sku.toUpperCase(), p]));
             const lineDtos = [];
+            const seenProductIds = new Set();
             let lineFailed = false;
             for (const line of g.lines) {
                 const sku = line.sku.trim();
@@ -296,12 +381,36 @@ let OmsOrdersCsvService = class OmsOrdersCsvService {
                     lineFailed = true;
                     continue;
                 }
+                if (seenProductIds.has(product.id)) {
+                    errors.push({
+                        rowNumber: line.rowNumber,
+                        externalReference: ref,
+                        reason: `Duplicate product line: SKU "${sku}" appears more than once in the order. Each product can only appear once.`,
+                    });
+                    lineFailed = true;
+                    continue;
+                }
+                seenProductIds.add(product.id);
                 const qty = Number(line.quantity);
                 if (!Number.isFinite(qty) || qty <= 0) {
                     errors.push({
                         rowNumber: line.rowNumber,
                         externalReference: ref,
                         reason: `Invalid quantity "${line.quantity}" for product "${sku}".`,
+                    });
+                    lineFailed = true;
+                    continue;
+                }
+                try {
+                    (0, discrete_uom_quantity_1.assertDiscreteUomPositiveIntegerQuantity)(product.uom, qty, 'Requested quantity');
+                }
+                catch (err) {
+                    errors.push({
+                        rowNumber: line.rowNumber,
+                        externalReference: ref,
+                        reason: err instanceof Error
+                            ? err.message
+                            : `Invalid requested_quantity for UOM "${product.uom}".`,
                     });
                     lineFailed = true;
                     continue;
@@ -324,13 +433,19 @@ let OmsOrdersCsvService = class OmsOrdersCsvService {
             }
             if (lineFailed || lineDtos.length === 0)
                 continue;
-            const paymentRaw = g.fields.payment_method.trim().toUpperCase();
-            const paymentMethod = paymentRaw === ''
-                ? undefined
-                : paymentRaw;
+            const paymentResult = (0, oms_client_import_validation_1.validateImportPaymentMethod)(g.fields.payment_method);
+            if (!paymentResult.ok) {
+                errors.push({
+                    rowNumber: g.headerRow,
+                    externalReference: ref,
+                    reason: paymentResult.message,
+                });
+                continue;
+            }
+            const paymentMethod = paymentResult.value;
             const plain = {
                 companyId,
-                requiredShipDate: g.fields.required_ship_date,
+                requiredShipDate: dateResult.ymd,
                 recipientName: g.fields.recipient_name,
                 recipientPhone: g.fields.recipient_phone,
                 city: g.fields.city,
@@ -340,7 +455,6 @@ let OmsOrdersCsvService = class OmsOrdersCsvService {
                 deliveryInstructions: g.fields.delivery_instructions || undefined,
                 paymentMethod,
                 currency: g.fields.currency || 'USD',
-                codAmount: g.fields.cod_amount.trim() === '' ? undefined : Number(g.fields.cod_amount),
                 shippingFee: g.fields.shipping_fee.trim() === '' ? undefined : Number(g.fields.shipping_fee),
                 storeChannel: g.fields.store_channel || 'csv_import',
                 clientReference: g.fields.client_reference || undefined,
@@ -349,6 +463,14 @@ let OmsOrdersCsvService = class OmsOrdersCsvService {
                 shippingMethod: client_1.ShippingMethod.manual,
                 lines: lineDtos,
             };
+            if (g.fields.address_line2 && g.fields.address_line2.trim().length <= 10) {
+                errors.push({
+                    rowNumber: g.headerRow,
+                    externalReference: ref,
+                    reason: 'Street / detailed address (address_line2) must be more than 10 characters.',
+                });
+                continue;
+            }
             const dto = (0, class_transformer_1.plainToInstance)(oms_order_dto_1.CreateOmsOrderDto, plain);
             const dtoErrors = (0, class_validator_1.validateSync)(dto, {
                 whitelist: true,

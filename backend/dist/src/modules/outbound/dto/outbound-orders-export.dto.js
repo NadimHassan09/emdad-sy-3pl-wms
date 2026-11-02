@@ -18,6 +18,7 @@ class OutboundOrdersExportDto extends list_outbound_query_dto_1.ListOutboundQuer
     columnIds;
     arabicHeaders;
     ids;
+    format;
 }
 exports.OutboundOrdersExportDto = OutboundOrdersExportDto;
 __decorate([
@@ -42,4 +43,9 @@ __decorate([
     (0, is_uuid_loose_1.IsUuidLoose)({ each: true }),
     __metadata("design:type", Array)
 ], OutboundOrdersExportDto.prototype, "ids", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    __metadata("design:type", String)
+], OutboundOrdersExportDto.prototype, "format", void 0);
 //# sourceMappingURL=outbound-orders-export.dto.js.map

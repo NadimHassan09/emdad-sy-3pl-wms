@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
-import { Alert } from '@ds';
+import { Alert, StatusCardNav, STATUS_CARD_TONES, type StatusCardItem } from '@ds';
 
 import { CompaniesApi } from '../api/companies';
 import { InventoryApi, ProductStockSummaryRow } from '../api/inventory';
@@ -167,6 +167,67 @@ export function InventoryPage() {
     enabled: !!warehouseIdForced,
   });
 
+  const [stockStatusFilter, setStockStatusFilter] = useState('');
+
+  const stockStatusTotals = useMemo(() => {
+    let inStock = 0;
+    let lowStock = 0;
+    let outOfStock = 0;
+    for (const r of pagination.rows) {
+      const avail = Number(r.available ?? 0);
+      if (avail <= 0) outOfStock++;
+      else if (avail <= 5) lowStock++;
+      else inStock++;
+    }
+    return {
+      all: pagination.total,
+      inStock,
+      lowStock,
+      outOfStock,
+    };
+  }, [pagination.rows, pagination.total]);
+
+  const stockStatusItems: StatusCardItem[] = useMemo(
+    () => [
+      {
+        value: '',
+        label: t('All inventory', 'كل المخزون'),
+        count: stockStatusTotals.all,
+        ...STATUS_CARD_TONES.slate,
+      },
+      {
+        value: 'in_stock',
+        label: t('In stock', 'متوفر'),
+        count: stockStatusTotals.inStock,
+        ...STATUS_CARD_TONES.emerald,
+      },
+      {
+        value: 'low_stock',
+        label: t('Low stock', 'مخزون منخفض'),
+        count: stockStatusTotals.lowStock,
+        ...STATUS_CARD_TONES.amber,
+      },
+      {
+        value: 'out_of_stock',
+        label: t('Out of stock', 'نفد المخزون'),
+        count: stockStatusTotals.outOfStock,
+        ...STATUS_CARD_TONES.rose,
+      },
+    ],
+    [stockStatusTotals, isArabic],
+  );
+
+  const displayedRows = useMemo(() => {
+    if (!stockStatusFilter) return pagination.rows;
+    return pagination.rows.filter((r) => {
+      const avail = Number(r.available ?? 0);
+      if (stockStatusFilter === 'out_of_stock') return avail <= 0;
+      if (stockStatusFilter === 'low_stock') return avail > 0 && avail <= 5;
+      if (stockStatusFilter === 'in_stock') return avail > 5;
+      return true;
+    });
+  }, [pagination.rows, stockStatusFilter]);
+
   const summaryColumns: Column<ProductStockSummaryRow>[] = useMemo(
     () => [
       {
@@ -267,6 +328,14 @@ export function InventoryPage() {
         </Alert>
       )}
 
+      <div className="mb-4">
+        <StatusCardNav
+          items={stockStatusItems}
+          value={stockStatusFilter}
+          onChange={(val) => setStockStatusFilter(val)}
+        />
+      </div>
+
       <FilterPanel
         title={t('Inventory filters', 'فلاتر المخزون')}
         onApply={applyFilters}
@@ -327,7 +396,7 @@ export function InventoryPage() {
 
       <DataTable
         columns={summaryColumns}
-        rows={pagination.rows}
+        rows={displayedRows}
         rowKey={(r) => r.productId}
         loading={pagination.isInitialLoading || !warehouseIdForced}
         empty={

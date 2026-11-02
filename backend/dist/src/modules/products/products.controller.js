@@ -32,6 +32,14 @@ let ProductsController = class ProductsController {
     list(user, query) {
         return this.products.list(user, query);
     }
+    async export(user, query, res) {
+        const buffer = await this.products.exportXlsx(user, query);
+        const filename = `products-export-${new Date().toISOString().slice(0, 10)}.xlsx`;
+        res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+        res.setHeader('Content-Length', buffer.length);
+        res.end(buffer);
+    }
     nextSku(user, companyIdParam) {
         return this.products.nextSku(user, companyIdParam);
     }
@@ -75,6 +83,15 @@ __decorate([
     __metadata("design:paramtypes", [Object, list_products_query_dto_1.ListProductsQueryDto]),
     __metadata("design:returntype", void 0)
 ], ProductsController.prototype, "list", null);
+__decorate([
+    (0, common_1.Get)('export'),
+    __param(0, (0, current_user_decorator_1.CurrentUser)()),
+    __param(1, (0, common_1.Query)()),
+    __param(2, (0, common_1.Res)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, list_products_query_dto_1.ListProductsQueryDto, Object]),
+    __metadata("design:returntype", Promise)
+], ProductsController.prototype, "export", null);
 __decorate([
     (0, common_1.Get)('next-sku'),
     (0, common_1.UseGuards)(internal_admin_guard_1.InternalAdminGuard),

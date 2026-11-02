@@ -1,8 +1,16 @@
-import { useMemo, type ReactElement } from 'react';
+import { useMemo, useState, type ReactElement } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 
-import { AdvancedFilterSection, countNonEmptyFilters, FILTER_COMPACT_SELECT_CLASS, FILTER_FIELD_CONTROL_CLASS } from '@ds';
+import {
+  AdvancedFilterSection,
+  Button,
+  countNonEmptyFilters,
+  FILTER_FIELD_CONTROL_CLASS,
+  StatusCardNav,
+  STATUS_CARD_TONES,
+  type StatusCardItem,
+} from '@ds';
 import {
   CHUNK_SIZE_STANDARD,
   useChunkedServerPagination,
@@ -16,16 +24,11 @@ import { ListPageHeader } from '../design-v2/ListPageHeader';
 import { StorePillTabs } from '../design-v2/StorePillTabs';
 import { TableFooterPagination } from '../design-v2/TableFooterPagination';
 import { isClientArabic } from '../lib/client-ui-language';
-import { fetchClientCodReport, type ClientCodReportRow } from '../services/clientOmsOrdersService';
-
-const COD_STATUS_OPTIONS = [
-  { value: '', label: 'All COD statuses' },
-  { value: 'pending', label: 'Pending' },
-  { value: 'collected', label: 'Collected' },
-  { value: 'remitted', label: 'Remitted' },
-  { value: 'settled', label: 'Settled' },
-  { value: 'returned', label: 'Returned' },
-];
+import {
+  downloadClientCodReportExcel,
+  fetchClientCodReport,
+  type ClientCodReportRow,
+} from '../services/clientOmsOrdersService';
 
 function labelText(label: string, isArabic: boolean): string {
   if (!isArabic) return label;
@@ -49,6 +52,7 @@ function labelText(label: string, isArabic: boolean): string {
     'COD amount': 'المبلغ',
     'COD status': 'حالة التحصيل',
     Created: 'تاريخ الإنشاء',
+    'Export Excel': 'تصدير إكسل',
     'No cash-on-delivery orders': 'لا توجد طلبات دفع عند الاستلام',
     'COD orders will appear here once they are processed.': 'ستظهر طلبات الدفع عند الاستلام هنا عند معالجتها.',
   };
@@ -65,6 +69,7 @@ export function CodReportsPage(): ReactElement {
   const { draftFilters, appliedFilters, setDraft, applyFilters, resetFilters } =
     useFilters(COD_LIST_FILTERS);
   const [advancedOpen, setAdvancedOpen] = useCachedState('advanced-filters-open', false);
+  const [exporting, setExporting] = useState(false);
 
   const filterKey = useMemo(
     () => ({
@@ -92,15 +97,111 @@ export function CodReportsPage(): ReactElement {
   const summary = summaryQuery.data;
   const currencyHint = pagination.rows.find((r) => r.currency)?.currency;
 
+  const statusCards: StatusCardItem[] = useMemo(() => {
+    const counts = summary?.statusCounts;
+    return [
+      {
+        value: '',
+        label: t('All COD statuses'),
+        count: counts?.all ?? summary?.orderCount ?? 0,
+        tone: STATUS_CARD_TONES.slate.tone,
+        ring: STATUS_CARD_TONES.slate.ring,
+        description: isArabic ? 'جميع طلبات الدفع عند الاستلام' : 'All cash-on-delivery orders',
+      },
+      {
+        value: 'pending',
+        label: t('Pending'),
+        count: counts?.pending ?? 0,
+        tone: STATUS_CARD_TONES.amber.tone,
+        ring: STATUS_CARD_TONES.amber.ring,
+        description: isArabic ? 'بانتظار التحصيل من العميل' : 'Awaiting collection from customer',
+      },
+      {
+        value: 'collected',
+        label: t('Collected'),
+        count: counts?.collected ?? 0,
+        tone: STATUS_CARD_TONES.blue.tone,
+        ring: STATUS_CARD_TONES.blue.ring,
+        description: isArabic ? 'تم تحصيل المبلغ ومتاح للتسوية' : 'Funds collected, ready for remittance',
+      },
+      {
+        value: 'remitted',
+        label: t('Remitted'),
+        count: counts?.remitted ?? 0,
+        tone: STATUS_CARD_TONES.purple.tone,
+        ring: STATUS_CARD_TONES.purple.ring,
+        description: isArabic ? 'تم تحويل الدفعة' : 'Transferred to account',
+      },
+      {
+        value: 'settled',
+        label: t('Settled'),
+        count: counts?.settled ?? 0,
+        tone: STATUS_CARD_TONES.emerald.tone,
+        ring: STATUS_CARD_TONES.emerald.ring,
+        description: isArabic ? 'تمت التسوية النهائية' : 'Fully settled and reconciled',
+      },
+      {
+        value: 'returned',
+        label: t('Returned'),
+        count: counts?.returned ?? 0,
+        tone: STATUS_CARD_TONES.rose.tone,
+        ring: STATUS_CARD_TONES.rose.ring,
+        description: isArabic ? 'مرتجع دون تحصيل' : 'Returned without collection',
+      },
+    ];
+  }, [summary, t, isArabic]);
+
+  const handleCardSelect = (statusVal: string) => {
+    setDraft({ codStatus: statusVal });
+    // Apply immediately
+    setTimeout(() => {
+      applyFilters();
+    }, 0);
+  };
+
+  const handleExportExcel = async () => {
+    if (exporting) return;
+    setExporting(true);
+    try {
+      await downloadClientCodReportExcel(filterKey);
+    } catch {
+      // ignore
+    } finally {
+      setExporting(false);
+    }
+  };
+
   return (
     <div className="space-y-5 animate-enter">
       <ListPageHeader
         icon="fa-money-bill"
         title={t('Cash on delivery')}
         subtitle={t('Collected and pending remittance')}
+        actions={
+          <Button
+            type="button"
+            variant="secondary"
+            size="md"
+            loading={exporting}
+            onClick={() => void handleExportExcel()}
+            className="flex items-center gap-2"
+          >
+            <i className="fa-solid fa-file-excel text-emerald-600 dark:text-emerald-400" />
+            <span>{t('Export Excel')}</span>
+          </Button>
+        }
       />
 
       <StorePillTabs isArabic={isArabic} />
+
+      {/* Standardized Status Card Nav */}
+      <StatusCardNav
+        items={statusCards}
+        value={appliedFilters.codStatus || ''}
+        onChange={handleCardSelect}
+        isArabic={isArabic}
+        className="w-full"
+      />
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <Card className="p-6" hover>
@@ -135,40 +236,20 @@ export function CodReportsPage(): ReactElement {
         onAdvancedOpenChange={setAdvancedOpen}
         isArabic={isArabic}
         loading={pagination.isFetching}
-        activeCount={countNonEmptyFilters(appliedFilters, ['codStatus', 'dateFrom', 'dateTo'])}
+        activeCount={countNonEmptyFilters(appliedFilters, ['dateFrom', 'dateTo'])}
+        compact={
+          <span className="text-xs text-text-muted">
+            {appliedFilters.dateFrom || appliedFilters.dateTo
+              ? `${appliedFilters.dateFrom ?? ''} - ${appliedFilters.dateTo ?? ''}`
+              : (isArabic ? 'فلترة حسب التاريخ' : 'Filter by date')}
+          </span>
+        }
         onApply={applyFilters}
         onReset={() => {
           resetFilters();
           setAdvancedOpen(false);
         }}
-        compact={
-          <select
-            value={draftFilters.codStatus}
-            onChange={(e) => setDraft({ codStatus: e.target.value })}
-            className={FILTER_COMPACT_SELECT_CLASS}
-          >
-            {COD_STATUS_OPTIONS.map((o) => (
-              <option key={o.value} value={o.value}>
-                {t(o.label)}
-              </option>
-            ))}
-          </select>
-        }
       >
-        <div className="min-w-0">
-          <label className="mb-1 block text-xs font-semibold text-text-muted">{t('COD status')}</label>
-          <select
-            value={draftFilters.codStatus}
-            onChange={(e) => setDraft({ codStatus: e.target.value })}
-            className={FILTER_FIELD_CONTROL_CLASS}
-          >
-            {COD_STATUS_OPTIONS.map((o) => (
-              <option key={o.value} value={o.value}>
-                {t(o.label)}
-              </option>
-            ))}
-          </select>
-        </div>
         <div className="min-w-0">
           <label className="mb-1 block text-xs font-semibold text-text-muted">{t('From date')}</label>
           <input

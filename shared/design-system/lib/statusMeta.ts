@@ -35,8 +35,9 @@ export const statusMeta: Record<string, StatusMeta> = {
   'out for delivery': { bg: 'bg-blue-50', text: 'text-blue-700', border: 'border-blue-200', dot: 'bg-blue-500' },
   delivered: { bg: 'bg-emerald-50', text: 'text-emerald-700', border: 'border-emerald-200', dot: 'bg-emerald-500' },
   'failed delivery': { bg: 'bg-red-50', text: 'text-red-700', border: 'border-red-200', dot: 'bg-red-500' },
+  'return pending receipt': { bg: 'bg-fuchsia-50', text: 'text-fuchsia-700', border: 'border-fuchsia-200', dot: 'bg-fuchsia-500' },
   processing: { bg: 'bg-amber-50', text: 'text-amber-700', border: 'border-amber-200', dot: 'bg-amber-500' },
-  returned: { bg: 'bg-orange-50', text: 'text-orange-700', border: 'border-orange-200', dot: 'bg-orange-500' },
+  returned: { bg: 'bg-violet-50', text: 'text-violet-700', border: 'border-violet-200', dot: 'bg-violet-500' },
   approved: { bg: 'bg-emerald-50', text: 'text-emerald-700', border: 'border-emerald-200', dot: 'bg-emerald-500' },
   rejected: { bg: 'bg-red-50', text: 'text-red-700', border: 'border-red-200', dot: 'bg-red-500' },
   paid: { bg: 'bg-emerald-50', text: 'text-emerald-700', border: 'border-emerald-200', dot: 'bg-emerald-500' },
@@ -80,7 +81,12 @@ export function normalizeStatusKey(status: string): string {
 
 export function statusLabel(status: string, isArabic = false): string {
   const key = normalizeStatusKey(status);
-  if (!isArabic) return key.replace(/\b\w/g, (c) => c.toUpperCase());
+  if (!isArabic) {
+    if (key === 'failed delivery') return 'Field Delivery';
+    if (key === 'return pending receipt') return 'Return Pending Receipt';
+    if (key === 'returned') return 'Return Received';
+    return key.replace(/\b\w/g, (c) => c.toUpperCase());
+  }
   const ar: Record<string, string> = {
     draft: 'مسودة',
     'pending approval': 'بانتظار الموافقة',
@@ -100,7 +106,8 @@ export function statusLabel(status: string, isArabic = false): string {
     allocated: 'مخصص',
     'out for delivery': 'خارج للتسليم',
     delivered: 'تم التسليم',
-    returned: 'مرتجع',
+    returned: 'مرتجع مستلم',
+    'return pending receipt': 'مرتجع بانتظار الاستلام',
     rejected: 'مرفوض',
     'failed delivery': 'فشل التسليم',
     active: 'نشط',

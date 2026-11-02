@@ -14,6 +14,7 @@ const common_1 = require("@nestjs/common");
 const oms_orders_csv_util_1 = require("../../oms/oms-orders-csv.util");
 const client_oms_orders_service_1 = require("../oms/client-oms-orders.service");
 const order_export_product_cells_1 = require("../../oms/order-export-product-cells");
+const excel_export_util_1 = require("../../../common/utils/excel-export.util");
 const client_order_export_columns_1 = require("./client-order-export.columns");
 const MAX_ROWS = 10_000;
 function cell(order, id) {
@@ -49,7 +50,7 @@ function cell(order, id) {
         case 'payment_method':
             return String(order.paymentMethod ?? '');
         case 'carrier':
-            return String(order.carrier ?? '');
+            return '';
         case 'tracking_number':
             return String(order.trackingNumber ?? '');
         case 'warehouse_status':
@@ -80,18 +81,30 @@ let ClientOmsExportService = class ClientOmsExportService {
     columns() {
         return client_order_export_columns_1.CLIENT_OMS_EXPORT_COLUMNS;
     }
+    buildExportQuery(dto) {
+        return {
+            orderSearch: dto.orderSearch,
+            status: dto.status,
+            storeChannel: dto.storeChannel,
+            customer: dto.customer,
+            phone: dto.phone,
+            city: dto.city,
+            carrier: dto.carrier,
+            startOrderNo: dto.startOrderNo,
+            endOrderNo: dto.endOrderNo,
+            totalOp: dto.totalOp,
+            totalValue: dto.totalValue,
+            operationalStage: dto.operationalStage,
+            createdFrom: dto.createdFrom,
+            createdTo: dto.createdTo,
+        };
+    }
     async exportCsv(client, dto) {
         const columnIds = (0, client_order_export_columns_1.orderedColumnIds)(client_order_export_columns_1.CLIENT_OMS_EXPORT_COLUMNS, dto.columnIds);
         if (columnIds.length === 0) {
             throw new common_1.BadRequestException('Select at least one valid export column.');
         }
-        const { items, truncated } = await this.oms.listForExport(client, {
-            orderSearch: dto.orderSearch,
-            status: dto.status,
-            storeChannel: dto.storeChannel,
-            createdFrom: dto.createdFrom,
-            createdTo: dto.createdTo,
-        }, { maxRows: MAX_ROWS, ids: dto.ids });
+        const { items, truncated } = await this.oms.listForExport(client, this.buildExportQuery(dto), { maxRows: MAX_ROWS, ids: dto.ids });
         const arabic = Boolean(dto.arabicHeaders);
         const headers = (0, client_order_export_columns_1.headerLabels)(client_order_export_columns_1.CLIENT_OMS_EXPORT_COLUMNS, columnIds, arabic);
         const rows = items.map((order) => columnIds.map((id) => cell(order, id)));
@@ -99,6 +112,35 @@ let ClientOmsExportService = class ClientOmsExportService {
         return {
             filename: `oms-orders-${stamp}.csv`,
             body: (0, oms_orders_csv_util_1.rowsToCsv)(headers, rows),
+            rowCount: items.length,
+            truncated,
+        };
+    }
+    async exportXlsx(client, dto) {
+        const columnIds = (0, client_order_export_columns_1.orderedColumnIds)(client_order_export_columns_1.CLIENT_OMS_EXPORT_COLUMNS, dto.columnIds);
+        if (columnIds.length === 0) {
+            throw new common_1.BadRequestException('Select at least one valid export column.');
+        }
+        const { items, truncated } = await this.oms.listForExport(client, this.buildExportQuery(dto), { maxRows: MAX_ROWS, ids: dto.ids });
+        const arabic = Boolean(dto.arabicHeaders);
+        const headers = (0, client_order_export_columns_1.headerLabels)(client_order_export_columns_1.CLIENT_OMS_EXPORT_COLUMNS, columnIds, arabic);
+        const rows = items.map((order) => {
+            const record = {};
+            for (const id of columnIds) {
+                record[id] = cell(order, id);
+            }
+            return record;
+        });
+        const stamp = new Date().toISOString().slice(0, 10);
+        const buffer = await (0, excel_export_util_1.buildExcelBuffer)({
+            sheetName: 'Online Orders',
+            columns: columnIds.map((id, idx) => ({ header: headers[idx] ?? id, key: id })),
+            rows,
+            isRtl: arabic,
+        });
+        return {
+            filename: `oms-orders-${stamp}.xlsx`,
+            buffer,
             rowCount: items.length,
             truncated,
         };

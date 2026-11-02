@@ -38,9 +38,10 @@ export function OmsOrderReturnInfoPanel({ order, onRefresh }: Props): ReactEleme
   const activeReturn = order.activeReturn;
   const isReturned = order.status === 'returned';
   const isFailedDelivery = order.status === 'failed_delivery';
+  const isPendingReceipt = order.status === 'return_pending_receipt';
 
-  // Only render if order has return activity or failed delivery
-  if (!activeReturn && !isReturned && !isFailedDelivery) {
+  // Only render if order has return activity or field-delivery / pending receipt
+  if (!activeReturn && !isReturned && !isFailedDelivery && !isPendingReceipt) {
     return null;
   }
 
@@ -254,7 +255,18 @@ export function OmsOrderReturnInfoPanel({ order, onRefresh }: Props): ReactEleme
       </div>
 
       {/* Verification Notice & Action */}
-      {currentIndex < 3 ? (
+      {isFailedDelivery && !activeReturn ? (
+        <div className="rounded-xl border border-amber-200 bg-amber-50/70 dark:border-amber-900/60 dark:bg-amber-950/20 p-4">
+          <h4 className="text-sm font-semibold text-amber-900 dark:text-amber-200">
+            {isArabic ? 'فشل التسليم — قرار تشغيلي مطلوب' : 'Field Delivery — a decision is still required'}
+          </h4>
+          <p className="text-xs text-amber-800/90 dark:text-amber-300/80 mt-0.5">
+            {isArabic
+              ? 'هذه الحالة ليست مرتجعاً. يمكن إعادة الطلب للخروج للتسليم، أو تأكيد التسليم، أو إنشاء مرتجع بانتظار الاستلام.'
+              : 'This is not a return. Resume out for delivery, mark delivered, or create a return pending receipt.'}
+          </p>
+        </div>
+      ) : activeReturn && currentIndex < 3 ? (
         <div className="rounded-xl border border-amber-200 bg-amber-50/70 dark:border-amber-900/60 dark:bg-amber-950/20 p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div className="flex items-start gap-3">
             <AlertTriangle className="w-5 h-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />

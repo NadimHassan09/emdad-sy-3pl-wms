@@ -16,6 +16,8 @@ const realtime_module_1 = require("../realtime/realtime.module");
 const cod_module_1 = require("../cod/cod.module");
 const shipping_module_1 = require("../shipping/shipping.module");
 const pdf_module_1 = require("../../pdf/pdf.module");
+const billing_module_1 = require("../billing/billing.module");
+const oms_returns_module_1 = require("../oms-returns/oms-returns.module");
 const oms_controller_1 = require("./oms.controller");
 const oms_bulk_service_1 = require("./oms-bulk.service");
 const oms_dashboard_service_1 = require("./oms-dashboard.service");
@@ -27,6 +29,11 @@ const oms_sales_channel_service_1 = require("./sales-channels/oms-sales-channel.
 const oms_webhooks_controller_1 = require("./sales-channels/oms-webhooks.controller");
 const order_allocation_service_1 = require("./order-allocation.service");
 const oms_waybill_service_1 = require("./oms-waybill.service");
+const oms_shipping_scan_service_1 = require("./oms-shipping-scan.service");
+const oms_instruction_pdf_service_1 = require("./oms-instruction-pdf.service");
+const oms_batch_controller_1 = require("./oms-batch.controller");
+const oms_batch_service_1 = require("./oms-batch.service");
+const inbound_traceability_service_1 = require("./inbound-traceability.service");
 let OmsModule = class OmsModule {
 };
 exports.OmsModule = OmsModule;
@@ -41,8 +48,10 @@ exports.OmsModule = OmsModule = __decorate([
             (0, common_1.forwardRef)(() => cod_module_1.CodModule),
             (0, common_1.forwardRef)(() => shipping_module_1.ShippingModule),
             (0, common_1.forwardRef)(() => client_portal_module_1.ClientPortalModule),
+            (0, common_1.forwardRef)(() => billing_module_1.BillingModule),
+            (0, common_1.forwardRef)(() => oms_returns_module_1.OmsReturnsModule),
         ],
-        controllers: [oms_controller_1.OmsController, oms_webhooks_controller_1.OmsWebhooksController],
+        controllers: [oms_controller_1.OmsController, oms_batch_controller_1.OmsBatchController, oms_webhooks_controller_1.OmsWebhooksController],
         providers: [
             order_allocation_service_1.OrderAllocationService,
             oms_order_events_service_1.OmsOrderEventsService,
@@ -53,6 +62,10 @@ exports.OmsModule = OmsModule = __decorate([
             oms_dashboard_service_1.OmsDashboardService,
             oms_sales_channel_service_1.OmsSalesChannelService,
             oms_waybill_service_1.OmsWaybillService,
+            oms_shipping_scan_service_1.OmsShippingScanService,
+            oms_instruction_pdf_service_1.OmsInstructionPdfService,
+            oms_batch_service_1.OmsBatchService,
+            inbound_traceability_service_1.InboundTraceabilityService,
         ],
         exports: [
             order_allocation_service_1.OrderAllocationService,
@@ -60,6 +73,7 @@ exports.OmsModule = OmsModule = __decorate([
             oms_outbound_sync_service_1.OmsOutboundSyncService,
             oms_orders_service_1.OmsOrdersService,
             oms_waybill_service_1.OmsWaybillService,
+            inbound_traceability_service_1.InboundTraceabilityService,
         ],
     })
 ], OmsModule);

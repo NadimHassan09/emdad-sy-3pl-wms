@@ -1,4 +1,5 @@
 import { BadRequestException, Inject, Injectable, Optional, forwardRef } from '@nestjs/common';
+import { ModuleRef } from '@nestjs/core';
 import {
   InboundQcStatus,
   MovementType,
@@ -68,7 +69,27 @@ export class TaskInventoryEffectsService {
     @Optional()
     @Inject(forwardRef(() => OmsOutboundSyncService))
     private readonly omsSync?: OmsOutboundSyncService,
+    @Optional()
+    private readonly moduleRef?: ModuleRef,
   ) {}
+
+  private async safeSyncOmsFromOutbound(
+    tx: Prisma.TransactionClient,
+    outboundOrderId: string,
+    actorUserId?: string,
+  ): Promise<void> {
+    let sync = this.omsSync;
+    if (!sync && this.moduleRef) {
+      try {
+        sync = this.moduleRef.get(OmsOutboundSyncService, { strict: false });
+      } catch {
+        // ignore
+      }
+    }
+    if (sync) {
+      await sync.syncFromOutbound(tx, outboundOrderId, actorUserId);
+    }
+  }
 
   /** @deprecated Auto carrier send removed — Send Shipment is explicit in shipping-details stage. */
   private scheduleReadyForShippingHook(_orderId: string): void {
@@ -509,7 +530,7 @@ export class TaskInventoryEffectsService {
       where: { id: orderId },
       data: { status: nextStatus },
     });
-    await this.omsSync?.syncFromOutbound(tx, orderId);
+    await this.safeSyncOmsFromOutbound(tx, orderId);
   }
 
   async applyDispatchShip(
@@ -581,6 +602,11 @@ export class TaskInventoryEffectsService {
       data: { status: 'fulfilled' },
     });
 
+    await tx.inboundSourceAllocation.updateMany({
+      where: { outboundOrderId, status: 'allocated' },
+      data: { status: 'fulfilled' },
+    });
+
     await tx.outboundOrder.update({
       where: { id: outboundOrderId },
       data: {
@@ -591,7 +617,7 @@ export class TaskInventoryEffectsService {
         trackingNumber: body.tracking ?? order.trackingNumber,
       },
     });
-    await this.omsSync?.syncFromOutbound(tx, outboundOrderId, operatorId);
+    await this.safeSyncOmsFromOutbound(tx, outboundOrderId, operatorId);
 
     return {
       companyId: order.companyId,
@@ -643,7 +669,7 @@ export class TaskInventoryEffectsService {
       where: { id: outboundOrderId },
       data: { status: 'waiting_for_shipping_method' },
     });
-    await this.omsSync?.syncFromOutbound(tx, outboundOrderId);
+    await this.safeSyncOmsFromOutbound(tx, outboundOrderId);
   }
 
   /**
@@ -715,7 +741,7 @@ export class TaskInventoryEffectsService {
         status: 'ready_to_ship',
       },
     });
-    await this.omsSync?.syncFromOutbound(tx, outboundOrderId, actorUserId);
+    await this.safeSyncOmsFromOutbound(tx, outboundOrderId, actorUserId);
   }
 
   /** Row lock on the outbound order for pick complete / dispatch ship (prevents concurrent order-line races). */

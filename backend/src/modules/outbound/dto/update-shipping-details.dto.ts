@@ -74,6 +74,12 @@ export class UpdateShippingDetailsDto {
   @EmptyToUndefined()
   @IsOptional()
   @IsString()
+  @MaxLength(64)
+  shippingHubId?: string | null;
+
+  @EmptyToUndefined()
+  @IsOptional()
+  @IsString()
   @MaxLength(200)
   recipientName?: string | null;
 

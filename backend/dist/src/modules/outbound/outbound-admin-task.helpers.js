@@ -4,8 +4,10 @@ exports.waitForOpenWarehouseTask = waitForOpenWarehouseTask;
 exports.buildAdminPickCompleteBody = buildAdminPickCompleteBody;
 const common_1 = require("@nestjs/common");
 const client_1 = require("@prisma/client");
-async function waitForOpenWarehouseTask(prisma, referenceType, referenceId, taskType) {
-    for (let i = 0; i < 8; i++) {
+async function waitForOpenWarehouseTask(prisma, referenceType, referenceId, taskType, options) {
+    const maxAttempts = Math.max(1, options?.maxAttempts ?? 8);
+    const baseDelayMs = Math.max(0, options?.baseDelayMs ?? 50);
+    for (let i = 0; i < maxAttempts; i++) {
         const t = await prisma.warehouseTask.findFirst({
             where: {
                 taskType,
@@ -23,7 +25,9 @@ async function waitForOpenWarehouseTask(prisma, referenceType, referenceId, task
         });
         if (t)
             return t;
-        await new Promise((r) => setTimeout(r, 50 * (i + 1)));
+        if (i + 1 < maxAttempts && baseDelayMs > 0) {
+            await new Promise((r) => setTimeout(r, baseDelayMs * (i + 1)));
+        }
     }
     throw new common_1.BadRequestException(`Expected open ${taskType} task was not created for ${referenceType} ${referenceId}.`);
 }

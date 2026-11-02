@@ -26,6 +26,7 @@ const list_outbound_query_dto_1 = require("./dto/list-outbound-query.dto");
 const outbound_orders_export_dto_1 = require("./dto/outbound-orders-export.dto");
 const update_outbound_plan_dto_1 = require("./dto/update-outbound-plan.dto");
 const update_shipping_details_dto_1 = require("./dto/update-shipping-details.dto");
+const send_shipping_details_dto_1 = require("./dto/send-shipping-details.dto");
 const bulk_outbound_dto_1 = require("./dto/bulk-outbound.dto");
 const outbound_bulk_service_1 = require("./outbound-bulk.service");
 const outbound_orders_csv_service_1 = require("./outbound-orders-csv.service");
@@ -63,7 +64,15 @@ let OutboundController = class OutboundController {
         return this.csv.columns();
     }
     async exportOrdersPost(user, dto, res) {
-        const { columnIds, arabicHeaders, ids, ...query } = dto;
+        const { columnIds, arabicHeaders, ids, format, ...query } = dto;
+        if (format === 'xlsx') {
+            const result = await this.csv.exportXlsx(user, query, { columnIds, arabicHeaders, ids });
+            res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+            res.setHeader('Content-Disposition', `attachment; filename="${result.filename}"`);
+            res.setHeader('X-Export-Row-Count', String(result.rowCount));
+            res.setHeader('X-Export-Truncated', result.truncated ? 'true' : 'false');
+            return res.send(result.buffer);
+        }
         const result = await this.csv.exportCsv(user, query, { columnIds, arabicHeaders, ids });
         res.setHeader('Content-Type', 'text/csv; charset=utf-8');
         res.setHeader('Content-Disposition', `attachment; filename="${result.filename}"`);
@@ -113,6 +122,9 @@ let OutboundController = class OutboundController {
     bulkCompleteDispatch(user, dto) {
         return this.bulkOutbound.completeDispatchBulk(user, dto.ids);
     }
+    bulkCompleteShippingDetails(user, dto) {
+        return this.bulkOutbound.completeShippingDetailsBulk(user, dto.ids);
+    }
     bulkShippingDetailsPreview(user, dto) {
         return this.bulkOutbound.shippingDetailsPreview(user, dto.ids);
     }
@@ -140,8 +152,8 @@ let OutboundController = class OutboundController {
     saveShippingDetails(user, id, body) {
         return this.outbound.saveShippingDetails(user, id, body);
     }
-    sendShippingDetails(user, id) {
-        return this.outbound.sendShippingDetails(user, id);
+    sendShippingDetails(user, id, body) {
+        return this.outbound.sendShippingDetails(user, id, body);
     }
     completeShippingDetails(user, id) {
         return this.outbound.completeShippingDetailsAdmin(user, id);
@@ -283,6 +295,15 @@ __decorate([
     __metadata("design:returntype", void 0)
 ], OutboundController.prototype, "bulkCompleteDispatch", null);
 __decorate([
+    (0, common_1.Post)('bulk/complete-shipping-details'),
+    (0, throttler_1.Throttle)({ default: { limit: 30, ttl: 60_000 } }),
+    __param(0, (0, current_user_decorator_1.CurrentUser)()),
+    __param(1, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, bulk_outbound_dto_1.BulkOutboundIdsDto]),
+    __metadata("design:returntype", void 0)
+], OutboundController.prototype, "bulkCompleteShippingDetails", null);
+__decorate([
     (0, common_1.Post)('bulk/shipping-details/preview'),
     (0, throttler_1.Throttle)({ default: { limit: 30, ttl: 60_000 } }),
     __param(0, (0, current_user_decorator_1.CurrentUser)()),
@@ -363,8 +384,9 @@ __decorate([
     (0, common_1.Post)(':id/shipping-details/send'),
     __param(0, (0, current_user_decorator_1.CurrentUser)()),
     __param(1, (0, common_1.Param)('id', parse_uuid_loose_pipe_1.ParseUuidLoosePipe)),
+    __param(2, (0, common_1.Body)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Object, String]),
+    __metadata("design:paramtypes", [Object, String, send_shipping_details_dto_1.SendShippingDetailsDto]),
     __metadata("design:returntype", void 0)
 ], OutboundController.prototype, "sendShippingDetails", null);
 __decorate([

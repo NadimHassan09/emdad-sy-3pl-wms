@@ -4,6 +4,9 @@ export const BABEL_EXPRESS_CODE = 'BABEL_EXPRESS';
 /** Canonical Sila-SY provider code. */
 export const SILA_SY_CODE = 'SILA_SY';
 
+/** Canonical SENA Express provider code. */
+export const SENA_EXPRESS_CODE = 'SENA_EXPRESS';
+
 /** In-process carrier. Registered only when SHIPPING_MOCK_ENABLED=true. */
 export const MOCK_CARRIER_CODE = 'MOCK_CARRIER';
 
@@ -18,6 +21,7 @@ export const BULK_SHIPPING_CONCURRENCY = 2;
 export const SEND_CONCURRENCY_BY_PROVIDER: Record<string, number> = {
   BABEL_EXPRESS: 2,
   SILA_SY: 3,
+  SENA_EXPRESS: 2,
 };
 
 export const SEND_CONCURRENCY_DEFAULT = 2;

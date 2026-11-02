@@ -34,3 +34,13 @@ docs/evidence/
 *.log
 logs/
 .DS_Store
+
+# Test artifacts, local dumps & temporary directories
+.playwright-mcp/
+playwright-report/
+**/playwright-report/
+tmp/
+ui-audit/
+*.png
+.vscode/
+

@@ -34,6 +34,7 @@ class ListLocationsLookupQueryDto extends pagination_dto_1.PaginationDto {
     status;
     type;
     includeArchived;
+    excludeId;
 }
 exports.ListLocationsLookupQueryDto = ListLocationsLookupQueryDto;
 __decorate([
@@ -65,4 +66,10 @@ __decorate([
     (0, class_validator_1.IsBoolean)(),
     __metadata("design:type", Boolean)
 ], ListLocationsLookupQueryDto.prototype, "includeArchived", void 0);
+__decorate([
+    (0, query_transform_1.EmptyToUndefined)(),
+    (0, class_validator_1.IsOptional)(),
+    (0, is_uuid_loose_1.IsUuidLoose)(),
+    __metadata("design:type", String)
+], ListLocationsLookupQueryDto.prototype, "excludeId", void 0);
 //# sourceMappingURL=list-locations-lookup-query.dto.js.map

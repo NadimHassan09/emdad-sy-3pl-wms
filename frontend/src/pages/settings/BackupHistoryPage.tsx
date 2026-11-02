@@ -25,6 +25,7 @@ import { useToast } from '../../components/ToastProvider';
 import { QK } from '../../constants/query-keys';
 import { useBackupAdminAccess } from '../../hooks/useBackupAdminAccess';
 import { useBackupRunningStatusPoll } from '../../hooks/useBackupRunningStatusPoll';
+import { useManualBackupCooldown } from '../../hooks/useManualBackupCooldown';
 import { useCachedState } from '../../hooks/useCachedState';
 import { useFilters } from '../../hooks/useFilters';
 import { useBackupOperationContext } from '../../context/BackupOperationContext';
@@ -37,7 +38,11 @@ import {
   formatBackupStorage,
   formatBackupTimestamp,
   formatGdriveSyncStatus,
+  formatCooldownClock,
   isBackupDownloadable,
+  isBackupJobId,
+  manualBackupErrorMessage,
+  resolveCreatedBackupJobId,
   shouldShowBackupProgress,
 } from '../../lib/backup-display';
 import {
@@ -179,6 +184,8 @@ export function BackupHistoryPage() {
   const [restoreModalOpen, setRestoreModalOpen] = useState(false);
   const [factoryResetModalOpen, setFactoryResetModalOpen] = useState(false);
   const [activeCreateJobId, setActiveCreateJobId] = useState<string | null>(null);
+  const [pendingCreateRow, setPendingCreateRow] = useState<BackupSummary | null>(null);
+  const [cooldownMinutesInput, setCooldownMinutesInput] = useState('15');
   const handledCreateTerminalRef = useRef<string | null>(null);
   const lastCreateRequestRef = useRef(0);
   const lastUploadRequestRef = useRef(0);
@@ -242,30 +249,86 @@ export function BackupHistoryPage() {
     refetchInterval: 30_000,
   });
 
+  const cooldown = useManualBackupCooldown(isSuperAdmin);
+
+  useEffect(() => {
+    if (!cooldown.query.data) return;
+    setCooldownMinutesInput(String(cooldown.query.data.cooldownMinutes));
+  }, [cooldown.query.data]);
+
   const listQuery = useQuery({
     queryKey: QK.backups.list({ mode: 'server', ...listParams }),
     queryFn: () => BackupsApi.list(listParams),
     enabled: canRead,
-    staleTime: 15_000,
-    refetchInterval: activeCreateJobId ? 15_000 : false,
+    staleTime: activeCreateJobId ? 0 : 15_000,
+    refetchInterval: activeCreateJobId ? 2_500 : false,
   });
 
   const createStatusQuery = useQuery({
     queryKey: QK.backups.status(activeCreateJobId ?? 'none'),
-    queryFn: () => BackupsApi.status(activeCreateJobId!),
-    enabled: !!activeCreateJobId,
-    refetchInterval: 15_000,
-    staleTime: 5_000,
+    queryFn: ({ queryKey }) => {
+      const id = queryKey[2];
+      if (!isBackupJobId(id)) {
+        throw new Error('Backup job id is required');
+      }
+      return BackupsApi.status(id);
+    },
+    enabled: isBackupJobId(activeCreateJobId),
+    refetchInterval: 2_500,
+    staleTime: 1_000,
+    retry: false,
   });
 
   const createMutation = useMutation({
     mutationFn: (body: CreateBackupInput) => BackupsApi.create(body),
     onSuccess: (result) => {
+      const jobId = resolveCreatedBackupJobId(result);
       setCreateModalOpen(false);
       handledCreateTerminalRef.current = null;
-      setActiveCreateJobId(result.jobId);
+      resetFilters();
+      setPage(1);
       toast.success(t(['Backup started', 'بدأ النسخ الاحتياطي']));
       void queryClient.invalidateQueries({ queryKey: QK.backups.all });
+      void queryClient.invalidateQueries({ queryKey: QK.backups.manualCooldown });
+      if (!isBackupJobId(jobId)) {
+        return;
+      }
+      setActiveCreateJobId(jobId);
+      setPendingCreateRow({
+        id: jobId,
+        type: result.type ?? 'manual',
+        status: result.status ?? 'pending',
+        label: result.label ?? null,
+        progressPercent: result.progressPercent ?? 0,
+        bytesWritten: result.bytesWritten ?? 0,
+        createdAt: typeof result.createdAt === 'string' ? result.createdAt : new Date().toISOString(),
+        completedAt: result.completedAt ?? null,
+        triggeredBy: result.triggeredBy ?? {
+          id: user?.id ?? '',
+          email: user?.email ?? '',
+          fullName: user?.fullName ?? '',
+        },
+        manifest: result.manifest ?? null,
+        storagePolicy: result.storagePolicy ?? null,
+        gdriveSyncStatus: result.gdriveSyncStatus ?? null,
+        gdriveSyncedAt: result.gdriveSyncedAt ?? null,
+        downloadable: false,
+      });
+    },
+    onError: (err: Error) => {
+      toast.error(manualBackupErrorMessage(err, isArabic) ?? err.message);
+      void queryClient.invalidateQueries({ queryKey: QK.backups.manualCooldown });
+    },
+  });
+
+  const cooldownMutation = useMutation({
+    mutationFn: (minutes: number) => BackupsApi.updateManualCooldown(minutes),
+    onSuccess: (snap) => {
+      setCooldownMinutesInput(String(snap.cooldownMinutes));
+      toast.success(
+        t(['Manual backup cooldown saved', 'تم حفظ مدة الانتظار بين النسخ اليدوية']),
+      );
+      void queryClient.invalidateQueries({ queryKey: QK.backups.manualCooldown });
     },
     onError: (err: Error) => {
       toast.error(err.message);
@@ -284,6 +347,7 @@ export function BackupHistoryPage() {
       void queryClient.invalidateQueries({ queryKey: QK.backups.all });
       void queryClient.invalidateQueries({ queryKey: QK.backups.auditRecent });
       void queryClient.invalidateQueries({ queryKey: QK.backups.health });
+      void queryClient.invalidateQueries({ queryKey: QK.backups.manualCooldown });
       const timer = window.setTimeout(() => setActiveCreateJobId(null), 4_000);
       return () => window.clearTimeout(timer);
     }
@@ -305,8 +369,26 @@ export function BackupHistoryPage() {
   ]);
 
   const baseRows = listQuery.data?.items ?? [];
-  const { mergedRows, isPolling } = useBackupRunningStatusPoll(baseRows);
-  const total = listQuery.data?.total ?? 0;
+  const pollSource = useMemo(() => {
+    if (!pendingCreateRow) return baseRows;
+    if (baseRows.some((row) => row.id === pendingCreateRow.id)) return baseRows;
+    return [pendingCreateRow, ...baseRows];
+  }, [baseRows, pendingCreateRow]);
+  const { mergedRows, isPolling } = useBackupRunningStatusPoll(
+    pollSource,
+    activeCreateJobId ? 2_500 : 15_000,
+  );
+  const tableRows = mergedRows;
+  const total =
+    (listQuery.data?.total ?? 0) +
+    (pendingCreateRow && !baseRows.some((row) => row.id === pendingCreateRow.id) ? 1 : 0);
+
+  useEffect(() => {
+    if (!pendingCreateRow) return;
+    if (baseRows.some((row) => row.id === pendingCreateRow.id)) {
+      setPendingCreateRow(null);
+    }
+  }, [baseRows, pendingCreateRow]);
 
   const detailQuery = useQuery({
     queryKey: QK.backups.detail(detailId ?? ''),
@@ -355,9 +437,11 @@ export function BackupHistoryPage() {
       {
         header: t(['Type', 'النوع']),
         accessor: (row) => (
-          <Badge tone={backupTypeTone(row.type)} size="xs">
-            {localizedBackupTypeLabel(row.type, t)}
-          </Badge>
+          <span data-testid={`backup-row-${row.id}`}>
+            <Badge tone={backupTypeTone(row.type)} size="xs">
+              {localizedBackupTypeLabel(row.type, t)}
+            </Badge>
+          </span>
         ),
       },
       {
@@ -423,6 +507,7 @@ export function BackupHistoryPage() {
               size="sm"
               variant="brand"
               disabled={downloadingId === row.id}
+              data-testid={`backup-download-${row.id}`}
               onClick={(e) => {
                 e.stopPropagation();
                 void handleDownload(row);
@@ -803,7 +888,7 @@ export function BackupHistoryPage() {
           <div className="flex min-h-0 flex-1 flex-col [&>div]:flex [&>div]:min-h-0 [&>div]:flex-1 [&>div]:flex-col [&>div]:rounded-xl [&>div]:border [&>div]:border-border [&>div]:bg-surface-panel [&>div]:shadow-soft">
             <DataTable
               columns={columns}
-              rows={mergedRows}
+              rows={tableRows}
               rowKey={(row) => row.id}
               loading={listQuery.isLoading}
               empty={t(['No backup jobs match your filters.', 'لا توجد مهام نسخ احتياطي مطابقة.'])}
@@ -824,6 +909,85 @@ export function BackupHistoryPage() {
         </div>
 
         <div className="space-y-4">
+          {isSuperAdmin ? (
+            <div data-testid="manual-backup-cooldown-card">
+            <Card padding="md">
+              <h3 className="text-sm font-semibold text-text-strong">
+                {t(['Manual Backup Cooldown (minutes)', 'مدة الانتظار بين النسخ اليدوية (دقائق)'])}
+              </h3>
+              <p className="mt-1 text-xs text-text-muted">
+                {t([
+                  'Wait time between starting two manual backups. Default 15 minutes. Measured from the last manual backup start.',
+                  'المدة بين بدء نسختين يدويتين. الافتراضي 15 دقيقة. تُحسب من وقت بدء آخر نسخة يدوية.',
+                ])}
+              </p>
+              <div className="mt-3 flex flex-wrap items-end gap-2">
+                <label className="min-w-[8rem] flex-1">
+                  <span className="mb-1 block text-xs font-medium text-text-muted">
+                    {t(['Minutes', 'الدقائق'])}
+                  </span>
+                  <input
+                    type="number"
+                    min={cooldown.minMinutes}
+                    max={cooldown.maxMinutes}
+                    step={1}
+                    value={cooldownMinutesInput}
+                    onChange={(e) => setCooldownMinutesInput(e.target.value)}
+                    className="w-full rounded-lg border border-border bg-surface-panel px-3 py-2 text-sm text-text-body outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20"
+                    data-testid="manual-backup-cooldown-input"
+                  />
+                </label>
+                <Button
+                  type="button"
+                  variant="brand"
+                  size="sm"
+                  loading={cooldownMutation.isPending}
+                  data-testid="manual-backup-cooldown-save"
+                  onClick={() => {
+                    const minutes = Number.parseInt(cooldownMinutesInput, 10);
+                    if (
+                      !Number.isInteger(minutes) ||
+                      minutes < cooldown.minMinutes ||
+                      minutes > cooldown.maxMinutes
+                    ) {
+                      toast.error(
+                        t([
+                          `Enter a whole number between ${cooldown.minMinutes} and ${cooldown.maxMinutes}.`,
+                          `أدخل رقماً صحيحاً بين ${cooldown.minMinutes} و ${cooldown.maxMinutes}.`,
+                        ]),
+                      );
+                      return;
+                    }
+                    cooldownMutation.mutate(minutes);
+                  }}
+                >
+                  {t(['Save', 'حفظ'])}
+                </Button>
+              </div>
+              {cooldown.remainingSeconds > 0 || cooldown.running ? (
+                <p className="mt-2 text-xs text-text-muted" data-testid="manual-backup-cooldown-remaining">
+                  {cooldown.running
+                    ? t([
+                        'A manual backup is currently running.',
+                        'هناك نسخة يدوية قيد التنفيذ حالياً.',
+                      ])
+                    : t([
+                        `Next manual backup available in ${formatCooldownClock(cooldown.remainingSeconds, isArabic)}.`,
+                        `النسخة اليدوية التالية متاحة خلال ${formatCooldownClock(cooldown.remainingSeconds, isArabic)}.`,
+                      ])}
+                </p>
+              ) : (
+                <p className="mt-2 text-xs text-text-muted">
+                  {t([
+                    `Current cooldown: ${cooldown.cooldownMinutes} minutes.`,
+                    `مدة الانتظار الحالية: ${cooldown.cooldownMinutes} دقيقة.`,
+                  ])}
+                </p>
+              )}
+            </Card>
+            </div>
+          ) : null}
+
           <Card padding="md">
             <h3 className="text-sm font-semibold text-text-strong">
               {t(['Backup Activity (Latest)', 'نشاط النسخ (الأحدث)'])}
@@ -951,6 +1115,9 @@ export function BackupHistoryPage() {
           <CreateBackupModal
             open={createModalOpen}
             loading={createMutation.isPending}
+            canCreate={cooldown.canCreate}
+            remainingSeconds={cooldown.remainingSeconds}
+            running={cooldown.running}
             onClose={() => {
               if (!createMutation.isPending) setCreateModalOpen(false);
             }}

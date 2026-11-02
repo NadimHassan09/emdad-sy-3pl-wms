@@ -1,9 +1,11 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable } from '@nestjs/common';
 import { OmsOrderStatus, Prisma } from '@prisma/client';
 
 import { AuthPrincipal } from '../../common/auth/current-user.types';
+import { isInternalAdminRole } from '../../common/auth/rbac-policy';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { runPool } from '../../common/utils/async-pool';
+import { AdjustShippingFeeBulkDto } from './dto/adjust-shipping-fee.dto';
 import { OmsOrdersService } from './oms-orders.service';
 
 export type OmsBulkResultItem = {
@@ -49,6 +51,32 @@ export type OmsBulkStatusTransitionResponse = {
   failed: number;
   completedOrders: OmsBulkResultItem[];
   failures: OmsBulkFailureItem[];
+};
+
+export type OmsBulkShippingFeeResultItem = {
+  id: string;
+  orderNumber: string;
+  previousShippingFee: string;
+  newShippingFee: string;
+  difference: string;
+  subtotal: string;
+  status: string;
+  invoiceNumber?: string | null;
+  isInvoiceClosed?: boolean;
+};
+
+export type OmsBulkShippingFeeFailure = {
+  id: string;
+  orderNumber: string | null;
+  error: string;
+};
+
+export type OmsBulkShippingFeeResponse = {
+  requested: number;
+  updated: number;
+  failed: number;
+  updatedOrders: OmsBulkShippingFeeResultItem[];
+  failures: OmsBulkShippingFeeFailure[];
 };
 
 /**
@@ -353,6 +381,104 @@ export class OmsBulkService {
       completed: successes.length,
       failed: failures.length,
       completedOrders: successes,
+      failures,
+    };
+  }
+
+  /**
+   * Bulk adjust client shipping fees for selected orders.
+   * Supports both Mode 1 (same fee to all ids) and Mode 2 (individual fee per item).
+   * Executes via the single adjustShippingFee operation so logic and events remain 100% consistent.
+   */
+  async adjustShippingFeeBulk(
+    user: AuthPrincipal,
+    dto: AdjustShippingFeeBulkDto,
+  ): Promise<OmsBulkShippingFeeResponse> {
+    if (!isInternalAdminRole(user.role)) {
+      throw new ForbiddenException('Only Admin and Super Admin users can adjust shipping fees.');
+    }
+
+    let itemsToProcess: Array<{ id: string; shippingFee: number; reason?: string }> = [];
+
+    if (dto.items && dto.items.length > 0) {
+      itemsToProcess = dto.items.map((item) => ({
+        id: item.id.trim(),
+        shippingFee: item.shippingFee,
+        reason: item.reason ?? dto.reason,
+      }));
+    } else if (dto.ids && dto.ids.length > 0 && dto.shippingFee !== undefined) {
+      const fee = dto.shippingFee;
+      itemsToProcess = dto.ids.map((id) => ({
+        id: id.trim(),
+        shippingFee: fee,
+        reason: dto.reason,
+      }));
+    } else {
+      throw new BadRequestException(
+        'Provide either items with shipping fees or ids with a shipping fee.',
+      );
+    }
+
+    if (itemsToProcess.length === 0) {
+      throw new BadRequestException('At least one order must be specified.');
+    }
+
+    const uniqueIds = Array.from(new Set(itemsToProcess.map((i) => i.id)));
+    const existingOrders = await this.prisma.omsOrder.findMany({
+      where: { id: { in: uniqueIds } },
+      select: { id: true, orderNumber: true },
+    });
+    const orderMap = new Map(existingOrders.map((o) => [o.id, o.orderNumber]));
+
+    const bulkBatchId = `bulk-fee-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+
+    const { successes, failures } = await runPool<
+      { id: string; shippingFee: number; reason?: string },
+      OmsBulkShippingFeeResultItem,
+      OmsBulkShippingFeeFailure
+    >(
+      itemsToProcess,
+      OmsBulkService.BULK_CONCURRENCY,
+      async (item) => {
+        try {
+          const res = await this.orders.adjustShippingFee(
+            user,
+            item.id,
+            { shippingFee: item.shippingFee, reason: item.reason },
+            { mode: 'bulk', bulkBatchId },
+          );
+          return {
+            ok: true as const,
+            value: {
+              id: res.id,
+              orderNumber: res.orderNumber,
+              previousShippingFee: res.previousShippingFee,
+              newShippingFee: res.newShippingFee,
+              difference: res.difference,
+              subtotal: res.subtotal,
+              status: res.status,
+              invoiceNumber: res.invoiceNumber,
+              isInvoiceClosed: res.isInvoiceClosed,
+            },
+          };
+        } catch (err: any) {
+          return {
+            ok: false as const,
+            value: {
+              id: item.id,
+              orderNumber: orderMap.get(item.id) ?? null,
+              error: err?.message || 'Failed to adjust shipping fee',
+            },
+          };
+        }
+      },
+    );
+
+    return {
+      requested: itemsToProcess.length,
+      updated: successes.length,
+      failed: failures.length,
+      updatedOrders: successes,
       failures,
     };
   }

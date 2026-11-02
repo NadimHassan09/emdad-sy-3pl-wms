@@ -25,7 +25,9 @@ export function OmsWaybillModal({ open, orderId, onClose, isArabic = false }: Pr
     queryKey: ['oms-waybill', orderId],
     queryFn: () => (orderId ? OmsApi.getWaybill(orderId) : Promise.reject(new Error('No ID'))),
     enabled: open && Boolean(orderId),
-    staleTime: 30_000,
+    staleTime: 0,
+    gcTime: 0,
+    refetchOnMount: 'always',
   });
 
   const handleDownloadPdf = async () => {

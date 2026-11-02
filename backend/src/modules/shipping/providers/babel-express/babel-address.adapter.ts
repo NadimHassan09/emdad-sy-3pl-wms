@@ -91,6 +91,54 @@ export class BabelAddressAdapter {
     return neighbourhood?.id ?? null;
   }
 
+  /**
+   * Validate that a supplied Babel neighbourhood ID exists and is consistent
+   * with the provided governorate and city/area.
+   */
+  async validateNeighbourhoodId(
+    id: number,
+    location: {
+      governorate?: string | null;
+      cityRegion?: string | null;
+      townNeighborhood?: string | null;
+    },
+  ): Promise<boolean> {
+    const gov = location.governorate?.trim();
+
+    // 1. Check DB snapshot
+    const nb = await this.prisma.babelNeighbourhood.findUnique({
+      where: { id },
+      include: { area: { include: { city: true } } },
+    });
+    if (nb) {
+      if (gov && nb.area?.city?.name && nb.area.city.name !== gov) {
+        return false;
+      }
+      return true;
+    }
+
+    // 2. Check bundled index
+    const entries = babelAddressIndex.entries as Record<string, number> | undefined;
+    if (entries) {
+      let foundMatchingId = false;
+      for (const [key, entryId] of Object.entries(entries)) {
+        if (entryId === id) {
+          foundMatchingId = true;
+          const parts = key.split(INDEX_SEP);
+          if (gov && parts[0] && parts[0] !== gov) {
+            continue;
+          }
+          return true;
+        }
+      }
+      if (foundMatchingId) {
+        return false;
+      }
+    }
+
+    return false;
+  }
+
   async isBabelCovered(input: {
     governorate?: string | null;
     cityRegion?: string | null;

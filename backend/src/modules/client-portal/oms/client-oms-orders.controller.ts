@@ -173,6 +173,22 @@ export class ClientOmsOrdersController {
     return this.oms.getShippingMovement(client, id);
   }
 
+  @Get('cod-report/export')
+  @Header('Cache-Control', 'no-store')
+  async exportCodReport(
+    @ClientUser() client: ClientPrincipal,
+    @Query() query: ClientCodReportQueryDto,
+    @Res() res: Response,
+  ) {
+    const { buffer, filename } = await this.oms.exportCodReportXlsx(client, query);
+    res.setHeader(
+      'Content-Type',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    );
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.send(buffer);
+  }
+
   @Get('cod-report')
   codReport(@ClientUser() client: ClientPrincipal, @Query() query: ClientCodReportQueryDto) {
     return this.oms.codReport(client, query);

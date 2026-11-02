@@ -25,8 +25,8 @@ __decorate([
 ], ExternalInboundLineDto.prototype, "sku", void 0);
 __decorate([
     (0, class_transformer_1.Type)(() => Number),
-    (0, class_validator_1.IsInt)({ message: 'Quantity must be a whole number (no decimals).' }),
-    (0, class_validator_1.IsPositive)({ message: 'Quantity must be a positive whole number.' }),
+    (0, class_validator_1.IsNumber)({ maxDecimalPlaces: 4 }, { message: 'Quantity must be a number with up to 4 decimal places.' }),
+    (0, class_validator_1.IsPositive)({ message: 'Quantity must be a positive number.' }),
     __metadata("design:type", Number)
 ], ExternalInboundLineDto.prototype, "quantity", void 0);
 class ExternalCreateInboundOrderDto {

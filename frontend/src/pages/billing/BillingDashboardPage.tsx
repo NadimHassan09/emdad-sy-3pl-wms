@@ -1,25 +1,17 @@
-import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 
 import { BillingApi } from '../../api/billing';
 import { AdminListPageShell } from '../../components/AdminListPageShell';
-import { PieChart, type PieSlice } from '../../components/PieChart';
+import { BillingExpiringClientsCard } from '../../components/dashboard/BillingExpiringClientsCard';
+import { BillingOverdueClientsCard } from '../../components/dashboard/BillingOverdueClientsCard';
+import { BillingRecentInvoicesCard } from '../../components/dashboard/BillingRecentInvoicesCard';
+import { BillingSuspendedAccountsCard } from '../../components/dashboard/BillingSuspendedAccountsCard';
 import { QK } from '../../constants/query-keys';
-import { formatDate, formatDecimal } from '../../lib/billing-invoice-display';
+import { formatDecimal } from '../../lib/billing-invoice-display';
 import { Alert, Card, Skeleton } from '@ds';
 
 const CURRENCY = 'USD';
-
-const CHART_COLORS = [
-  'var(--color-brand-600)',
-  'var(--color-info-500)',
-  'var(--color-warning-600)',
-  'var(--color-danger-600)',
-  'var(--text-muted)',
-  'var(--color-brand-500)',
-  'var(--color-info-700)',
-];
 
 function KpiCard({ label, value }: { label: string; value: string }) {
   return (
@@ -30,49 +22,34 @@ function KpiCard({ label, value }: { label: string; value: string }) {
   );
 }
 
-function ListCard({
+function BucketList({
   title,
-  children,
-  empty,
+  rows,
 }: {
   title: string;
-  children: React.ReactNode;
-  empty?: boolean;
+  rows: Array<{ companyId: string; companyName: string; daysRemaining: number }>;
 }) {
   return (
     <Card padding="md">
       <h3 className="mb-3 text-sm font-semibold text-text-strong">{title}</h3>
-      {empty ? <p className="text-sm text-text-muted">No data yet.</p> : children}
+      {rows.length === 0 ? (
+        <p className="text-sm text-text-muted">None</p>
+      ) : (
+        <ul className="divide-y divide-border-subtle">
+          {rows.map((row) => (
+            <li key={row.companyId} className="flex items-center justify-between py-2 text-sm">
+              <Link
+                to={`/billing/plans/${row.companyId}`}
+                className="font-medium text-brand-700 hover:underline dark:text-brand-400"
+              >
+                {row.companyName}
+              </Link>
+              <span className="tabular-nums text-text-muted">{row.daysRemaining}d</span>
+            </li>
+          ))}
+        </ul>
+      )}
     </Card>
-  );
-}
-
-function SimpleBarList({
-  rows,
-}: {
-  rows: Array<{ label: string; value: number; display: string }>;
-}) {
-  const max = Math.max(...rows.map((r) => r.value), 1);
-  return (
-    <ul className="space-y-3">
-      {rows.map((row) => (
-        <li key={row.label}>
-          <div className="mb-1 flex items-center justify-between gap-2 text-sm">
-            <span className="truncate text-text-body">{row.label}</span>
-            <span className="shrink-0 tabular-nums text-text-strong">{row.display}</span>
-          </div>
-          <div className="h-2 overflow-hidden rounded-full bg-surface-sunken">
-            <div
-              className="h-full rounded-full"
-              style={{
-                width: `${Math.max(4, (row.value / max) * 100)}%`,
-                backgroundColor: 'var(--color-brand-500)',
-              }}
-            />
-          </div>
-        </li>
-      ))}
-    </ul>
   );
 }
 
@@ -82,42 +59,13 @@ export function BillingDashboardPage() {
     queryFn: () => BillingApi.getDashboardSummary(),
   });
 
-  const analyticsQuery = useQuery({
-    queryKey: QK.billing.dashboardAnalytics,
-    queryFn: () => BillingApi.getDashboardAnalytics(),
+  const bucketsQuery = useQuery({
+    queryKey: QK.billing.expiringBuckets,
+    queryFn: () => BillingApi.getExpiringBuckets(),
   });
 
   const summary = summaryQuery.data;
-  const analytics = analyticsQuery.data;
-
-  const monthlyRows = useMemo(() => {
-    const src = analytics?.monthlyRevenue ?? analytics?.revenueTrend ?? [];
-    return src.map((r) => ({
-      label: r.month,
-      value: Number(r.revenue) || 0,
-      display: `${formatDecimal(r.revenue)} ${CURRENCY}`,
-    }));
-  }, [analytics]);
-
-  const clientRows = useMemo(
-    () =>
-      (analytics?.revenueByClient ?? []).map((r) => ({
-        label: r.companyName,
-        value: Number(r.revenue) || 0,
-        display: `${formatDecimal(r.revenue)} ${CURRENCY}`,
-      })),
-    [analytics],
-  );
-
-  const templateSlices: PieSlice[] = useMemo(
-    () =>
-      (analytics?.plansByTemplate ?? []).map((r, i) => ({
-        label: r.label,
-        count: r.count,
-        color: CHART_COLORS[i % CHART_COLORS.length]!,
-      })),
-    [analytics],
-  );
+  const buckets = bucketsQuery.data;
 
   return (
     <AdminListPageShell
@@ -128,8 +76,8 @@ export function BillingDashboardPage() {
       className="space-y-6 animate-enter"
     >
       {summaryQuery.isPending ? (
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          {Array.from({ length: 4 }).map((_, i) => (
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-5">
+          {Array.from({ length: 5 }).map((_, i) => (
             <Card key={i} padding="md">
               <Skeleton height={14} width="70%" />
               <Skeleton height={32} width="50%" className="mt-3" />
@@ -142,81 +90,35 @@ export function BillingDashboardPage() {
       ) : null}
 
       {summary ? (
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-5">
           <KpiCard
-            label="Total monthly revenue"
-            value={`${formatDecimal(summary.currentMonthRevenue)} ${CURRENCY}`}
-          />
-          <KpiCard
-            label="Total annual revenue"
-            value={`${formatDecimal(summary.annualRevenue ?? '0')} ${CURRENCY}`}
-          />
-          <KpiCard
-            label="Outstanding revenue"
+            label="Outstanding AR"
             value={`${formatDecimal(summary.outstandingAmount)} ${CURRENCY}`}
           />
           <KpiCard
-            label="Active billing plans"
-            value={String(summary.activeBillingPlanCount ?? 0)}
+            label="Month revenue"
+            value={`${formatDecimal(summary.currentMonthRevenue)} ${CURRENCY}`}
           />
-          <KpiCard
-            label="Generated invoices"
-            value={String(summary.generatedInvoiceCount ?? 0)}
-          />
-          <KpiCard label="Paid invoices" value={String(summary.paidInvoiceCount ?? 0)} />
-          <KpiCard
-            label="Outstanding invoices"
-            value={String(summary.outstandingInvoiceCount ?? summary.openInvoiceCount ?? 0)}
-          />
+          <KpiCard label="Open invoices" value={String(summary.openInvoiceCount)} />
+          <KpiCard label="Overdue invoices" value={String(summary.overdueInvoiceCount)} />
+          <KpiCard label="Suspended accounts" value={String(summary.suspendedAccountCount)} />
+        </div>
+      ) : null}
+
+      {buckets ? (
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+          <BucketList title="Expiring in 30 days" rows={buckets.expiring30} />
+          <BucketList title="Expiring in 14 days" rows={buckets.expiring14} />
+          <BucketList title="Expiring in 7 days" rows={buckets.expiring7} />
+          <BucketList title="Expiring in 3 days" rows={buckets.expiring3} />
         </div>
       ) : null}
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <ListCard title="Monthly revenue" empty={monthlyRows.length === 0}>
-          <SimpleBarList rows={monthlyRows} />
-        </ListCard>
-
-        <ListCard title="Revenue trend" empty={monthlyRows.length === 0}>
-          <SimpleBarList rows={[...monthlyRows].reverse()} />
-        </ListCard>
-
-        <PieChart title="Plans by template" slices={templateSlices} />
-
-        <ListCard title="Revenue by client" empty={clientRows.length === 0}>
-          <SimpleBarList rows={clientRows} />
-        </ListCard>
-
-        <div className="lg:col-span-2">
-          <ListCard
-            title="Upcoming renewals"
-            empty={!analytics?.upcomingRenewals?.length}
-          >
-            <ul className="divide-y divide-border-subtle">
-              {(analytics?.upcomingRenewals ?? []).map((row) => (
-                <li
-                  key={row.cycleId}
-                  className="flex flex-wrap items-center justify-between gap-2 py-2.5 text-sm"
-                >
-                  <div>
-                    <Link
-                      to={`/billing/plans/${row.companyId}`}
-                      className="font-medium text-brand-700 hover:underline dark:text-brand-400"
-                    >
-                      {row.companyName}
-                    </Link>
-                    <p className="text-xs text-text-muted">
-                      Renews {formatDate(row.renewalDate)} · {row.daysRemaining}d left ·{' '}
-                      {row.cycleLengthDays}d cycle
-                    </p>
-                  </div>
-                  <span className="tabular-nums font-medium text-text-strong">
-                    {formatDecimal(row.amount)} {CURRENCY}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          </ListCard>
-        </div>
+        <BillingExpiringClientsCard />
+        <BillingOverdueClientsCard />
+        <BillingRecentInvoicesCard />
+        <BillingSuspendedAccountsCard />
       </div>
     </AdminListPageShell>
   );

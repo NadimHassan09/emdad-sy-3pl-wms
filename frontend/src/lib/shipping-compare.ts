@@ -156,6 +156,16 @@ export function quoteMatchesCompanyFilter<
   if (!companyFilter || companyFilter === 'auto') return true;
   const needle = companyFilter.trim().toUpperCase();
   if (!needle) return true;
+  const isSenaFilter = needle === 'SENA_EXPRESS' || needle.includes('SENA') || needle.includes('سينا');
+  if (isSenaFilter) {
+    if (
+      quote.carrierId?.toUpperCase() === 'SENA_EXPRESS' ||
+      (quote.serviceId && quote.serviceId.toUpperCase().startsWith('SENA_EXPRESS:')) ||
+      (quote.serviceName && (quote.serviceName.includes('سينا') || quote.serviceName.toUpperCase().includes('SENA')))
+    ) {
+      return true;
+    }
+  }
   const hay = [
     quote.carrierId,
     quote.serviceId ?? '',
@@ -253,6 +263,7 @@ export async function runPool<T>(
 export const SEND_CONCURRENCY_BY_PROVIDER: Record<string, number> = {
   BABEL_EXPRESS: 2,
   SILA_SY: 3,
+  SENA_EXPRESS: 2,
 };
 export const SEND_CONCURRENCY_DEFAULT = 2;
 
@@ -295,6 +306,7 @@ export type ClientQuoteFingerprint = {
   weightKg: number;
   destinationKey: string;
   partsKey?: string;
+  hubId?: string;
   quotedAt: string;
   expiresAt: string;
 };
@@ -324,6 +336,7 @@ export function createClientQuoteFingerprint(input: {
   weightKg: number;
   destinationKey: string;
   partsKey?: string;
+  hubId?: string | null;
   ttlMs?: number;
 }): ClientQuoteFingerprint {
   const quotedAt = new Date();
@@ -338,7 +351,20 @@ export function createClientQuoteFingerprint(input: {
     weightKg: Number(input.weightKg),
     destinationKey: input.destinationKey,
     partsKey: input.partsKey ?? '',
+    hubId: (input.hubId || '').trim(),
     quotedAt: quotedAt.toISOString(),
     expiresAt: new Date(quotedAt.getTime() + ttl).toISOString(),
   };
 }
+
+export function isClientHubQuoteStale(input: {
+  deliveryType?: string | null;
+  selectedHubId?: string | null;
+  fingerprintHubId?: string | null;
+}): boolean {
+  if (input.deliveryType !== 'hub') return false;
+  const selected = (input.selectedHubId || '').trim();
+  const fp = (input.fingerprintHubId || '').trim();
+  return Boolean(selected) && selected !== fp;
+}
+

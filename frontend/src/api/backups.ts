@@ -1,3 +1,4 @@
+import { isBackupJobId, resolveCreatedBackupJobId } from '../lib/backup-display';
 import { api, type PageResult } from './client';
 
 export type BackupJobType =
@@ -39,6 +40,7 @@ export type BackupSummary = {
   storagePolicy: BackupStoragePolicyValue | null;
   gdriveSyncStatus: 'pending' | 'synced' | 'failed' | null;
   gdriveSyncedAt: string | null;
+  downloadable?: boolean;
 };
 
 export type BackupDetail = BackupSummary & {
@@ -364,17 +366,25 @@ export type CreateBackupInput = {
   storagePolicy?: BackupStoragePolicyValue;
 };
 
-export type CreateBackupResult = {
+export type CreateBackupResult = BackupSummary & {
   jobId: string;
-  status: BackupJobStatus;
-  storagePolicy: BackupStoragePolicyValue;
-  createdAt: string;
+};
+
+export type ManualBackupCooldown = {
+  cooldownSeconds: number;
+  cooldownMinutes: number;
+  minMinutes: number;
+  maxMinutes: number;
+  remainingSeconds: number;
+  nextAllowedAt: string | null;
+  runningManualJobId: string | null;
+  canCreate: boolean;
 };
 
 export const BackupsApi = {
   list(params: ListBackupsParams = {}): Promise<PageResult<BackupSummary>> {
     return api
-      .get<PageResult<BackupSummary>>('/backups', { params })
+      .get<PageResult<BackupSummary>>('/backups/', { params })
       .then((r) => r.data);
   },
 
@@ -395,7 +405,56 @@ export const BackupsApi = {
   },
 
   create(body: CreateBackupInput = {}): Promise<CreateBackupResult> {
-    return api.post<CreateBackupResult>('/backups', body).then((r) => r.data);
+    // Trailing slash avoids nginx 301 on `/api/backups`, which browsers follow as GET list.
+    return api.post<CreateBackupResult>('/backups/', body, { maxRedirects: 0 }).then((r) => {
+      const raw = (r?.data ?? r) as unknown;
+      const jobId = resolveCreatedBackupJobId(raw) ?? resolveCreatedBackupJobId(r);
+      const record =
+        raw && typeof raw === 'object' && !Array.isArray(raw)
+          ? (raw as Record<string, unknown>)
+          : null;
+      const nested =
+        record?.data && typeof record.data === 'object' && !Array.isArray(record.data)
+          ? (record.data as Record<string, unknown>)
+          : null;
+      const inner = (
+        jobId && record && resolveCreatedBackupJobId(record) === jobId
+          ? record
+          : nested ?? record ?? {}
+      ) as Partial<CreateBackupResult>;
+      const id = jobId ?? (typeof inner.jobId === 'string' ? inner.jobId : null) ?? inner.id ?? '';
+      if (!isBackupJobId(id)) {
+        return Promise.reject(new Error('Could not start backup. Please try again.'));
+      }
+      return {
+        type: 'manual',
+        status: 'pending',
+        label: null,
+        progressPercent: 0,
+        bytesWritten: 0,
+        createdAt: new Date().toISOString(),
+        completedAt: null,
+        triggeredBy: { id: '', email: '', fullName: '' },
+        manifest: null,
+        storagePolicy: null,
+        gdriveSyncStatus: null,
+        gdriveSyncedAt: null,
+        downloadable: false,
+        ...inner,
+        jobId: id,
+        id: inner.id ?? id,
+      };
+    });
+  },
+
+  getManualCooldown(): Promise<ManualBackupCooldown> {
+    return api.get<ManualBackupCooldown>('/backups/manual-cooldown').then((r) => r.data);
+  },
+
+  updateManualCooldown(cooldownMinutes: number): Promise<ManualBackupCooldown> {
+    return api
+      .put<ManualBackupCooldown>('/backups/manual-cooldown', { cooldownMinutes })
+      .then((r) => r.data);
   },
 
   getById(id: string): Promise<BackupDetail> {
@@ -403,6 +462,9 @@ export const BackupsApi = {
   },
 
   status(id: string): Promise<BackupStatus> {
+    if (!isBackupJobId(id)) {
+      return Promise.reject(new Error('Backup job id is required'));
+    }
     return api.get<BackupStatus>(`/backups/${id}/status`).then((r) => r.data);
   },
 

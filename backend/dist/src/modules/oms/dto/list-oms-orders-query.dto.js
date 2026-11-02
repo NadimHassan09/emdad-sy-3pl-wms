@@ -15,6 +15,7 @@ const class_validator_1 = require("class-validator");
 const pagination_dto_1 = require("../../../common/dto/pagination.dto");
 const query_transform_1 = require("../../../common/transformers/query-transform");
 const is_uuid_loose_1 = require("../../../common/validators/is-uuid-loose");
+const oms_operational_stage_1 = require("../oms-operational-stage");
 const ORDER_STATUSES = Object.values(client_1.OmsOrderStatus);
 const DAY = /^\d{4}-\d{2}-\d{2}$/;
 const TOTAL_OPS = ['eq', 'gt', 'gte', 'lt', 'lte'];
@@ -26,6 +27,7 @@ class ListOmsOrdersQueryDto extends pagination_dto_1.PaginationDto {
     phone;
     city;
     carrier;
+    shippingPayer;
     startOrderNo;
     endOrderNo;
     totalOp;
@@ -33,6 +35,7 @@ class ListOmsOrdersQueryDto extends pagination_dto_1.PaginationDto {
     createdFrom;
     createdTo;
     status;
+    operationalStage;
     storeChannel;
     linkStatus;
 }
@@ -88,6 +91,12 @@ __decorate([
 __decorate([
     (0, query_transform_1.EmptyToUndefined)(),
     (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsIn)(['sender', 'receiver', 'reseller']),
+    __metadata("design:type", String)
+], ListOmsOrdersQueryDto.prototype, "shippingPayer", void 0);
+__decorate([
+    (0, query_transform_1.EmptyToUndefined)(),
+    (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsString)(),
     (0, class_validator_1.MaxLength)(60),
     __metadata("design:type", String)
@@ -133,6 +142,12 @@ __decorate([
     (0, class_validator_1.IsIn)(ORDER_STATUSES),
     __metadata("design:type", String)
 ], ListOmsOrdersQueryDto.prototype, "status", void 0);
+__decorate([
+    (0, query_transform_1.EmptyToUndefined)(),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsIn)(oms_operational_stage_1.OMS_OPERATIONAL_STAGE_VALUES),
+    __metadata("design:type", Object)
+], ListOmsOrdersQueryDto.prototype, "operationalStage", void 0);
 __decorate([
     (0, query_transform_1.EmptyToUndefined)(),
     (0, class_validator_1.IsOptional)(),

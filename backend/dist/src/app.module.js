@@ -50,6 +50,7 @@ const cod_module_1 = require("./modules/cod/cod.module");
 const oms_returns_module_1 = require("./modules/oms-returns/oms-returns.module");
 const shipping_module_1 = require("./modules/shipping/shipping.module");
 const pdf_module_1 = require("./pdf/pdf.module");
+const financial_module_1 = require("./modules/financial/financial.module");
 let AppModule = class AppModule {
 };
 exports.AppModule = AppModule;
@@ -107,6 +108,7 @@ exports.AppModule = AppModule = __decorate([
             oms_returns_module_1.OmsReturnsModule,
             shipping_module_1.ShippingModule,
             pdf_module_1.PdfModule,
+            financial_module_1.FinancialModule,
         ],
         providers: [
             { provide: core_1.APP_GUARD, useClass: throttler_1.ThrottlerGuard },

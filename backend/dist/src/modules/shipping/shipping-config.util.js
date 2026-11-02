@@ -23,6 +23,7 @@ exports.SHIPPING_LOCKED_STATUSES = new Set([
     'delivered',
     'cancelled',
     'failed_delivery',
+    'return_pending_receipt',
     'returned',
 ]);
 exports.SHIPPING_IDENTITY_LOCKED_STATUSES = new Set([
@@ -31,6 +32,7 @@ exports.SHIPPING_IDENTITY_LOCKED_STATUSES = new Set([
     'delivered',
     'cancelled',
     'failed_delivery',
+    'return_pending_receipt',
     'returned',
 ]);
 function isShippingConfigLocked(outboundStatus) {
@@ -57,14 +59,6 @@ function assertCarrierShippingReady(fields) {
         return;
     }
     assertShippingIntentReady(fields);
-    const babelHood = fields.babelNeighbourhoodId != null ? Number(fields.babelNeighbourhoodId) : null;
-    const hasBabelHood = babelHood != null && Number.isFinite(babelHood) && babelHood > 0;
-    const lat = fields.shippingReceiverLat != null ? Number(fields.shippingReceiverLat) : NaN;
-    const lng = fields.shippingReceiverLng != null ? Number(fields.shippingReceiverLng) : NaN;
-    const hasCoords = Number.isFinite(lat) && Number.isFinite(lng);
-    if (!hasBabelHood && !hasCoords) {
-        throw new common_1.BadRequestException('Babel neighbourhood id (resolved from Governorate / City / Town) or receiver lat/lng is required when shipping via a carrier.');
-    }
     if (!fields.shippingPackageType) {
         throw new common_1.BadRequestException('shippingPackageType is required when shipping via a carrier.');
     }
@@ -80,15 +74,12 @@ function assertCarrierShippingReady(fields) {
     if (!fields.shippingPayer) {
         throw new common_1.BadRequestException('shippingPayer is required when shipping via a carrier.');
     }
+    if (!['sender', 'receiver', 'reseller'].includes(fields.shippingPayer)) {
+        throw new common_1.BadRequestException('shippingPayer must be sender, receiver, or reseller.');
+    }
     const weight = Number(fields.shippingWeightKg);
     if (fields.shippingWeightKg == null || !Number.isFinite(weight) || weight <= 0) {
         throw new common_1.BadRequestException('shippingWeightKg must be a positive number when shipping via a carrier.');
-    }
-    if (fields.shippingPackageType === client_1.ShippingPackageType.envelope && weight !== 1) {
-        throw new common_1.BadRequestException('Envelope shipments must weigh exactly 1 kg (Babel Express rule).');
-    }
-    if (fields.shippingPackageType === client_1.ShippingPackageType.box && weight > exports.BABEL_MAX_BOX_WEIGHT_KG) {
-        throw new common_1.BadRequestException(`Shipment weight ${weight} kg is too high for Babel Express (max ${exports.BABEL_MAX_BOX_WEIGHT_KG} kg for a box). Enter the actual package weight in kilograms — not COD amount or currency.`);
     }
     if (fields.shippingPhoneCountry != null && fields.shippingPhoneCountry.trim() !== '') {
         assertShippingPhoneCountry(fields.shippingPhoneCountry);
@@ -125,6 +116,9 @@ function shippingPrismaData(fields) {
     }
     if (fields.shippingServiceId !== undefined) {
         data.shippingServiceId = fields.shippingServiceId;
+    }
+    if (fields.shippingHubId !== undefined) {
+        data.shippingHubId = fields.shippingHubId?.trim() || null;
     }
     if (fields.shippingReceiverLat !== undefined) {
         data.shippingReceiverLat =
@@ -178,6 +172,7 @@ function copyShippingFieldsFromOms(oms) {
         shippingMethod: oms.shippingMethod ?? client_1.ShippingMethod.manual,
         shippingProviderCode: oms.shippingProviderCode ?? null,
         shippingServiceId: oms.shippingServiceId ?? null,
+        shippingHubId: oms.shippingHubId ?? null,
         shippingReceiverLat: oms.shippingReceiverLat == null ? null : oms.shippingReceiverLat.toString(),
         shippingReceiverLng: oms.shippingReceiverLng == null ? null : oms.shippingReceiverLng.toString(),
         shippingPackageType: oms.shippingPackageType ?? null,
@@ -195,6 +190,7 @@ const SHIPPING_PATCH_KEYS = [
     'shippingMethod',
     'shippingProviderCode',
     'shippingServiceId',
+    'shippingHubId',
     'shippingReceiverLat',
     'shippingReceiverLng',
     'shippingPackageType',

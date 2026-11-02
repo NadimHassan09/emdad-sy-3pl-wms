@@ -40,4 +40,8 @@ export class ClientInboundOrdersExportDto {
   @IsString()
   @MaxLength(64)
   status?: string;
+
+  @IsOptional()
+  @IsString()
+  format?: 'csv' | 'xlsx';
 }

@@ -7,6 +7,7 @@ export type WaybillScanOrder = {
     orderNumber?: string | null;
     trackingNumber?: string | null;
     externalAwb?: string | null;
+    hasCarrierShipment?: boolean;
   } | null;
 };
 

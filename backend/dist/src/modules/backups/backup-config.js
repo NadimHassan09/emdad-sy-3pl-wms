@@ -37,7 +37,7 @@ let BackupConfig = class BackupConfig {
         return this.config.get('BACKUP_DOWNLOAD_TOKEN_TTL_SEC') ?? 300;
     }
     get manualCooldownSec() {
-        return this.config.get('BACKUP_MANUAL_COOLDOWN_SEC') ?? 900;
+        return this.readInt('BACKUP_MANUAL_COOLDOWN_SEC', 900, 60, 86_400);
     }
     get pgDumpPath() {
         return this.config.get('BACKUP_PG_DUMP_PATH') ?? '/usr/bin/pg_dump';

@@ -44,6 +44,7 @@ const KEY_TONE: Record<string, Tone> = {
   'out for delivery': 'info',
   delivered: 'success',
   'failed delivery': 'danger',
+  'return pending receipt': 'violet',
   processing: 'warning',
   returned: 'orange',
   approved: 'success',
@@ -96,6 +97,9 @@ export function statusLabel(status: string, isArabic = false): string {
   if (!isArabic) {
     if (key === 'ready to ship') return 'Ready for Shipping';
     if (key === 'externally fulfilled') return 'Fulfilled outside warehouse';
+    if (key === 'failed delivery') return 'Field Delivery';
+    if (key === 'return pending receipt') return 'Return Pending Receipt';
+    if (key === 'returned') return 'Return Received';
     return key.replace(/\b\w/g, (c) => c.toUpperCase());
   }
   const ar: Record<string, string> = {
@@ -117,7 +121,8 @@ export function statusLabel(status: string, isArabic = false): string {
     allocated: 'مخصص',
     'out for delivery': 'خارج للتسليم',
     delivered: 'تم التسليم',
-    returned: 'مرتجع',
+    returned: 'مرتجع مستلم',
+    'return pending receipt': 'مرتجع بانتظار الاستلام',
     rejected: 'مرفوض',
     'failed delivery': 'فشل التسليم',
     active: 'نشط',

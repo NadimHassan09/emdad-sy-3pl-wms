@@ -18,10 +18,10 @@ class PaginationDto {
 }
 exports.PaginationDto = PaginationDto;
 __decorate([
-    (0, query_transform_1.PaginationLimit)(50, 500),
+    (0, query_transform_1.PaginationLimit)(50, 1000),
     (0, class_validator_1.IsInt)(),
     (0, class_validator_1.Min)(1),
-    (0, class_validator_1.Max)(500),
+    (0, class_validator_1.Max)(1000),
     __metadata("design:type", Number)
 ], PaginationDto.prototype, "limit", void 0);
 __decorate([

@@ -13,10 +13,12 @@ import {
   INBOUND_CLIENT_IMPORT_REQUIRED_COLUMNS,
   INBOUND_ORDER_LEVEL_FIELDS,
 } from './inbound-client-import.schema';
+import { assertDiscreteUomPositiveIntegerQuantity } from '../../../common/utils/discrete-uom-quantity';
 import {
   parseImportMdYDate,
   validateImportAsciiPositiveInt,
   validateImportOrderNumber,
+  validateImportPositiveQuantity,
 } from './oms-client-import.validation';
 import {
   assertImportTable,
@@ -166,10 +168,23 @@ export class InboundClientImportService {
         }
         seenProductIds.add(product.id);
 
-        const qtyResult = validateImportAsciiPositiveInt(line.values.quantity ?? '', 'Quantity');
+        const qtyResult = validateImportPositiveQuantity(line.values.quantity ?? '', 'Quantity');
         if (!qtyResult.ok) {
           invalid++;
           pushErr(qtyResult.message, 'quantity', line.rowNumber);
+          lineInvalid = true;
+          break;
+        }
+        try {
+          assertDiscreteUomPositiveIntegerQuantity(
+            product.uom,
+            qtyResult.value,
+            'Quantity',
+          );
+        } catch (err: unknown) {
+          invalid++;
+          const msg = err instanceof Error ? err.message : 'Invalid quantity for product UOM.';
+          pushErr(msg, 'quantity', line.rowNumber);
           lineInvalid = true;
           break;
         }

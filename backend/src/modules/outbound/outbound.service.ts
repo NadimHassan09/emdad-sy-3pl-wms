@@ -62,6 +62,7 @@ import { adminOutboundListItem } from '../realtime/realtime-client.payload';
 import { OmsOrderEventsService } from '../oms/oms-order-events.service';
 import { OmsOrdersService } from '../oms/oms-orders.service';
 import { OmsOutboundSyncService } from '../oms/oms-outbound-sync.service';
+import { composeDestinationAddress } from '../oms/oms-order.mapper';
 import { OrderAllocationService } from '../oms/order-allocation.service';
 import {
   type OmsOrderCreateExtras,
@@ -175,6 +176,8 @@ const ORDER_INCLUDE = {
       city: true,
       district: true,
       addressLine1: true,
+      addressLine2: true,
+      destinationAddress: true,
     },
   },
 } satisfies Prisma.OutboundOrderInclude;
@@ -328,10 +331,25 @@ export class OutboundService {
       assertProductOrderableForOrders(p.status);
     }
 
+    const destination = dto.destinationAddress?.trim();
+    if (!destination) {
+      throw new BadRequestException('Destination address is required.');
+    }
+
     assertCalendarDateNotBeforeToday(dto.requiredShipDate, 'Required ship date');
 
     const productById = new Map(products.map((p) => [p.id, p]));
+    const seenProductIds = new Set<string>();
     for (const l of dto.lines) {
+      if (seenProductIds.has(l.productId)) {
+        const p = productById.get(l.productId);
+        throw new BadRequestException(
+          p?.sku
+            ? `Duplicate product line: SKU "${p.sku}" appears more than once in the order. Each product can only appear once.`
+            : 'Duplicate product line: Each product can only appear once in an order.',
+        );
+      }
+      seenProductIds.add(l.productId);
       const p = productById.get(l.productId)!;
       assertDiscreteUomPositiveIntegerQuantity(p.uom, l.requestedQuantity, 'Requested quantity');
     }
@@ -364,6 +382,8 @@ export class OutboundService {
     const shippingFields = {
       shippingMethod,
       shippingProviderCode: dto.shippingProviderCode,
+      shippingServiceId: dto.shippingServiceId,
+      shippingHubId: dto.shippingHubId,
       shippingReceiverLat: dto.shippingReceiverLat,
       shippingReceiverLng: dto.shippingReceiverLng,
       shippingPackageType: dto.shippingPackageType,
@@ -624,7 +644,8 @@ export class OutboundService {
     } satisfies Prisma.OutboundOrderInclude;
 
     return withTenantRls(this.prisma, user, async (tx) => {
-      const [items, total] = await Promise.all([
+      const statusWhere = await this.buildListWhere(user, { ...query, status: undefined });
+      const [items, total, statusGroup] = await Promise.all([
         tx.outboundOrder.findMany({
           where,
           orderBy: { createdAt: 'desc' },
@@ -633,7 +654,17 @@ export class OutboundService {
           skip: query.offset,
         }),
         tx.outboundOrder.count({ where }),
+        tx.outboundOrder.groupBy({
+          by: ['status'],
+          where: statusWhere,
+          _count: { id: true },
+        }),
       ]);
+      const statusCounts: Record<string, number> = { all: 0 };
+      for (const g of statusGroup) {
+        statusCounts[g.status] = g._count.id;
+        statusCounts.all += g._count.id;
+      }
       return {
         items: items.map((o) => ({
           ...o,
@@ -646,6 +677,7 @@ export class OutboundService {
         total,
         limit: query.limit,
         offset: query.offset,
+        statusCounts,
       };
     });
   }
@@ -822,7 +854,24 @@ export class OutboundService {
   async assertImportCreateReady(user: AuthPrincipal, dto: CreateOutboundOrderDto): Promise<void> {
     const companyId = this.companyAccess.resolveWriteCompanyId(user, dto.companyId);
     await this.billingAccess.assertOperationalBilling(companyId);
+
+    const destination = dto.destinationAddress?.trim();
+    if (!destination) {
+      throw new BadRequestException('Destination address is required.');
+    }
+
     assertCalendarDateNotBeforeToday(dto.requiredShipDate, 'Required ship date');
+
+    const seenProductIds = new Set<string>();
+    for (const l of dto.lines) {
+      if (seenProductIds.has(l.productId)) {
+        throw new BadRequestException(
+          'Duplicate product lines are not allowed in a single order.',
+        );
+      }
+      seenProductIds.add(l.productId);
+    }
+
     const productIds = Array.from(new Set(dto.lines.map((l) => l.productId)));
     const products = await this.prisma.product.findMany({
       where: { id: { in: productIds } },
@@ -866,6 +915,8 @@ export class OutboundService {
     const shippingFields = {
       shippingMethod,
       shippingProviderCode: dto.shippingProviderCode,
+      shippingServiceId: dto.shippingServiceId,
+      shippingHubId: dto.shippingHubId,
       shippingReceiverLat: dto.shippingReceiverLat,
       shippingReceiverLng: dto.shippingReceiverLng,
       shippingPackageType: dto.shippingPackageType,
@@ -1016,6 +1067,8 @@ export class OutboundService {
       ? {
           shippingMethod: dto.shippingMethod,
           shippingProviderCode: dto.shippingProviderCode,
+          shippingServiceId: dto.shippingServiceId,
+          shippingHubId: dto.shippingHubId,
           shippingReceiverLat: dto.shippingReceiverLat,
           shippingReceiverLng: dto.shippingReceiverLng,
           shippingPackageType: dto.shippingPackageType,
@@ -1508,6 +1561,8 @@ export class OutboundService {
               method === ShippingMethod.carrier ? body.shippingProviderCode : null,
             shippingServiceId:
               method === ShippingMethod.carrier ? body.shippingServiceId : null,
+            shippingHubId:
+              method === ShippingMethod.carrier ? body.shippingHubId : null,
             shippingReceiverLat:
               resolvedCoords?.lat ?? body.shippingReceiverLat ?? null,
             shippingReceiverLng:
@@ -1543,7 +1598,23 @@ export class OutboundService {
           status: OutboundOrderStatus.waiting_for_shipping_details,
         },
       });
-      if (order.omsOrder?.id && (body.currency !== undefined || body.shippingPayer)) {
+      if (order.omsOrder?.id) {
+        const nextCity = body.city !== undefined ? body.city?.trim() || null : undefined;
+        const nextDistrict = body.district !== undefined ? body.district?.trim() || null : undefined;
+        const nextAddressLine1 = body.addressLine1 !== undefined ? body.addressLine1?.trim() || null : undefined;
+        const nextAddressLine2 = body.addressLine2 !== undefined ? body.addressLine2?.trim() || null : undefined;
+        const effectiveCity = nextCity !== undefined ? nextCity : order.omsOrder.city;
+        const effectiveDistrict = nextDistrict !== undefined ? nextDistrict : order.omsOrder.district;
+        const effectiveLine1 = nextAddressLine1 !== undefined ? nextAddressLine1 : order.omsOrder.addressLine1;
+        const effectiveLine2 = nextAddressLine2 !== undefined ? nextAddressLine2 : order.omsOrder.addressLine2;
+        const nextDestination = composeDestinationAddress({
+          destinationAddress: order.omsOrder.destinationAddress,
+          city: effectiveCity ?? undefined,
+          district: effectiveDistrict ?? undefined,
+          addressLine1: effectiveLine1 ?? undefined,
+          addressLine2: effectiveLine2 ?? undefined,
+        });
+
         await tx.omsOrder.update({
           where: { id: order.omsOrder.id },
           data: {
@@ -1553,6 +1624,11 @@ export class OutboundService {
                 }
               : {}),
             ...(body.shippingPayer ? { shippingPayer: body.shippingPayer } : {}),
+            ...(nextCity !== undefined ? { city: nextCity } : {}),
+            ...(nextDistrict !== undefined ? { district: nextDistrict } : {}),
+            ...(nextAddressLine1 !== undefined ? { addressLine1: nextAddressLine1 } : {}),
+            ...(nextAddressLine2 !== undefined ? { addressLine2: nextAddressLine2 } : {}),
+            ...(nextDestination ? { destinationAddress: nextDestination } : {}),
           },
         });
       }
@@ -1677,6 +1753,19 @@ export class OutboundService {
             })
           : null;
 
+      const saveAddressLine2 =
+        dto.addressLine2 !== undefined ? dto.addressLine2?.trim() || null : order.addressLine2?.trim() || null;
+      const resolvedDestination =
+        dto.destinationAddress?.trim() ||
+        composeDestinationAddress({
+          destinationAddress: order.destinationAddress,
+          city: saveCity ?? undefined,
+          district: saveDistrict ?? undefined,
+          addressLine1: saveAddressLine1 ?? undefined,
+          addressLine2: saveAddressLine2 ?? undefined,
+        }) ||
+        order.destinationAddress;
+
       const row = await tx.outboundOrder.update({
         where: { id: orderId },
         data: {
@@ -1684,6 +1773,7 @@ export class OutboundService {
             shippingMethod: dto.shippingMethod,
             shippingProviderCode: dto.shippingProviderCode,
             shippingServiceId: dto.shippingServiceId,
+            shippingHubId: dto.shippingHubId,
             shippingReceiverLat:
               saveCoords?.lat ?? dto.shippingReceiverLat ?? null,
             shippingReceiverLng:
@@ -1703,9 +1793,7 @@ export class OutboundService {
           }),
           ...(dto.recipientName !== undefined ? { recipientName: dto.recipientName?.trim() || null } : {}),
           ...(dto.recipientPhone !== undefined ? { recipientPhone: dto.recipientPhone?.trim() || null } : {}),
-          ...(dto.destinationAddress?.trim()
-            ? { destinationAddress: dto.destinationAddress.trim() }
-            : {}),
+          ...(resolvedDestination ? { destinationAddress: resolvedDestination } : {}),
           ...(dto.carrier !== undefined ? { carrier: dto.carrier } : {}),
           ...(dto.trackingNumber !== undefined ? { trackingNumber: dto.trackingNumber } : {}),
           ...(dto.city !== undefined ? { city: dto.city?.trim() || null } : {}),
@@ -1747,10 +1835,23 @@ export class OutboundService {
       // Clear stale carrier-send failures once shipping details are corrected/saved.
       // This prevents the UI from continuing to show an old "phone missing" error
       // when the admin has already fixed recipient data.
-      if (
-        order.omsOrder?.id &&
-        (dto.currency !== undefined || dto.shippingPayer || dto.codAmount !== undefined)
-      ) {
+      if (order.omsOrder?.id) {
+        const nextOmsCity = dto.city !== undefined ? dto.city?.trim() || null : undefined;
+        const nextOmsDistrict = dto.district !== undefined ? dto.district?.trim() || null : undefined;
+        const nextOmsAddressLine1 = dto.addressLine1 !== undefined ? dto.addressLine1?.trim() || null : undefined;
+        const nextOmsAddressLine2 = dto.addressLine2 !== undefined ? dto.addressLine2?.trim() || null : undefined;
+        const effectiveOmsCity = nextOmsCity !== undefined ? nextOmsCity : order.omsOrder.city;
+        const effectiveOmsDistrict = nextOmsDistrict !== undefined ? nextOmsDistrict : order.omsOrder.district;
+        const effectiveOmsLine1 = nextOmsAddressLine1 !== undefined ? nextOmsAddressLine1 : order.omsOrder.addressLine1;
+        const effectiveOmsLine2 = nextOmsAddressLine2 !== undefined ? nextOmsAddressLine2 : order.omsOrder.addressLine2;
+        const nextOmsDestination = composeDestinationAddress({
+          destinationAddress: order.omsOrder.destinationAddress,
+          city: effectiveOmsCity ?? undefined,
+          district: effectiveOmsDistrict ?? undefined,
+          addressLine1: effectiveOmsLine1 ?? undefined,
+          addressLine2: effectiveOmsLine2 ?? undefined,
+        });
+
         await tx.omsOrder.update({
           where: { id: order.omsOrder.id },
           data: {
@@ -1763,6 +1864,13 @@ export class OutboundService {
             ...(dto.codAmount !== undefined && dto.codAmount != null
               ? { codAmount: new Prisma.Decimal(dto.codAmount) }
               : {}),
+            ...(nextOmsCity !== undefined ? { city: nextOmsCity } : {}),
+            ...(nextOmsDistrict !== undefined ? { district: nextOmsDistrict } : {}),
+            ...(nextOmsAddressLine1 !== undefined ? { addressLine1: nextOmsAddressLine1 } : {}),
+            ...(nextOmsAddressLine2 !== undefined ? { addressLine2: nextOmsAddressLine2 } : {}),
+            ...(nextOmsDestination ? { destinationAddress: nextOmsDestination } : {}),
+            ...(dto.recipientName !== undefined ? { recipientName: dto.recipientName?.trim() || null } : {}),
+            ...(dto.recipientPhone !== undefined ? { recipientPhone: dto.recipientPhone?.trim() || null } : {}),
           },
         });
       }
@@ -1791,6 +1899,7 @@ export class OutboundService {
           createdBy: user.id,
         });
       }
+      await this.omsSync?.syncFromOutbound(tx, orderId, user.id);
       return row;
     });
 
@@ -1843,6 +1952,7 @@ export class OutboundService {
           where: { id: shipment.id },
           data: {
             status: CarrierShipmentStatus.failed,
+            supersededAt: shipment.supersededAt ?? new Date(),
             lastErrorSafe:
               'Superseded before confirmation. Previous AWB is kept in shipment events. Provider cancellation is not available.',
             nextPollAt: null,
@@ -1851,7 +1961,7 @@ export class OutboundService {
       }
       const outbound = await tx.outboundOrder.update({
         where: { id: orderId },
-        data: { trackingNumber: null },
+        data: { trackingNumber: null, carrier: null },
         select: { omsOrder: { select: { id: true } } },
       });
       if (outbound.omsOrder) {
@@ -1880,6 +1990,7 @@ export class OutboundService {
         weightKg: number;
         destinationKey: string;
         partsKey?: string;
+        hubId?: string;
         quotedAt: string;
         expiresAt: string;
       } | null;
@@ -1951,6 +2062,7 @@ export class OutboundService {
       fields: {
         shippingMethod: order.shippingMethod,
         shippingProviderCode: order.shippingProviderCode,
+        shippingHubId: order.shippingHubId,
         shippingReceiverLat:
           resolvedCoords?.lat ??
           (order.shippingReceiverLat != null ? Number(order.shippingReceiverLat) : null),
@@ -1978,6 +2090,7 @@ export class OutboundService {
         ? {
             ...body.quoteFingerprint,
             partsKey: body.quoteFingerprint.partsKey ?? '',
+            hubId: body.quoteFingerprint.hubId ?? '',
           }
         : null,
       shippingServiceId: order.shippingServiceId,
@@ -2560,6 +2673,11 @@ export class OutboundService {
       if (!finalized) {
         throw new InvalidStateException('Outbound confirm could not finalize to shipped.');
       }
+
+      await tx.inboundSourceAllocation.updateMany({
+        where: { outboundOrderId: orderId, status: 'allocated' },
+        data: { status: 'fulfilled' },
+      });
 
       await this.omsSync?.syncFromOutbound(tx, orderId, user.id);
 

@@ -5,6 +5,7 @@ import type {
   NormalizedTrackingEvent,
   NormalizedTrackingStatus,
   ShipmentTrackingResult,
+  ShippingCancelResult,
   ShippingCreateShipmentInput,
   ShippingCreateShipmentResult,
   ShippingCredentials,
@@ -17,6 +18,10 @@ import type {
 } from '../../shipping-provider.interface';
 import { logSanitizedProviderRequest, sanitizeBabelCreatePayload } from '../../provider-request-log';
 import { BABEL_EXPRESS_CODE } from '../../shipping.constants';
+import {
+  isBabelShipmentNotFoundMessage,
+  PROVIDER_LOOKUP_NOT_FOUND_EVENT,
+} from '../../shipping-lookup.util';
 import { BabelApiError, BabelExpressHttpClient } from './babel-express.http-client';
 import {
   isBabelCalculatePriceShippable,
@@ -28,6 +33,46 @@ import {
 
 function deliveryTypeLabel(type: 'address' | 'hub'): string {
   return type === 'hub' ? 'Hub' : 'Address';
+}
+
+/** Official webhook event names from Babel Express webhooks.yaml. */
+export const BABEL_WEBHOOK_EVENTS = [
+  'ChangedReceiver',
+  'ArrivedToHub',
+  'EnRoute',
+  'DeliveryContact',
+  'DeliveryFailed',
+  'CreatedFollowupShipment',
+  'OutForDelivery',
+  'Delivered',
+  'ReturnedToSender',
+  'Disposed',
+  'ShipmentLost',
+] as const;
+
+export const BABEL_EVENT_DESCRIPTIONS: Record<string, string> = {
+  Created: 'تم تكوين الشحنة',
+  ArrivedToHub: 'وصلت الشحنة الى نقطة التحويل',
+  EnRoute: 'الشحنة ضمن النقل',
+  OutForDelivery: 'خرجت الشحنة للتسليم',
+  Delivered: 'تم تسليم الشحنة',
+  DeliveryFailed: 'فشل تسليم الشحنة',
+  DeliveryContact: 'الاتصال بالمستلم لتحديد التسليم',
+  CreatedFollowupShipment: 'تم تكوين شحنة متابعة',
+  ReturnedToSender: 'تمت الاعادة الى المرسل',
+  ChangedReceiver: 'تم تغيير المستلم',
+  Disposed: 'تم إتلاف الشحنة',
+  ShipmentLost: 'فقدان الشحنة',
+};
+
+export const BABEL_WEBHOOK_KEY_MIN_LENGTH = 32;
+
+export function generateBabelWebhookKey(): string {
+  return crypto.randomBytes(32).toString('hex');
+}
+
+export function babelWebhookSignature(awb: string, type: string, key: string): string {
+  return crypto.createHash('sha256').update(`${awb}|${type}|${key}`).digest('hex');
 }
 
 @Injectable()
@@ -130,16 +175,22 @@ export class BabelExpressAdapter implements ShippingProvider {
       },
     });
     logSanitizedProviderRequest(this.logger, sanitizeBabelCreatePayload(payload));
-    const raw = await this.http.post<{ status?: string; awb?: string }>(
-      'createShipment',
-      credentials,
-      payload,
-    );
+    const raw = await this.http.post<{
+      status?: string;
+      awb?: string;
+      partBarcodes?: string[];
+      parts?: unknown;
+    }>('createShipment', credentials, payload);
     const awb = typeof raw?.awb === 'string' ? raw.awb.trim() : '';
     if (!awb) {
       throw new BabelApiError('Babel Express createShipment succeeded without awb.', undefined, raw);
     }
-    return { awb, raw };
+    const partBarcodes = Array.isArray(raw?.partBarcodes)
+      ? raw.partBarcodes
+          .filter((b): b is string => typeof b === 'string' && Boolean(b.trim()))
+          .map((b) => b.trim())
+      : undefined;
+    return { awb, partBarcodes, raw };
   }
 
   async getQuote(
@@ -343,16 +394,22 @@ export class BabelExpressAdapter implements ShippingProvider {
     body: unknown,
     secret?: string,
   ): boolean {
-    if (!secret || !secret.trim()) return true;
-    if (!body || typeof body !== 'object') return false;
-    const b = body as Record<string, any>;
-    if (b.type === 'test') return true; // Registration handshake test
+    let parsed: unknown = body;
+    if (typeof body === 'string' || Buffer.isBuffer(body)) {
+      try {
+        parsed = JSON.parse(typeof body === 'string' ? body : body.toString('utf8'));
+      } catch {
+        return false;
+      }
+    }
+    if (!parsed || typeof parsed !== 'object') return false;
+    const b = parsed as Record<string, any>;
+    // Official registerWebhook handshake is `{ "type": "test" }` with no signature.
+    if (b.type === 'test') return true;
+    if (!secret || !secret.trim()) return false;
     const { awb, type, verify } = b;
     if (!verify || !awb || !type) return false;
-    const expected = crypto
-      .createHash('sha256')
-      .update(`${awb}|${type}|${secret.trim()}`)
-      .digest('hex');
+    const expected = babelWebhookSignature(String(awb), String(type), secret.trim());
     return String(verify).toLowerCase() === expected.toLowerCase();
   }
 
@@ -368,12 +425,14 @@ export class BabelExpressAdapter implements ShippingProvider {
     const type = typeof b.type === 'string' ? b.type.trim() : '';
     if (!awb || !type) return null;
 
+    const details = b.details && typeof b.details === 'object' ? b.details : {};
     let normalizedStatus: NormalizedTrackingStatus = 'unknown';
     let carrierReturnStage: 'return_created' | 'returning_to_sender' | 'returned_to_sender' | undefined;
 
     switch (type) {
       case 'ArrivedToHub':
       case 'EnRoute':
+      case 'InTransit':
       case 'ChangedReceiver':
         normalizedStatus = 'in_transit';
         break;
@@ -384,38 +443,57 @@ export class BabelExpressAdapter implements ShippingProvider {
         normalizedStatus = 'delivered';
         break;
       case 'DeliveryFailed':
-      case 'DeliveryContact':
         normalizedStatus = 'delivery_failed';
         break;
-      case 'CreatedFollowupShipment':
-        normalizedStatus = 'return_created';
-        carrierReturnStage = 'return_created';
+      case 'DeliveryContact':
+        // Contact, no-answer, and reschedule notes stay on the movement.
+        // They are not a failed delivery and must not change the OMS status.
+        normalizedStatus = 'unknown';
         break;
-      case 'ReturningToSender':
-      case 'ReturnEnRoute':
-        normalizedStatus = 'returning_to_sender';
-        carrierReturnStage = 'returning_to_sender';
+      case 'CreatedFollowupShipment': {
+        const followupType =
+          typeof details.followupType === 'string' ? details.followupType.trim() : '';
+        if (followupType === 'return') {
+          normalizedStatus = 'return_created';
+          carrierReturnStage = 'return_created';
+        } else {
+          // receiverChange and undocumented follow-up types must not create a return.
+          normalizedStatus = 'unknown';
+        }
         break;
+      }
       case 'ReturnedToSender':
-      case 'ReturnToSender':
         normalizedStatus = 'returned_to_sender';
         carrierReturnStage = 'returned_to_sender';
         break;
       case 'Disposed':
       case 'ShipmentLost':
-        normalizedStatus = 'cancelled';
+        // Official webhooks.yaml: disposed / lost. These are not reseller cancellation.
+        normalizedStatus = 'unknown';
         break;
     }
 
     const time = typeof b.time === 'number' ? b.time : null;
     const timestamp = time ? new Date(time * 1000) : new Date();
-    const details = b.details && typeof b.details === 'object' ? b.details : {};
     const locationText = details.name || details.location || undefined;
-    const notes = details.reason || details.note || undefined;
+    const notes = details.reason || details.note || details.followupType || undefined;
     const returnReason = (typeof details.reason === 'string' && details.reason.trim())
       || (typeof details.note === 'string' && details.note.trim())
       || undefined;
     const originalCarrierStatus = String(b.type || b.status || b.statusText || type);
+
+    const explicitText = typeof details.text === 'string' && details.text.trim()
+      ? details.text.trim()
+      : typeof b.text === 'string' && b.text.trim()
+        ? b.text.trim()
+        : null;
+    const defaultDesc = BABEL_EVENT_DESCRIPTIONS[type] || type;
+    const eventDescription = explicitText
+      || (details.note
+        ? `${defaultDesc} - ${details.note}`
+        : details.reason
+          ? `${defaultDesc} - ${details.reason}`
+          : defaultDesc);
 
     return {
       providerCode: this.code,
@@ -427,8 +505,12 @@ export class BabelExpressAdapter implements ShippingProvider {
       locationText,
       notes,
       returnReason,
-      originalCarrierStatus,
+      originalCarrierStatus: type,
+      eventDescription,
+      sourceType: 'webhook',
+      isCarrierEvent: true,
       carrierReturnStage,
+      reference: typeof b.reference === 'string' ? b.reference.trim() : undefined,
       rawPayload: b,
     };
   }
@@ -442,7 +524,12 @@ export class BabelExpressAdapter implements ShippingProvider {
 
     try {
       const res = await this.http.post<any>('trackShipment', credentials, { awb: trimmed });
-      if (res?.status !== 'success' || !res?.tracking) return null;
+      if (res?.status !== 'success' || !res?.tracking) {
+        if (isBabelShipmentNotFoundMessage(res?.errorMessage)) {
+          return this.lookupNotFoundEvent(trimmed, res?.errorMessage);
+        }
+        return null;
+      }
       const t = res.tracking;
 
       let normalizedStatus: NormalizedTrackingStatus = 'in_transit';
@@ -483,6 +570,14 @@ export class BabelExpressAdapter implements ShippingProvider {
         } else if (text.includes('ارجاع') || text.includes('عادت') || text.includes('مرتجع')) {
           normalizedStatus = 'returning_to_sender';
           carrierReturnStage = 'returning_to_sender';
+        } else if (
+          text.includes('فشل الاتصال') ||
+          text.includes('لم يتم الرد') ||
+          text.includes('غير متاح') ||
+          text.includes('تأجيل')
+        ) {
+          // Courier contact / postpone text is movement detail, not a failed delivery.
+          normalizedStatus = 'unknown';
         } else if (text.includes('فشل') || text.includes('تعذر')) {
           normalizedStatus = 'delivery_failed';
         } else if (text.includes('وصلت') || text.includes('تكوين') || text.includes('تحويل')) {
@@ -491,20 +586,55 @@ export class BabelExpressAdapter implements ShippingProvider {
       }
 
       const rawStatusText = t.shipmentStatus?.text || 'TRACKING_UPDATE';
+      const rawStatusCode = t.shipmentStatus?.code || rawStatusText;
+      const updates = Array.isArray(t.updates) ? t.updates : [];
+      const lastUpdate = updates.length > 0 ? updates[updates.length - 1] : null;
+      const updateTime = lastUpdate?.time ? Number(lastUpdate.time) : null;
+      const timestamp = t.deliverDate
+        ? new Date(t.deliverDate * 1000)
+        : updateTime && Number.isFinite(updateTime)
+          ? new Date(updateTime * 1000)
+          : new Date();
+      const eventDescription = lastUpdate?.text || rawStatusText;
 
       return {
         providerCode: this.code,
         awb: trimmed,
-        eventType: rawStatusText,
+        eventType: rawStatusCode,
         normalizedStatus,
         carrierReturnStage,
-        originalCarrierStatus: rawStatusText,
-        timestamp: t.deliverDate ? new Date(t.deliverDate * 1000) : new Date(),
+        originalCarrierStatus: rawStatusCode,
+        eventDescription,
+        sourceType: 'poll',
+        isCarrierEvent: true,
+        timestamp,
+        locationText: lastUpdate?.location || undefined,
         rawPayload: res,
       };
-    } catch {
+    } catch (err: any) {
+      if (isBabelShipmentNotFoundMessage(err?.message)) {
+        return this.lookupNotFoundEvent(trimmed, err?.message);
+      }
       return null;
     }
+  }
+
+  private lookupNotFoundEvent(awb: string, errorMessage?: string): NormalizedTrackingEvent {
+    const message = (errorMessage || 'Shipment not found').trim();
+    return {
+      providerCode: this.code,
+      awb,
+      externalEventId: `${PROVIDER_LOOKUP_NOT_FOUND_EVENT}:${awb}`,
+      eventType: PROVIDER_LOOKUP_NOT_FOUND_EVENT,
+      normalizedStatus: 'unknown',
+      originalCarrierStatus: message,
+      eventDescription: message,
+      sourceType: 'poll',
+      isCarrierEvent: true,
+      notes: message,
+      timestamp: new Date(),
+      rawPayload: { lookupState: 'not_found', errorMessage: message },
+    };
   }
 
   /**
@@ -521,12 +651,19 @@ export class BabelExpressAdapter implements ShippingProvider {
     try {
       const res = await this.http.post<any>('trackShipment', credentials, { awb: trimmed });
       if (res?.status !== 'success' || !res?.tracking) {
+        const notFound = isBabelShipmentNotFoundMessage(res?.errorMessage);
         return {
           providerCode: this.code,
           providerName: 'Babel Express',
           awb: trimmed,
           events: [],
-          message: res?.errorMessage || 'No tracking information available for this shipment.',
+          lookupState: notFound ? 'not_found' : 'error',
+          cancellationUnconfirmed: notFound,
+          shipmentState: 'active',
+          message: notFound
+            ? 'The carrier did not return this shipment. Cancellation is not confirmed.'
+            : res?.errorMessage || 'No tracking information available for this shipment.',
+          error: notFound ? undefined : res?.errorMessage,
         };
       }
 
@@ -548,10 +685,12 @@ export class BabelExpressAdapter implements ShippingProvider {
 
         return {
           timestamp,
-          title: typeof u.text === 'string' ? u.text.trim() : '',
+          title: typeof u.text === 'string' && u.text.trim() ? u.text.trim() : (u.code || ''),
           location: typeof u.location === 'string' && u.location.trim() ? u.location.trim() : null,
           color,
           code: typeof u.code === 'string' ? u.code : null,
+          source: 'carrier',
+          originalDescription: typeof u.text === 'string' ? u.text.trim() : null,
         };
       });
 
@@ -565,15 +704,26 @@ export class BabelExpressAdapter implements ShippingProvider {
         isDelivered: Boolean(t.isDelivered),
         statusLabel: t.shipmentStatus?.text || undefined,
         statusColor: t.shipmentStatus?.color || undefined,
+        lookupState: 'ok',
+        shipmentState: 'active',
+        cancellationUnconfirmed: false,
         events,
       };
     } catch (err: any) {
+      const message = err?.message || 'Failed to query Babel Express tracking API.';
+      const notFound = isBabelShipmentNotFoundMessage(message);
       return {
         providerCode: this.code,
         providerName: 'Babel Express',
         awb: trimmed,
         events: [],
-        error: err?.message || 'Failed to query Babel Express tracking API.',
+        lookupState: notFound ? 'not_found' : 'error',
+        cancellationUnconfirmed: notFound,
+        shipmentState: 'active',
+        message: notFound
+          ? 'The carrier did not return this shipment. Cancellation is not confirmed.'
+          : undefined,
+        error: notFound ? undefined : message,
       };
     }
   }
@@ -582,34 +732,44 @@ export class BabelExpressAdapter implements ShippingProvider {
     credentials: ShippingCredentials,
     webhookUrl: string,
     secret: string,
-  ): Promise<{ ok: boolean; message?: string }> {
+  ): Promise<{ ok: boolean; message?: string; secret?: string }> {
+    const key =
+      secret.trim().length >= BABEL_WEBHOOK_KEY_MIN_LENGTH
+        ? secret.trim()
+        : generateBabelWebhookKey();
     try {
       const payload = {
         webhook: {
           enabled: true,
-          key: secret,
+          key,
           url: webhookUrl,
-          subscribedEvents: [
-            'ArrivedToHub',
-            'EnRoute',
-            'DeliveryContact',
-            'DeliveryFailed',
-            'CreatedFollowupShipment',
-            'OutForDelivery',
-            'Delivered',
-            'ReturnedToSender',
-            'Disposed',
-            'ShipmentLost',
-          ],
+          subscribedEvents: [...BABEL_WEBHOOK_EVENTS],
         },
       };
       const res = await this.http.post<any>('registerWebhook', credentials, payload);
       if (res?.status === 'success') {
-        return { ok: true, message: 'Babel Express webhook registered successfully.' };
+        return {
+          ok: true,
+          secret: key,
+          message:
+            'Babel Express webhook registered. Provider returned status=success after the documented test POST to the callback URL.',
+        };
       }
       return { ok: false, message: res?.errorMessage || 'Failed to register webhook with Babel Express.' };
     } catch (err: any) {
       return { ok: false, message: err?.message || 'Error communicating with Babel Express registerWebhook.' };
     }
+  }
+
+  async cancelShipment(
+    _credentials: ShippingCredentials,
+    _providerId: string,
+  ): Promise<ShippingCancelResult> {
+    return {
+      outcome: 'refused',
+      errorCode: 'cancel_unsupported',
+      message:
+        'Babel Express API does not support automated cancellation via API. Please cancel the shipment directly in the Babel merchant portal.',
+    };
   }
 }

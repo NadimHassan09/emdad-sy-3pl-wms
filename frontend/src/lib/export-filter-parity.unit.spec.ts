@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { auditLogsFiltersToParams, type AuditLogFilters } from './audit-logs-filters';
 import { buildInboundListParams } from './inbound-list-params';
+import { buildCodListParams } from './oms-cod-list-params';
 import { buildOmsOrdersListParams, OMS_ORDERS_FILTER_DEFAULTS } from './oms-orders-list-filters';
 import { buildOutboundListParams } from './outbound-list-params';
 
@@ -75,6 +76,31 @@ describe('export/table applied-filter parity', () => {
       createdTo: '2026-02-28',
       quickDirectedOnly: false,
     });
+  });
+
+  it('COD list and Excel export share buildCodListParams(applied), including client', () => {
+    const applied = {
+      search: ' OMS-9 ',
+      status: 'available',
+      companyId: 'client-a',
+      createdFrom: '2026-10-01',
+      createdTo: '2026-10-31',
+      amountMin: '10',
+      amountMax: '90',
+    };
+    const listParams = buildCodListParams(applied);
+    const exportParams = buildCodListParams(applied);
+    expect(exportParams).toEqual(listParams);
+    expect(listParams).toEqual({
+      search: 'OMS-9',
+      status: 'available',
+      companyId: 'client-a',
+      createdFrom: '2026-10-01',
+      createdTo: '2026-10-31',
+      amountMin: 10,
+      amountMax: 90,
+    });
+    expect(buildCodListParams({ ...applied, companyId: '' }).companyId).toBeUndefined();
   });
 
   it('audit list and export share applied filters (paging may differ)', () => {

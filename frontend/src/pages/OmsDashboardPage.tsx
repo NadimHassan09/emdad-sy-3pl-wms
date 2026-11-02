@@ -150,7 +150,7 @@ const PENDING_FULFILLMENT = new Set([
 ]);
 const OUT_FOR_DELIVERY = new Set(['shipped', 'out_for_delivery']);
 const DELIVERED = new Set(['delivered', 'completed']);
-const RETURNED = new Set(['returned']);
+const RETURNED = new Set(['returned', 'return_pending_receipt']);
 const CANCELLED_OR_FAILED = new Set(['cancelled', 'rejected', 'failed_delivery']);
 
 function sumBucket(
@@ -842,13 +842,13 @@ export function OmsDashboardPage() {
                 colorClass="text-brand-600 dark:text-brand-400"
               />
               <StatusCell
-                label="Returned"
+                label="Returns"
                 count={orderSummary.returned}
                 total={orderSummary.total || 1}
                 colorClass="text-rose-600 dark:text-rose-400"
               />
               <StatusCell
-                label="Cancelled / failed"
+                label="Cancelled / Field Delivery"
                 count={orderSummary.cancelled}
                 total={orderSummary.total || 1}
                 colorClass="text-text-muted"

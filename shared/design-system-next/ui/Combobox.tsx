@@ -68,7 +68,7 @@ function OptionsList({
   emptyMessage: string;
   onPick: (v: string) => void;
   setActiveIdx: (i: number) => void;
-  listRef?: React.RefObject<HTMLUListElement | null>;
+  listRef?: React.Ref<HTMLUListElement>;
   style?: CSSProperties;
   className?: string;
 }) {
@@ -153,18 +153,18 @@ export function Combobox({
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLUListElement>(null);
 
-  const selected = options.find((o) => o.value === value);
+  const selected = value ? options.find((o) => o.value === value) : undefined;
   const closedDisplay = selected?.label ?? (allowCustomValue ? value : '') ?? '';
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return options;
+    if (!q || (selected && q === selected.label.toLowerCase())) return options;
     return options.filter(
       (o) =>
         o.label.toLowerCase().includes(q) ||
         (o.hint?.toLowerCase().includes(q) ?? false),
     );
-  }, [options, query]);
+  }, [options, query, selected]);
 
   const pick = (v: string) => {
     onChange(v);
@@ -292,14 +292,14 @@ export function Combobox({
             emptyMessage={emptyMessage}
             onPick={pick}
             setActiveIdx={setActiveIdx}
-            className="z-popover overflow-auto rounded-md border border-border bg-surface-panel py-1 text-sm shadow-lg"
+            className="overflow-auto rounded-md border border-border bg-surface-panel py-1 text-sm shadow-2xl"
             style={{
               position: 'fixed',
               top: coords.top,
               left: coords.left,
               width: coords.width,
               maxHeight: coords.maxHeight,
-              zIndex: 'var(--z-popover, 70)',
+              zIndex: 99999,
             }}
           />,
           document.body,
@@ -328,6 +328,12 @@ export function Combobox({
           required={required && !value}
           placeholder={closedDisplay ? '' : placeholder}
           value={display}
+          onClick={() => {
+            if (!disabled && !open) {
+              setQuery(closedDisplay);
+              setOpen(true);
+            }
+          }}
           onChange={(e) => {
             const v = e.target.value;
             setQuery(v);
@@ -335,31 +341,62 @@ export function Combobox({
             setOpen(true);
             if (allowCustomValue) onChange(v);
           }}
-          onFocus={() => {
+          onFocus={(e) => {
             setQuery(closedDisplay);
             setOpen(true);
+            e.currentTarget.select();
           }}
           onKeyDown={handleKeyDown}
           className={`${FILTER_FIELD_CONTROL_CLASS} ${
-            clearable && value && !disabled ? 'pr-7' : ''
+            clearable && value && !disabled ? 'pe-14' : 'pe-8'
           } ${error ? FILTER_FIELD_CONTROL_ERROR_CLASS : ''}`}
         />
-        {clearable && value && !disabled && (
+        <div className="absolute inset-y-0 end-0 flex items-center pe-2 gap-0.5">
+          {clearable && value && !disabled && (
+            <button
+              type="button"
+              tabIndex={-1}
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                onChange('');
+                setQuery('');
+                onSearchQueryChange?.('');
+                inputRef.current?.focus();
+              }}
+              className="flex h-5 w-5 items-center justify-center rounded-full text-text-faint hover:bg-neutral-200 dark:hover:bg-neutral-700 hover:text-text-strong transition-colors"
+              aria-label="Clear selection"
+            >
+              <i className="fa-solid fa-xmark text-xs" />
+            </button>
+          )}
           <button
             type="button"
             tabIndex={-1}
-            onClick={() => {
-              onChange('');
-              setQuery('');
-              onSearchQueryChange?.('');
-              inputRef.current?.focus();
+            disabled={disabled}
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              if (disabled) return;
+              setOpen((prev) => {
+                const next = !prev;
+                if (next) {
+                  setQuery(closedDisplay);
+                  inputRef.current?.focus();
+                }
+                return next;
+              });
             }}
-            className="absolute inset-y-0 end-1 z-10 flex w-6 items-center justify-center text-text-faint hover:text-text-muted"
-            aria-label="Clear selection"
+            className="flex h-6 w-6 items-center justify-center text-text-muted hover:text-text-strong disabled:cursor-not-allowed disabled:opacity-50 transition-colors"
+            aria-label={open ? 'Close dropdown' : 'Open dropdown'}
           >
-            ×
+            <i
+              className={`fa-solid fa-chevron-down text-xs transition-transform duration-200 ${
+                open ? 'rotate-180 text-brand-600 dark:text-brand-400' : ''
+              }`}
+            />
           </button>
-        )}
+        </div>
         {dropdownInFlow ? (
           open ? (
             <div className="mt-1">

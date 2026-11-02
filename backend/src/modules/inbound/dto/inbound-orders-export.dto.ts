@@ -31,4 +31,8 @@ export class InboundOrdersExportDto extends ListInboundQueryDto {
   @ArrayMaxSize(500)
   @IsUuidLoose({ each: true })
   ids?: string[];
+
+  @IsOptional()
+  @IsString()
+  format?: 'csv' | 'xlsx';
 }

@@ -13,6 +13,13 @@ import { validateSync } from 'class-validator';
 import { randomUUID } from 'node:crypto';
 
 import { AuthPrincipal } from '../../common/auth/current-user.types';
+import { assertDiscreteUomPositiveIntegerQuantity } from '../../common/utils/discrete-uom-quantity';
+import { buildExcelBuffer } from '../../common/utils/excel-export.util';
+import {
+  parseImportShipDateMdY,
+  validateImportOrderNumber,
+  validateImportPaymentMethod,
+} from '../client-portal/order-import/oms-client-import.validation';
 import { getOmsClientImportTemplate } from '../client-portal/order-import/oms-client-import.schema';
 import {
   ADMIN_OMS_EXPORT_COLUMNS,
@@ -176,6 +183,91 @@ export class OmsOrdersCsvService {
     };
   }
 
+  async exportXlsx(
+    user: AuthPrincipal,
+    query: ListOmsOrdersQueryDto,
+    opts?: { columnIds?: string[]; arabicHeaders?: boolean; ids?: string[] },
+  ): Promise<{ filename: string; buffer: Buffer; rowCount: number; truncated: boolean }> {
+    const columnIds = adminOrderedColumnIds(ADMIN_OMS_EXPORT_COLUMNS, opts?.columnIds);
+    if (columnIds.length === 0) {
+      throw new BadRequestException('Select at least one valid export column.');
+    }
+
+    const { items, total, truncated } = await this.orders.listForExport(user, query, {
+      maxRows: OMS_EXPORT_MAX_ROWS,
+      ids: opts?.ids,
+    });
+
+    const arabic = Boolean(opts?.arabicHeaders);
+    const headers = adminHeaderLabels(ADMIN_OMS_EXPORT_COLUMNS, columnIds, arabic);
+
+    const rows = items.map((o) => {
+      const lineCount = o.lines?.length ?? 0;
+      const totalQty = (o.lines ?? []).reduce(
+        (sum, l) => sum + Number(l.requestedQuantity ?? 0),
+        0,
+      );
+      const cells: Record<string, unknown> = {
+        order_number: o.orderNumber,
+        status: o.status,
+        company_id: o.companyId,
+        company_name: o.company?.name ?? '',
+        external_reference: o.externalReference ?? '',
+        client_reference: o.clientReference ?? '',
+        recipient_name: o.recipientName ?? '',
+        recipient_phone: o.recipientPhone ?? '',
+        city: o.city ?? '',
+        district: o.district ?? '',
+        address_line1: o.addressLine1 ?? '',
+        store_channel: o.storeChannel ?? '',
+        payment_method: o.paymentMethod ?? '',
+        cod_status: o.codStatus ?? '',
+        cod_amount: o.codAmount ? Number(o.codAmount) : '',
+        currency: o.currency ?? '',
+        subtotal: o.subtotal ? Number(o.subtotal) : '',
+        shipping_fee: o.shippingFee ? Number(o.shippingFee) : '',
+        total: o.total ? Number(o.total) : '',
+        line_count: lineCount,
+        total_quantity: totalQty,
+        product_name: exportProductNames(o.lines),
+        product_weight: exportProductWeights(o.lines),
+        shipping_method: o.shippingMethod ?? '',
+        shipping_provider_code: o.shippingProviderCode ?? '',
+        carrier: o.carrier ?? '',
+        outbound_order_number: o.linkedOutboundOrder?.orderNumber ?? '',
+        required_ship_date: o.requiredShipDate
+          ? new Date(o.requiredShipDate).toISOString().slice(0, 10)
+          : '',
+        created_at: o.createdAt ? new Date(o.createdAt).toISOString().replace('T', ' ').slice(0, 19) : '',
+        confirmed_at: o.confirmedAt ? new Date(o.confirmedAt).toISOString().replace('T', ' ').slice(0, 19) : '',
+        approved_at: o.approvedAt ? new Date(o.approvedAt).toISOString().replace('T', ' ').slice(0, 19) : '',
+        out_for_delivery_at: o.outForDeliveryAt
+          ? new Date(o.outForDeliveryAt).toISOString().replace('T', ' ').slice(0, 19)
+          : '',
+        delivered_at: o.deliveredAt
+          ? new Date(o.deliveredAt).toISOString().slice(0, 10)
+          : '',
+      };
+      return cells;
+    });
+
+    const stamp = new Date().toISOString().slice(0, 10);
+    const buffer = await buildExcelBuffer({
+      sheetName: 'OMS Orders',
+      columns: columnIds.map((id, idx) => ({ header: headers[idx] ?? id, key: id })),
+      rows,
+      isRtl: arabic,
+    });
+
+    return {
+      filename: `oms-orders-${stamp}.xlsx`,
+      buffer,
+      rowCount: items.length,
+      truncated: truncated || total > items.length,
+    };
+  }
+
+
   async validateImport(
     user: AuthPrincipal,
     fileBuffer: Buffer,
@@ -331,11 +423,22 @@ export class OmsOrdersCsvService {
 
     for (const g of groups) {
       const ref = g.externalReference.trim();
-      if (!ref) {
+      const refResult = validateImportOrderNumber(ref);
+      if (!refResult.ok) {
         errors.push({
           rowNumber: g.headerRow,
-          externalReference: null,
-          reason: 'external_reference is required.',
+          externalReference: ref || null,
+          reason: refResult.message,
+        });
+        continue;
+      }
+
+      const dateResult = parseImportShipDateMdY(g.fields.required_ship_date || '');
+      if (!dateResult.ok) {
+        errors.push({
+          rowNumber: g.headerRow,
+          externalReference: ref,
+          reason: dateResult.message,
         });
         continue;
       }
@@ -376,6 +479,7 @@ export class OmsOrdersCsvService {
       const products = await this.orders.findProductsBySkus(companyId, skus);
       const bySku = new Map(products.map((p) => [p.sku.toUpperCase(), p]));
       const lineDtos: CreateOmsOrderDto['lines'] = [];
+      const seenProductIds = new Set<string>();
       let lineFailed = false;
       for (const line of g.lines) {
         const sku = line.sku.trim();
@@ -398,6 +502,17 @@ export class OmsOrdersCsvService {
           lineFailed = true;
           continue;
         }
+        if (seenProductIds.has(product.id)) {
+          errors.push({
+            rowNumber: line.rowNumber,
+            externalReference: ref,
+            reason: `Duplicate product line: SKU "${sku}" appears more than once in the order. Each product can only appear once.`,
+          });
+          lineFailed = true;
+          continue;
+        }
+        seenProductIds.add(product.id);
+
         const qty = Number(line.quantity);
         if (!Number.isFinite(qty) || qty <= 0) {
           errors.push({
@@ -408,6 +523,26 @@ export class OmsOrdersCsvService {
           lineFailed = true;
           continue;
         }
+
+        try {
+          assertDiscreteUomPositiveIntegerQuantity(
+            product.uom,
+            qty,
+            'Requested quantity',
+          );
+        } catch (err: unknown) {
+          errors.push({
+            rowNumber: line.rowNumber,
+            externalReference: ref,
+            reason:
+              err instanceof Error
+                ? err.message
+                : `Invalid requested_quantity for UOM "${product.uom}".`,
+          });
+          lineFailed = true;
+          continue;
+        }
+
         const unitPrice =
           line.unitPrice.trim() === '' ? undefined : Number(line.unitPrice);
         if (unitPrice != null && (!Number.isFinite(unitPrice) || unitPrice < 0)) {
@@ -427,15 +562,20 @@ export class OmsOrdersCsvService {
       }
       if (lineFailed || lineDtos.length === 0) continue;
 
-      const paymentRaw = g.fields.payment_method.trim().toUpperCase();
-      const paymentMethod =
-        paymentRaw === ''
-          ? undefined
-          : (paymentRaw as OmsPaymentMethod);
+      const paymentResult = validateImportPaymentMethod(g.fields.payment_method);
+      if (!paymentResult.ok) {
+        errors.push({
+          rowNumber: g.headerRow,
+          externalReference: ref,
+          reason: paymentResult.message,
+        });
+        continue;
+      }
+      const paymentMethod = paymentResult.value;
 
       const plain = {
         companyId,
-        requiredShipDate: g.fields.required_ship_date,
+        requiredShipDate: dateResult.ymd,
         recipientName: g.fields.recipient_name,
         recipientPhone: g.fields.recipient_phone,
         city: g.fields.city,
@@ -445,8 +585,6 @@ export class OmsOrdersCsvService {
         deliveryInstructions: g.fields.delivery_instructions || undefined,
         paymentMethod,
         currency: g.fields.currency || 'USD',
-        codAmount:
-          g.fields.cod_amount.trim() === '' ? undefined : Number(g.fields.cod_amount),
         shippingFee:
           g.fields.shipping_fee.trim() === '' ? undefined : Number(g.fields.shipping_fee),
         storeChannel: g.fields.store_channel || 'csv_import',
@@ -456,6 +594,15 @@ export class OmsOrdersCsvService {
         shippingMethod: ShippingMethod.manual,
         lines: lineDtos,
       };
+
+      if (g.fields.address_line2 && g.fields.address_line2.trim().length <= 10) {
+        errors.push({
+          rowNumber: g.headerRow,
+          externalReference: ref,
+          reason: 'Street / detailed address (address_line2) must be more than 10 characters.',
+        });
+        continue;
+      }
 
       const dto = plainToInstance(CreateOmsOrderDto, plain);
       const dtoErrors = validateSync(dto, {

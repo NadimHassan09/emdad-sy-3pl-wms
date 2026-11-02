@@ -20,6 +20,12 @@ const billing_invoice_calculation_service_1 = require("./billing-invoice-calcula
 exports.INVOICE_SELECT = {
     id: true,
     companyId: true,
+    company: {
+        select: {
+            id: true,
+            name: true,
+        },
+    },
     billingCycleId: true,
     invoiceSource: true,
     invoiceNumber: true,

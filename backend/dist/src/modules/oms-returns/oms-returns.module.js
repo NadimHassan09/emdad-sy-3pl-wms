@@ -10,7 +10,9 @@ exports.OmsReturnsModule = void 0;
 const common_1 = require("@nestjs/common");
 const company_access_module_1 = require("../../common/company-access/company-access.module");
 const cod_module_1 = require("../cod/cod.module");
+const inventory_module_1 = require("../inventory/inventory.module");
 const returns_module_1 = require("../returns/returns.module");
+const shipping_module_1 = require("../shipping/shipping.module");
 const oms_returns_controller_1 = require("./oms-returns.controller");
 const oms_returns_service_1 = require("./oms-returns.service");
 let OmsReturnsModule = class OmsReturnsModule {
@@ -21,7 +23,9 @@ exports.OmsReturnsModule = OmsReturnsModule = __decorate([
         imports: [
             company_access_module_1.CompanyAccessModule,
             cod_module_1.CodModule,
+            inventory_module_1.InventoryModule,
             (0, common_1.forwardRef)(() => returns_module_1.ReturnsModule),
+            (0, common_1.forwardRef)(() => shipping_module_1.ShippingModule),
         ],
         controllers: [oms_returns_controller_1.OmsReturnsController],
         providers: [oms_returns_service_1.OmsReturnsService],

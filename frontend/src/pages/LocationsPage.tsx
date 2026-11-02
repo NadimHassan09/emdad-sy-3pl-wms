@@ -1,775 +1,281 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { useMemo } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 
-import { InventoryApi, StockRow } from '../api/inventory';
-import { CreateLocationInput, Location, LocationsApi, LocationType } from '../api/locations';
+import { Warehouse, WarehouseStatus, WarehousesApi } from '../api/warehouses';
+import { useAuth } from '../auth/AuthContext';
 import { AdminListPageShell } from '../components/AdminListPageShell';
-import { BarcodeImageModal } from '../components/BarcodeImageModal';
-import { BarcodeScanModal } from '../components/BarcodeScanModal';
 import { Button } from '../components/Button';
+import { Column, DataTable } from '../components/DataTable';
 import { FilterPanel } from '../components/FilterPanel';
-import { FilterScanButton } from '../components/FilterScanButton';
-import { LocationParentPicker } from '../components/locations/LocationParentPicker';
-import { LocationsDrillDownTable } from '../components/locations/LocationsDrillDownTable';
-import { Modal } from '../components/Modal';
-import { Card } from '@ds';
 import { SelectField } from '../components/SelectField';
 import { TextField } from '../components/TextField';
-import { useToast } from '../components/ToastProvider';
 import { QK } from '../constants/query-keys';
-import { useDefaultWarehouseId } from '../hooks/useDefaultWarehouse';
-import {
-  CHUNK_SIZE_STANDARD,
-  useChunkedServerPagination,
-} from '../hooks/useChunkedServerPagination';
-import { MODAL_CANCEL_BUTTON_CLASS } from '../lib/modal-button-styles';
 import { useFilters } from '../hooks/useFilters';
-import { locationTypeSupportsCapacityFields } from '../lib/location-types';
-import {
-  localizedLocationTypeHint,
-  localizedLocationTypeSelectOptions,
-  localizedManagedTypeOptionsForEdit,
-} from '../lib/ui-labels/locations';
 import { useWmsTranslation } from '../lib/ui-i18n';
+import { canAccessPath } from '../lib/rbac';
+import { Badge, Card } from '@ds';
 
-function parseOptionalPositiveDecimal(s: string): number | undefined {
-  const t = s.trim();
-  if (!t) return undefined;
-  const n = Number(t);
-  return Number.isFinite(n) && n >= 0 ? n : undefined;
+type StatusFilter = '' | WarehouseStatus;
+
+type WarehouseListFilters = {
+  search: string;
+  status: StatusFilter;
+  includeInactive: boolean;
+};
+
+const INITIAL_FILTERS: WarehouseListFilters = {
+  search: '',
+  status: '',
+  includeInactive: true,
+};
+
+function filterWarehouses(rows: Warehouse[], filters?: Partial<WarehouseListFilters>): Warehouse[] {
+  const q = (filters?.search ?? '').trim().toLowerCase();
+  const status = filters?.status ?? '';
+  const includeInactive = filters?.includeInactive ?? true;
+  return rows.filter((w) => {
+    if (status && w.status !== status) return false;
+    if (!includeInactive && w.status !== 'active') return false;
+    if (!q) return true;
+    return (
+      (w.code ?? '').toLowerCase().includes(q) ||
+      (w.name ?? '').toLowerCase().includes(q) ||
+      (w.city?.toLowerCase().includes(q) ?? false) ||
+      (w.country ?? '').toLowerCase().includes(q)
+    );
+  });
 }
-
-function fmtQty(s: string) {
-  return Number(s).toLocaleString(undefined, { maximumFractionDigits: 4 });
-}
-
-type LocationDraftFilters = { name: string; barcode: string; locationType: string };
-
-type BreadcrumbCrumb = { id: string | null; name: string };
-
-const INCLUDE_ARCHIVED_LOCATIONS = true;
 
 export function LocationsPage() {
-  const qc = useQueryClient();
-  const toast = useToast();
+  const navigate = useNavigate();
+  const { user } = useAuth();
   const { t, isArabic } = useWmsTranslation();
-  const { warehouseId } = useDefaultWarehouseId();
-  const initialLocFilters = useMemo<LocationDraftFilters>(
-    () => ({ name: '', barcode: '', locationType: '' }),
-    [],
-  );
-  const { draftFilters, appliedFilters, setDraft, applyFilters, applyPatch, resetFilters } =
-    useFilters(initialLocFilters);
+  const canManageWarehouses = canAccessPath(user?.role, '/warehouses');
 
-  const [trail, setTrail] = useState<BreadcrumbCrumb[]>([{ id: null, name: 'root' }]);
-  const [open, setOpen] = useState(false);
-  const [editLoc, setEditLoc] = useState<Location | null>(null);
-  const [barcodeModal, setBarcodeModal] = useState<{ value: string; contextLabel: string } | null>(null);
-  const [stockModal, setStockModal] = useState<Location | null>(null);
-  const [scanOpen, setScanOpen] = useState(false);
-  const [pendingPermanentDelete, setPendingPermanentDelete] = useState<Location | null>(null);
+  const { draftFilters, appliedFilters, setDraft, applyFilters, resetFilters } =
+    useFilters<WarehouseListFilters>(INITIAL_FILTERS);
 
-  const currentParentId = trail[trail.length - 1]?.id ?? null;
+  // Fetch warehouses with efficient location counts from backend
+  const warehousesQuery = useQuery({
+    queryKey: [...QK.warehouses, true],
+    queryFn: () => WarehousesApi.list(true),
+  });
 
-  const listFilterKey = useMemo(() => {
-    const search =
-      appliedFilters.barcode.trim() ||
-      appliedFilters.name.trim() ||
-      undefined;
-    return {
-      warehouseId: warehouseId ?? '',
-      parentId: currentParentId,
-      search,
-      type: appliedFilters.locationType.trim() || undefined,
-      includeArchived: INCLUDE_ARCHIVED_LOCATIONS,
-    };
-  }, [warehouseId, currentParentId, appliedFilters]);
-
-  const fetchChunk = useCallback(
-    (offset: number, limit: number) => {
-      if (!warehouseId) {
-        return Promise.resolve({ items: [], total: 0, limit, offset });
-      }
-      return LocationsApi.listChildren({
-        warehouseId,
-        parentId: currentParentId ?? undefined,
-        offset,
-        limit,
-        search: listFilterKey.search,
-        type: listFilterKey.type,
-        includeArchived: INCLUDE_ARCHIVED_LOCATIONS,
-      });
-    },
-    [warehouseId, currentParentId, listFilterKey.search, listFilterKey.type],
+  const allWarehouses = warehousesQuery.data ?? [];
+  const filteredRows = useMemo(
+    () => filterWarehouses(allWarehouses, appliedFilters),
+    [allWarehouses, appliedFilters],
   );
 
-  const pagination = useChunkedServerPagination<Location>({
-    chunkSize: CHUNK_SIZE_STANDARD,
-    filterKey: listFilterKey,
-    fetchChunk,
-    rtQueryKeyPrefix: QK.locations.all,
-    chunkQueryKeyPrefix: 'locations-children-chunk',
-    enabled: !!warehouseId,
-  });
+  // Compute stats across warehouses
+  const stats = useMemo(() => {
+    const total = allWarehouses.length;
+    const active = allWarehouses.filter((w) => w.status === 'active').length;
+    const totalLocations = allWarehouses.reduce((sum, w) => sum + (w.locationCount ?? 0), 0);
+    return { total, active, totalLocations };
+  }, [allWarehouses]);
 
-  const purgeCtx = useQuery({
-    queryKey: warehouseId ? QK.locationsPurgeContext(warehouseId) : ['locations', 'purge-context', 'none'],
-    queryFn: () => LocationsApi.purgeContext(warehouseId!),
-    enabled: !!warehouseId,
-  });
-
-  const blockDeleteSet = useMemo(() => {
-    const s = new Set<string>();
-    for (const id of purgeCtx.data?.locationIdsWithStock ?? []) s.add(id);
-    for (const id of purgeCtx.data?.locationIdsOnAdjustments ?? []) s.add(id);
-    return s;
-  }, [purgeCtx.data]);
-
-  const invalidateLocationQueries = () => {
-    if (!warehouseId) return;
-    qc.invalidateQueries({ queryKey: QK.locations.all });
-    qc.invalidateQueries({ queryKey: ['locations', 'lookup'] });
-    qc.invalidateQueries({ queryKey: QK.locationsPurgeContext(warehouseId) });
-    qc.invalidateQueries({ queryKey: QK.inventoryStock });
-    qc.invalidateQueries({ queryKey: QK.inventoryStockByProduct });
-  };
-
-  const handleApplyFilters = () => {
-    applyFilters();
-    pagination.resetPage();
-  };
-
-  const handleResetFilters = () => {
-    resetFilters();
-    pagination.resetPage();
-  };
-
-  const navigateToCrumb = (index: number) => {
-    setTrail((prev) => prev.slice(0, index + 1));
-    pagination.resetPage();
-  };
-
-  const navigateInto = (row: Location) => {
-    setTrail((prev) => [...prev, { id: row.id, name: row.name }]);
-    pagination.resetPage();
-  };
-
-  const createMut = useMutation({
-    mutationFn: LocationsApi.create,
-    onSuccess: (loc) => {
-      toast.success(`Location ${loc.barcode} created.`);
-      invalidateLocationQueries();
-      setOpen(false);
-    },
-    onError: (err: Error) => toast.error(err.message),
-  });
-
-  const updateMut = useMutation({
-    mutationFn: ({ id, patch }: { id: string; patch: Parameters<typeof LocationsApi.update>[1] }) =>
-      LocationsApi.update(id, patch),
-    onSuccess: () => {
-      toast.success(t(['Location updated.', 'تم تحديث الموقع.']));
-      invalidateLocationQueries();
-      setEditLoc(null);
-    },
-    onError: (err: Error) => toast.error(err.message),
-  });
-
-  const suspendLocMut = useMutation({
-    mutationFn: (id: string) => LocationsApi.update(id, { status: 'blocked' }),
-    onSuccess: () => {
-      toast.success(
-        t([
-          'Location suspended — it cannot be used for inventory moves or tasks.',
-          'تم إيقاف الموقع — لا يمكن استخدامه في حركات المخزون أو المهام.',
-        ]),
-      );
-      invalidateLocationQueries();
-    },
-    onError: (err: Error) => toast.error(err.message),
-  });
-
-  const unsuspendLocMut = useMutation({
-    mutationFn: (id: string) => LocationsApi.update(id, { status: 'active' }),
-    onSuccess: () => {
-      toast.success(t(['Location reactivated.', 'تم إعادة تفعيل الموقع.']));
-      invalidateLocationQueries();
-    },
-    onError: (err: Error) => toast.error(err.message),
-  });
-
-  const permanentDeleteMut = useMutation({
-    mutationFn: LocationsApi.permanentDelete,
-    onSuccess: (res) => {
-      toast.success(
-        t(['Deleted {{n}} location(s).', 'تم حذف {{n}} موقع/مواقع.']).replace(
-          '{{n}}',
-          String(res.deletedIds.length),
+  const columns: Column<Warehouse>[] = useMemo(
+    () => [
+      {
+        header: t(['Warehouse Code', 'رمز المستودع']),
+        accessor: (w) => (
+          <span className="font-mono text-xs font-bold text-brand-600 dark:text-brand-400">
+            {w.code}
+          </span>
         ),
-      );
-      invalidateLocationQueries();
-      setPendingPermanentDelete(null);
-    },
-    onError: (err: Error) => toast.error(err.message),
-  });
-
-  const locActionBusy =
-    suspendLocMut.isPending ||
-    unsuspendLocMut.isPending ||
-    permanentDeleteMut.isPending ||
-    updateMut.isPending;
+        width: '140px',
+      },
+      {
+        header: t(['Warehouse Name', 'اسم المستودع']),
+        accessor: (w) => (
+          <div>
+            <div className="font-semibold text-text-strong">{w.name}</div>
+            {w.address ? <div className="text-xs text-text-muted">{w.address}</div> : null}
+          </div>
+        ),
+      },
+      {
+        header: t(['Location', 'الموقع الجغرافي']),
+        accessor: (w) => (
+          <span className="text-sm text-text-body">
+            {w.city ? `${w.city}, ${w.country}` : w.country}
+          </span>
+        ),
+        width: '180px',
+      },
+      {
+        header: t(['Status', 'الحالة']),
+        accessor: (w) => (
+          <Badge tone={w.status === 'active' ? 'success' : 'neutral'} size="xs">
+            {w.status === 'active'
+              ? t(['Active', 'نشط'])
+              : t(['Inactive', 'غير نشط'])}
+          </Badge>
+        ),
+        width: '120px',
+      },
+      {
+        header: t(['Locations', 'المواقع']),
+        accessor: (w) => (
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-brand-50 px-2.5 py-0.5 text-xs font-semibold text-brand-800 dark:bg-brand-950 dark:text-brand-300 ring-1 ring-inset ring-brand-200 dark:ring-brand-800">
+            <i className="fa-solid fa-location-dot text-[10px]" />
+            <span>
+              {t(['{{n}} location(s)', '{{n}} موقع/مواقع']).replace(
+                '{{n}}',
+                String(w.locationCount ?? 0),
+              )}
+            </span>
+          </span>
+        ),
+        width: '160px',
+      },
+      {
+        header: t(['Action', 'الإجراء']),
+        accessor: (w) => (
+          <Link
+            to={`/locations/${w.id}`}
+            onClick={(e) => e.stopPropagation()}
+            className="inline-block"
+          >
+            <Button variant="secondary" size="sm">
+              <span>{t(['Manage locations', 'إدارة المواقع'])}</span>
+              <i className="fa-solid fa-arrow-right ms-1.5 text-xs rtl:rotate-180" />
+            </Button>
+          </Link>
+        ),
+        width: '180px',
+      },
+    ],
+    [t],
+  );
 
   return (
     <AdminListPageShell
       icon="fa-location-dot"
-      title={t(['Locations', 'المواقع التخزينية'])}
-      subtitle={t(['Manage warehouse storage locations.', 'إدارة مواقع التخزين في المستودع.'])}
+      title={t(['Warehouse Locations', 'مواقع المستودعات'])}
+      subtitle={t([
+        'Select a warehouse to navigate and manage its storage locations and hierarchy.',
+        'اختر مستودعاً للتنقل في مواقعه التخزينية وتسلسله الهرمي وإدارتها.',
+      ])}
       isArabic={isArabic}
       actions={
-        <Button variant="brand" disabled={!warehouseId} onClick={() => setOpen(true)}>
-          {t(['+ New location', '+ موقع جديد'])}
-        </Button>
+        canManageWarehouses ? (
+          <Link to="/warehouses">
+            <Button variant="secondary" size="md">
+              <i className="fa-solid fa-warehouse me-1.5" />
+              {t(['Manage Warehouses', 'إدارة المستودعات'])}
+            </Button>
+          </Link>
+        ) : null
       }
     >
-      <nav
-        aria-label={t(['Location hierarchy', 'تسلسل المواقع'])}
-        className="mb-3 flex flex-wrap items-center gap-1 text-sm"
-      >
-        {trail.map((crumb, idx) => {
-          const displayName =
-            crumb.id === null ? t(['Locations', 'المواقع التخزينية']) : crumb.name;
-          return (
-          <span key={crumb.id ?? 'root'} className="inline-flex items-center gap-1">
-            {idx > 0 ? <span className="text-text-faint">/</span> : null}
-            {idx < trail.length - 1 ? (
-              <button
-                type="button"
-                className="font-medium text-brand-600 hover:underline dark:text-brand-400"
-                onClick={() => navigateToCrumb(idx)}
-              >
-                {displayName}
-              </button>
-            ) : (
-              <span className="font-semibold text-text-strong">{displayName}</span>
-            )}
-          </span>
-          );
-        })}
-      </nav>
+      {/* Stats Summary Cards */}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <Card className="flex items-center gap-4 p-4">
+          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-brand-50 text-brand-600 dark:bg-brand-950 dark:text-brand-400">
+            <i className="fa-solid fa-warehouse text-xl" />
+          </div>
+          <div>
+            <div className="text-2xl font-bold tracking-tight text-text-strong">
+              {stats.total}
+            </div>
+            <div className="text-xs text-text-muted">
+              {t(['Total Warehouses', 'إجمالي المستودعات'])}
+            </div>
+          </div>
+        </Card>
 
+        <Card className="flex items-center gap-4 p-4">
+          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-status-success-bg text-status-success-fg">
+            <i className="fa-solid fa-circle-check text-xl" />
+          </div>
+          <div>
+            <div className="text-2xl font-bold tracking-tight text-text-strong">
+              {stats.active}
+            </div>
+            <div className="text-xs text-text-muted">
+              {t(['Active Warehouses', 'المستودعات النشطة'])}
+            </div>
+          </div>
+        </Card>
+
+        <Card className="flex items-center gap-4 p-4">
+          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-status-info-bg text-status-info-fg">
+            <i className="fa-solid fa-location-dot text-xl" />
+          </div>
+          <div>
+            <div className="text-2xl font-bold tracking-tight text-text-strong">
+              {stats.totalLocations}
+            </div>
+            <div className="text-xs text-text-muted">
+              {t(['Total Storage Locations', 'إجمالي المواقع التخزينية'])}
+            </div>
+          </div>
+        </Card>
+      </div>
+
+      {/* Filter Panel */}
       <FilterPanel
-        title={t(['Location filters', 'فلاتر المواقع'])}
-        onApply={handleApplyFilters}
-        onReset={handleResetFilters}
-        loading={pagination.isFetching}
+        title={t(['Warehouse filters', 'فلاتر المستودعات'])}
+        onApply={applyFilters}
+        onReset={resetFilters}
+        loading={warehousesQuery.isFetching}
         applyLabel={t(['Apply filters', 'تطبيق الفلاتر'])}
         resetLabel={t(['Reset', 'إعادة تعيين'])}
         compact={
           <TextField
-            label={t(['Location name', 'اسم الموقع'])}
-            value={draftFilters.name}
-            onChange={(e) => setDraft({ name: e.target.value })}
-            placeholder={t(['Contains…', 'يحتوي…'])}
+            label={t(['Search', 'بحث'])}
+            value={draftFilters?.search ?? ''}
+            onChange={(e) => setDraft({ search: e.target.value })}
+            placeholder={t(['Search code, name, city…', 'ابحث بالرمز أو الاسم أو المدينة…'])}
           />
         }
-        activeCount={[appliedFilters.name, appliedFilters.barcode, appliedFilters.locationType].filter((v) => String(v).trim()).length}
+        activeCount={
+          [draftFilters?.search, draftFilters?.status].filter((v) => Boolean(v && String(v).trim())).length
+        }
         advancedLabel={t(['Advanced Filtering', 'تصفية متقدمة'])}
         collapseLabel={t(['Collapsed', 'إخفاء'])}
       >
-          <TextField
-            label={t(['Location name', 'اسم الموقع'])}
-            value={draftFilters.name}
-            onChange={(e) => setDraft({ name: e.target.value })}
-            placeholder={t(['Contains…', 'يحتوي…'])}
-          />
-          <TextField
-            label="Barcode"
-            value={draftFilters.barcode}
-            onChange={(e) => setDraft({ barcode: e.target.value })}
-            placeholder={t(['Contains…', 'يحتوي…'])}
-            className="font-mono"
-          />
-          <FilterScanButton
-            label={t(['Scan barcode', 'مسح Barcode'])}
-            onClick={() => setScanOpen(true)}
-            title={t(['Scan a barcode with the device camera', 'مسح Barcode بالكاميرا'])}
-            ariaLabel={t(['Scan barcode', 'مسح Barcode'])}
-          />
-          <SelectField
-            label={t(['Location type', 'نوع الموقع'])}
-            name="locationTypeFilter"
-            value={draftFilters.locationType}
-            onChange={(e) => setDraft({ locationType: e.target.value })}
-            options={[
-              { value: '', label: t(['All types', 'كل الأنواع']) },
-              ...localizedLocationTypeSelectOptions(t).map((o) => ({
-                value: o.value,
-                label: o.label,
-              })),
-            ]}
-          />
+        <TextField
+          label={t(['Search', 'بحث'])}
+          value={draftFilters?.search ?? ''}
+          onChange={(e) => setDraft({ search: e.target.value })}
+          placeholder={t(['Search by code, name, or city…', 'ابحث بالرمز، الاسم، أو المدينة…'])}
+        />
+        <SelectField
+          label={t(['Status', 'الحالة'])}
+          name="warehouseStatusFilter"
+          value={draftFilters?.status ?? ''}
+          onChange={(e) => setDraft({ status: e.target.value as StatusFilter })}
+          options={[
+            { value: '', label: t(['All statuses', 'كل الحالات']) },
+            { value: 'active', label: t(['Active only', 'النشطة فقط']) },
+            { value: 'inactive', label: t(['Inactive only', 'غير النشطة فقط']) },
+          ]}
+        />
       </FilterPanel>
 
-      {!warehouseId ? (
-        <Card padding="md">
-          <p className="text-sm text-text-muted">
-            {t(['Default warehouse required to load locations.', 'يلزم مستودع افتراضي لتحميل المواقع.'])}
-          </p>
-        </Card>
-      ) : (
-        <LocationsDrillDownTable
-          rows={pagination.rows}
-          loading={pagination.isInitialLoading}
-          serverPagination={pagination.serverPagination}
-          purgeReady={purgeCtx.isSuccess}
-          blockDeleteSet={blockDeleteSet}
-          onNavigateInto={navigateInto}
-          onEdit={(loc) => setEditLoc(loc)}
-          onBarcodeClick={(barcode, contextLabel) => setBarcodeModal({ value: barcode, contextLabel })}
-          onStockClick={(loc) => setStockModal(loc)}
-          actionBusy={locActionBusy}
-          onSuspend={(id) => suspendLocMut.mutate(id)}
-          onUnsuspend={(id) => unsuspendLocMut.mutate(id)}
-          onRequestPermanentDelete={(row) => setPendingPermanentDelete(row)}
+      {/* Warehouses Table */}
+      <div className="space-y-2">
+        <DataTable<Warehouse>
+          columns={columns}
+          rows={filteredRows}
+          rowKey={(w) => w.id}
+          loading={warehousesQuery.isLoading}
+          onRowClick={(w) => navigate(`/locations/${w.id}`)}
+          empty={
+            <div className="py-8 text-center text-sm text-text-muted">
+              {warehousesQuery.isError
+                ? t(['Failed to load warehouses.', 'تعذّر تحميل بيانات المستودعات.'])
+                : t(['No warehouses found matching your filters.', 'لا توجد مستودعات مطابقة لخيارات البحث.'])}
+            </div>
+          }
         />
-      )}
-
-      <BarcodeImageModal
-        open={!!barcodeModal}
-        onClose={() => setBarcodeModal(null)}
-        value={barcodeModal?.value ?? ''}
-        contextLabel={barcodeModal?.contextLabel}
-      />
-
-      <LocationStockModal
-        open={!!stockModal}
-        location={stockModal}
-        warehouseId={warehouseId}
-        onClose={() => setStockModal(null)}
-      />
-
-      <CreateLocationModal
-        open={open}
-        onClose={() => setOpen(false)}
-        loading={createMut.isPending}
-        warehouseId={warehouseId}
-        defaultParentId={currentParentId}
-        onSubmit={(input) => createMut.mutate(input)}
-      />
-
-      <EditLocationModal
-        open={!!editLoc}
-        location={editLoc}
-        loading={updateMut.isPending}
-        onClose={() => setEditLoc(null)}
-        onSubmit={(patch) => editLoc && updateMut.mutate({ id: editLoc.id, patch })}
-      />
-
-      <Modal
-        open={!!pendingPermanentDelete}
-        onClose={() => !permanentDeleteMut.isPending && setPendingPermanentDelete(null)}
-        title={t(['Delete location subtree?', 'حذف شجرة المواقع؟'])}
-        footer={
-          <>
-            <Button
-              type="button"
-              variant="danger"
-              onClick={() => !permanentDeleteMut.isPending && setPendingPermanentDelete(null)}
-              disabled={permanentDeleteMut.isPending}
-            >
-              {t(['Cancel', 'إلغاء'])}
-            </Button>
-            <Button
-              variant="danger"
-              loading={permanentDeleteMut.isPending}
-              onClick={() => {
-                if (pendingPermanentDelete) permanentDeleteMut.mutate(pendingPermanentDelete.id);
-              }}
-            >
-              {t(['Delete permanently', 'حذف نهائي'])}
-            </Button>
-          </>
-        }
-      >
-        {pendingPermanentDelete ? (
-          <>
-            <p>
-              {t([
-                'This will permanently remove',
-                'سيُزال نهائياً',
-              ])}{' '}
-              <strong>{pendingPermanentDelete.fullPath}</strong>
-              {pendingPermanentDelete.childCount != null && pendingPermanentDelete.childCount > 0 ? (
-                <>
-                  {t([', its', '، مع'])}{' '}
-                  <strong>{pendingPermanentDelete.childCount.toLocaleString()}</strong>{' '}
-                  {t([
-                    'direct child location(s), and any nested descendants',
-                    'موقع/مواقع فرعية مباشرة وأي أحفاد متداخلين',
-                  ])}
-                </>
-              ) : (
-                <> {t(['and any nested descendants', 'وأي أحفاد متداخلين'])}</>
-              )}
-              .{' '}
-              {t([
-                'Stock rows must be empty and adjustment lines must not reference these locations.',
-                'يجب أن تكون صفوف المخزون فارغة وألا تشير بنود التعديل إلى هذه المواقع.',
-              ])}
-            </p>
-            <p className="mt-2">{t(['This cannot be undone.', 'لا يمكن التراجع عن هذا الإجراء.'])}</p>
-          </>
-        ) : null}
-      </Modal>
-
-      <BarcodeScanModal
-        open={scanOpen}
-        onClose={() => setScanOpen(false)}
-        onScan={(text) => {
-          applyPatch({ barcode: text.trim() });
-          toast.success(
-            t(['Barcode scanned — barcode filter updated.', 'تم مسح Barcode — تم تحديث فلتر Barcode.']),
-          );
-        }}
-        onCameraError={(msg) => toast.error(msg)}
-      />
+      </div>
     </AdminListPageShell>
   );
 }
 
-function LocationStockModal({
-  open,
-  onClose,
-  warehouseId,
-  location,
-}: {
-  open: boolean;
-  onClose: () => void;
-  warehouseId: string | undefined;
-  location: Location | null;
-}) {
-  const { t } = useWmsTranslation();
-  const stock = useQuery({
-    queryKey:
-      location && warehouseId
-        ? QK.inventoryStockByLocation(location.id, warehouseId)
-        : ['inventory', 'stock', 'location', 'none'],
-    queryFn: () =>
-      InventoryApi.stock({
-        locationId: location!.id,
-        warehouseId: warehouseId!,
-        limit: 500,
-      }),
-    enabled: open && !!location && !!warehouseId,
-  });
-
-  const rows = stock.data?.items ?? [];
-
-  return (
-    <Modal
-      open={open}
-      onClose={onClose}
-      title={
-        location
-          ? `${t(['Stock', 'المخزون'])} · ${location.fullPath}`
-          : t(['Stock', 'المخزون'])
-      }
-      widthClass="max-w-3xl"
-      footer={
-        <Button type="button" variant="danger" onClick={onClose}>
-          {t(['Close', 'إغلاق'])}
-        </Button>
-      }
-    >
-      {!location || !warehouseId ? (
-        <p className="text-sm text-text-muted">
-          {t(['Missing warehouse or location.', 'المستودع أو الموقع غير متوفر.'])}
-        </p>
-      ) : stock.isLoading ? (
-        <p className="text-sm text-text-muted">{t(['Loading stock…', 'جاري تحميل المخزون…'])}</p>
-      ) : stock.isError ? (
-        <p className="text-sm text-status-danger-fg">
-          {(stock.error as Error)?.message ?? t(['Could not load stock.', 'تعذّر تحميل المخزون.'])}
-        </p>
-      ) : rows.length === 0 ? (
-        <p className="text-sm text-text-body">
-          {t(['No stock rows at this location.', 'لا توجد صفوف مخزون في هذا الموقع.'])}
-        </p>
-      ) : (
-        <div className="max-h-[min(60vh,28rem)] overflow-auto rounded border border-border">
-          <table className="w-full min-w-[28rem] border-collapse text-left text-sm">
-            <thead className="sticky top-0 bg-surface-card-muted text-xs font-semibold uppercase tracking-wide text-text-muted">
-              <tr>
-                <th className="border-b border-border px-3 py-2">{t(['Product', 'المنتج'])}</th>
-                <th className="border-b border-border px-3 py-2">SKU</th>
-                <th className="border-b border-border px-3 py-2">Lot</th>
-                <th className="border-b border-border px-3 py-2 text-right">
-                  {t(['Available', 'المتوفر'])}
-                </th>
-                <th className="border-b border-border px-3 py-2 text-right">
-                  {t(['On hand', 'في المخزون'])}
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((r: StockRow) => (
-                <tr key={r.id} className="border-b border-border-subtle last:border-0 hover:bg-surface-hover">
-                  <td className="px-3 py-2 text-text-strong">{r.product.name}</td>
-                  <td className="px-3 py-2 font-mono text-xs text-text-body">{r.product.sku}</td>
-                  <td className="px-3 py-2 font-mono text-xs text-text-muted">{r.lot?.lotNumber ?? '—'}</td>
-                  <td className="px-3 py-2 text-right tabular-nums text-text-body">
-                    {fmtQty(r.quantityAvailable)} <span className="text-text-muted">{r.product.uom}</span>
-                  </td>
-                  <td className="px-3 py-2 text-right tabular-nums text-text-body">
-                    {fmtQty(r.quantityOnHand)} <span className="text-text-muted">{r.product.uom}</span>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-    </Modal>
-  );
-}
-
-interface CreateLocationModalProps {
-  open: boolean;
-  onClose: () => void;
-  loading: boolean;
-  warehouseId: string;
-  defaultParentId: string | null;
-  onSubmit: (input: CreateLocationInput) => void;
-}
-
-function CreateLocationModal({
-  open,
-  onClose,
-  loading,
-  warehouseId,
-  defaultParentId,
-  onSubmit,
-}: CreateLocationModalProps) {
-  const { t } = useWmsTranslation();
-  const typeOptions = useMemo(() => localizedLocationTypeSelectOptions(t), [t]);
-  const [name, setName] = useState('');
-  const [type, setType] = useState<LocationType>('internal');
-  const [parentId, setParentId] = useState('');
-  const [barcode, setBarcode] = useState('');
-  const [maxWeightKg, setMaxWeightKg] = useState('');
-  const [maxCbm, setMaxCbm] = useState('');
-
-  useEffect(() => {
-    if (open) setParentId(defaultParentId ?? '');
-  }, [open, defaultParentId]);
-
-  const reset = () => {
-    setName('');
-    setType('internal');
-    setParentId(defaultParentId ?? '');
-    setBarcode('');
-    setMaxWeightKg('');
-    setMaxCbm('');
-  };
-
-  const handleClose = () => {
-    if (!loading) {
-      reset();
-      onClose();
-    }
-  };
-
-  const submit = (e: FormEvent) => {
-    e.preventDefault();
-    const cap = locationTypeSupportsCapacityFields(type);
-    onSubmit({
-      warehouseId,
-      parentId: parentId || undefined,
-      name,
-      type,
-      barcode: barcode.trim() || undefined,
-      maxWeightKg: cap ? parseOptionalPositiveDecimal(maxWeightKg) : undefined,
-      maxCbm: cap ? parseOptionalPositiveDecimal(maxCbm) : undefined,
-    });
-  };
-
-  const typeHint = localizedLocationTypeHint(type, t);
-
-  return (
-    <Modal
-      open={open}
-      onClose={handleClose}
-      title={t(['New location', 'موقع جديد'])}
-      footer={
-        <>
-          <Button
-            type="button"
-            variant="danger"
-            className={MODAL_CANCEL_BUTTON_CLASS}
-            onClick={handleClose}
-            disabled={loading}
-          >
-            {t(['Cancel', 'إلغاء'])}
-          </Button>
-          <Button form="create-loc" type="submit" variant="brand" loading={loading}>
-            {t(['Create', 'إنشاء'])}
-          </Button>
-        </>
-      }
-    >
-      <form id="create-loc" onSubmit={submit} className="space-y-3 pb-2">
-        <LocationParentPicker warehouseId={warehouseId} value={parentId} onChange={setParentId} />
-        <TextField
-          label={t(['Name', 'الاسم'])}
-          required
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-        />
-        <SelectField
-          label={t(['Type', 'النوع'])}
-          name="createLocType"
-          value={type}
-          onChange={(e) => setType(e.target.value as LocationType)}
-          options={typeOptions.map((o) => ({ value: o.value, label: o.label }))}
-        />
-        {typeHint ? <p className="text-xs text-text-muted">{typeHint}</p> : null}
-        <TextField
-          label="Barcode"
-          value={barcode}
-          onChange={(e) => setBarcode(e.target.value)}
-          className="font-mono"
-          hint={t(['Leave empty to auto-generate a barcode.', 'اتركه فارغاً لإنشاء Barcode تلقائياً.'])}
-        />
-        {locationTypeSupportsCapacityFields(type) ? (
-          <>
-            <TextField
-              label={t(['Max weight (kg, optional)', 'الوزن الأقصى (كغ، اختياري)'])}
-              value={maxWeightKg}
-              onChange={(e) => setMaxWeightKg(e.target.value)}
-              inputMode="decimal"
-            />
-            <TextField
-              label={t(['Max volume (CBM, optional)', 'الحجم الأقصى (CBM، اختياري)'])}
-              hint={t([
-                'Cubic meters — overall size limit for this bin.',
-                'متر مكعب — حد الحجم الإجمالي لهذا Bin.',
-              ])}
-              value={maxCbm}
-              onChange={(e) => setMaxCbm(e.target.value)}
-              inputMode="decimal"
-            />
-          </>
-        ) : null}
-      </form>
-    </Modal>
-  );
-}
-
-function EditLocationModal({
-  open,
-  location,
-  loading,
-  onClose,
-  onSubmit,
-}: {
-  open: boolean;
-  location: Location | null;
-  loading: boolean;
-  onClose: () => void;
-  onSubmit: (patch: Parameters<typeof LocationsApi.update>[1]) => void;
-}) {
-  const { t } = useWmsTranslation();
-  const [name, setName] = useState('');
-  const [type, setType] = useState<LocationType>('internal');
-  const [barcode, setBarcode] = useState('');
-  const [maxWeightKg, setMaxWeightKg] = useState('');
-  const [maxCbm, setMaxCbm] = useState('');
-
-  useEffect(() => {
-    if (location) {
-      setName(location.name);
-      setType((location.type === 'qc' ? 'quarantine' : location.type) as LocationType);
-      setBarcode(location.barcode);
-      setMaxWeightKg(
-        location.maxWeightKg != null && location.maxWeightKg !== '' ? String(location.maxWeightKg) : '',
-      );
-      setMaxCbm(location.maxCbm != null && location.maxCbm !== '' ? String(location.maxCbm) : '');
-    }
-  }, [location]);
-
-  const submit = (e: FormEvent) => {
-    e.preventDefault();
-    const cap = locationTypeSupportsCapacityFields(type);
-    const w = cap ? parseOptionalPositiveDecimal(maxWeightKg) : undefined;
-    const v = cap ? parseOptionalPositiveDecimal(maxCbm) : undefined;
-    onSubmit({
-      name,
-      type,
-      barcode: barcode.trim(),
-      ...(cap ? { maxWeightKg: w, maxCbm: v } : {}),
-    });
-  };
-
-  if (!location) return null;
-
-  const typeOptions = localizedManagedTypeOptionsForEdit(location.type, t);
-  const typeHint = localizedLocationTypeHint(type, t);
-
-  return (
-    <Modal
-      open={open}
-      onClose={() => !loading && onClose()}
-      title={`${t(['Edit', 'تعديل'])} ${location.fullPath}`}
-      footer={
-        <>
-          <Button
-            type="button"
-            variant="danger"
-            className={MODAL_CANCEL_BUTTON_CLASS}
-            onClick={onClose}
-            disabled={loading}
-          >
-            {t(['Cancel', 'إلغاء'])}
-          </Button>
-          <Button type="submit" form="edit-loc" variant="brand" loading={loading}>
-            {t(['Save', 'حفظ'])}
-          </Button>
-        </>
-      }
-    >
-      <form id="edit-loc" onSubmit={submit} className="space-y-3 pb-2">
-        <TextField
-          label={t(['Name', 'الاسم'])}
-          required
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-        />
-        <SelectField
-          label={t(['Type', 'النوع'])}
-          name="editLocType"
-          value={type}
-          onChange={(e) => setType(e.target.value as LocationType)}
-          options={typeOptions.map((o) => ({ value: o.value, label: o.label }))}
-        />
-        {typeHint ? <p className="text-xs text-text-muted">{typeHint}</p> : null}
-        <TextField label="Barcode" required value={barcode} onChange={(e) => setBarcode(e.target.value)} />
-        {locationTypeSupportsCapacityFields(type) ? (
-          <>
-            <TextField
-              label={t(['Max weight (kg, optional)', 'الوزن الأقصى (كغ، اختياري)'])}
-              value={maxWeightKg}
-              onChange={(e) => setMaxWeightKg(e.target.value)}
-              inputMode="decimal"
-            />
-            <TextField
-              label={t(['Max volume (CBM, optional)', 'الحجم الأقصى (CBM، اختياري)'])}
-              value={maxCbm}
-              onChange={(e) => setMaxCbm(e.target.value)}
-              inputMode="decimal"
-            />
-          </>
-        ) : null}
-      </form>
-    </Modal>
-  );
-}
+export default LocationsPage;

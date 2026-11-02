@@ -98,6 +98,19 @@ function appendOmsOrderFieldFilters(query, where, andParts) {
     if (query.carrier?.trim()) {
         andParts.push((0, shipping_carrier_resolver_1.buildCarrierFilterPrismaCondition)(query.carrier.trim()));
     }
+    if (query.shippingPayer === 'sender' ||
+        query.shippingPayer === 'receiver' ||
+        query.shippingPayer === 'reseller') {
+        const matchPayers = query.shippingPayer === 'receiver'
+            ? ['receiver']
+            : ['sender', 'reseller'];
+        andParts.push({
+            OR: [
+                { shippingPayer: { in: matchPayers } },
+                { outboundOrder: { shippingPayer: { in: matchPayers } } },
+            ],
+        });
+    }
     const totalValue = parseOmsTotalFilterValue(query.totalValue);
     const op = query.totalOp;
     if (totalValue != null && op) {

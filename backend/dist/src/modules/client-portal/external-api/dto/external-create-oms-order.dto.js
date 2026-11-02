@@ -40,8 +40,9 @@ __decorate([
     __metadata("design:type", String)
 ], ExternalOmsAddressDto.prototype, "neighborhood", void 0);
 __decorate([
-    (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsString)(),
+    (0, class_validator_1.IsNotEmpty)({ message: 'Street / detailed address is required.' }),
+    (0, class_validator_1.MinLength)(11, { message: 'Street / detailed address must be more than 10 characters.' }),
     (0, class_validator_1.MaxLength)(200),
     __metadata("design:type", String)
 ], ExternalOmsAddressDto.prototype, "street", void 0);
@@ -59,8 +60,8 @@ __decorate([
 ], ExternalOmsLineDto.prototype, "sku", void 0);
 __decorate([
     (0, class_transformer_1.Type)(() => Number),
-    (0, class_validator_1.IsInt)({ message: 'Quantity must be a whole number (no decimals).' }),
-    (0, class_validator_1.IsPositive)({ message: 'Quantity must be a positive whole number.' }),
+    (0, class_validator_1.IsNumber)({ maxDecimalPlaces: 4 }, { message: 'Quantity must be a number with up to 4 decimal places.' }),
+    (0, class_validator_1.IsPositive)({ message: 'Quantity must be a positive number.' }),
     __metadata("design:type", Number)
 ], ExternalOmsLineDto.prototype, "quantity", void 0);
 __decorate([

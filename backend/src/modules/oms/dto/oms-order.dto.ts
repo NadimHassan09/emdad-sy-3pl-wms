@@ -44,11 +44,6 @@ export class CreateOmsOrderLineDto {
   @IsOptional()
   @IsNumber({ maxDecimalPlaces: 4 })
   @Min(0)
-  lineTotal?: number;
-
-  @IsOptional()
-  @IsNumber({ maxDecimalPlaces: 4 })
-  @Min(0)
   discountAmount?: number;
 }
 
@@ -104,6 +99,7 @@ export class CreateOmsOrderDto extends ShippingConfigDto {
 
   @IsOptional()
   @IsString()
+  @MinLength(11, { message: 'Street / detailed address (addressLine2) must be more than 10 characters.' })
   addressLine2?: string;
 
   @IsOptional()
@@ -117,17 +113,7 @@ export class CreateOmsOrderDto extends ShippingConfigDto {
   @IsOptional()
   @IsNumber({ maxDecimalPlaces: 4 })
   @Min(0)
-  subtotal?: number;
-
-  @IsOptional()
-  @IsNumber({ maxDecimalPlaces: 4 })
-  @Min(0)
   shippingFee?: number;
-
-  @IsOptional()
-  @IsNumber({ maxDecimalPlaces: 4 })
-  @Min(0)
-  codAmount?: number;
 
   @IsOptional()
   @IsString()
@@ -184,6 +170,7 @@ export class UpdateOmsOrderDto extends ShippingConfigDto {
 
   @IsOptional()
   @IsString()
+  @MinLength(11, { message: 'Street / detailed address (addressLine2) must be more than 10 characters.' })
   addressLine2?: string;
 
   @IsOptional()
@@ -221,17 +208,7 @@ export class UpdateOmsOrderDto extends ShippingConfigDto {
   @IsOptional()
   @IsNumber({ maxDecimalPlaces: 4 })
   @Min(0)
-  subtotal?: number;
-
-  @IsOptional()
-  @IsNumber({ maxDecimalPlaces: 4 })
-  @Min(0)
   shippingFee?: number;
-
-  @IsOptional()
-  @IsNumber({ maxDecimalPlaces: 4 })
-  @Min(0)
-  codAmount?: number;
 
   @IsOptional()
   @IsString()

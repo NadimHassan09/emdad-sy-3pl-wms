@@ -41,8 +41,8 @@ describe('shipping waybill label layout', () => {
 
   it('bounds the QR and keeps a one-product label on one 100×150 mm page', async () => {
     const html = await service.labelHtml(fixture(1));
-    expect(html).toContain('max-height: 18mm');
-    expect(html).toContain('max-width: 18mm');
+    expect(html).toContain('width: 24mm');
+    expect(html).toContain('height: 24mm');
     expect(html).not.toContain('min-height: 140mm');
 
     const backendRoot = join(__dirname, '../../..');

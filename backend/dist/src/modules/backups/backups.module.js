@@ -43,6 +43,8 @@ const backup_retention_service_1 = require("./backup-retention.service");
 const backup_schedules_controller_1 = require("./backup-schedules.controller");
 const backup_schedules_service_1 = require("./backup-schedules.service");
 const backup_scheduler_service_1 = require("./backup-scheduler.service");
+const backup_manual_cooldown_controller_1 = require("./backup-manual-cooldown.controller");
+const backup_manual_gate_service_1 = require("./backup-manual-gate.service");
 const backups_controller_1 = require("./backups.controller");
 const backups_service_1 = require("./backups.service");
 let BackupsModule = class BackupsModule {
@@ -59,6 +61,7 @@ exports.BackupsModule = BackupsModule = __decorate([
             backup_schedules_controller_1.BackupSchedulesController,
             backup_retention_controller_1.BackupRetentionController,
             backup_storage_policy_controller_1.BackupStoragePolicyController,
+            backup_manual_cooldown_controller_1.BackupManualCooldownController,
             backups_controller_1.BackupsController,
         ],
         providers: [
@@ -71,6 +74,7 @@ exports.BackupsModule = BackupsModule = __decorate([
             backup_drive_retention_service_1.BackupDriveRetentionService,
             backup_drive_retention_cleanup_service_1.BackupDriveRetentionCleanupService,
             backup_storage_policy_service_1.BackupStoragePolicyService,
+            backup_manual_gate_service_1.BackupManualGateService,
             backup_file_encryption_service_1.BackupFileEncryptionService,
             backup_storage_service_1.BackupStorageService,
             backup_download_token_service_1.BackupDownloadTokenService,

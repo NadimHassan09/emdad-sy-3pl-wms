@@ -208,6 +208,15 @@ export class BackupRetentionService {
     const latest = completedJobs.find((j) => this.hasRestorableArtifact(j));
     if (latest) add(latest.id, 'latest_successful');
 
+    const recentManualCutoff = new Date(now.getTime() - 48 * 3_600_000);
+    for (const job of completedJobs) {
+      if (job.type !== BackupJobType.manual) continue;
+      const completedAt = job.completedAt ?? job.createdAt;
+      if (completedAt >= recentManualCutoff) {
+        add(job.id, 'retained_in_bucket');
+      }
+    }
+
     const preSnapshotCutoff = new Date(
       now.getTime() - this.backupConfig.preSnapshotProtectDays * 86_400_000,
     );

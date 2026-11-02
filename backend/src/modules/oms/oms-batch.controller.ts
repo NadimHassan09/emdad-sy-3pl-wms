@@ -103,4 +103,13 @@ export class OmsBatchController {
   ) {
     return this.batches.clearFlags(user, id, dto.ids);
   }
+
+  @Post(':id/cancel-shipments')
+  cancelShipments(
+    @CurrentUser() user: AuthPrincipal,
+    @Param('id', ParseUuidLoosePipe) id: string,
+    @Body() dto: OmsBatchMembershipDto,
+  ) {
+    return this.batches.cancelShipments(user, id, dto.ids);
+  }
 }

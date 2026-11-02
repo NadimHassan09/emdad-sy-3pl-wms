@@ -551,6 +551,7 @@ function ResultsStep(props: {
                   {item.lastErrorSafe ? (
                     <ShipmentErrorActions
                       outboundOrderId={item.outboundOrderId}
+                      carrierCode={item.selectedProviderCode}
                       error={
                         parsePackedShipmentError(item.lastErrorSafe) ?? {
                           message: item.lastErrorSafe,

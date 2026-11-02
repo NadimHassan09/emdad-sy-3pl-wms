@@ -7,7 +7,7 @@ import {
 } from './oms-operational-stage';
 
 describe('orderOperationalStage', () => {
-  it('classifies processing warehouse stages', () => {
+  it('classifies processing warehouse stages (picking and packing)', () => {
     expect(
       orderOperationalStage({
         status: 'processing',
@@ -26,19 +26,33 @@ describe('orderOperationalStage', () => {
         linkedOutboundOrder: { status: 'packing' },
       }),
     ).toBe('packing');
+  });
+
+  it('classifies ready_to_ship shipment preparation stages', () => {
     expect(
       orderOperationalStage({
-        status: 'processing',
+        status: 'ready_to_ship',
         linkedOutboundOrder: { status: 'waiting_for_shipping_details' },
       }),
     ).toBe('shipping_details');
     expect(
       orderOperationalStage({
-        status: 'processing',
+        status: 'ready_to_ship',
         trackingNumber: 'AWB-1',
         linkedOutboundOrder: { status: 'waiting_for_shipping_method' },
       }),
     ).toBe('shipping_confirmation');
+    expect(
+      orderOperationalStage({
+        status: 'ready_to_ship',
+        trackingNumber: null,
+        linkedOutboundOrder: {
+          status: 'waiting_for_shipping_details',
+          trackingNumber: null,
+          hasCarrierShipment: false,
+        },
+      }),
+    ).toBe('shipping_details');
   });
 
   it('returns null when the stage only repeats the general status', () => {
@@ -48,28 +62,23 @@ describe('orderOperationalStage', () => {
         linkedOutboundOrder: { status: 'shipped' },
       }),
     ).toBeNull();
-    expect(
-      orderOperationalStage({
-        status: 'ready_to_ship',
-        linkedOutboundOrder: { status: 'ready_to_ship' },
-      }),
-    ).toBeNull();
     expect(orderOperationalStage({ status: 'delivered' })).toBeNull();
     expect(orderOperationalStage({ status: 'cancelled' })).toBeNull();
   });
 });
 
 describe('stage column visibility', () => {
-  it('shows the column for all statuses and for processing', () => {
+  it('shows the column for all statuses, processing, and ready_to_ship', () => {
     expect(shouldShowOmsStageColumn('')).toBe(true);
     expect(shouldShowOmsStageColumn('processing')).toBe(true);
+    expect(shouldShowOmsStageColumn('ready_to_ship')).toBe(true);
     expect(statusHasOperationalStages('processing')).toBe(true);
+    expect(statusHasOperationalStages('ready_to_ship')).toBe(true);
   });
 
   it('hides the column for single-stage general statuses', () => {
     expect(shouldShowOmsStageColumn('shipped')).toBe(false);
     expect(shouldShowOmsStageColumn('delivered')).toBe(false);
-    expect(shouldShowOmsStageColumn('ready_to_ship')).toBe(false);
     expect(statusHasOperationalStages('shipped')).toBe(false);
   });
 });

@@ -38,6 +38,7 @@ import { ClientRoleAccessBanner } from './ClientRoleAccessBanner';
 
 const NAV_ICONS: Record<string, string> = {
   '/dashboard': 'fa-grid-2',
+  '/finances': 'fa-wallet',
   '/billing': 'fa-file-invoice-dollar',
   '/invoices': 'fa-file-invoice',
   '/notifications': 'fa-bell',
@@ -202,6 +203,7 @@ export function PortalLayout(): ReactElement {
   const navItems = clientNavForRole(user?.role);
   const byPath = (to: string) => navItems.find((n) => n.to === to);
   const dashboardItem = byPath('/dashboard');
+  const financesItem = byPath('/finances');
   const billingItem = byPath('/billing');
   const invoicesItem = byPath('/invoices');
   const apisItem = byPath('/apis');
@@ -274,6 +276,12 @@ export function PortalLayout(): ReactElement {
       icon: 'fa-key',
       label: isArabic ? 'واجهات البرمجة' : 'APIs',
       keywords: ['api', 'key', 'secret', 'integration', 'shopify', 'erp'],
+    },
+    {
+      to: '/finances',
+      icon: 'fa-wallet',
+      label: isArabic ? 'الحساب المالي' : 'Financial Account',
+      keywords: ['finances', 'finance', 'balance', 'payout', 'statement', 'رصيد', 'سحب', 'مالية', 'كشف حساب'],
     },
     {
       to: '/billing',
@@ -382,8 +390,16 @@ export function PortalLayout(): ReactElement {
           ))}
         </SidebarSection>
       ) : null}
-      {billingItem || invoicesItem || notificationsItem || apisItem ? (
-        <SidebarSection label={isArabic ? 'الحساب' : 'Account'} defaultOpen={accountOpen || true}>
+      {financesItem || billingItem || invoicesItem || notificationsItem || apisItem ? (
+        <SidebarSection label={isArabic ? 'المالية والحساب' : 'Finances & Account'} defaultOpen={accountOpen || true}>
+          {financesItem ? (
+            <PortalSidebarLink
+              item={financesItem}
+              active={isActive(financesItem)}
+              isArabic={isArabic}
+              onNavigate={go}
+            />
+          ) : null}
           {billingItem ? (
             <PortalSidebarLink
               item={billingItem}

@@ -1,5 +1,7 @@
 import { OmsOrderStatus, OutboundOrderStatus, Prisma } from '@prisma/client';
 
+import { ACTIVE_CARRIER_SHIPMENT_WHERE } from '../shipping/shipping-lifecycle.util';
+
 /**
  * Warehouse sub-stages that exist only while an OMS order is commercially "processing".
  * These match the admin stage badge (picking / packing / shipping details / confirmation).
@@ -30,6 +32,7 @@ export const PICKING_OUTBOUND_STATUSES: OutboundOrderStatus[] = [
 export const SHIPPING_DETAILS_OUTBOUND_STATUSES: OutboundOrderStatus[] = [
   OutboundOrderStatus.waiting_for_shipping_method,
   OutboundOrderStatus.waiting_for_shipping_details,
+  OutboundOrderStatus.ready_to_ship,
 ];
 
 /**
@@ -54,6 +57,7 @@ export const OMS_LIST_STATUS_EXPANSIONS: Partial<Record<OmsOrderStatus, OmsOrder
     OmsOrderStatus.picking,
     OmsOrderStatus.packing,
   ],
+  [OmsOrderStatus.ready_to_ship]: [OmsOrderStatus.ready_to_ship],
   [OmsOrderStatus.shipped]: [OmsOrderStatus.shipped, OmsOrderStatus.out_for_delivery],
   [OmsOrderStatus.out_for_delivery]: [OmsOrderStatus.out_for_delivery, OmsOrderStatus.shipped],
   [OmsOrderStatus.delivered]: [OmsOrderStatus.delivered, OmsOrderStatus.completed],
@@ -69,6 +73,7 @@ export const OMS_NAV_STATUS_KEYS = [
   'shipped',
   'delivered',
   'failed_delivery',
+  'return_pending_receipt',
   'returned',
   'cancelled',
 ] as const;
@@ -84,12 +89,8 @@ export function omsNavStatusBucket(rawStatus: string): string {
   return rawStatus;
 }
 
-const createdShipment: Prisma.CarrierShipmentWhereInput = {
-  OR: [
-    { status: 'created' },
-    { AND: [{ externalAwb: { not: null } }, { NOT: { externalAwb: '' } }] },
-  ],
-};
+/** Live sent shipment only — a cancelled/superseded AWB must not keep the order in confirmation. */
+const createdShipment: Prisma.CarrierShipmentWhereInput = ACTIVE_CARRIER_SHIPMENT_WHERE;
 
 /**
  * Shipment-sent matches the admin stage badge:
@@ -133,12 +134,15 @@ function shipmentNotSentWhere(): Prisma.OmsOrderWhereInput {
   };
 }
 
-/** Orders whose commercial status is processing AND whose warehouse stage matches. */
+/** Orders whose operational stage matches: picking/packing under processing, shipping stages under ready_to_ship. */
 export function buildOperationalStageWhere(
   stage: OmsOperationalStage,
 ): Prisma.OmsOrderWhereInput {
   const processing: Prisma.OmsOrderWhereInput = {
     status: { in: OMS_LIST_STATUS_EXPANSIONS[OmsOrderStatus.processing] },
+  };
+  const readyToShip: Prisma.OmsOrderWhereInput = {
+    status: { in: OMS_LIST_STATUS_EXPANSIONS[OmsOrderStatus.ready_to_ship] ?? [OmsOrderStatus.ready_to_ship] },
   };
 
   if (stage === 'picking') {
@@ -164,8 +168,8 @@ export function buildOperationalStageWhere(
   };
 
   if (stage === 'shipping_details') {
-    return { AND: [processing, shippingStatus, shipmentNotSentWhere()] };
+    return { AND: [readyToShip, shippingStatus, shipmentNotSentWhere()] };
   }
 
-  return { AND: [processing, shippingStatus, shipmentSentWhere()] };
+  return { AND: [readyToShip, shippingStatus, shipmentSentWhere()] };
 }

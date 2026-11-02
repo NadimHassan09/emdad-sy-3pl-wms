@@ -15,6 +15,7 @@ exports.OMS_PRIMARY_STATUSES = new Set([
     client_1.OmsOrderStatus.delivered,
     client_1.OmsOrderStatus.cancelled,
     client_1.OmsOrderStatus.failed_delivery,
+    client_1.OmsOrderStatus.return_pending_receipt,
     client_1.OmsOrderStatus.returned,
 ]);
 exports.OMS_TERMINAL_STATUSES = new Set([
@@ -23,6 +24,7 @@ exports.OMS_TERMINAL_STATUSES = new Set([
     client_1.OmsOrderStatus.completed,
     client_1.OmsOrderStatus.delivered,
     client_1.OmsOrderStatus.failed_delivery,
+    client_1.OmsOrderStatus.return_pending_receipt,
     client_1.OmsOrderStatus.returned,
 ]);
 exports.OMS_PRE_FULFILLMENT = new Set([
@@ -56,18 +58,26 @@ const ALLOWED = {
     [`${client_1.OmsOrderStatus.waiting_for_confirmation}|reject|admin`]: client_1.OmsOrderStatus.cancelled,
     [`${client_1.OmsOrderStatus.shipped}|mark_delivered|admin`]: client_1.OmsOrderStatus.delivered,
     [`${client_1.OmsOrderStatus.out_for_delivery}|mark_delivered|admin`]: client_1.OmsOrderStatus.delivered,
+    [`${client_1.OmsOrderStatus.failed_delivery}|mark_delivered|admin`]: client_1.OmsOrderStatus.delivered,
+    [`${client_1.OmsOrderStatus.failed_delivery}|mark_delivered|system`]: client_1.OmsOrderStatus.delivered,
     [`${client_1.OmsOrderStatus.delivered}|delivery_revert|admin`]: client_1.OmsOrderStatus.shipped,
     [`${client_1.OmsOrderStatus.shipped}|failed_delivery|admin`]: client_1.OmsOrderStatus.failed_delivery,
     [`${client_1.OmsOrderStatus.out_for_delivery}|failed_delivery|admin`]: client_1.OmsOrderStatus.failed_delivery,
     [`${client_1.OmsOrderStatus.ready_to_ship}|failed_delivery|admin`]: client_1.OmsOrderStatus.failed_delivery,
-    [`${client_1.OmsOrderStatus.delivered}|mark_returned|system`]: client_1.OmsOrderStatus.returned,
-    [`${client_1.OmsOrderStatus.delivered}|mark_returned|admin`]: client_1.OmsOrderStatus.returned,
-    [`${client_1.OmsOrderStatus.shipped}|mark_returned|system`]: client_1.OmsOrderStatus.returned,
-    [`${client_1.OmsOrderStatus.shipped}|mark_returned|admin`]: client_1.OmsOrderStatus.returned,
-    [`${client_1.OmsOrderStatus.out_for_delivery}|mark_returned|system`]: client_1.OmsOrderStatus.returned,
-    [`${client_1.OmsOrderStatus.out_for_delivery}|mark_returned|admin`]: client_1.OmsOrderStatus.returned,
-    [`${client_1.OmsOrderStatus.failed_delivery}|mark_returned|system`]: client_1.OmsOrderStatus.returned,
-    [`${client_1.OmsOrderStatus.failed_delivery}|mark_returned|admin`]: client_1.OmsOrderStatus.returned,
+    [`${client_1.OmsOrderStatus.failed_delivery}|resume_shipping|admin`]: client_1.OmsOrderStatus.out_for_delivery,
+    [`${client_1.OmsOrderStatus.failed_delivery}|resume_shipping|system`]: client_1.OmsOrderStatus.out_for_delivery,
+    [`${client_1.OmsOrderStatus.return_pending_receipt}|resume_shipping|admin`]: client_1.OmsOrderStatus.out_for_delivery,
+    [`${client_1.OmsOrderStatus.return_pending_receipt}|resume_shipping|system`]: client_1.OmsOrderStatus.out_for_delivery,
+    [`${client_1.OmsOrderStatus.return_pending_receipt}|mark_delivered|admin`]: client_1.OmsOrderStatus.delivered,
+    [`${client_1.OmsOrderStatus.return_pending_receipt}|mark_delivered|system`]: client_1.OmsOrderStatus.delivered,
+    [`${client_1.OmsOrderStatus.failed_delivery}|mark_returned|admin`]: client_1.OmsOrderStatus.return_pending_receipt,
+    [`${client_1.OmsOrderStatus.failed_delivery}|mark_returned|system`]: client_1.OmsOrderStatus.return_pending_receipt,
+    [`${client_1.OmsOrderStatus.delivered}|mark_returned|admin`]: client_1.OmsOrderStatus.return_pending_receipt,
+    [`${client_1.OmsOrderStatus.delivered}|mark_returned|system`]: client_1.OmsOrderStatus.return_pending_receipt,
+    [`${client_1.OmsOrderStatus.shipped}|mark_returned|system`]: client_1.OmsOrderStatus.return_pending_receipt,
+    [`${client_1.OmsOrderStatus.out_for_delivery}|mark_returned|system`]: client_1.OmsOrderStatus.return_pending_receipt,
+    [`${client_1.OmsOrderStatus.return_pending_receipt}|mark_returned|system`]: client_1.OmsOrderStatus.returned,
+    [`${client_1.OmsOrderStatus.return_pending_receipt}|mark_returned|admin`]: client_1.OmsOrderStatus.returned,
 };
 function assertOmsTransition(from, action, actor) {
     const key = `${from}|${action}|${actor}`;

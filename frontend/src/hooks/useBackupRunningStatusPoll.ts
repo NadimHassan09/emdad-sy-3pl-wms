@@ -3,16 +3,19 @@ import { useMemo } from 'react';
 
 import { BackupsApi, type BackupStatus, type BackupSummary } from '../api/backups';
 import { QK } from '../constants/query-keys';
-import { isBackupRunning } from '../lib/backup-display';
+import { isBackupJobId, isBackupRunning } from '../lib/backup-display';
 
 /**
  * Fallback poll for running/pending backup rows when socket push is unavailable.
  * Primary path: `system.version` → backups module refetch (Architecture 2.2).
  * This poll is a degraded fallback when socket sync is unavailable.
  */
-export function useBackupRunningStatusPoll(rows: BackupSummary[]) {
+export function useBackupRunningStatusPoll(rows: BackupSummary[], intervalMs = 15_000) {
   const runningIds = useMemo(
-    () => rows.filter((row) => isBackupRunning(row.status)).map((row) => row.id),
+    () =>
+      rows
+        .filter((row) => isBackupJobId(row.id) && isBackupRunning(row.status))
+        .map((row) => row.id),
     [rows],
   );
 
@@ -20,9 +23,10 @@ export function useBackupRunningStatusPoll(rows: BackupSummary[]) {
     queries: runningIds.map((id) => ({
       queryKey: QK.backups.status(id),
       queryFn: () => BackupsApi.status(id),
-      // Slow safety net only — realtime push owns progress updates.
-      refetchInterval: 15_000,
-      staleTime: 5_000,
+      enabled: isBackupJobId(id),
+      refetchInterval: intervalMs,
+      staleTime: Math.min(5_000, intervalMs),
+      retry: false,
     })),
   });
 
@@ -46,6 +50,12 @@ export function useBackupRunningStatusPoll(rows: BackupSummary[]) {
           progressPercent: live.progressPercent,
           bytesWritten: live.bytesWritten,
           completedAt: live.completedAt ?? row.completedAt,
+          downloadable:
+            live.status === 'completed'
+              ? live.bytesWritten > 0
+              : live.status === 'failed'
+                ? false
+                : row.downloadable,
         };
       }),
     [rows, statusById],

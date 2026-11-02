@@ -192,3 +192,6 @@ export {
   normalizeFilters,
   joinFilterSummary,
 } from '../lib/filter-state';
+
+export { StatusCardNav, STATUS_CARD_TONES } from './StatusCardNav';
+export type { StatusCardNavProps, StatusCardItem } from './StatusCardNav';

@@ -26,6 +26,12 @@ import { ListBillingInvoicesQueryDto } from './dto/list-billing-invoices-query.d
 export const INVOICE_SELECT = {
   id: true,
   companyId: true,
+  company: {
+    select: {
+      id: true,
+      name: true,
+    },
+  },
   billingCycleId: true,
   invoiceSource: true,
   invoiceNumber: true,

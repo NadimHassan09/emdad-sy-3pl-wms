@@ -2,12 +2,22 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { PdfService } from '../../pdf/pdf.service';
 import { AuthPrincipal } from '../../common/auth/current-user.types';
-import { OmsWaybillData, OmsWaybillItem } from './oms-order.types';
+import { OmsWaybillData, OmsWaybillItem, OmsWaybillPartInfo } from './oms-order.types';
 import { PDFDocument } from 'pdf-lib';
 import * as XLSX from 'xlsx';
 
 import { shippingLabelReadiness } from './oms-label-ready';
 import { fontFace as cairoFontFace } from './oms-instruction-sheet';
+import { BABEL_EXPRESS_CODE, SENA_EXPRESS_CODE, SILA_SY_CODE } from '../shipping/shipping.constants';
+import { resolveShippingCarrierName } from '../shipping/shipping-carrier-resolver';
+import {
+  ACTIVE_CARRIER_SHIPMENT_WHERE,
+  isAwbPendingReassignment,
+} from '../shipping/shipping-lifecycle.util';
+import {
+  extractSilaCarrierAwb,
+  isSilaPlatformIdentifier,
+} from '../shipping/providers/sila-sy/sila-identifiers';
 
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const QRCode = require('qrcode');
@@ -33,6 +43,111 @@ export class OmsWaybillService {
     private readonly pdfService: PdfService,
   ) {}
 
+  /**
+   * Carrier field on the EMDAD waybill. Sila's cargo id, tracking token, and SL- waybill
+   * are never shown here. A missing final-carrier AWB stays empty so the label can say pending.
+   */
+  private resolveCarrierAwb(
+    shipment: {
+      providerCode?: string | null;
+      trackingNumber?: string | null;
+      externalAwb?: string | null;
+      rawResultMeta?: unknown;
+    } | null,
+  ): string | undefined {
+    const meta =
+      shipment?.rawResultMeta && typeof shipment.rawResultMeta === 'object'
+        ? (shipment.rawResultMeta as Record<string, unknown>)
+        : null;
+
+    if (!shipment) return undefined;
+    if (isAwbPendingReassignment(meta)) return undefined;
+
+    const storedTracking = shipment.trackingNumber?.trim() || '';
+    if (shipment.providerCode === SILA_SY_CODE) {
+      if (storedTracking && !isSilaPlatformIdentifier(storedTracking, meta)) return storedTracking;
+      const fromCargo = extractSilaCarrierAwb(meta);
+      if (fromCargo) return fromCargo;
+      return undefined;
+    }
+
+    const stored = storedTracking || shipment.externalAwb?.trim() || '';
+    if (!stored || isSilaPlatformIdentifier(stored)) return undefined;
+    return stored;
+  }
+
+  /**
+   * Resolves Babel Express package part barcodes from the active carrier shipment.
+   * Treats partBarcodes as authoritative package-level identifiers.
+   * Validates array format, non-emptiness, and distinctness.
+   * Detects duplicate or malformed entries and handles them explicitly.
+   * If a multi-part shipment is missing partBarcodes, throws an actionable error.
+   */
+  resolveBabelParts(shipment: {
+    providerCode?: string | null;
+    trackingNumber?: string | null;
+    externalAwb?: string | null;
+    rawResultMeta?: unknown;
+    provider?: { code?: string } | null;
+  } | null): {
+    isBabel: boolean;
+    mainAwb?: string;
+    partBarcodes?: string[];
+  } {
+    if (!shipment) return { isBabel: false };
+    const providerCode = (shipment.providerCode || shipment.provider?.code || '').trim().toUpperCase();
+    if (providerCode !== BABEL_EXPRESS_CODE && providerCode !== SENA_EXPRESS_CODE) {
+      return { isBabel: false };
+    }
+
+    const meta =
+      shipment.rawResultMeta && typeof shipment.rawResultMeta === 'object'
+        ? (shipment.rawResultMeta as Record<string, any>)
+        : null;
+
+    const rawBarcodes = meta?.partBarcodes ?? meta?.raw?.partBarcodes;
+    const partsMeta = meta?.parts ?? meta?.raw?.parts;
+    const hasMultiplePartsInMeta = Array.isArray(partsMeta) && partsMeta.length > 1;
+
+    const mainAwb =
+      shipment.trackingNumber?.trim() ||
+      shipment.externalAwb?.trim() ||
+      (typeof meta?.awb === 'string' ? meta.awb.trim() : undefined) ||
+      (typeof meta?.raw?.awb === 'string' ? meta.raw.awb.trim() : undefined);
+
+    if (rawBarcodes !== undefined && rawBarcodes !== null) {
+      if (!Array.isArray(rawBarcodes)) {
+        throw new BadRequestException('Malformed partBarcodes in Babel Express shipment: expected an array.');
+      }
+      if (rawBarcodes.length === 0) {
+        throw new BadRequestException('Babel Express shipment returned an empty partBarcodes list.');
+      }
+      const cleanBarcodes: string[] = [];
+      const seen = new Set<string>();
+      for (let i = 0; i < rawBarcodes.length; i++) {
+        const entry = rawBarcodes[i];
+        if (typeof entry !== 'string' || !entry.trim()) {
+          throw new BadRequestException(`Babel shipment contains an invalid or empty part barcode at index ${i}.`);
+        }
+        const trimmed = entry.trim();
+        if (seen.has(trimmed)) {
+          throw new BadRequestException(`Duplicate part barcode detected in Babel shipment: "${trimmed}".`);
+        }
+        seen.add(trimmed);
+        cleanBarcodes.push(trimmed);
+      }
+      return { isBabel: true, mainAwb, partBarcodes: cleanBarcodes };
+    }
+
+    if (hasMultiplePartsInMeta) {
+      throw new BadRequestException(
+        'Babel Express shipment requires multi-part barcodes, but valid partBarcodes are unavailable.',
+      );
+    }
+
+    return { isBabel: true, mainAwb, partBarcodes: undefined };
+  }
+
   async getWaybillData(orderId: string, user: AuthPrincipal): Promise<OmsWaybillData> {
     const order = await this.prisma.omsOrder.findFirst({
       where: {
@@ -57,7 +172,10 @@ export class OmsWaybillService {
     let carrierShipment = null;
     if (order.outboundOrderId) {
       carrierShipment = await this.prisma.carrierShipment.findFirst({
-        where: { outboundOrderId: order.outboundOrderId },
+        where: {
+          outboundOrderId: order.outboundOrderId,
+          ...ACTIVE_CARRIER_SHIPMENT_WHERE,
+        },
         orderBy: { createdAt: 'desc' },
         include: { provider: true },
       });
@@ -66,23 +184,33 @@ export class OmsWaybillService {
     let carrierName = 'إمداد اكسبرس (داخلي)';
     let carrierLogoUrl: string | undefined = undefined;
     let isCarrierAwbFromApi = false;
-    // Prefer courier-facing tracking (carrierShipment.trackingNumber), not platform barcode alone.
-    let carrierTrackingNumber =
-      carrierShipment?.trackingNumber?.trim() ||
-      order.trackingNumber?.trim() ||
-      order.outboundOrder?.trackingNumber?.trim() ||
-      undefined;
+    const carrierTrackingNumber = this.resolveCarrierAwb(carrierShipment);
 
     if (carrierShipment) {
-      carrierName = (carrierShipment as any).provider?.name || carrierShipment.providerCode || 'شركة شحن';
+      carrierName =
+        resolveShippingCarrierName({
+          carrier: order.carrier,
+          shippingProviderCode:
+            carrierShipment.providerCode ||
+            order.outboundOrder?.shippingProviderCode ||
+            order.shippingProviderCode,
+          shippingServiceId: order.outboundOrder?.shippingServiceId || order.shippingServiceId,
+          outboundOrder: {
+            carrier: order.outboundOrder?.carrier,
+            shippingProviderCode: order.outboundOrder?.shippingProviderCode,
+            shippingServiceId: order.outboundOrder?.shippingServiceId,
+            carrierShipments: [
+              {
+                status: carrierShipment.status,
+                supersededAt: carrierShipment.supersededAt,
+                providerCode: carrierShipment.providerCode,
+                rawResultMeta: carrierShipment.rawResultMeta,
+              },
+            ],
+          },
+        }) || 'شركة شحن';
       carrierLogoUrl = undefined;
-      isCarrierAwbFromApi = Boolean(
-        carrierTrackingNumber &&
-          (carrierShipment.trackingNumber === carrierTrackingNumber ||
-            carrierShipment.externalAwb === carrierTrackingNumber),
-      );
-    } else if (order.carrier) {
-      carrierName = order.carrier;
+      isCarrierAwbFromApi = Boolean(carrierTrackingNumber);
     }
 
     const items: OmsWaybillItem[] = (order.lines || []).map((line: any) => ({
@@ -98,14 +226,32 @@ export class OmsWaybillService {
     const origin = await this.prisma.shippingOriginAddress.findUnique({
       where: { id: 'default' },
     });
-    const hub = origin
+    const originHub = origin
       ? [origin.street, origin.district, origin.city].filter((part) => part && part.trim()).join('، ')
       : 'مستودع إمداد — حلب';
+    const shipmentMeta =
+      carrierShipment?.rawResultMeta && typeof carrierShipment.rawResultMeta === 'object'
+        ? (carrierShipment.rawResultMeta as Record<string, unknown>)
+        : null;
+    const shipmentHubName = [shipmentMeta?.hub_name, shipmentMeta?.hubName]
+      .find((value) => typeof value === 'string' && value.trim()) as string | undefined;
+    const hub = shipmentHubName?.trim() || originHub;
 
-    const internalWaybillNumber = order.trackingNumber || `EMD-${order.orderNumber}`;
-    const qrCodeData = order.trackingNumber || order.orderNumber;
+    const internalWaybillNumber = order.orderNumber;
+    const qrCodeData = order.orderNumber;
 
     let labelUrl: string | undefined = undefined;
+
+    const babelParts = this.resolveBabelParts(carrierShipment);
+    const hasBabelParts = babelParts.isBabel && Array.isArray(babelParts.partBarcodes) && babelParts.partBarcodes.length > 0;
+    const partBarcodes = hasBabelParts ? babelParts.partBarcodes : undefined;
+    const mainAwb = babelParts.mainAwb || carrierTrackingNumber;
+    const partsInfo: OmsWaybillPartInfo[] | undefined = partBarcodes?.map((barcode, idx) => ({
+      partIndex: idx + 1,
+      partTotal: partBarcodes.length,
+      partBarcode: barcode,
+      mainAwb: mainAwb || '',
+    }));
 
     return {
       orderId: order.id,
@@ -116,6 +262,11 @@ export class OmsWaybillService {
       carrierLogoUrl,
       isCarrierAwbFromApi,
       shippingMethod: carrierShipment ? 'carrier' : 'manual',
+      shippingProviderCode:
+        carrierShipment?.providerCode ||
+        order.outboundOrder?.shippingProviderCode ||
+        order.shippingProviderCode ||
+        null,
       createdAt: order.createdAt.toISOString(),
       qrCodeData,
       company: {
@@ -147,6 +298,12 @@ export class OmsWaybillService {
       items,
       totalQuantity,
       labelUrl,
+      mainAwb,
+      partBarcodes,
+      parts: partsInfo,
+      partIndex: hasBabelParts ? 1 : undefined,
+      partTotal: hasBabelParts ? partBarcodes!.length : undefined,
+      partBarcode: hasBabelParts ? partBarcodes![0] : undefined,
     };
   }
 
@@ -155,6 +312,34 @@ export class OmsWaybillService {
     filename: string;
   }> {
     const data = await this.getWaybillData(orderId, user);
+    if (data.partBarcodes && data.partBarcodes.length > 0) {
+      const merged = await PDFDocument.create();
+      for (let i = 0; i < data.partBarcodes.length; i++) {
+        const barcode = data.partBarcodes[i];
+        const partData: OmsWaybillData = {
+          ...data,
+          partIndex: i + 1,
+          partTotal: data.partBarcodes.length,
+          partBarcode: barcode,
+          mainAwb: data.mainAwb || data.carrierTrackingNumber,
+        };
+        const html = await this.labelHtml(partData);
+        const pageBuffer = await this.pdfService.renderHtml(html, {
+          width: '100mm',
+          height: '150mm',
+          margin: { top: '0', bottom: '0', left: '0', right: '0' },
+          preferCSSPageSize: true,
+        });
+        const sourceDoc = await PDFDocument.load(pageBuffer);
+        const copied = await merged.copyPages(sourceDoc, sourceDoc.getPageIndices());
+        for (const p of copied) merged.addPage(p);
+      }
+      return {
+        buffer: Buffer.from(await merged.save()),
+        filename: `waybill-${data.orderNumber}.pdf`,
+      };
+    }
+
     const html = await this.labelHtml(data);
     const buffer = await this.pdfService.renderHtml(html, {
       width: '100mm',
@@ -167,8 +352,10 @@ export class OmsWaybillService {
 
   async labelHtml(data: OmsWaybillData): Promise<string> {
     const internalQrUri = await qrCodePngDataUri(data.qrCodeData);
-    const carrierQrUri = data.carrierTrackingNumber
-      ? await qrCodePngDataUri(data.carrierTrackingNumber)
+    const isPartLabel = Boolean(data.partBarcode);
+    const carrierQrPayload = data.partBarcode || data.carrierTrackingNumber || '';
+    const carrierQrUri = carrierQrPayload
+      ? await qrCodePngDataUri(carrierQrPayload)
       : '';
 
     const createdFormatted = new Date(data.createdAt).toISOString().split('T')[0];
@@ -197,8 +384,9 @@ export class OmsWaybillService {
       ? `<img src="${data.carrierLogoUrl}" style="max-height: 22px; max-width: 70px; object-fit: contain; display: block;" />`
       : `<span style="font-weight: 800; font-size: 8.5px; color: #14532d;">${data.carrier}</span>`;
 
-    const hasCarrierQr = Boolean(data.carrierTrackingNumber && carrierQrUri);
-    const singleSku = data.items.length <= 1;
+    const hasCarrierQr = Boolean(carrierQrPayload && carrierQrUri);
+    const items = Array.isArray(data.items) ? data.items : [];
+    const singleSku = items.length <= 1;
     const internalSection = `
       <div class="qr-card">
         <div class="qr-head">
@@ -209,7 +397,20 @@ export class OmsWaybillService {
       </div>
     `;
     const awbSection = hasCarrierQr
-      ? `
+      ? isPartLabel
+        ? `
+        <div class="qr-card">
+          <div class="qr-head">
+            <div class="qr-title">باركود الطرد لدى الناقل</div>
+            <div class="qr-number">${data.partBarcode}</div>
+          </div>
+          <div class="qr-slot"><img src="${carrierQrUri}" alt="Part QR" style="width: 20mm; height: 20mm;" /></div>
+          <div class="qr-awb-line">
+            <span>AWB:</span> <span class="qr-awb-num">${data.mainAwb || data.carrierTrackingNumber}</span>
+          </div>
+        </div>
+      `
+        : `
         <div class="qr-card">
           <div class="qr-head">
             <div class="qr-title">رقم التتبع لدى الناقل (AWB)</div>
@@ -288,6 +489,15 @@ export class OmsWaybillService {
               display: flex; align-items: center; justify-content: center;
             }
             .qr-slot img { width: 24mm; height: 24mm; object-fit: contain; display: block; }
+            .qr-awb-line {
+              width: 100%; flex: 0 0 auto;
+              font-size: 7.5px; font-weight: 700; color: #334155;
+              margin-top: 0.3mm; line-height: 1.1;
+              display: flex; align-items: center; justify-content: center; gap: 1mm;
+            }
+            .qr-awb-num {
+              font-family: monospace; font-weight: 900; font-size: 8px; color: #0f172a;
+            }
             .manual-fill {
               width: 100%; height: 100%;
               display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1.5mm;
@@ -313,7 +523,10 @@ export class OmsWaybillService {
 
             <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #14532d; padding-bottom: 1mm; flex: 0 0 auto;">
               <div style="background: #14532d; color: #ffffff; border-radius: 4px; padding: 1.2mm 2.5mm; text-align: center;">
-                <div style="font-size: 13px; font-weight: 900; line-height: 1; color: #ffffff;">بوليصة شحن</div>
+                <div style="display: flex; align-items: center; justify-content: center; gap: 1.5mm;">
+                  <span style="font-size: 13px; font-weight: 900; line-height: 1; color: #ffffff;">بوليصة شحن</span>
+                  ${data.partIndex && data.partTotal ? `<span style="font-size: 8px; font-weight: 900; background: #86efac; color: #14532d; padding: 0.5mm 1.5mm; border-radius: 3px; line-height: 1;">طرد ${data.partIndex}/${data.partTotal}</span>` : ''}
+                </div>
                 <div style="font-size: 7px; font-weight: 700; letter-spacing: 1px; color: #ffffff; margin-top: 0.6mm;">SHIPPING WAYBILL</div>
               </div>
               <div style="display: flex; align-items: center; gap: 2mm;">
@@ -334,10 +547,17 @@ export class OmsWaybillService {
                 <div style="display: flex; align-items: center; gap: 1mm; font-size: 8px; color: #166534; font-weight: 700; margin-bottom: 0.4mm;">${svg.file}<span>رقم الطلب</span></div>
                 <div style="font-size: 10px; font-weight: 900; color: #0f172a; font-family: monospace;">${data.orderNumber}</div>
               </div>
-              <div style="flex: 1; padding: 0.8mm; text-align: center; display: flex; flex-direction: column; align-items: center; justify-content: center;">
+              <div style="flex: 1; padding: 0.8mm; ${data.partIndex && data.partTotal ? 'border-left: 1px solid #14532d;' : ''} text-align: center; display: flex; flex-direction: column; align-items: center; justify-content: center;">
                 <div style="display: flex; align-items: center; gap: 1mm; font-size: 8px; color: #166534; font-weight: 700; margin-bottom: 0.4mm;">${svg.calendar}<span>تاريخ الإصدار</span></div>
                 <div style="font-size: 9.5px; font-weight: 800; color: #0f172a;">${createdFormatted}</div>
               </div>
+              ${data.partIndex && data.partTotal ? `
+                <div style="flex: 1.1; padding: 0.8mm; text-align: center; display: flex; flex-direction: column; align-items: center; justify-content: center; background: #f0fdf4;">
+                  <div style="display: flex; align-items: center; gap: 1mm; font-size: 8px; color: #166534; font-weight: 700; margin-bottom: 0.4mm;">${svg.box}<span>رقم الطرد</span></div>
+                  <div style="font-size: 9.5px; font-weight: 900; color: #14532d;">طرد ${data.partIndex} من ${data.partTotal}</div>
+                  <div style="font-size: 6.5px; font-weight: 700; color: #166534;">Part ${data.partIndex} of ${data.partTotal}</div>
+                </div>
+              ` : ''}
             </div>
 
             <!-- ═══ TRACKING CODES ═══ -->
@@ -424,7 +644,7 @@ export class OmsWaybillService {
                   </tr>
                 </thead>
                 <tbody>
-                  ${data.items.map((item: any, idx: number) => `
+                  ${items.map((item: any, idx: number) => `
                     <tr style="background: ${idx % 2 === 0 ? '#ffffff' : '#f0fdf4'};">
                       <td style="text-align: center; font-family: monospace;">${idx + 1}</td>
                       <td><strong>${item.name}</strong></td>
@@ -469,7 +689,9 @@ export class OmsWaybillService {
     const ready = orders
       .filter((order) => {
         const outbound = order.outboundOrder;
-        const created = outbound?.carrierShipments?.find((shipment) => shipment.status === 'created');
+        const created = outbound?.carrierShipments?.find(
+          (shipment) => shipment.status === 'created' && !shipment.supersededAt,
+        );
         return (
           shippingLabelReadiness({
             status: order.status,
@@ -519,11 +741,21 @@ export class OmsWaybillService {
             product: true,
           },
         },
-        outboundOrder: true,
+        outboundOrder: {
+          include: {
+            carrierShipments: {
+              where: ACTIVE_CARRIER_SHIPMENT_WHERE,
+              orderBy: { createdAt: 'desc' },
+              take: 1,
+            },
+          },
+        },
       },
     });
 
-    const rows = orders.map((order: any) => ({
+    const rows = orders.map((order: any) => {
+      const shipment = order.outboundOrder?.carrierShipments?.[0] ?? null;
+      return {
       'رقم الطلب': order.orderNumber,
       'تاريخ الطلب': order.createdAt.toISOString().split('T')[0],
       'اسم المستلم': order.recipientName || '—',
@@ -536,10 +768,34 @@ export class OmsWaybillService {
       'العملة': order.currency || 'USD',
       'طريقة الدفع': order.paymentMethod || 'COD',
       'أجور الشحن': Number(order.shippingFee ?? 0),
-      'رقم البوليصة الداخلي': order.trackingNumber || `EMD-${order.orderNumber}`,
-      'رقم التتبع لدى الناقل': order.trackingNumber || '—',
-      'اسم الناقل': order.carrier || 'إمداد اكسبرس',
-    }));
+      'رقم البوليصة الداخلي': order.orderNumber,
+      'رقم التتبع لدى الناقل': this.resolveCarrierAwb(shipment) || 'بانتظار رقم الناقل',
+      'اسم الناقل':
+        resolveShippingCarrierName({
+          carrier: order.carrier,
+          shippingProviderCode:
+            shipment?.providerCode ||
+            order.outboundOrder?.shippingProviderCode ||
+            order.shippingProviderCode,
+          shippingServiceId: order.shippingServiceId,
+          outboundOrder: {
+            carrier: order.outboundOrder?.carrier,
+            shippingProviderCode: order.outboundOrder?.shippingProviderCode,
+            shippingServiceId: order.outboundOrder?.shippingServiceId,
+            carrierShipments: shipment
+              ? [
+                  {
+                    status: shipment.status,
+                    supersededAt: shipment.supersededAt,
+                    providerCode: shipment.providerCode,
+                    rawResultMeta: shipment.rawResultMeta,
+                  },
+                ]
+              : [],
+          },
+        }) || 'إمداد اكسبرس',
+    };
+    });
 
     const worksheet = XLSX.utils.json_to_sheet(rows);
     const workbook = XLSX.utils.book_new();

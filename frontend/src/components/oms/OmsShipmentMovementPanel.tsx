@@ -1,7 +1,8 @@
-import { useState, type ReactElement } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useEffect, useState, type ReactElement } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { OmsApi, type OmsOrderDetail, type OmsShipmentMovementEvent } from '../../api/oms';
+import { QK } from '../../constants/query-keys';
 import { useToast } from '../ToastProvider';
 import { useWmsTranslation } from '../../lib/ui-i18n';
 
@@ -74,6 +75,7 @@ function getCardClasses(color?: string): {
 export function OmsShipmentMovementPanel({ order }: Props): ReactElement {
   const { isArabic } = useWmsTranslation();
   const toast = useToast();
+  const queryClient = useQueryClient();
   const [copied, setCopied] = useState(false);
 
   const { data, isLoading, isError, refetch, isFetching } = useQuery({
@@ -83,8 +85,17 @@ export function OmsShipmentMovementPanel({ order }: Props): ReactElement {
     retry: 1,
   });
 
-  const awb = data?.awb || order.trackingNumber || null;
-  const carrierName = data?.providerName || order.carrier || null;
+  useEffect(() => {
+    if (!data) return;
+    void queryClient.invalidateQueries({ queryKey: [...QK.omsOrders, order.id] });
+  }, [data, order.id, queryClient]);
+
+  const awbPending = Boolean(data?.awbPending) || Boolean(order.awbPending);
+  const historical = data?.shipmentState === 'cancelled' || data?.shipmentState === 'superseded';
+  const cancellationUnconfirmed =
+    Boolean(data?.cancellationUnconfirmed) || data?.lookupState === 'not_found';
+  const awb = awbPending && !historical ? null : data?.awb || (!historical ? order.trackingNumber : data?.awb) || null;
+  const carrierName = data?.providerName || order.shippingCarrierName || order.carrier || null;
   const events = data?.events || [];
   const errorMessage = data?.error;
   const infoMessage = data?.message;
@@ -135,6 +146,10 @@ export function OmsShipmentMovementPanel({ order }: Props): ReactElement {
                   <i className={`fa-solid ${copied ? 'fa-check text-success-600' : 'fa-copy'} text-[11px]`} />
                 </button>
               </div>
+            ) : data?.providerCode === 'SILA_SY' || order.shippingProviderCode === 'SILA_SY' ? (
+              <div className="mt-0.5 text-xs text-text-muted">
+                {isArabic ? 'رقم تتبع الناقل قيد الانتظار' : 'Carrier AWB pending'}
+              </div>
             ) : null}
           </div>
         </div>
@@ -173,6 +188,95 @@ export function OmsShipmentMovementPanel({ order }: Props): ReactElement {
                 </div>
               </div>
             ))}
+          </div>
+        ) : historical ? (
+          <div className="space-y-3">
+            <div className="rounded-xl border border-slate-200 bg-slate-50/80 p-4 text-sm text-slate-800 dark:border-slate-700 dark:bg-slate-900/40 dark:text-slate-200">
+              <p className="font-medium">
+                {data?.shipmentState === 'superseded'
+                  ? isArabic
+                    ? 'هذه الشحنة استُبدلت ولم تعد الشحنة النشطة.'
+                    : 'This shipment was replaced and is no longer the active assignment.'
+                  : isArabic
+                    ? 'هذه الشحنة لم تعد نشطة. رقم التتبع محفوظ للمراجعة.'
+                    : 'This shipment is no longer active. The AWB is kept for audit.'}
+              </p>
+              {awb ? (
+                <p className="mt-1 font-mono text-xs text-text-muted">
+                  {isArabic ? 'رقم التتبع السابق:' : 'Historical AWB:'} {awb}
+                </p>
+              ) : null}
+              {infoMessage ? <p className="mt-1 text-xs opacity-80">{infoMessage}</p> : null}
+            </div>
+            {events.length > 0 ? (
+              <div className="space-y-3">
+                {events.map((event: OmsShipmentMovementEvent, idx: number) => {
+                  const { date, time } = formatEventDateTime(event.timestamp, isArabic);
+                  const styling = getCardClasses(event.color);
+                  return (
+                    <div key={`${event.timestamp}-${idx}`} className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-5">
+                      <div className="flex sm:flex-col items-baseline sm:items-end justify-between sm:justify-center gap-2 sm:gap-0.5 sm:w-28 shrink-0 text-xs tabular-nums text-text-muted">
+                        <span className="font-semibold text-text-strong">{date}</span>
+                        <span className="text-[11px] opacity-80">{time}</span>
+                      </div>
+                      <div className={`flex-1 rounded-xl border p-3.5 sm:p-4 ${styling.card}`}>
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="space-y-1">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <p className="text-sm font-semibold leading-snug tracking-tight">{event.title}</p>
+                              {event.source === 'emdad' ? (
+                                <span className="rounded bg-slate-200/80 dark:bg-slate-700 px-1.5 py-0.5 text-[10px] font-medium text-slate-700 dark:text-slate-300">
+                                  {isArabic ? 'إجراء داخلي (إمداد)' : 'Emdad Internal'}
+                                </span>
+                              ) : event.code && event.code !== event.title ? (
+                                <span className="rounded bg-black/5 dark:bg-white/10 px-1.5 py-0.5 text-[10px] font-mono font-medium text-text-muted">
+                                  {event.code}
+                                </span>
+                              ) : null}
+                            </div>
+                            {event.notes && (
+                              <p className="text-xs opacity-85 leading-relaxed">{event.notes}</p>
+                            )}
+                            {event.location && (
+                              <div className="flex items-center gap-1.5 pt-1 text-xs opacity-90">
+                                <i className="fa-solid fa-location-dot text-[11px] text-rose-500 dark:text-rose-400 shrink-0" aria-hidden="true" />
+                                <span className="font-medium">{event.location}</span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : null}
+          </div>
+        ) : cancellationUnconfirmed ? (
+          <div className="rounded-xl border border-amber-200 bg-amber-50/70 p-4 text-sm text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-200">
+            <div className="flex items-start gap-3">
+              <i className="fa-solid fa-circle-exclamation text-base text-amber-600 mt-0.5 shrink-0" aria-hidden="true" />
+              <div>
+                <p className="font-medium">
+                  {isArabic
+                    ? 'بابل لم تُرجع هذه الشحنة. الإلغاء غير مؤكد، وما زالت مرتبطة بهذا الطلب.'
+                    : 'Babel did not return this shipment. Cancellation is not confirmed, and the current assignment stays in place.'}
+                </p>
+                <p className="mt-1 text-xs opacity-80">
+                  {isArabic
+                    ? 'لا يمكن اعتبار الشحنة ملغاة من رسالة "Shipment not found" وحدها. أعد المحاولة، أو استبدل الناقل من تفاصيل الشحن إذا ألغيت الشحنة يدوياً في بوابة بابل.'
+                    : 'A “Shipment not found” response is not a confirmed cancellation. Retry, or replace the carrier from Shipping Details if you cancelled it in the Babel portal.'}
+                </p>
+                <button
+                  type="button"
+                  onClick={() => refetch()}
+                  className="mt-2.5 inline-flex items-center gap-1.5 text-xs font-semibold text-amber-800 underline hover:text-amber-950 dark:text-amber-300"
+                >
+                  <i className="fa-solid fa-rotate-right text-[10px]" />
+                  <span>{isArabic ? 'إعادة المحاولة' : 'Try again'}</span>
+                </button>
+              </div>
+            </div>
           </div>
         ) : isError || errorMessage ? (
           <div className="rounded-xl border border-amber-200 bg-amber-50/70 p-4 text-sm text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-200">
@@ -235,9 +339,20 @@ export function OmsShipmentMovementPanel({ order }: Props): ReactElement {
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div className="space-y-1">
-                        <p className="text-sm font-semibold leading-snug tracking-tight">
-                          {event.title}
-                        </p>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p className="text-sm font-semibold leading-snug tracking-tight">
+                            {event.title}
+                          </p>
+                          {event.source === 'emdad' ? (
+                            <span className="rounded bg-slate-200/80 dark:bg-slate-700 px-1.5 py-0.5 text-[10px] font-medium text-slate-700 dark:text-slate-300">
+                              {isArabic ? 'إجراء داخلي (إمداد)' : 'Emdad Internal'}
+                            </span>
+                          ) : event.code && event.code !== event.title ? (
+                            <span className="rounded bg-black/5 dark:bg-white/10 px-1.5 py-0.5 text-[10px] font-mono font-medium text-text-muted">
+                              {event.code}
+                            </span>
+                          ) : null}
+                        </div>
                         {event.notes && (
                           <p className="text-xs opacity-85 leading-relaxed">
                             {event.notes}

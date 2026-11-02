@@ -12,6 +12,7 @@ import type { Product } from '../api/products';
 import { ProductsApi } from '../api/products';
 import { useAuth } from '../auth/AuthContext';
 import { CascadingAddressSelector } from '../components/CascadingAddressSelector';
+import { validateSyrianAddressHierarchy } from '../data/syria-address';
 import { Combobox } from '../components/Combobox';
 import { DeliveryLocationMap } from '../components/DeliveryLocationMap';
 import { FILTER_PRIMARY_BUTTON_CLASS } from '../components/FilterPanel';
@@ -308,8 +309,17 @@ export function OmsOrderCreatePage(): ReactElement {
       setError('Recipient phone is required.');
       return;
     }
-    if (!city.trim() || !district.trim() || !addressLine1.trim()) {
-      setError('Governorate, City/Region, and Town/Neighborhood are required.');
+    const addressValidation = validateSyrianAddressHierarchy({ city, district, addressLine1 });
+    if (!addressValidation.valid) {
+      setError(addressValidation.error ?? 'Invalid address selection.');
+      return;
+    }
+    if (!addressLine2.trim()) {
+      setError('Street / Detailed Address is required (must be more than 10 characters).');
+      return;
+    }
+    if (addressLine2.trim().length <= 10) {
+      setError('Street / Detailed Address must be more than 10 characters.');
       return;
     }
     if (!paymentMethod) {
@@ -342,7 +352,6 @@ export function OmsOrderCreatePage(): ReactElement {
         productId: l.productId,
         requestedQuantity: qty,
         unitPrice,
-        lineTotal: qty * unitPrice,
       });
     }
     if (payloadLines.length === 0) {
@@ -363,8 +372,6 @@ export function OmsOrderCreatePage(): ReactElement {
       shippingReceiverLng: deliveryLng.trim() ? Number(deliveryLng) : undefined,
       notes: notes.trim() || undefined,
       paymentMethod: paymentMethod || undefined,
-      subtotal: linesSum,
-      codAmount: paymentMethod === 'COD' ? linesSum : undefined,
       currency: 'USD',
       lines: payloadLines,
       shippingPhoneCountry: recipientPhone.countryIso || undefined,
@@ -453,14 +460,19 @@ export function OmsOrderCreatePage(): ReactElement {
               districtRequired
               addressLine1Required
             />
-            <TextField
-              label="Street / Detailed Address"
-              value={addressLine2}
-              onChange={(e) => setAddressLine2(e.target.value)}
-              disabled={loading}
-              placeholder="Street name, building, floor…"
-              className="md:col-span-2"
-            />
+            <div className="md:col-span-2">
+              <TextField
+                label="Street / Detailed Address *"
+                value={addressLine2}
+                onChange={(e) => setAddressLine2(e.target.value)}
+                disabled={loading}
+                placeholder="Street name, building, floor (more than 10 characters)…"
+                required
+              />
+              <p className="mt-1 text-xs text-text-muted">
+                Must be more than 10 characters / يجب أن يكون العنوان أكثر من 10 أحرف
+              </p>
+            </div>
           </div>
           <DeliveryLocationMap
             lat={deliveryLat}

@@ -109,6 +109,7 @@ export type ClientInvoicesPage = {
   total: number;
   limit: number;
   offset: number;
+  statusCounts?: Record<string, number>;
 };
 
 export async function fetchClientInvoicesPage(params: {
@@ -118,6 +119,26 @@ export async function fetchClientInvoicesPage(params: {
 }): Promise<ClientInvoicesPage> {
   const { data } = await apiClient.get<ClientInvoicesPage>('/billing/invoices', { params });
   return data;
+}
+
+export async function downloadClientInvoicesExcel(status?: string): Promise<void> {
+  const params: Record<string, string> = {};
+  if (status) params.status = status;
+  const res = await apiClient.get('/billing/invoices/export', {
+    params,
+    responseType: 'blob',
+  });
+  const blob = new Blob([res.data], {
+    type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  });
+  const url = window.URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `client-invoices-${new Date().toISOString().slice(0, 10)}.xlsx`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  window.URL.revokeObjectURL(url);
 }
 
 export async function fetchClientInvoices(): Promise<ClientInvoice[]> {

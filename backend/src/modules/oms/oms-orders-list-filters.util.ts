@@ -132,9 +132,15 @@ export function appendOmsOrderFieldFilters(
     query.shippingPayer === 'receiver' ||
     query.shippingPayer === 'reseller'
   ) {
-    const payer = query.shippingPayer;
+    const matchPayers =
+      query.shippingPayer === 'receiver'
+        ? (['receiver'] as const)
+        : (['sender', 'reseller'] as const);
     andParts.push({
-      OR: [{ shippingPayer: payer }, { outboundOrder: { shippingPayer: payer } }],
+      OR: [
+        { shippingPayer: { in: matchPayers as any } },
+        { outboundOrder: { shippingPayer: { in: matchPayers as any } } },
+      ],
     });
   }
 

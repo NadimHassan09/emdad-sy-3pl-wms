@@ -2,6 +2,8 @@ import { Injectable, Logger } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 
 import { PrismaService } from '../../common/prisma/prisma.service';
+import { SilaEventSyncService } from './sila-event-sync.service';
+import { SILA_SY_CODE } from './shipping.constants';
 import { ShippingTrackingService } from './shipping-tracking.service';
 
 @Injectable()
@@ -12,6 +14,7 @@ export class ShippingSyncScheduler {
   constructor(
     private readonly prisma: PrismaService,
     private readonly trackingService: ShippingTrackingService,
+    private readonly silaEventSync: SilaEventSyncService,
   ) {}
 
   /**
@@ -31,6 +34,7 @@ export class ShippingSyncScheduler {
       const shipments = await this.prisma.carrierShipment.findMany({
         where: {
           status: 'created',
+          providerCode: { not: SILA_SY_CODE },
           externalAwb: { not: null },
           AND: [
             {
@@ -109,5 +113,14 @@ export class ShippingSyncScheduler {
     } finally {
       this.isRunning = false;
     }
+  }
+
+  /**
+   * Sila backup recovery: GET /cargos?updated_since= twice a day.
+   * Per-AWB 10-minute polling exceeds Sila's 20k/day guidance.
+   */
+  @Cron('0 6,18 * * *')
+  async handleSilaUpdatedSinceSync(): Promise<void> {
+    await this.silaEventSync.syncUpdatedSince();
   }
 }

@@ -52,6 +52,18 @@ export type ShippingCreateShipmentInput = {
   currency?: string;
   /** Opaque routing token from getQuote/getServiceOptions. Provider-specific (e.g. "SILA_SY:{courier_id}"). */
   serviceId?: string;
+  /** Provider hub/branch id for Hub Delivery. Ignored for home delivery. */
+  hubId?: string;
+  /** Physical items in shipment when available from OMS/WMS order lines. */
+  items?: Array<{
+    name?: string;
+    sku?: string;
+    barcode?: string;
+    product_id?: number;
+    quantity: number;
+    price?: number;
+    weight?: number;
+  }>;
 };
 
 export type ShippingCreateShipmentResult = {
@@ -62,6 +74,8 @@ export type ShippingCreateShipmentResult = {
    * When omitted, callers may fall back to `awb`.
    */
   trackingNumber?: string;
+  /** Package part barcodes when returned by multi-part carriers (e.g. Babel Express). */
+  partBarcodes?: string[];
   raw?: unknown;
 };
 
@@ -84,6 +98,14 @@ export type ShippingQuoteInput = {
   neighborhood?: string;
   codAmount?: number;
   currency?: string;
+  /** Provider hub/branch id when requoting a Hub Delivery selection. */
+  hubId?: string;
+};
+
+export type ShippingHubOption = {
+  id: string;
+  name: string;
+  nearest?: boolean;
 };
 
 export type ShippingQuoteResult = {
@@ -108,6 +130,10 @@ export type ShippingQuoteResult = {
   providerName?: string;
   /** Logo image URL if returned by carrier API. */
   logoUrl?: string;
+  /** Hubs/branches for Hub Delivery. Omitted when the carrier has no selectable hubs. */
+  hubs?: ShippingHubOption[];
+  nearestHubId?: string | null;
+  nearestHubDetermined?: boolean;
 };
 
 /** How the carrier delivers printable labels to WMS (do not invent labels). */
@@ -152,7 +178,17 @@ export type NormalizedTrackingEvent = {
   notes?: string;
   returnReason?: string;
   originalCarrierStatus?: string;
+  /** Carrier-provided status or event description in original language (e.g. Arabic) */
+  eventDescription?: string;
   carrierReturnStage?: 'return_created' | 'returning_to_sender' | 'returned_to_sender';
+  /** webhook: provider pushed the event. poll: OMS fetched cargo/tracking. */
+  costSource?: 'webhook' | 'poll';
+  sourceType?: 'webhook' | 'poll' | 'carrier_timeline' | 'manual';
+  isCarrierEvent?: boolean;
+  /** Sila X-Sila-Delivery header — retry dedup, distinct from dual terminal events. */
+  deliveryId?: string;
+  /** Merchant reference (Emdad order number) when the provider sends it. */
+  reference?: string;
   rawPayload: unknown;
 };
 
@@ -163,18 +199,31 @@ export type UnifiedShipmentMovementEvent = {
   notes?: string | null;
   color?: 'default' | 'info' | 'success' | 'error' | 'warning';
   code?: string | null;
+  /** Carrier-originated vs Emdad internal event */
+  source?: 'carrier' | 'emdad';
+  /** Raw carrier description if different from display title */
+  originalDescription?: string | null;
 };
 
 export type ShipmentTrackingResult = {
   providerCode: string;
   providerName: string;
   awb: string;
+  awbPending?: boolean;
   isDelivered?: boolean;
   statusLabel?: string;
   statusColor?: string;
   events: UnifiedShipmentMovementEvent[];
   message?: string;
   error?: string;
+  /** Live cargo/tracking snapshot used internally to persist identity. Never returned to clients. */
+  rawPayload?: unknown;
+  /** Provider lookup classification. `not_found` is not confirmed cancellation. */
+  lookupState?: 'ok' | 'not_found' | 'error';
+  /** Local shipment activity. Cancelled/superseded rows are historical. */
+  shipmentState?: 'active' | 'cancelled' | 'superseded';
+  /** True when the provider could not find the AWB and cancellation is unconfirmed. */
+  cancellationUnconfirmed?: boolean;
 };
 
 export interface ShippingProvider {
@@ -258,5 +307,30 @@ export interface ShippingProvider {
     credentials: ShippingCredentials,
     webhookUrl: string,
     secret: string,
+  ): Promise<{ ok: boolean; message?: string; secret?: string; webhookId?: string }>;
+
+  /** Official provider test ping after the signing secret is stored. */
+  testRegisteredWebhook?(
+    credentials: ShippingCredentials,
+    webhookId: string,
   ): Promise<{ ok: boolean; message?: string }>;
+
+  /**
+   * Ask the provider to cancel a cargo. Optional — Babel has no cancel API.
+   * Callers must not treat pending confirmation as a completed OMS cancel.
+   */
+  cancelShipment?(
+    credentials: ShippingCredentials,
+    providerId: string,
+  ): Promise<ShippingCancelResult>;
 }
+
+export type ShippingCancelResult = {
+  outcome: 'cancelled' | 'pending_confirmation' | 'already_cancelled' | 'refused' | 'retry';
+  courierCancel?: string;
+  message: string;
+  retryAfterSeconds?: number;
+  errorCode?: string;
+  cargoStatus?: string;
+  raw?: unknown;
+};

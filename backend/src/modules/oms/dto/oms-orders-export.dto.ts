@@ -32,4 +32,8 @@ export class OmsOrdersExportDto extends ListOmsOrdersQueryDto {
   @ArrayMaxSize(500)
   @IsUuidLoose({ each: true })
   ids?: string[];
+
+  @IsOptional()
+  @IsString()
+  format?: 'csv' | 'xlsx';
 }

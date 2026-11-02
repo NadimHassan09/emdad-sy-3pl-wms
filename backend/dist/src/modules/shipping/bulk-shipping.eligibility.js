@@ -7,6 +7,7 @@ exports.normalizePriceForComparison = normalizePriceForComparison;
 exports.recommendCheapestProvider = recommendCheapestProvider;
 exports.resolveBulkProviderSelection = resolveBulkProviderSelection;
 const client_1 = require("@prisma/client");
+const currency_conversion_1 = require("./currency-conversion");
 const shipping_constants_1 = require("./shipping.constants");
 function isEligibleForBulkShipping(order) {
     if (order.status !== client_1.OutboundOrderStatus.ready_to_ship && order.status !== 'ready_to_ship') {
@@ -20,25 +21,12 @@ function isEligibleForBulkShipping(order) {
 }
 exports.DEFAULT_USD_TO_SYP_RATE = 14500;
 function getUsdToSypRate() {
-    const envVal = process.env.USD_TO_SYP_RATE;
-    if (envVal) {
-        const parsed = Number(envVal);
-        if (Number.isFinite(parsed) && parsed > 0)
-            return parsed;
-    }
-    return exports.DEFAULT_USD_TO_SYP_RATE;
+    return (0, currency_conversion_1.getFxRateSnapshot)().usdToSypRate;
 }
-function normalizePriceForComparison(price, currency) {
-    if (!Number.isFinite(price))
-        return Infinity;
-    const curr = (currency ?? 'USD').toUpperCase().trim();
-    const rate = getUsdToSypRate();
-    if (curr === 'SYP') {
-        return price / rate;
-    }
-    return price;
+function normalizePriceForComparison(price, currency, snapshot = (0, currency_conversion_1.getFxRateSnapshot)()) {
+    return (0, currency_conversion_1.toComparableUsd)(price, currency, snapshot);
 }
-function recommendCheapestProvider(quotes) {
+function recommendCheapestProvider(quotes, snapshot = (0, currency_conversion_1.getFxRateSnapshot)()) {
     const valid = quotes.filter((q) => q.providerCode &&
         q.providerCode !== shipping_constants_1.MANUAL_SHIPPING_CODE &&
         Number.isFinite(q.price) &&
@@ -46,8 +34,8 @@ function recommendCheapestProvider(quotes) {
     if (valid.length === 0)
         return null;
     return valid.reduce((best, cur) => {
-        const bestNorm = normalizePriceForComparison(best.price, best.currency);
-        const curNorm = normalizePriceForComparison(cur.price, cur.currency);
+        const bestNorm = (0, currency_conversion_1.comparableValueUsd)(best, snapshot);
+        const curNorm = (0, currency_conversion_1.comparableValueUsd)(cur, snapshot);
         return curNorm < bestNorm ? cur : best;
     });
 }

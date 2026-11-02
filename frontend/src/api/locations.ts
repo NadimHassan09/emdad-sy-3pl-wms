@@ -62,6 +62,7 @@ export interface LookupLocationsParams {
   type?: string;
   status?: string;
   includeArchived?: boolean;
+  excludeId?: string;
 }
 
 export interface CreateLocationInput {
@@ -76,6 +77,7 @@ export interface CreateLocationInput {
 
 export interface UpdateLocationInput {
   name?: string;
+  parentId?: string | null;
   type?: LocationType;
   barcode?: string;
   sortOrder?: number;
@@ -115,6 +117,7 @@ export const LocationsApi = {
         ...(params.type ? { type: params.type } : {}),
         ...(params.status ? { status: params.status } : {}),
         ...(params.includeArchived ? { includeArchived: true } : {}),
+        ...(params.excludeId ? { excludeId: params.excludeId } : {}),
       },
     });
     return data;

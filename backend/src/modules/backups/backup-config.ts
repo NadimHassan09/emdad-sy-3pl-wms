@@ -34,7 +34,7 @@ export class BackupConfig {
   }
 
   get manualCooldownSec(): number {
-    return this.config.get<number>('BACKUP_MANUAL_COOLDOWN_SEC') ?? 900;
+    return this.readInt('BACKUP_MANUAL_COOLDOWN_SEC', 900, 60, 86_400);
   }
 
   get pgDumpPath(): string {

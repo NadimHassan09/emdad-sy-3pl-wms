@@ -9,6 +9,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.InventoryModule = void 0;
 const common_1 = require("@nestjs/common");
 const audit_module_1 = require("../../common/audit/audit.module");
+const expected_return_hold_service_1 = require("./expected-return-hold.service");
 const inventory_consistency_service_1 = require("./inventory-consistency.service");
 const inventory_controller_1 = require("./inventory.controller");
 const inventory_service_1 = require("./inventory.service");
@@ -26,12 +27,14 @@ exports.InventoryModule = InventoryModule = __decorate([
             inventory_consistency_service_1.InventoryConsistencyService,
             stock_helpers_1.StockHelpers,
             ledger_idempotency_service_1.LedgerIdempotencyService,
+            expected_return_hold_service_1.ExpectedReturnHoldService,
         ],
         exports: [
             inventory_service_1.InventoryService,
             inventory_consistency_service_1.InventoryConsistencyService,
             stock_helpers_1.StockHelpers,
             ledger_idempotency_service_1.LedgerIdempotencyService,
+            expected_return_hold_service_1.ExpectedReturnHoldService,
         ],
     })
 ], InventoryModule);

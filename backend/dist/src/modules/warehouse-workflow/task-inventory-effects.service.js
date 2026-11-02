@@ -14,6 +14,7 @@ var __param = (this && this.__param) || function (paramIndex, decorator) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.TaskInventoryEffectsService = void 0;
 const common_1 = require("@nestjs/common");
+const core_1 = require("@nestjs/core");
 const client_1 = require("@prisma/client");
 const storage_location_types_1 = require("../../common/constants/storage-location-types");
 const domain_exceptions_1 = require("../../common/errors/domain-exceptions");
@@ -46,30 +47,51 @@ let TaskInventoryEffectsService = class TaskInventoryEffectsService {
     ledgerDedup;
     shippingHandoff;
     omsSync;
-    constructor(stock, ledgerDedup, shippingHandoff, omsSync) {
+    moduleRef;
+    constructor(stock, ledgerDedup, shippingHandoff, omsSync, moduleRef) {
         this.stock = stock;
         this.ledgerDedup = ledgerDedup;
         this.shippingHandoff = shippingHandoff;
         this.omsSync = omsSync;
+        this.moduleRef = moduleRef;
+    }
+    async safeSyncOmsFromOutbound(tx, outboundOrderId, actorUserId) {
+        let sync = this.omsSync;
+        if (!sync && this.moduleRef) {
+            try {
+                sync = this.moduleRef.get(oms_outbound_sync_service_1.OmsOutboundSyncService, { strict: false });
+            }
+            catch {
+            }
+        }
+        if (sync) {
+            await sync.syncFromOutbound(tx, outboundOrderId, actorUserId);
+        }
     }
     scheduleReadyForShippingHook(_orderId) {
     }
+    async loadActivePickReservations(tx, outboundOrderId) {
+        const existing = await tx.stockReservation.findMany({
+            where: { outboundOrderId, status: 'active' },
+            include: { location: { select: { warehouseId: true } } },
+        });
+        if (existing.length === 0)
+            return [];
+        return existing.map((r) => ({
+            outboundOrderLineId: r.outboundOrderLineId ?? '',
+            companyId: r.companyId,
+            productId: r.productId,
+            locationId: r.locationId,
+            warehouseId: r.location.warehouseId,
+            lotId: r.lotId,
+            quantity: r.quantity.toString(),
+        }));
+    }
     async buildPickReservations(tx, companyId, warehouseId, lines, outboundOrderId) {
         if (outboundOrderId) {
-            const existing = await tx.stockReservation.findMany({
-                where: { outboundOrderId, status: 'active' },
-                include: { location: { select: { warehouseId: true } } },
-            });
+            const existing = await this.loadActivePickReservations(tx, outboundOrderId);
             if (existing.length > 0) {
-                return existing.map((r) => ({
-                    outboundOrderLineId: r.outboundOrderLineId ?? '',
-                    companyId: r.companyId,
-                    productId: r.productId,
-                    locationId: r.locationId,
-                    warehouseId: r.location.warehouseId,
-                    lotId: r.lotId,
-                    quantity: r.quantity.toString(),
-                }));
+                return existing;
             }
         }
         const planned = [];
@@ -321,25 +343,30 @@ let TaskInventoryEffectsService = class TaskInventoryEffectsService {
     }
     async applyPickRecord(tx, orderId, reservations, body) {
         await this.lockOutboundOrderRow(tx, orderId);
+        await this.applyPickRecordCore(tx, orderId, reservations, body, { validateUom: true });
+    }
+    async applyPickRecordQuiet(tx, orderId, reservations, body) {
+        await this.applyPickRecordCore(tx, orderId, reservations, body, { validateUom: false });
+    }
+    async applyPickRecordCore(tx, orderId, reservations, body, opts) {
         this.assertPickCompletionMatchesReservations(reservations, body);
-        const lineUoms = await tx.outboundOrderLine.findMany({
-            where: { outboundOrderId: orderId },
-            select: { id: true, product: { select: { uom: true } } },
-        });
-        const uomByLineId = new Map(lineUoms.map((row) => [row.id, row.product.uom]));
-        const byLineId = new Map();
-        for (const r of reservations) {
-            const cur = byLineId.get(r.outboundOrderLineId) ?? [];
-            cur.push(r);
-            byLineId.set(r.outboundOrderLineId, cur);
+        let uomByLineId = null;
+        if (opts.validateUom) {
+            const lineUoms = await tx.outboundOrderLine.findMany({
+                where: { outboundOrderId: orderId },
+                select: { id: true, product: { select: { uom: true } } },
+            });
+            uomByLineId = new Map(lineUoms.map((row) => [row.id, row.product.uom]));
         }
         for (const grp of body.picks) {
-            const uom = uomByLineId.get(grp.outbound_order_line_id);
-            if (!uom) {
-                throw new common_1.BadRequestException(`Unknown outbound line ${grp.outbound_order_line_id}.`);
-            }
-            for (const pl of grp.lines) {
-                (0, discrete_uom_quantity_1.assertDiscreteUomPositiveIntegerDecimal)(uom, new client_1.Prisma.Decimal(String(pl.quantity)), 'Pick quantity');
+            if (uomByLineId) {
+                const uom = uomByLineId.get(grp.outbound_order_line_id);
+                if (!uom) {
+                    throw new common_1.BadRequestException(`Unknown outbound line ${grp.outbound_order_line_id}.`);
+                }
+                for (const pl of grp.lines) {
+                    (0, discrete_uom_quantity_1.assertDiscreteUomPositiveIntegerDecimal)(uom, new client_1.Prisma.Decimal(String(pl.quantity)), 'Pick quantity');
+                }
             }
             const pickedTotal = grp.lines.reduce((acc, p) => acc.plus(new client_1.Prisma.Decimal(String(p.quantity))), new client_1.Prisma.Decimal(0));
             await tx.outboundOrderLine.update({
@@ -359,7 +386,7 @@ let TaskInventoryEffectsService = class TaskInventoryEffectsService {
             where: { id: orderId },
             data: { status: nextStatus },
         });
-        await this.omsSync?.syncFromOutbound(tx, orderId);
+        await this.safeSyncOmsFromOutbound(tx, orderId);
     }
     async applyDispatchShip(tx, operatorId, taskId, outboundOrderId, companyId, reservations, body) {
         await this.lockOutboundOrderRow(tx, outboundOrderId);
@@ -419,6 +446,10 @@ let TaskInventoryEffectsService = class TaskInventoryEffectsService {
             where: { outboundOrderId, status: 'active' },
             data: { status: 'fulfilled' },
         });
+        await tx.inboundSourceAllocation.updateMany({
+            where: { outboundOrderId, status: 'allocated' },
+            data: { status: 'fulfilled' },
+        });
         await tx.outboundOrder.update({
             where: { id: outboundOrderId },
             data: {
@@ -429,7 +460,7 @@ let TaskInventoryEffectsService = class TaskInventoryEffectsService {
                 trackingNumber: body.tracking ?? order.trackingNumber,
             },
         });
-        await this.omsSync?.syncFromOutbound(tx, outboundOrderId, operatorId);
+        await this.safeSyncOmsFromOutbound(tx, outboundOrderId, operatorId);
         return {
             companyId: order.companyId,
             orderId: outboundOrderId,
@@ -471,7 +502,7 @@ let TaskInventoryEffectsService = class TaskInventoryEffectsService {
             where: { id: outboundOrderId },
             data: { status: 'waiting_for_shipping_method' },
         });
-        await this.omsSync?.syncFromOutbound(tx, outboundOrderId);
+        await this.safeSyncOmsFromOutbound(tx, outboundOrderId);
     }
     async applyShippingDetailsTaskComplete(tx, outboundOrderId, body, actorUserId) {
         const order = await tx.outboundOrder.findUnique({
@@ -528,7 +559,7 @@ let TaskInventoryEffectsService = class TaskInventoryEffectsService {
                 status: 'ready_to_ship',
             },
         });
-        await this.omsSync?.syncFromOutbound(tx, outboundOrderId, actorUserId);
+        await this.safeSyncOmsFromOutbound(tx, outboundOrderId, actorUserId);
     }
     async lockOutboundOrderRow(tx, outboundOrderId) {
         await tx.$executeRaw(client_1.Prisma.sql `SELECT id FROM outbound_orders WHERE id = ${outboundOrderId}::uuid FOR UPDATE`);
@@ -611,9 +642,11 @@ exports.TaskInventoryEffectsService = TaskInventoryEffectsService = __decorate([
     (0, common_1.Injectable)(),
     __param(3, (0, common_1.Optional)()),
     __param(3, (0, common_1.Inject)((0, common_1.forwardRef)(() => oms_outbound_sync_service_1.OmsOutboundSyncService))),
+    __param(4, (0, common_1.Optional)()),
     __metadata("design:paramtypes", [stock_helpers_1.StockHelpers,
         ledger_idempotency_service_1.LedgerIdempotencyService,
         shipping_handoff_hook_service_1.ShippingHandoffHookService,
-        oms_outbound_sync_service_1.OmsOutboundSyncService])
+        oms_outbound_sync_service_1.OmsOutboundSyncService,
+        core_1.ModuleRef])
 ], TaskInventoryEffectsService);
 //# sourceMappingURL=task-inventory-effects.service.js.map

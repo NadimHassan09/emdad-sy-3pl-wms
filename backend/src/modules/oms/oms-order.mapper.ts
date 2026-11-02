@@ -9,6 +9,11 @@ import {
   isProviderName,
   resolveShippingCarrierName,
 } from '../shipping/shipping-carrier-resolver';
+import {
+  isAwbPendingReassignment,
+  pickActiveCarrierShipment,
+} from '../shipping/shipping-lifecycle.util';
+import { isCancellationUnconfirmed } from '../shipping/shipping-lookup.util';
 
 export type OmsOrderLineWithProduct = OmsOrderLine & {
   product?: {
@@ -29,14 +34,17 @@ export type OmsOrderWithRelations = OmsOrder & {
     carrier?: string | null;
     shippingProviderCode?: string | null;
     shippingServiceId?: string | null;
+    shippingHubId?: string | null;
     shippingMethod?: any;
     trackingNumber?: string | null;
     carrierShipments?: Array<{
       id?: string;
       status?: string;
+      trackingNumber?: string | null;
       externalAwb?: string | null;
       providerCode?: string | null;
       rawResultMeta?: any;
+      supersededAt?: Date | string | null;
     }> | null;
   }) | null;
   returns?: Array<{
@@ -121,11 +129,34 @@ export function serializeOmsOrderLine(line: OmsOrderLineWithProduct) {
   };
 }
 
+function liveShipmentTracking(order: OmsOrderWithRelations): string | null {
+  const active = pickActiveCarrierShipment(order.outboundOrder?.carrierShipments ?? []);
+  if (active && isAwbPendingReassignment(active.rawResultMeta)) return null;
+  if (active) {
+    return active.trackingNumber?.trim() || null;
+  }
+  return (
+    order.trackingNumber?.trim() ||
+    order.outboundOrder?.trackingNumber?.trim() ||
+    null
+  );
+}
+
+function liveAwbPending(order: OmsOrderWithRelations): boolean {
+  const active = pickActiveCarrierShipment(order.outboundOrder?.carrierShipments ?? []);
+  if (!active) return false;
+  if (isAwbPendingReassignment(active.rawResultMeta)) return true;
+  return !active.trackingNumber?.trim();
+}
+
 export function serializeOmsOrderListItem(order: OmsOrderWithRelations) {
   const carrierName = resolveShippingCarrierName(order);
   const explicitMethod = order.shippingMethod ?? order.outboundOrder?.shippingMethod ?? null;
   const resolvedMethod = explicitMethod ?? (carrierName ? 'carrier' : null);
   const isManual = resolvedMethod === 'manual';
+  const activeShipment = pickActiveCarrierShipment(order.outboundOrder?.carrierShipments ?? []);
+  const liveTracking = liveShipmentTracking(order);
+  const awbPending = liveAwbPending(order);
 
   return {
     id: order.id,
@@ -133,6 +164,9 @@ export function serializeOmsOrderListItem(order: OmsOrderWithRelations) {
     status: order.status,
     carrier: carrierName,
     shippingCarrierName: carrierName,
+    awbPending,
+    cancellationUnconfirmed: isCancellationUnconfirmed(activeShipment?.rawResultMeta),
+    shippingHubId: order.outboundOrder?.shippingHubId ?? null,
     shippingMethod: resolvedMethod,
     isManualShipping: isManual,
     companyId: order.companyId,
@@ -143,12 +177,9 @@ export function serializeOmsOrderListItem(order: OmsOrderWithRelations) {
     storeChannel: order.storeChannel,
     total: computeTotal(order),
     currency: order.currency,
+    shippingFee: dec(order.shippingFee),
     outboundOrderId: order.outboundOrderId,
-    trackingNumber:
-      order.trackingNumber ??
-      order.outboundOrder?.trackingNumber ??
-      (order.outboundOrder as any)?.carrierShipments?.find((s: { status?: string; trackingNumber?: string | null }) => s.status === 'created' && s.trackingNumber)?.trackingNumber ??
-      null,
+    trackingNumber: liveTracking,
     needsInformation: order.needsInformation,
     importBatchId: order.importBatchId ?? null,
     externalReference: order.externalReference ?? null,
@@ -158,14 +189,12 @@ export function serializeOmsOrderListItem(order: OmsOrderWithRelations) {
           id: order.outboundOrder.id,
           orderNumber: order.outboundOrder.orderNumber,
           status: order.outboundOrder.status,
-          trackingNumber: order.outboundOrder.trackingNumber ?? order.trackingNumber ?? null,
-          hasCarrierShipment:
-            (order.outboundOrder as any).carrierShipments?.some(
-              (s: any) => s.status === 'created' || Boolean(s.externalAwb),
-            ) ?? Boolean(order.outboundOrder.trackingNumber || order.trackingNumber),
+          trackingNumber: liveTracking,
+          hasCarrierShipment: Boolean(activeShipment),
           shippingMethod: (order.outboundOrder as any).shippingMethod ?? null,
           shippingProviderCode: (order.outboundOrder as any).shippingProviderCode ?? null,
           shippingServiceId: (order.outboundOrder as any).shippingServiceId ?? null,
+          shippingHubId: (order.outboundOrder as any).shippingHubId ?? null,
           shippingQuotedPrice: dec((order.outboundOrder as any).shippingQuotedPrice),
           shippingQuotedCurrency: (order.outboundOrder as any).shippingQuotedCurrency ?? null,
           shippingCost: dec(
@@ -187,9 +216,11 @@ export function serializeOmsOrderListItem(order: OmsOrderWithRelations) {
 export function serializeOmsOrder(order: OmsOrderWithRelations) {
   const subtotal = computeSubtotal(order);
   const carrierName = resolveShippingCarrierName(order);
+  const activeShipment = pickActiveCarrierShipment(order.outboundOrder?.carrierShipments ?? []);
+  const liveTracking = liveShipmentTracking(order);
   const returnsList = order.omsReturns ?? order.returns ?? [];
   const activeReturn = returnsList.find(
-    (r: any) => r.status === 'requested' || r.status === 'approved' || r.status === 'completed',
+    (r: any) => r.status === 'requested' || r.status === 'approved',
   );
   return {
     ...order,
@@ -212,9 +243,18 @@ export function serializeOmsOrder(order: OmsOrderWithRelations) {
       : null,
     carrier: carrierName ?? (isProviderName(order.carrier) ? null : order.carrier),
     shippingCarrierName: carrierName,
+    awbPending: liveAwbPending(order),
+    cancellationUnconfirmed: isCancellationUnconfirmed(activeShipment?.rawResultMeta),
+    shippingHubId: order.outboundOrder?.shippingHubId ?? null,
+    trackingNumber: liveTracking,
     destinationAddress: buildLegacyDestination(order),
     subtotal,
     shippingFee: dec(order.shippingFee),
+    clientShippingRateAppliedAt: (order as { clientShippingRateAppliedAt?: Date | null }).clientShippingRateAppliedAt ?? null,
+    clientShippingRateWeightKg: dec(
+      (order as { clientShippingRateWeightKg?: Prisma.Decimal | null }).clientShippingRateWeightKg,
+    ),
+    clientShippingRateBreakdown: (order as { clientShippingRateBreakdown?: unknown }).clientShippingRateBreakdown ?? null,
     codAmount: dec(order.codAmount),
     shippingReceiverLat: dec(order.shippingReceiverLat),
     shippingReceiverLng: dec(order.shippingReceiverLng),
@@ -226,14 +266,12 @@ export function serializeOmsOrder(order: OmsOrderWithRelations) {
           id: order.outboundOrder.id,
           orderNumber: order.outboundOrder.orderNumber,
           status: order.outboundOrder.status,
-          trackingNumber: order.outboundOrder.trackingNumber ?? order.trackingNumber ?? null,
-          hasCarrierShipment:
-            (order.outboundOrder as any).carrierShipments?.some(
-              (s: any) => s.status === 'created' || Boolean(s.externalAwb),
-            ) ?? Boolean(order.outboundOrder.trackingNumber || order.trackingNumber),
+          trackingNumber: liveTracking,
+          hasCarrierShipment: Boolean(activeShipment),
           shippingMethod: (order.outboundOrder as any).shippingMethod ?? null,
           shippingProviderCode: (order.outboundOrder as any).shippingProviderCode ?? null,
           shippingServiceId: (order.outboundOrder as any).shippingServiceId ?? null,
+          shippingHubId: (order.outboundOrder as any).shippingHubId ?? null,
           shippingQuotedPrice: dec((order.outboundOrder as any).shippingQuotedPrice),
           shippingQuotedCurrency: (order.outboundOrder as any).shippingQuotedCurrency ?? null,
           shippingCost: dec(
@@ -259,12 +297,21 @@ export function composeDestinationAddress(input: {
   district?: string;
   city?: string;
 }): string {
-  if (input.destinationAddress?.trim()) return input.destinationAddress.trim();
   const parts = [input.addressLine1, input.district, input.city, input.addressLine2].filter(
     (p) => p?.trim(),
   );
-  if (parts.length === 0) return '';
-  return parts.join(', ');
+  if (parts.length > 0) {
+    const joined = parts.join(', ');
+    if (input.destinationAddress?.trim()) {
+      const dest = input.destinationAddress.trim();
+      if (dest.length > 10 && dest.toLowerCase() !== input.city?.trim().toLowerCase()) {
+        return dest;
+      }
+    }
+    return joined;
+  }
+  if (input.destinationAddress?.trim()) return input.destinationAddress.trim();
+  return '';
 }
 
 export function deriveCodStatus(
@@ -297,9 +344,9 @@ export function mapOutboundStatusToOms(status: string): OmsOrderStatus | null {
     case 'allocated':
     case 'picking':
     case 'packing':
+      return 'processing';
     case 'waiting_for_shipping_method':
     case 'waiting_for_shipping_details':
-      return 'processing';
     case 'ready_to_ship':
       return 'ready_to_ship';
     case 'shipped':

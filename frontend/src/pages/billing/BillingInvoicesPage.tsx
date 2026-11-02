@@ -123,16 +123,6 @@ export function BillingInvoicesPage() {
     onError: (err: Error) => toast.error(err.message),
   });
 
-  const deleteMut = useMutation({
-    mutationFn: (id: string) => BillingApi.deleteInvoice(id),
-    onSuccess: () => {
-      toast.success('Invoice deleted.');
-      setOpenActionId(null);
-      invalidate();
-    },
-    onError: (err: Error) => toast.error(err.message),
-  });
-
   const columns: Column<BillingInvoiceRow>[] = [
     {
       header: 'Invoice number',
@@ -222,16 +212,16 @@ export function BillingInvoicesPage() {
                 Mark as paid
               </button>
             ) : null}
-            {canMutate && (r.status === 'draft' || r.status === 'cancelled') ? (
+            {canMutate && r.status === 'draft' ? (
               <button
                 type="button"
                 className="block w-full px-3 py-2 text-left text-sm text-status-error-fg hover:bg-status-error-bg"
                 onClick={() => {
-                  if (!window.confirm(`Delete invoice ${r.invoiceNumber}?`)) return;
-                  deleteMut.mutate(r.id);
+                  if (!window.confirm(`Cancel invoice ${r.invoiceNumber}?`)) return;
+                  statusMut.mutate({ id: r.id, status: 'cancelled' });
                 }}
               >
-                Delete
+                Cancel invoice
               </button>
             ) : null}
           </AnchoredDropdown>

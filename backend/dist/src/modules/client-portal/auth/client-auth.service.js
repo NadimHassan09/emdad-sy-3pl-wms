@@ -203,6 +203,68 @@ let ClientAuthService = class ClientAuthService {
             data: { avatarPath: null },
         });
     }
+    async updateProfile(user, dto) {
+        const fullName = dto.fullName.trim();
+        if (!fullName) {
+            throw new common_1.BadRequestException('Full name is required.');
+        }
+        const updated = await this.prisma.user.update({
+            where: { id: user.id },
+            data: { fullName },
+            select: {
+                id: true,
+                email: true,
+                fullName: true,
+                role: true,
+                companyId: true,
+                avatarPath: true,
+                company: { select: { name: true } },
+            },
+        });
+        if (!updated.companyId || !CLIENT_ROLES.includes(updated.role)) {
+            throw new common_1.UnauthorizedException('Session is no longer valid.');
+        }
+        return {
+            id: updated.id,
+            email: updated.email,
+            fullName: updated.fullName,
+            role: updated.role,
+            companyId: updated.companyId,
+            companyName: updated.company?.name ?? '',
+            avatarUrl: (0, avatar_url_1.toAvatarPublicUrl)(updated.avatarPath),
+        };
+    }
+    async changePassword(user, dto) {
+        const row = await this.prisma.user.findUnique({
+            where: { id: user.id },
+            select: {
+                id: true,
+                passwordHash: true,
+                status: true,
+                companyId: true,
+                role: true,
+            },
+        });
+        if (!row || row.status !== client_1.UserStatus.active) {
+            throw new common_1.UnauthorizedException('Session is no longer valid.');
+        }
+        if (row.companyId === null || !CLIENT_ROLES.includes(row.role)) {
+            throw new common_1.ForbiddenException('This portal is only for client users.');
+        }
+        const valid = await this.password.verify(dto.currentPassword, row.passwordHash);
+        if (!valid) {
+            throw new common_1.BadRequestException('Current password is incorrect.');
+        }
+        if (dto.currentPassword === dto.newPassword) {
+            throw new common_1.BadRequestException('New password must be different from the current password.');
+        }
+        const passwordHash = await this.password.hash(dto.newPassword);
+        await this.prisma.user.update({
+            where: { id: row.id },
+            data: { passwordHash },
+        });
+        return { changed: true };
+    }
     expiresInToMs(expiresIn) {
         const t = expiresIn.trim().toLowerCase();
         const m = /^(\d+)(s|m|h|d)?$/.exec(t);

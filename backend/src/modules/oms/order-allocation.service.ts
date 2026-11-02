@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable, Optional } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { OmsAllocationStatus, OutboundOrderStatus, Prisma, ReservationStatus } from '@prisma/client';
 
@@ -10,6 +10,7 @@ import {
 import { allocateOnOrderCreate } from '../warehouse-workflow/feature-flags';
 import type { ReservationSnapshot } from '../warehouse-workflow/task-inventory-effects.service';
 import { OmsOrderEventsService } from './oms-order-events.service';
+import { InboundTraceabilityService } from './inbound-traceability.service';
 
 type Tx = Prisma.TransactionClient;
 
@@ -25,6 +26,7 @@ export class OrderAllocationService {
   constructor(
     private readonly config: ConfigService,
     private readonly events: OmsOrderEventsService,
+    @Optional() private readonly traceability?: InboundTraceabilityService,
   ) {}
 
   isEnabled(): boolean {
@@ -77,6 +79,7 @@ export class OrderAllocationService {
       warehouseId?: string | null;
       actorUserId?: string;
       previousStatus?: OutboundOrderStatus;
+      omsOrderId?: string;
     },
   ): Promise<void> {
     if (!this.isEnabled()) return;
@@ -148,6 +151,42 @@ export class OrderAllocationService {
 
       if (remaining.greaterThan(0)) {
         throw new InsufficientStockException();
+      }
+    }
+
+    if (this.traceability) {
+      let omsOrderId = params.omsOrderId;
+      let omsLines: Array<{ id: string; productId: string }> = [];
+      if (!omsOrderId) {
+        const oms = await tx.omsOrder.findFirst({
+          where: { outboundOrderId: params.outboundOrderId },
+          select: { id: true, lines: { select: { id: true, productId: true } } },
+        });
+        if (oms) {
+          omsOrderId = oms.id;
+          omsLines = oms.lines;
+        }
+      } else {
+        const oms = await tx.omsOrder.findUnique({
+          where: { id: omsOrderId },
+          select: { lines: { select: { id: true, productId: true } } },
+        });
+        if (oms) omsLines = oms.lines;
+      }
+
+      if (omsOrderId) {
+        await this.traceability.allocateInboundSources(tx, {
+          companyId: params.companyId,
+          omsOrderId,
+          outboundOrderId: params.outboundOrderId,
+          lines: params.lines.map((l) => ({
+            outboundOrderLineId: l.outboundOrderLineId,
+            omsOrderLineId: omsLines.find((ol) => ol.productId === l.productId)?.id,
+            productId: l.productId,
+            requestedQty: l.requestedQty,
+            specificLotId: l.specificLotId,
+          })),
+        });
       }
     }
 
@@ -243,6 +282,12 @@ export class OrderAllocationService {
       createdBy: params.actorUserId,
       payload: { reservationCount: active.length },
     });
+
+    if (this.traceability) {
+      await this.traceability.releaseAllocations(tx, {
+        outboundOrderId: params.outboundOrderId,
+      });
+    }
   }
 
   /** Mark reservations fulfilled after dispatch (pairs with on-hand decrement). */
@@ -282,6 +327,12 @@ export class OrderAllocationService {
       createdBy: params.actorUserId,
       payload: { reservationCount: active },
     });
+
+    if (this.traceability) {
+      await this.traceability.markFulfilled(tx, {
+        outboundOrderId: params.outboundOrderId,
+      });
+    }
   }
 
   async assertAllocatable(

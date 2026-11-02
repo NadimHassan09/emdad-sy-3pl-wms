@@ -41,6 +41,9 @@ let ClientOmsOrdersController = class ClientOmsOrdersController {
     list(client, query) {
         return this.oms.list(client, query);
     }
+    statusNavCounts(client, query) {
+        return this.oms.statusNavCounts(client, query);
+    }
     statusSummary(client, query) {
         return this.oms.statusSummary(client, query);
     }
@@ -91,6 +94,15 @@ let ClientOmsOrdersController = class ClientOmsOrdersController {
     timeline(client, id) {
         return this.oms.timeline(client, id);
     }
+    shippingMovement(client, id) {
+        return this.oms.getShippingMovement(client, id);
+    }
+    async exportCodReport(client, query, res) {
+        const { buffer, filename } = await this.oms.exportCodReportXlsx(client, query);
+        res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+        res.send(buffer);
+    }
     codReport(client, query) {
         return this.oms.codReport(client, query);
     }
@@ -104,6 +116,14 @@ __decorate([
     __metadata("design:paramtypes", [Object, list_client_oms_orders_query_dto_1.ListClientOmsOrdersQueryDto]),
     __metadata("design:returntype", void 0)
 ], ClientOmsOrdersController.prototype, "list", null);
+__decorate([
+    (0, common_1.Get)('orders/nav-counts'),
+    __param(0, (0, client_user_decorator_1.ClientUser)()),
+    __param(1, (0, common_1.Query)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, list_client_oms_orders_query_dto_1.ListClientOmsOrdersQueryDto]),
+    __metadata("design:returntype", void 0)
+], ClientOmsOrdersController.prototype, "statusNavCounts", null);
 __decorate([
     (0, common_1.Get)('orders/status-summary'),
     __param(0, (0, client_user_decorator_1.ClientUser)()),
@@ -216,6 +236,24 @@ __decorate([
     __metadata("design:paramtypes", [Object, String]),
     __metadata("design:returntype", void 0)
 ], ClientOmsOrdersController.prototype, "timeline", null);
+__decorate([
+    (0, common_1.Get)('orders/:id/shipping-movement'),
+    __param(0, (0, client_user_decorator_1.ClientUser)()),
+    __param(1, (0, common_1.Param)('id', parse_uuid_loose_pipe_1.ParseUuidLoosePipe)),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, String]),
+    __metadata("design:returntype", void 0)
+], ClientOmsOrdersController.prototype, "shippingMovement", null);
+__decorate([
+    (0, common_1.Get)('cod-report/export'),
+    (0, common_1.Header)('Cache-Control', 'no-store'),
+    __param(0, (0, client_user_decorator_1.ClientUser)()),
+    __param(1, (0, common_1.Query)()),
+    __param(2, (0, common_1.Res)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, client_cod_report_query_dto_1.ClientCodReportQueryDto, Object]),
+    __metadata("design:returntype", Promise)
+], ClientOmsOrdersController.prototype, "exportCodReport", null);
 __decorate([
     (0, common_1.Get)('cod-report'),
     __param(0, (0, client_user_decorator_1.ClientUser)()),

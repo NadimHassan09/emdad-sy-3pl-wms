@@ -26,6 +26,7 @@ const backup_operations_service_1 = require("./backup-operations.service");
 const backup_pg_tools_service_1 = require("./backup-pg-tools.service");
 const backup_restore_runner_service_1 = require("./backup-restore-runner.service");
 const backup_runner_service_1 = require("./backup-runner.service");
+const backup_manual_gate_service_1 = require("./backup-manual-gate.service");
 const backup_storage_policy_service_1 = require("./backup-storage-policy.service");
 const list_backups_query_dto_1 = require("./dto/list-backups-query.dto");
 const DOWNLOADABLE_BACKUP_TYPES = [
@@ -47,7 +48,8 @@ let BackupsService = class BackupsService {
     downloadTokens;
     driveSync;
     storagePolicy;
-    constructor(prisma, backupConfig, storage, runner, restoreRunner, factoryResetRunner, operations, maintenance, pg, downloadTokens, driveSync, storagePolicy) {
+    manualGate;
+    constructor(prisma, backupConfig, storage, runner, restoreRunner, factoryResetRunner, operations, maintenance, pg, downloadTokens, driveSync, storagePolicy, manualGate) {
         this.prisma = prisma;
         this.backupConfig = backupConfig;
         this.storage = storage;
@@ -60,6 +62,7 @@ let BackupsService = class BackupsService {
         this.downloadTokens = downloadTokens;
         this.driveSync = driveSync;
         this.storagePolicy = storagePolicy;
+        this.manualGate = manualGate;
     }
     assertEnabled() {
         if (!this.backupConfig.enabled) {
@@ -79,37 +82,23 @@ let BackupsService = class BackupsService {
         if (this.operations.isBusy()) {
             throw new common_1.BadRequestException('A backup operation is already running.');
         }
-        const cooldownMs = this.backupConfig.manualCooldownSec * 1000;
-        const recent = await this.prisma.backupJob.findFirst({
-            where: {
-                type: client_1.BackupJobType.manual,
-                triggeredByUserId: user.id,
-                createdAt: { gte: new Date(Date.now() - cooldownMs) },
-                status: { in: [client_1.BackupJobStatus.pending, client_1.BackupJobStatus.running, client_1.BackupJobStatus.completed] },
-            },
-            orderBy: { createdAt: 'desc' },
-        });
-        if (recent) {
-            throw new common_1.BadRequestException(`Please wait before creating another manual backup (cooldown ${this.backupConfig.manualCooldownSec}s).`);
-        }
         const resolvedPolicy = await this.storagePolicy.resolveForSchedule(dto.storagePolicy ?? null);
-        const job = await this.prisma.backupJob.create({
-            data: {
-                type: client_1.BackupJobType.manual,
-                status: client_1.BackupJobStatus.pending,
-                label: dto.label?.trim() || null,
-                triggeredByUserId: user.id,
-                storagePolicy: resolvedPolicy,
-                progressPercent: 0,
-            },
-            select: { id: true, status: true, createdAt: true, storagePolicy: true },
+        const job = await this.manualGate.createPendingManualJob({
+            triggeredByUserId: user.id,
+            label: dto.label?.trim() || null,
+            storagePolicy: resolvedPolicy,
         });
         this.runner.enqueueManual(job.id, user);
         return {
             jobId: job.id,
-            status: job.status,
-            storagePolicy: job.storagePolicy,
-            createdAt: job.createdAt,
+            ...this.toSummary({
+                ...job,
+                triggeredBy: job.triggeredBy ?? {
+                    id: user.id,
+                    email: user.email ?? user.id,
+                    fullName: '',
+                },
+            }),
         };
     }
     async syncDrive(user, jobId) {
@@ -158,8 +147,9 @@ let BackupsService = class BackupsService {
             }),
             this.prisma.backupJob.count({ where }),
         ]);
+        const summaries = await Promise.all(items.map((row) => this.toSummaryAsync(row)));
         return {
-            items: items.map((row) => this.toSummary(row)),
+            items: summaries,
             total,
             limit,
             offset,
@@ -196,7 +186,11 @@ let BackupsService = class BackupsService {
         });
         if (!job)
             throw new common_1.NotFoundException('Backup job not found.');
-        return this.toDetail(job);
+        const summary = await this.toSummaryAsync(job);
+        return {
+            ...this.toDetail(job),
+            downloadable: summary.downloadable,
+        };
     }
     async getStatus(user, id) {
         this.assertCanRead(user);
@@ -449,13 +443,18 @@ let BackupsService = class BackupsService {
         }
     }
     toSummary(row) {
+        const bytesWritten = Number(row.bytesWritten);
+        const downloadable = row.status === client_1.BackupJobStatus.completed &&
+            DOWNLOADABLE_BACKUP_TYPES.includes(row.type) &&
+            !row.localArtifactPurged &&
+            bytesWritten > 0;
         return {
             id: row.id,
             type: row.type,
             status: row.status,
             label: row.label,
             progressPercent: row.progressPercent,
-            bytesWritten: Number(row.bytesWritten),
+            bytesWritten,
             createdAt: row.createdAt,
             completedAt: row.completedAt,
             triggeredBy: row.triggeredBy,
@@ -463,7 +462,21 @@ let BackupsService = class BackupsService {
             storagePolicy: row.storagePolicy,
             gdriveSyncStatus: row.gdriveSyncStatus,
             gdriveSyncedAt: row.gdriveSyncedAt,
+            downloadable,
         };
+    }
+    async toSummaryAsync(row) {
+        const summary = this.toSummary(row);
+        if (!summary.downloadable)
+            return summary;
+        try {
+            const filePath = this.storage.resolveDumpPath(row.artifactPath ?? null, row.dumpFilename, row.id);
+            const sizeBytes = await this.storage.fileSize(filePath);
+            return { ...summary, downloadable: sizeBytes > 0 };
+        }
+        catch {
+            return { ...summary, downloadable: false };
+        }
     }
     toDetail(row) {
         return {
@@ -492,6 +505,7 @@ exports.BackupsService = BackupsService = __decorate([
         backup_pg_tools_service_1.BackupPgToolsService,
         backup_download_token_service_1.BackupDownloadTokenService,
         backup_drive_sync_service_1.BackupDriveSyncService,
-        backup_storage_policy_service_1.BackupStoragePolicyService])
+        backup_storage_policy_service_1.BackupStoragePolicyService,
+        backup_manual_gate_service_1.BackupManualGateService])
 ], BackupsService);
 //# sourceMappingURL=backups.service.js.map

@@ -24,7 +24,6 @@ class CreateOmsOrderLineDto {
     requestedQuantity;
     specificLotId;
     unitPrice;
-    lineTotal;
     discountAmount;
 }
 exports.CreateOmsOrderLineDto = CreateOmsOrderLineDto;
@@ -53,12 +52,6 @@ __decorate([
     (0, class_validator_1.IsNumber)({ maxDecimalPlaces: 4 }),
     (0, class_validator_1.Min)(0),
     __metadata("design:type", Number)
-], CreateOmsOrderLineDto.prototype, "lineTotal", void 0);
-__decorate([
-    (0, class_validator_1.IsOptional)(),
-    (0, class_validator_1.IsNumber)({ maxDecimalPlaces: 4 }),
-    (0, class_validator_1.Min)(0),
-    __metadata("design:type", Number)
 ], CreateOmsOrderLineDto.prototype, "discountAmount", void 0);
 class CreateOmsOrderDto extends shipping_config_dto_1.ShippingConfigDto {
     companyId;
@@ -76,9 +69,7 @@ class CreateOmsOrderDto extends shipping_config_dto_1.ShippingConfigDto {
     addressLine2;
     deliveryInstructions;
     paymentMethod;
-    subtotal;
     shippingFee;
-    codAmount;
     currency;
     warehouseId;
     outboundOrderId;
@@ -151,6 +142,7 @@ __decorate([
 __decorate([
     (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsString)(),
+    (0, class_validator_1.MinLength)(11, { message: 'Street / detailed address (addressLine2) must be more than 10 characters.' }),
     __metadata("design:type", String)
 ], CreateOmsOrderDto.prototype, "addressLine2", void 0);
 __decorate([
@@ -168,19 +160,7 @@ __decorate([
     (0, class_validator_1.IsNumber)({ maxDecimalPlaces: 4 }),
     (0, class_validator_1.Min)(0),
     __metadata("design:type", Number)
-], CreateOmsOrderDto.prototype, "subtotal", void 0);
-__decorate([
-    (0, class_validator_1.IsOptional)(),
-    (0, class_validator_1.IsNumber)({ maxDecimalPlaces: 4 }),
-    (0, class_validator_1.Min)(0),
-    __metadata("design:type", Number)
 ], CreateOmsOrderDto.prototype, "shippingFee", void 0);
-__decorate([
-    (0, class_validator_1.IsOptional)(),
-    (0, class_validator_1.IsNumber)({ maxDecimalPlaces: 4 }),
-    (0, class_validator_1.Min)(0),
-    __metadata("design:type", Number)
-], CreateOmsOrderDto.prototype, "codAmount", void 0);
 __decorate([
     (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsString)(),
@@ -230,9 +210,7 @@ class UpdateOmsOrderDto extends shipping_config_dto_1.ShippingConfigDto {
     notes;
     clientReference;
     paymentMethod;
-    subtotal;
     shippingFee;
-    codAmount;
     currency;
     outboundOrderId;
     storeChannel;
@@ -269,6 +247,7 @@ __decorate([
 __decorate([
     (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsString)(),
+    (0, class_validator_1.MinLength)(11, { message: 'Street / detailed address (addressLine2) must be more than 10 characters.' }),
     __metadata("design:type", String)
 ], UpdateOmsOrderDto.prototype, "addressLine2", void 0);
 __decorate([
@@ -316,19 +295,7 @@ __decorate([
     (0, class_validator_1.IsNumber)({ maxDecimalPlaces: 4 }),
     (0, class_validator_1.Min)(0),
     __metadata("design:type", Number)
-], UpdateOmsOrderDto.prototype, "subtotal", void 0);
-__decorate([
-    (0, class_validator_1.IsOptional)(),
-    (0, class_validator_1.IsNumber)({ maxDecimalPlaces: 4 }),
-    (0, class_validator_1.Min)(0),
-    __metadata("design:type", Number)
 ], UpdateOmsOrderDto.prototype, "shippingFee", void 0);
-__decorate([
-    (0, class_validator_1.IsOptional)(),
-    (0, class_validator_1.IsNumber)({ maxDecimalPlaces: 4 }),
-    (0, class_validator_1.Min)(0),
-    __metadata("design:type", Number)
-], UpdateOmsOrderDto.prototype, "codAmount", void 0);
 __decorate([
     (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsString)(),

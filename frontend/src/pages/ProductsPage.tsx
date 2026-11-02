@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
-import { Alert, Button as DsButton, Card } from '@ds';
+import { Alert, Button as DsButton, Card, StatusCardNav, STATUS_CARD_TONES, type StatusCardItem } from '@ds';
 
 import { CompaniesApi } from '../api/companies';
 import {
@@ -64,6 +64,8 @@ function parseDimUpdate(s: string): number | null {
 
 type ProductDraftFilters = {
   search: string;
+  status: string;
+  companyId: string;
 };
 
 function isProductsPageOneChunkKey(key: readonly unknown[]): boolean {
@@ -103,6 +105,8 @@ export function ProductsPage() {
   const initialProductFilters = useMemo<ProductDraftFilters>(
     () => ({
       search: '',
+      status: 'all',
+      companyId: '',
     }),
     [],
   );
@@ -113,6 +117,8 @@ export function ProductsPage() {
   const [editProduct, setEditProduct] = useState<Product | null>(null);
   const [openActionId, setOpenActionId] = useState<string | null>(null);
   const [barcodePreview, setBarcodePreview] = useState<{ value: string; name: string } | null>(null);
+  const [exporting, setExporting] = useState(false);
+
   useEffect(() => {
     if (!openActionId) return;
     const onPointerDown = (ev: PointerEvent) => {
@@ -142,9 +148,23 @@ export function ProductsPage() {
   const filters = useMemo(
     () => ({
       search: appliedFilters.search.trim() || undefined,
+      status: appliedFilters.status !== 'all' ? appliedFilters.status : undefined,
+      companyId: appliedFilters.companyId.trim() || undefined,
     }),
     [appliedFilters],
   );
+
+  const { data: companies = [] } = useQuery({
+    queryKey: ['admin-products-companies'],
+    queryFn: () => CompaniesApi.list(),
+    staleTime: 60_000,
+  });
+
+  const { data: statusSummary } = useQuery({
+    queryKey: [QK.products, 'status-counts', filters.companyId, filters.search],
+    queryFn: () => ProductsApi.list({ companyId: filters.companyId, search: filters.search, limit: 1 }),
+    staleTime: 30_000,
+  });
 
   const pagination = useChunkedServerPagination<Product>({
     chunkSize: CHUNK_SIZE_STANDARD,
@@ -399,6 +419,61 @@ export function ProductsPage() {
     [t, isArabic, openActionId, suspendMut.isPending, unsuspendMut.isPending, hardDeleteMut.isPending, archiveMut.isPending, updateMut.isPending, toast],
   );
 
+  const handleExport = async () => {
+    try {
+      setExporting(true);
+      const blob = await ProductsApi.exportExcel({
+        search: filters.search,
+        companyId: filters.companyId,
+        status: filters.status,
+      });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `products-${new Date().toISOString().slice(0, 10)}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      toast.success(t(['Export downloaded successfully.', 'تم تحميل التصدير بنجاح.']));
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : t(['Failed to export products.', 'فشل تصدير المنتجات.']);
+      toast.error(msg);
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  const statusCards: StatusCardItem[] = useMemo(
+    () => [
+      {
+        value: 'all',
+        label: t(['All products', 'كل المنتجات']),
+        count: statusSummary?.statusCounts?.all ?? pagination.total,
+        ...STATUS_CARD_TONES.slate,
+      },
+      {
+        value: 'active',
+        label: t(['Active', 'نشط']),
+        count: statusSummary?.statusCounts?.active ?? 0,
+        ...STATUS_CARD_TONES.emerald,
+      },
+      {
+        value: 'suspended',
+        label: t(['Suspended', 'موقوف']),
+        count: statusSummary?.statusCounts?.suspended ?? 0,
+        ...STATUS_CARD_TONES.amber,
+      },
+      {
+        value: 'archived',
+        label: t(['Archived', 'مؤرشف']),
+        count: statusSummary?.statusCounts?.archived ?? 0,
+        ...STATUS_CARD_TONES.purple,
+      },
+    ],
+    [t, statusSummary?.statusCounts, pagination.total],
+  );
+
   return (
     <AdminListPageShell
       icon="fa-boxes-stacked"
@@ -406,15 +481,32 @@ export function ProductsPage() {
       subtitle={t(['Warehouse product catalog', 'كتالوج منتجات المستودع'])}
       isArabic={isArabic}
       actions={
-        <DsButton
-          variant="primary"
-          size="md"
-          onClick={() => setOpenCreate(true)}
-          className={FILTER_PRIMARY_BUTTON_CLASS}
-          startIcon={<i className="fa-solid fa-plus text-xs" aria-hidden="true" />}
-        >
-          {t(['New product', 'منتج جديد'])}
-        </DsButton>
+        <div className="flex items-center gap-2">
+          <DsButton
+            variant="secondary"
+            size="md"
+            disabled={exporting}
+            onClick={handleExport}
+            startIcon={
+              exporting ? (
+                <i className="fa-solid fa-spinner fa-spin text-xs" aria-hidden="true" />
+              ) : (
+                <i className="fa-solid fa-file-excel text-xs text-status-success-fg" aria-hidden="true" />
+              )
+            }
+          >
+            {exporting ? t(['Exporting…', 'جاري التصدير…']) : t(['Export Excel', 'تصدير إكسل'])}
+          </DsButton>
+          <DsButton
+            variant="primary"
+            size="md"
+            onClick={() => setOpenCreate(true)}
+            className={FILTER_PRIMARY_BUTTON_CLASS}
+            startIcon={<i className="fa-solid fa-plus text-xs" aria-hidden="true" />}
+          >
+            {t(['New product', 'منتج جديد'])}
+          </DsButton>
+        </div>
       }
     >
       {pagination.isError ? (
@@ -428,6 +520,15 @@ export function ProductsPage() {
           }
         />
       ) : null}
+
+      <StatusCardNav
+        items={statusCards}
+        value={appliedFilters.status || 'all'}
+        onChange={(val) => {
+          setDraft({ status: val });
+          applyPatch({ status: val });
+        }}
+      />
 
       <Card padding="md">
         <div className="flex max-w-4xl flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
@@ -445,6 +546,21 @@ export function ProductsPage() {
               ])}
               className="input-premium w-full rounded-lg border border-border-strong bg-surface-sunken py-2 pl-9 pr-4 text-sm text-text-strong placeholder:text-text-faint"
               aria-label={t(['Search', 'بحث'])}
+            />
+          </div>
+          <div className="w-full sm:w-56">
+            <Combobox
+              value={draftFilters.companyId}
+              onChange={(val) => {
+                setDraft({ companyId: val });
+                applyPatch({ companyId: val });
+              }}
+              options={[
+                { value: '', label: t(['All clients', 'كل العملاء']) },
+                ...companies.map((c) => ({ value: c.id, label: c.name })),
+              ]}
+              placeholder={t(['Filter by client…', 'تصفية حسب العميل…'])}
+              aria-label={t(['Client', 'العميل'])}
             />
           </div>
           <FilterScanButton

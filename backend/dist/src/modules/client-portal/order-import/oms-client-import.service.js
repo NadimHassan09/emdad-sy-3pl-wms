@@ -19,6 +19,7 @@ const oms_delivery_resolution_1 = require("../../oms/oms-delivery-resolution");
 const oms_orders_service_1 = require("../../oms/oms-orders.service");
 const shipping_geo_service_1 = require("../../shipping/shipping-geo.service");
 const oms_client_import_schema_1 = require("./oms-client-import.schema");
+const discrete_uom_quantity_1 = require("../../../common/utils/discrete-uom-quantity");
 const oms_client_import_validation_1 = require("./oms-client-import.validation");
 const order_import_grouping_1 = require("./order-import.grouping");
 const spreadsheet_parse_1 = require("./spreadsheet.parse");
@@ -37,6 +38,7 @@ let OmsClientImportService = class OmsClientImportService {
     }
     async importFileForCompany(user, companyIdRaw, fileBuffer, originalName) {
         const companyId = this.omsOrders.resolveImportCompanyId(user, companyIdRaw);
+        await this.omsOrders.assertBillingAllowed(companyId);
         const table = (0, spreadsheet_parse_1.parseSpreadsheetTable)(fileBuffer, originalName);
         const { dataRows } = (0, order_import_grouping_1.assertImportTable)(table, oms_client_import_schema_1.OMS_CLIENT_IMPORT_ALIASES, oms_client_import_schema_1.OMS_CLIENT_IMPORT_REQUIRED_COLUMNS, oms_client_import_schema_1.OMS_LEGACY_REJECTED_HEADERS);
         const groups = (0, order_import_grouping_1.groupRowsByOrderNumber)(dataRows, 'order_number', oms_client_import_schema_1.OMS_ORDER_LEVEL_FIELDS);
@@ -129,6 +131,17 @@ let OmsClientImportService = class OmsClientImportService {
                 pushErr('Neighborhood is required.', 'neighborhood');
                 continue;
             }
+            const streetRaw = (group.fields.street ?? '').trim();
+            if (!streetRaw) {
+                invalid++;
+                pushErr('Street / detailed address is required and must be more than 10 characters.', 'street');
+                continue;
+            }
+            if (streetRaw.length <= 10) {
+                invalid++;
+                pushErr('Street / detailed address must be more than 10 characters.', 'street');
+                continue;
+            }
             const delivery = await (0, oms_delivery_resolution_1.resolveOmsDeliveryLocation)(this.geo, {
                 governorate: group.fields.governorate,
                 city: group.fields.city,
@@ -149,6 +162,7 @@ let OmsClientImportService = class OmsClientImportService {
                 continue;
             }
             const lines = [];
+            const seenProductIds = new Set();
             let lineInvalid = false;
             for (const line of group.lines) {
                 const sku = line.values.sku?.trim() ?? '';
@@ -165,10 +179,27 @@ let OmsClientImportService = class OmsClientImportService {
                     lineInvalid = true;
                     break;
                 }
-                const qtyResult = (0, oms_client_import_validation_1.validateImportAsciiPositiveInt)(line.values.quantity ?? '', 'Quantity');
+                if (seenProductIds.has(product.id)) {
+                    invalid++;
+                    pushErr(`Duplicate SKU "${sku}" in the same order. Each product can only appear once.`, 'sku', line.rowNumber);
+                    lineInvalid = true;
+                    break;
+                }
+                seenProductIds.add(product.id);
+                const qtyResult = (0, oms_client_import_validation_1.validateImportPositiveQuantity)(line.values.quantity ?? '', 'Quantity');
                 if (!qtyResult.ok) {
                     invalid++;
                     pushErr(qtyResult.message, 'quantity', line.rowNumber);
+                    lineInvalid = true;
+                    break;
+                }
+                try {
+                    (0, discrete_uom_quantity_1.assertDiscreteUomPositiveIntegerQuantity)(product.uom, qtyResult.value, 'Quantity');
+                }
+                catch (err) {
+                    invalid++;
+                    const msg = err instanceof Error ? err.message : 'Invalid quantity for product UOM.';
+                    pushErr(msg, 'quantity', line.rowNumber);
                     lineInvalid = true;
                     break;
                 }
@@ -215,7 +246,6 @@ let OmsClientImportService = class OmsClientImportService {
                     productId: l.productId,
                     requestedQuantity: l.requestedQuantity,
                     unitPrice: l.unitPrice,
-                    lineTotal: l.unitPrice * l.requestedQuantity,
                 })),
             };
             try {

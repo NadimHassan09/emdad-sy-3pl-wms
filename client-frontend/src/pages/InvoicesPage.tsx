@@ -1,6 +1,8 @@
-import { useMemo, type ReactElement } from 'react';
+import { useMemo, useState, type ReactElement } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
 
+import { Button, StatusCardNav, STATUS_CARD_TONES, type StatusCardItem } from '@ds';
 import {
   CHUNK_SIZE_STANDARD,
   useChunkedServerPagination,
@@ -18,18 +20,10 @@ import {
 } from '../lib/billing-display';
 import { isClientArabic } from '../lib/client-ui-language';
 import {
+  downloadClientInvoicesExcel,
   fetchClientInvoicesPage,
   type ClientInvoice,
 } from '../services/clientBillingService';
-
-const INVOICE_STATUS_OPTIONS = [
-  { value: '', label: 'All statuses' },
-  { value: 'unpaid', label: 'Pending' },
-  { value: 'overdue', label: 'Overdue' },
-  { value: 'paid', label: 'Paid' },
-  { value: 'draft', label: 'Draft' },
-  { value: 'cancelled', label: 'Cancelled' },
-];
 
 const CURRENCY = 'USD';
 
@@ -44,6 +38,8 @@ function invoicesLabel(label: string, isArabic: boolean): string {
     Paid: 'مدفوعة',
     Draft: 'مسودة',
     Cancelled: 'ملغاة',
+    'Export Excel': 'تصدير إكسل',
+    Exporting: 'جاري التصدير...',
     'Invoice #': 'رقم الفاتورة',
     'Invoice date': 'تاريخ الفاتورة',
     'Billing period': 'فترة الفوترة',
@@ -72,6 +68,13 @@ export function InvoicesPage(): ReactElement {
   const isArabic = isClientArabic();
   const t = (label: string) => invoicesLabel(label, isArabic);
   const [statusFilter, setStatusFilter] = useCachedState('status', '');
+  const [isExporting, setIsExporting] = useState(false);
+
+  const summaryQuery = useQuery({
+    queryKey: ['client', 'billing', 'invoices', 'summary'],
+    queryFn: () => fetchClientInvoicesPage({ limit: 1 }),
+  });
+  const statusCounts = summaryQuery.data?.statusCounts ?? {};
 
   const invoicePagination = useChunkedServerPagination<ClientInvoice>({
     chunkSize: CHUNK_SIZE_STANDARD,
@@ -82,6 +85,42 @@ export function InvoicesPage(): ReactElement {
     chunkQueryKeyPrefix: 'client-billing-invoices-chunk',
   });
 
+  const statusItems: StatusCardItem[] = useMemo(
+    () => [
+      {
+        value: '',
+        label: t('All statuses'),
+        count: statusCounts.all ?? invoicePagination.total,
+        ...STATUS_CARD_TONES.slate,
+      },
+      {
+        value: 'unpaid',
+        label: t('Pending'),
+        count: statusCounts.unpaid ?? 0,
+        ...STATUS_CARD_TONES.amber,
+      },
+      {
+        value: 'paid',
+        label: t('Paid'),
+        count: statusCounts.paid ?? 0,
+        ...STATUS_CARD_TONES.emerald,
+      },
+      {
+        value: 'draft',
+        label: t('Draft'),
+        count: statusCounts.draft ?? 0,
+        ...STATUS_CARD_TONES.blue,
+      },
+      {
+        value: 'cancelled',
+        label: t('Cancelled'),
+        count: statusCounts.cancelled ?? 0,
+        ...STATUS_CARD_TONES.rose,
+      },
+    ],
+    [statusCounts, invoicePagination.total, isArabic],
+  );
+
   function openInvoice(id: string): void {
     navigate(`/invoices/${id}`);
   }
@@ -89,6 +128,17 @@ export function InvoicesPage(): ReactElement {
   function printInvoice(id: string): void {
     navigate(`/invoices/${id}?print=1`);
   }
+
+  const handleExport = async () => {
+    try {
+      setIsExporting(true);
+      await downloadClientInvoicesExcel(statusFilter || undefined);
+    } catch (e) {
+      console.error('Invoice export failed', e);
+    } finally {
+      setIsExporting(false);
+    }
+  };
 
   return (
     <div className="space-y-5 animate-enter">
@@ -102,18 +152,27 @@ export function InvoicesPage(): ReactElement {
             <p className="text-xs text-text-muted">{t('Invoice history and payment status')}</p>
           </div>
         </div>
-        <select
-          value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value)}
-          className="px-3 py-2 bg-surface-sunken border border-border-strong rounded-lg text-sm text-text-body input-premium"
+        <Button
+          variant="secondary"
+          size="sm"
+          onClick={() => void handleExport()}
+          disabled={isExporting}
+          startIcon={
+            <i
+              className={`fa-solid ${isExporting ? 'fa-spinner fa-spin' : 'fa-file-excel'} text-emerald-600`}
+              aria-hidden="true"
+            />
+          }
         >
-          {INVOICE_STATUS_OPTIONS.map((o) => (
-            <option key={o.value} value={o.value}>
-              {o.value === '' ? t('All statuses') : t(o.label)}
-            </option>
-          ))}
-        </select>
+          {isExporting ? t('Exporting') : t('Export Excel')}
+        </Button>
       </div>
+
+      <StatusCardNav
+        items={statusItems}
+        value={statusFilter}
+        onChange={(val) => setStatusFilter(val)}
+      />
 
       <Card className="overflow-hidden">
         <div className="overflow-x-auto">

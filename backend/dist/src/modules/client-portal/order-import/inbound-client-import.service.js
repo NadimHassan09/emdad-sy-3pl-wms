@@ -17,6 +17,7 @@ const client_auth_principal_1 = require("../../../common/auth/client-auth-princi
 const order_planning_date_1 = require("../../../common/utils/order-planning-date");
 const inbound_service_1 = require("../../inbound/inbound.service");
 const inbound_client_import_schema_1 = require("./inbound-client-import.schema");
+const discrete_uom_quantity_1 = require("../../../common/utils/discrete-uom-quantity");
 const oms_client_import_validation_1 = require("./oms-client-import.validation");
 const order_import_grouping_1 = require("./order-import.grouping");
 const spreadsheet_parse_1 = require("./spreadsheet.parse");
@@ -111,10 +112,20 @@ let InboundClientImportService = class InboundClientImportService {
                     break;
                 }
                 seenProductIds.add(product.id);
-                const qtyResult = (0, oms_client_import_validation_1.validateImportAsciiPositiveInt)(line.values.quantity ?? '', 'Quantity');
+                const qtyResult = (0, oms_client_import_validation_1.validateImportPositiveQuantity)(line.values.quantity ?? '', 'Quantity');
                 if (!qtyResult.ok) {
                     invalid++;
                     pushErr(qtyResult.message, 'quantity', line.rowNumber);
+                    lineInvalid = true;
+                    break;
+                }
+                try {
+                    (0, discrete_uom_quantity_1.assertDiscreteUomPositiveIntegerQuantity)(product.uom, qtyResult.value, 'Quantity');
+                }
+                catch (err) {
+                    invalid++;
+                    const msg = err instanceof Error ? err.message : 'Invalid quantity for product UOM.';
+                    pushErr(msg, 'quantity', line.rowNumber);
                     lineInvalid = true;
                     break;
                 }

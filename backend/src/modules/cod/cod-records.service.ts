@@ -3,6 +3,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import {
   CodGenerationStatus,
   CodRecordStatus,
@@ -16,9 +17,23 @@ import { CompanyAccessService } from '../../common/company-access/company-access
 import { InvalidStateException } from '../../common/errors/domain-exceptions';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { withTenantRls } from '../../common/prisma/tenant-rls';
+import { resolveBranding } from '../../pdf/branding';
+import { PdfService } from '../../pdf/pdf.service';
 import { CreateCodAdjustmentDto } from './dto/cod.dto';
 import { ListCodRecordsQueryDto } from './dto/list-cod-records-query.dto';
 import { RealtimeService } from '../realtime/realtime.service';
+import { buildCodRecordWhere } from './cod-list-filter.util';
+import {
+  buildCodPdfFooterTemplate,
+  buildCodReportHtml,
+} from './cod-export-pdf.util';
+import {
+  buildCodReportWorkbook,
+  codExportFilename,
+  type CodExportRecord,
+} from './cod-export.util';
+
+const EXPORT_PAGE_SIZE = 500;
 
 const INCLUDE = {
   company: { select: { id: true, name: true } },
@@ -29,6 +44,15 @@ const INCLUDE = {
       status: true,
       recipientName: true,
       paymentMethod: true,
+      trackingNumber: true,
+      outboundOrderId: true,
+      outboundOrder: {
+        select: {
+          id: true,
+          orderNumber: true,
+          trackingNumber: true,
+        },
+      },
     },
   },
   adjustments: { orderBy: { createdAt: 'asc' as const } },
@@ -54,6 +78,13 @@ function serialize(record: {
     status: string;
     recipientName: string | null;
     paymentMethod: string | null;
+    trackingNumber?: string | null;
+    outboundOrderId?: string | null;
+    outboundOrder?: {
+      id: string;
+      orderNumber: string;
+      trackingNumber: string | null;
+    } | null;
   } | null;
   adjustments: Array<{
     id: string;
@@ -102,6 +133,8 @@ export class CodRecordsService {
     private readonly prisma: PrismaService,
     private readonly companyAccess: CompanyAccessService,
     private readonly realtime: RealtimeService,
+    private readonly pdf: PdfService,
+    private readonly config: ConfigService,
   ) {}
 
   private async recordEvent(
@@ -125,38 +158,26 @@ export class CodRecordsService {
     });
   }
 
-  async list(user: AuthPrincipal, query: ListCodRecordsQueryDto) {
-    const where: Prisma.CodRecordWhereInput = {};
+  private resolveListWhere(user: AuthPrincipal, query: ListCodRecordsQueryDto) {
     const companyId = readCompanyIdCatalogFilter(
       this.companyAccess,
       user,
       query.companyId,
     );
-    if (companyId) where.companyId = companyId;
-    if (query.status) where.status = query.status;
-    if (query.omsOrderId) where.omsOrderId = query.omsOrderId;
-    if (query.createdFrom || query.createdTo) {
-      where.createdAt = {};
-      if (query.createdFrom) where.createdAt.gte = new Date(query.createdFrom);
-      if (query.createdTo) {
-        const end = new Date(query.createdTo);
-        if (query.createdTo.length <= 10) end.setUTCHours(23, 59, 59, 999);
-        where.createdAt.lte = end;
-      }
-    }
-    if (query.amountMin != null || query.amountMax != null) {
-      where.originalAmount = {};
-      if (query.amountMin != null) where.originalAmount.gte = query.amountMin;
-      if (query.amountMax != null) where.originalAmount.lte = query.amountMax;
-    }
-    const search = query.search?.trim();
-    if (search) {
-      where.OR = [
-        { company: { name: { contains: search, mode: 'insensitive' } } },
-        { omsOrder: { orderNumber: { contains: search, mode: 'insensitive' } } },
-        { omsOrder: { recipientName: { contains: search, mode: 'insensitive' } } },
-      ];
-    }
+    return buildCodRecordWhere({
+      companyId,
+      status: query.status,
+      omsOrderId: query.omsOrderId,
+      search: query.search,
+      createdFrom: query.createdFrom,
+      createdTo: query.createdTo,
+      amountMin: query.amountMin,
+      amountMax: query.amountMax,
+    });
+  }
+
+  async list(user: AuthPrincipal, query: ListCodRecordsQueryDto) {
+    const where = this.resolveListWhere(user, query);
 
     return withTenantRls(this.prisma, user, async (tx) => {
       const [items, total] = await Promise.all([
@@ -178,22 +199,99 @@ export class CodRecordsService {
     });
   }
 
-  async exportCsv(user: AuthPrincipal, query: ListCodRecordsQueryDto): Promise<string> {
-    const page = await this.list(user, { ...query, limit: 1000, offset: 0 });
-    const lines = ['order,client,recipient,status,currentAmount,currency,createdAt'];
-    for (const row of page.items) {
-      const cells = [
-        row.omsOrder?.orderNumber ?? '',
-        row.company?.name ?? '',
-        row.omsOrder?.recipientName ?? '',
-        row.status,
-        row.currentAmount,
-        row.currency,
-        row.createdAt,
-      ].map((value) => `"${String(value ?? '').replace(/"/g, '""')}"`);
-      lines.push(cells.join(','));
+  private async loadExportDataset(
+    user: AuthPrincipal,
+    query: ListCodRecordsQueryDto,
+  ): Promise<{ records: CodExportRecord[]; clientLabel: string }> {
+    const where = this.resolveListWhere(user, query);
+    const records = await withTenantRls(this.prisma, user, async (tx) => {
+      const rows: CodExportRecord[] = [];
+      let offset = 0;
+      for (;;) {
+        const page = await tx.codRecord.findMany({
+          where,
+          include: INCLUDE,
+          orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+          take: EXPORT_PAGE_SIZE,
+          skip: offset,
+        });
+        for (const record of page) {
+          const serialized = serialize(record);
+          rows.push({
+            id: serialized.id,
+            companyName: serialized.company?.name ?? null,
+            omsOrderId: serialized.omsOrderId,
+            orderNumber: serialized.omsOrder?.orderNumber ?? null,
+            outboundOrderNumber: serialized.omsOrder?.outboundOrder?.orderNumber ?? null,
+            recipientName: serialized.omsOrder?.recipientName ?? null,
+            trackingNumber:
+              serialized.omsOrder?.trackingNumber?.trim() ||
+              serialized.omsOrder?.outboundOrder?.trackingNumber?.trim() ||
+              null,
+            currentAmount: serialized.currentAmount,
+            currency: serialized.currency,
+            status: serialized.status,
+            availableAt: serialized.availableAt,
+            paidOutAt: serialized.paidOutAt,
+          });
+        }
+        if (page.length < EXPORT_PAGE_SIZE) break;
+        offset += page.length;
+      }
+      return rows;
+    });
+
+    let clientLabel = 'All Clients';
+    const scopedCompanyId = where.companyId;
+    if (typeof scopedCompanyId === 'string' && scopedCompanyId) {
+      const company = await this.prisma.company.findUnique({
+        where: { id: scopedCompanyId },
+        select: { name: true },
+      });
+      clientLabel = company?.name?.trim() || scopedCompanyId;
     }
-    return lines.join('\n');
+
+    return { records, clientLabel };
+  }
+
+  async exportXlsx(
+    user: AuthPrincipal,
+    query: ListCodRecordsQueryDto,
+  ): Promise<{ buffer: Buffer; filename: string }> {
+    const { records, clientLabel } = await this.loadExportDataset(user, query);
+    const buffer = await buildCodReportWorkbook({
+      records,
+      exportedAt: new Date(),
+      clientLabel,
+    });
+    return { buffer, filename: codExportFilename(clientLabel, 'xlsx') };
+  }
+
+  async exportPdf(
+    user: AuthPrincipal,
+    query: ListCodRecordsQueryDto,
+  ): Promise<{ buffer: Buffer; filename: string }> {
+    const { records, clientLabel } = await this.loadExportDataset(user, query);
+    const branding = resolveBranding(this.config);
+    const html = buildCodReportHtml({
+      records,
+      clientLabel,
+      brand: {
+        companyName: branding.companyName,
+        companyNameAr: branding.companyNameAr,
+        tagline: branding.tagline,
+        logoDataUri: this.pdf.logo,
+        fontFaceCss: this.pdf.fontFaceCss,
+      },
+    });
+    const buffer = await this.pdf.renderHtml(html, {
+      format: 'A4',
+      landscape: true,
+      preferCSSPageSize: false,
+      margin: { top: '10mm', bottom: '16mm', left: '10mm', right: '10mm' },
+      footerTemplate: buildCodPdfFooterTemplate(branding.companyName),
+    });
+    return { buffer, filename: codExportFilename(clientLabel, 'pdf') };
   }
 
   async findById(id: string, user: AuthPrincipal) {
@@ -270,6 +368,17 @@ export class CodRecordsService {
             createdBy: user.id,
           },
           include: INCLUDE,
+        });
+        await tx.clientFinancialAccount.upsert({
+          where: { companyId: order.companyId },
+          create: {
+            companyId: order.companyId,
+            pendingBalance: amount,
+            currency: order.currency ?? 'USD',
+          },
+          update: {
+            pendingBalance: { increment: amount },
+          },
         });
         await tx.omsOrder.update({
           where: { id: omsOrderId },
@@ -351,6 +460,14 @@ export class CodRecordsService {
 
     await withTenantRls(this.prisma, user, async (tx) => {
       await tx.codRecord.delete({ where: { id: existing.id } });
+      if (existing.status === CodRecordStatus.pending) {
+        await tx.clientFinancialAccount.updateMany({
+          where: { companyId: existing.companyId },
+          data: {
+            pendingBalance: { decrement: existing.originalAmount },
+          },
+        });
+      }
       await tx.omsOrder.update({
         where: { id: omsOrderId },
         data: {

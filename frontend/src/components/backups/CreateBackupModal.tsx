@@ -13,6 +13,7 @@ import {
   localizedBackupStoragePolicyLabel,
   localizedBackupStoragePolicyOptions,
 } from '../../lib/ui-labels/settings-backup';
+import { formatCooldownClock } from '../../lib/backup-display';
 import { useWmsTranslation } from '../../lib/ui-i18n';
 import { Button } from '../Button';
 import { Modal } from '../Modal';
@@ -22,6 +23,9 @@ import { TextField } from '../TextField';
 type Props = {
   open: boolean;
   loading?: boolean;
+  canCreate?: boolean;
+  remainingSeconds?: number;
+  running?: boolean;
   onClose: () => void;
   onSubmit: (body: CreateBackupInput) => void;
 };
@@ -30,8 +34,16 @@ function requiresDrive(policy: BackupStoragePolicyValue): boolean {
   return policy === 'drive_only' || policy === 'local_and_drive';
 }
 
-export function CreateBackupModal({ open, loading, onClose, onSubmit }: Props) {
-  const { t } = useWmsTranslation();
+export function CreateBackupModal({
+  open,
+  loading,
+  canCreate = true,
+  remainingSeconds = 0,
+  running = false,
+  onClose,
+  onSubmit,
+}: Props) {
+  const { t, isArabic } = useWmsTranslation();
   const gdriveUiEnabled = isBackupGdriveUiEnabled();
   const policyOptions = useMemo(() => localizedBackupStoragePolicyOptions(t), [t]);
 
@@ -66,6 +78,7 @@ export function CreateBackupModal({ open, loading, onClose, onSubmit }: Props) {
     gdriveUiEnabled && requiresDrive(storagePolicy) && (!driveEnabled || !driveConnected);
 
   const handleSubmit = () => {
+    if (!canCreate) return;
     const trimmed = label.trim();
     if (trimmed.length > 200) {
       setError(t(['Label must be 200 characters or fewer.', 'يجب ألا تتجاوز التسمية 200 حرفاً.']));
@@ -102,7 +115,7 @@ export function CreateBackupModal({ open, loading, onClose, onSubmit }: Props) {
             variant="brand"
             onClick={handleSubmit}
             loading={loading}
-            disabled={drivePolicyBlocked}
+            disabled={drivePolicyBlocked || !canCreate}
             data-testid="create-backup-submit"
           >
             {t(['Create backup', 'إنشاء نسخة احتياطية'])}
@@ -160,6 +173,25 @@ export function CreateBackupModal({ open, loading, onClose, onSubmit }: Props) {
               'Connect Google Drive under Settings → Backups → Google Drive before using Drive storage policies.',
               'اربط Google Drive من الإعدادات → النسخ الاحتياطي → Google Drive قبل استخدام سياسات تخزين Drive.',
             ])}
+          />
+        ) : null}
+
+        {!canCreate ? (
+          <Alert
+            variant="warning"
+            compact
+            data-testid="create-backup-cooldown"
+            description={
+              running
+                ? t([
+                    'A manual backup is already running. Wait for it to finish before starting another.',
+                    'هناك نسخة يدوية قيد التنفيذ. انتظر حتى تكتمل قبل البدء بأخرى.',
+                  ])
+                : t([
+                    `Please wait ${formatCooldownClock(remainingSeconds, isArabic)} before creating another manual backup.`,
+                    `يرجى الانتظار ${formatCooldownClock(remainingSeconds, isArabic)} قبل إنشاء نسخة يدوية أخرى.`,
+                  ])
+            }
           />
         ) : null}
 

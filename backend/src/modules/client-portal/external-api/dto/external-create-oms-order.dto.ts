@@ -5,6 +5,7 @@ import {
   IsEnum,
   IsInt,
   IsNotEmpty,
+  IsNumber,
   IsObject,
   IsOptional,
   IsPositive,
@@ -12,6 +13,7 @@ import {
   Matches,
   MaxLength,
   Min,
+  MinLength,
   ValidateNested,
 } from 'class-validator';
 import { OmsPaymentMethod } from '@prisma/client';
@@ -34,10 +36,11 @@ export class ExternalOmsAddressDto {
   @MaxLength(80)
   neighborhood!: string;
 
-  @IsOptional()
   @IsString()
+  @IsNotEmpty({ message: 'Street / detailed address is required.' })
+  @MinLength(11, { message: 'Street / detailed address must be more than 10 characters.' })
   @MaxLength(200)
-  street?: string;
+  street!: string;
 }
 
 export class ExternalOmsLineDto {
@@ -47,8 +50,8 @@ export class ExternalOmsLineDto {
   sku!: string;
 
   @Type(() => Number)
-  @IsInt({ message: 'Quantity must be a whole number (no decimals).' })
-  @IsPositive({ message: 'Quantity must be a positive whole number.' })
+  @IsNumber({ maxDecimalPlaces: 4 }, { message: 'Quantity must be a number with up to 4 decimal places.' })
+  @IsPositive({ message: 'Quantity must be a positive number.' })
   quantity!: number;
 
   @Type(() => Number)

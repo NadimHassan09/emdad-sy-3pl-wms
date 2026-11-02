@@ -375,7 +375,7 @@ export function EcommerceOrdersPage(): ReactElement {
     },
   });
 
-  const onExportSubmit = async (payload: { columnIds: string[]; arabicHeaders: boolean }) => {
+  const onExportSubmit = async (payload: { columnIds: string[]; arabicHeaders: boolean; format?: 'xlsx' | 'csv' }) => {
     if (exporting) return;
     setExporting(true);
     setExportError(null);
@@ -384,8 +384,7 @@ export function EcommerceOrdersPage(): ReactElement {
       await downloadClientOrdersExport('oms', {
         ...payload,
         ids,
-        orderSearch: ids ? undefined : filterKey.orderSearch,
-        status: ids ? undefined : filterKey.status,
+        ...(ids ? {} : filterKey),
       });
       setExportOpen(false);
       setBulkMessage(null);

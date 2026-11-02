@@ -50,6 +50,7 @@ const DashboardOverviewPage   = lazyPage(() => import('./pages/DashboardOverview
 const ProductsPage            = lazyPage(() => import('./pages/ProductsPage'),            'ProductsPage');
 const ProductDetailPage       = lazyPage(() => import('./pages/ProductDetailPage'),       'ProductDetailPage');
 const LocationsPage           = lazyPage(() => import('./pages/LocationsPage'),           'LocationsPage');
+const WarehouseLocationsPage  = lazyPage(() => import('./pages/WarehouseLocationsPage'),  'WarehouseLocationsPage');
 const WarehousesPage          = lazyPage(() => import('./pages/WarehousesPage'),          'WarehousesPage');
 const InventoryPage           = lazyPage(() => import('./pages/InventoryPage'),           'InventoryPage');
 const InventoryProductDetailPage = lazyPage(() => import('./pages/InventoryProductDetailPage'), 'InventoryProductDetailPage');
@@ -118,6 +119,7 @@ const BackupRetentionPage     = lazyPage(() => import('./pages/settings/BackupRe
 const BackupHealthPage        = lazyPage(() => import('./pages/settings/BackupHealthPage'), 'BackupHealthPage');
 const BackupGoogleDrivePage   = lazyPage(() => import('./pages/settings/BackupGoogleDrivePage'), 'BackupGoogleDrivePage');
 const ShippingCompaniesPage   = lazyPage(() => import('./pages/shipping/ShippingCompaniesPage'), 'ShippingCompaniesPage');
+const ShippingFeeRatePage     = lazyPage(() => import('./pages/shipping/ShippingFeeRatePage'), 'ShippingFeeRatePage');
 const CycleCountListPage      = lazyPage(() => import('./pages/cycle-count/CycleCountListPage'), 'CycleCountListPage');
 const CycleCountDetailPage    = lazyPage(() => import('./pages/cycle-count/CycleCountDetailPage'), 'CycleCountDetailPage');
 const CycleCountExecutePage   = lazyPage(() => import('./pages/cycle-count/CycleCountExecutePage'), 'CycleCountExecutePage');
@@ -134,6 +136,13 @@ const BillingInvoicesPage       = lazyPage(() => import('./pages/billing/Billing
 const BillingInvoiceDetailPage  = lazyPage(() => import('./pages/billing/BillingInvoiceDetailPage'), 'BillingInvoiceDetailPage');
 const BillingDashboardPage      = lazyPage(() => import('./pages/billing/BillingDashboardPage'), 'BillingDashboardPage');
 const FormsPage                 = lazyPage(() => import('./pages/forms/FormsPage'), 'FormsPage');
+const FinancialOverviewPage     = lazyPage(() => import('./pages/finance/FinancialOverviewPage'), 'FinancialOverviewPage');
+const ClientAccountsPage        = lazyPage(() => import('./pages/finance/ClientAccountsPage'), 'ClientAccountsPage');
+const FinancialTransactionsPage = lazyPage(() => import('./pages/finance/FinancialTransactionsPage'), 'FinancialTransactionsPage');
+const CodFinancialPage          = lazyPage(() => import('./pages/finance/CodFinancialPage'), 'CodFinancialPage');
+const PayoutManagementPage      = lazyPage(() => import('./pages/finance/PayoutManagementPage'), 'PayoutManagementPage');
+const CarrierCostsPage          = lazyPage(() => import('./pages/finance/CarrierCostsPage'), 'CarrierCostsPage');
+const FinancialSettingsPage     = lazyPage(() => import('./pages/finance/FinancialSettingsPage'), 'FinancialSettingsPage');
 
 /** Data router required for `useBlocker` (task execution exit guard). */
 export const router = createBrowserRouter([
@@ -152,6 +161,7 @@ export const router = createBrowserRouter([
       { path: 'products', element: <ProductsPage /> },
       { path: 'products/:sku', element: <ProductDetailPage /> },
       { path: 'locations', element: <LocationsPage /> },
+      { path: 'locations/:warehouseId', element: <WarehouseLocationsPage /> },
       { path: 'warehouses', element: <WarehousesPage /> },
       { path: 'inventory', element: <Navigate to="/inventory/stock" replace /> },
       { path: 'inventory/ledger/line/:ledgerId/:createdAt', element: <InventoryLedgerEntryPage /> },
@@ -240,6 +250,14 @@ export const router = createBrowserRouter([
       { path: 'clients', element: <ClientsPage /> },
       { path: 'clients/:id', element: <CompanyDetailPage /> },
       { path: 'forms', element: <FormsPage /> },
+      { path: 'finance', element: <Navigate to="/finance/overview" replace /> },
+      { path: 'finance/overview', element: <FinancialOverviewPage /> },
+      { path: 'finance/accounts', element: <ClientAccountsPage /> },
+      { path: 'finance/transactions', element: <FinancialTransactionsPage /> },
+      { path: 'finance/cod', element: <CodFinancialPage /> },
+      { path: 'finance/payouts', element: <PayoutManagementPage /> },
+      { path: 'finance/carrier-costs', element: <CarrierCostsPage /> },
+      { path: 'finance/policies', element: <FinancialSettingsPage /> },
       { path: 'billing', element: <Navigate to="/billing/dashboard" replace /> },
       { path: 'billing/dashboard', element: <BillingDashboardPage /> },
       { path: 'billing/plans', element: <BillingPlansPage /> },
@@ -274,6 +292,7 @@ export const router = createBrowserRouter([
       },
       { path: 'shipping', element: <Navigate to="/shipping/companies" replace /> },
       { path: 'shipping/companies', element: <ShippingCompaniesPage /> },
+      { path: 'shipping/fee-rates', element: <ShippingFeeRatePage /> },
       {
         path: 'settings',
         children: [

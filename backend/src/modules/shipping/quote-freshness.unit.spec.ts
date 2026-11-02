@@ -82,4 +82,31 @@ describe('quote-freshness', () => {
       }),
     ).toBe(false);
   });
+
+  it('rejects a fingerprint after the selected hub changes', () => {
+    const fp = createQuoteFingerprint({
+      providerCode: 'SILA_SY',
+      serviceId: 'SILA_SY:cour:1',
+      currency: 'USD',
+      amount: 5,
+      deliveryType: 'hub',
+      packageType: 'box',
+      weightKg: 1,
+      destinationKey: 'addr:homs|homs|',
+      hubId: 'dablan',
+    });
+    expect(
+      isQuoteFingerprintFresh(fp, {
+        providerCode: 'SILA_SY',
+        serviceId: 'SILA_SY:cour:1',
+        currency: 'USD',
+        amount: 5,
+        deliveryType: 'hub',
+        packageType: 'box',
+        weightKg: 1,
+        destinationKey: 'addr:homs|homs|',
+        hubId: 'rastan',
+      }),
+    ).toBe(false);
+  });
 });

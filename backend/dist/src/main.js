@@ -111,7 +111,12 @@ async function bootstrap() {
         hsts: isProd,
         referrerPolicy: { policy: 'no-referrer' },
     }));
-    app.use(express_1.default.json({ limit: config.get('HTTP_JSON_BODY_LIMIT') ?? '100kb' }));
+    app.use(express_1.default.json({
+        limit: config.get('HTTP_JSON_BODY_LIMIT') ?? '100kb',
+        verify: (req, _res, buf) => {
+            req.rawBody = buf;
+        },
+    }));
     app.use(express_1.default.urlencoded({
         limit: config.get('HTTP_FORM_BODY_LIMIT') ?? '100kb',
         extended: false,
@@ -145,7 +150,15 @@ async function bootstrap() {
             callback(new Error(`CORS origin not allowed: ${origin}`), false);
         },
         credentials: true,
-        allowedHeaders: ['Content-Type', 'Authorization', 'X-User-Id', 'X-Company-Id'],
+        allowedHeaders: [
+            'Content-Type',
+            'Authorization',
+            'X-User-Id',
+            'X-Company-Id',
+            'X-Sila-Signature',
+            'X-Sila-Event',
+            'X-Sila-Delivery',
+        ],
         methods: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
         optionsSuccessStatus: 204,
         maxAge: 86400,

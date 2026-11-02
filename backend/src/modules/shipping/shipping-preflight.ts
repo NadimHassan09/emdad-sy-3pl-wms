@@ -1,6 +1,6 @@
 import { mapCreateShipmentPayload } from './providers/babel-express/babel-shipment.mapper';
 import type { ShippingCreateShipmentInput } from './shipping-provider.interface';
-import { BABEL_EXPRESS_CODE, SILA_SY_CODE } from './shipping.constants';
+import { BABEL_EXPRESS_CODE, SENA_EXPRESS_CODE, SILA_SY_CODE } from './shipping.constants';
 import {
   classifyShippingError,
   type ShippingFailure,
@@ -40,6 +40,7 @@ export type PreflightInput = {
   receiverPhone?: string | null;
   receiverCity?: string | null;
   receiverNeighborhood?: string | null;
+  receiverAddress?: string | null;
   senderName?: string | null;
   senderPhone?: string | null;
   senderNeighborhood?: string | null;
@@ -73,6 +74,7 @@ export function preflightCarrierShipment(input: PreflightInput): PreflightResult
   const code = input.providerCode.trim().toUpperCase();
   if (code === BABEL_EXPRESS_CODE) return preflightBabel(input);
   if (code === SILA_SY_CODE) return preflightSila(input);
+  if (code === SENA_EXPRESS_CODE) return preflightSena(input);
   return {
     ok: true,
     payload: {
@@ -85,12 +87,51 @@ export function preflightCarrierShipment(input: PreflightInput): PreflightResult
   };
 }
 
+function preflightSena(input: PreflightInput): PreflightResult {
+  if (!input.receiverName?.trim()) {
+    return stop('customer_name is required', input);
+  }
+  if (!input.receiverPhone?.trim()) {
+    return stop('customer_phone is required', input);
+  }
+  const addr = (input.receiverAddress ?? input.receiverNeighborhood ?? '').trim();
+  if (!addr) {
+    return stop('address is required', input);
+  }
+  const city = (input.receiverCity ?? input.receiverNeighborhood ?? '').trim();
+  if (!city) {
+    return stop('city is required', input);
+  }
+  const amount = Number(input.codAmount ?? 0);
+  if (amount > 0 && !input.codCurrency?.trim()) {
+    return stop('currency is required when cod_amount > 0', input);
+  }
+  return {
+    ok: true,
+    payload: {
+      provider: SENA_EXPRESS_CODE,
+      reference: input.reference ?? null,
+      customer_name: input.receiverName.trim(),
+      customer_phone: input.receiverPhone.trim(),
+      city,
+      address: addr,
+      cod_amount: amount,
+      currency: input.codCurrency ?? null,
+    },
+  };
+}
+
 function preflightBabel(input: PreflightInput): PreflightResult {
   const currency = (input.codCurrency ?? 'USD').trim().toUpperCase();
   const amount = Number(input.codAmount ?? 0);
   const pickupType = input.pickupType === 'hub' ? 'hub' : 'address';
   if (!input.receiverName?.trim()) {
     return stop('receiver name is required', input);
+  }
+
+  const receiverAddr = (input.receiverAddress ?? input.receiverNeighborhood ?? input.receiverCity ?? '').trim();
+  if (receiverAddr.length <= 10) {
+    return stop('receiver.address Must be more than 10 characters', input);
   }
 
   const payer = input.payer === 'receiver' || input.payer === 'reseller' ? input.payer : 'sender';
@@ -118,7 +159,7 @@ function preflightBabel(input: PreflightInput): PreflightResult {
       name: input.receiverName.trim(),
       phoneCountry: '963',
       phoneLocal: input.receiverPhone ?? '',
-      address: input.receiverNeighborhood || input.receiverCity || '',
+      address: receiverAddr,
       lat: 0,
       lng: 0,
       city: input.receiverCity ?? '',

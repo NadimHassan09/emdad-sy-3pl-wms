@@ -15,6 +15,9 @@ const client_1 = require("@prisma/client");
 const class_transformer_1 = require("class-transformer");
 const class_validator_1 = require("class-validator");
 const node_crypto_1 = require("node:crypto");
+const discrete_uom_quantity_1 = require("../../common/utils/discrete-uom-quantity");
+const excel_export_util_1 = require("../../common/utils/excel-export.util");
+const oms_client_import_validation_1 = require("../client-portal/order-import/oms-client-import.validation");
 const outbound_client_import_schema_1 = require("../client-portal/order-import/outbound-client-import.schema");
 const admin_order_export_columns_1 = require("../oms/admin-order-export.columns");
 const order_export_product_cells_1 = require("../oms/order-export-product-cells");
@@ -86,6 +89,68 @@ let OutboundOrdersCsvService = class OutboundOrdersCsvService {
         return {
             filename: `outbound-orders-${stamp}.csv`,
             body: (0, outbound_orders_csv_util_1.rowsToCsv)(headers, rows),
+            rowCount: items.length,
+            truncated: truncated || total > items.length,
+        };
+    }
+    async exportXlsx(user, query, opts) {
+        const columnIds = (0, admin_order_export_columns_1.adminOrderedColumnIds)(admin_order_export_columns_1.ADMIN_OUTBOUND_EXPORT_COLUMNS, opts?.columnIds);
+        if (columnIds.length === 0) {
+            throw new common_1.BadRequestException('Select at least one valid export column.');
+        }
+        const { items, total, truncated } = await this.outbound.listForExport(user, query, {
+            maxRows: exports.OUTBOUND_EXPORT_MAX_ROWS,
+            ids: opts?.ids,
+        });
+        const arabic = Boolean(opts?.arabicHeaders);
+        const headers = (0, admin_order_export_columns_1.adminHeaderLabels)(admin_order_export_columns_1.ADMIN_OUTBOUND_EXPORT_COLUMNS, columnIds, arabic);
+        const columns = columnIds.map((id, idx) => ({
+            header: headers[idx] ?? id,
+            key: id,
+        }));
+        const rows = items.map((o) => {
+            const lineCount = o.lines?.length ?? 0;
+            const totalQty = (o.lines ?? []).reduce((sum, l) => sum + Number(l.requestedQuantity ?? 0), 0);
+            const cells = {
+                order_number: o.orderNumber,
+                status: o.status,
+                company_id: o.companyId,
+                company_name: o.company?.name ?? '',
+                external_reference: o.externalReference ?? '',
+                client_reference: o.clientReference ?? '',
+                destination_address: o.destinationAddress ?? '',
+                required_ship_date: o.requiredShipDate
+                    ? new Date(o.requiredShipDate).toISOString().slice(0, 10)
+                    : '',
+                carrier: o.carrier ?? '',
+                tracking_number: o.trackingNumber ?? '',
+                requires_packing: o.requiresPacking ? 'true' : 'false',
+                notes: o.notes ?? '',
+                line_count: lineCount,
+                total_requested_quantity: totalQty,
+                product_name: (0, order_export_product_cells_1.exportProductNames)(o.lines),
+                product_weight: (0, order_export_product_cells_1.exportProductWeights)(o.lines),
+                shipping_method: o.shippingMethod ?? '',
+                execution_mode: o.executionMode ?? '',
+                created_at: o.createdAt ? new Date(o.createdAt).toISOString() : '',
+                confirmed_at: o.confirmedAt ? new Date(o.confirmedAt).toISOString() : '',
+                shipped_at: o.shippedAt ? new Date(o.shippedAt).toISOString() : '',
+            };
+            const rowObj = {};
+            for (const id of columnIds) {
+                rowObj[id] = cells[id] ?? '';
+            }
+            return rowObj;
+        });
+        const buffer = await (0, excel_export_util_1.buildExcelBuffer)({
+            sheetName: 'Outbound Orders',
+            columns,
+            rows,
+        });
+        const stamp = new Date().toISOString().slice(0, 10);
+        return {
+            filename: `outbound-orders-${stamp}.xlsx`,
+            buffer,
             rowCount: items.length,
             truncated: truncated || total > items.length,
         };
@@ -202,11 +267,21 @@ let OutboundOrdersCsvService = class OutboundOrdersCsvService {
         const validPayloads = [];
         for (const g of groups) {
             const ref = g.externalReference.trim();
-            if (!ref) {
+            const refResult = (0, oms_client_import_validation_1.validateImportOrderNumber)(ref);
+            if (!refResult.ok) {
                 errors.push({
                     rowNumber: g.headerRow,
-                    externalReference: null,
-                    reason: 'external_reference is required.',
+                    externalReference: ref || null,
+                    reason: refResult.message,
+                });
+                continue;
+            }
+            const dateResult = (0, oms_client_import_validation_1.parseImportShipDateMdY)(g.fields.required_ship_date || '');
+            if (!dateResult.ok) {
+                errors.push({
+                    rowNumber: g.headerRow,
+                    externalReference: ref,
+                    reason: dateResult.message,
                 });
                 continue;
             }
@@ -244,6 +319,7 @@ let OutboundOrdersCsvService = class OutboundOrdersCsvService {
             const products = await this.outbound.findProductsBySkus(companyId, skus);
             const bySku = new Map(products.map((p) => [p.sku.toUpperCase(), p]));
             const lineDtos = [];
+            const seenProductIds = new Set();
             let lineFailed = false;
             for (const line of g.lines) {
                 const sku = line.sku.trim();
@@ -266,12 +342,36 @@ let OutboundOrdersCsvService = class OutboundOrdersCsvService {
                     lineFailed = true;
                     continue;
                 }
+                if (seenProductIds.has(product.id)) {
+                    errors.push({
+                        rowNumber: line.rowNumber,
+                        externalReference: ref,
+                        reason: `Duplicate product line: SKU "${sku}" appears more than once in the order. Each product can only appear once.`,
+                    });
+                    lineFailed = true;
+                    continue;
+                }
+                seenProductIds.add(product.id);
                 const qty = Number(line.requestedQuantity);
                 if (!Number.isFinite(qty) || qty <= 0) {
                     errors.push({
                         rowNumber: line.rowNumber,
                         externalReference: ref,
                         reason: `Invalid requested_quantity "${line.requestedQuantity}" for product "${sku}".`,
+                    });
+                    lineFailed = true;
+                    continue;
+                }
+                try {
+                    (0, discrete_uom_quantity_1.assertDiscreteUomPositiveIntegerQuantity)(product.uom, qty, 'Requested quantity');
+                }
+                catch (err) {
+                    errors.push({
+                        rowNumber: line.rowNumber,
+                        externalReference: ref,
+                        reason: err instanceof Error
+                            ? err.message
+                            : `Invalid requested_quantity for UOM "${product.uom}".`,
                     });
                     lineFailed = true;
                     continue;
@@ -297,8 +397,8 @@ let OutboundOrdersCsvService = class OutboundOrdersCsvService {
             }
             const plain = {
                 companyId,
-                destinationAddress: g.fields.destination_address,
-                requiredShipDate: g.fields.required_ship_date,
+                destinationAddress: (g.fields.destination_address ?? '').trim(),
+                requiredShipDate: dateResult.ymd,
                 carrier: g.fields.carrier || undefined,
                 clientReference: g.fields.client_reference || undefined,
                 notes: g.fields.notes || undefined,

@@ -22,6 +22,7 @@ describe('omsNavStatusBucket', () => {
   it('keeps single-stage commercial statuses on themselves', () => {
     expect(omsNavStatusBucket('ready_to_ship')).toBe('ready_to_ship');
     expect(omsNavStatusBucket('failed_delivery')).toBe('failed_delivery');
+    expect(omsNavStatusBucket('return_pending_receipt')).toBe('return_pending_receipt');
     expect(omsNavStatusBucket('returned')).toBe('returned');
   });
 
@@ -62,11 +63,30 @@ describe('buildOperationalStageWhere', () => {
     );
   });
 
-  it('splits shipping details from shipment-sent confirmation', () => {
+  it('splits shipping details from shipment-sent confirmation under ready_to_ship', () => {
     const details = buildOperationalStageWhere('shipping_details');
     const confirmation = buildOperationalStageWhere('shipping_confirmation');
+    expect(details.AND).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          status: expect.objectContaining({
+            in: expect.arrayContaining([OmsOrderStatus.ready_to_ship]),
+          }),
+        }),
+      ]),
+    );
+    expect(confirmation.AND).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          status: expect.objectContaining({
+            in: expect.arrayContaining([OmsOrderStatus.ready_to_ship]),
+          }),
+        }),
+      ]),
+    );
     expect(JSON.stringify(details)).toContain('"none"');
     expect(JSON.stringify(confirmation)).toContain('"some"');
     expect(JSON.stringify(details)).not.toContain('"some"');
+    expect(JSON.stringify(confirmation)).toContain('"failed"');
   });
 });

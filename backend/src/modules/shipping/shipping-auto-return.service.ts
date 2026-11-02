@@ -30,10 +30,10 @@ export class ShippingAutoReturnService {
   ) {}
 
   /**
-   * Stage 1: Handles carrier return event updates (return_created, returning_to_sender, returned_to_sender).
+   * Stage 1: Handles carrier/admin return event updates (return_created, returning_to_sender, returned_to_sender).
    * CRITICAL ARCHITECTURAL RULE:
-   * Carrier webhooks and polling NEVER directly restock inventory or touch ledger.
-   * Order status is updated to failed_delivery (if not already), and OmsReturn draft tracks the return stage.
+   * Carrier webhooks and polling NEVER restock inventory or touch the ledger.
+   * Creates or updates an OmsReturn draft and promotes OMS to return_pending_receipt.
    * Order status only becomes 'returned' after physical warehouse confirmation.
    */
   async processCarrierReturnEvent(params: {
@@ -367,17 +367,9 @@ export class ShippingAutoReturnService {
       });
     }
 
-    // Keep OMS Order status as failed_delivery while return is in progress / at dock
-    // DO NOT set order.status to returned yet!
-    if (order.status !== OmsOrderStatus.failed_delivery && order.status !== OmsOrderStatus.returned) {
-      await this.prisma.omsOrder.update({
-        where: { id: omsOrderId },
-        data: {
-          status: OmsOrderStatus.failed_delivery,
-          deliveryFailedAt: order.deliveryFailedAt || eventTime,
-        },
-      });
-    }
+    // Provider/admin return opens a pending warehouse return only.
+    // Never restock here — warehouse confirm owns returned + inventory.
+    await this.promoteOrderToReturnPendingReceipt(order, principal.id);
 
     // Audit event log
     await this.prisma.omsOrderEvent.create({
@@ -401,7 +393,7 @@ export class ShippingAutoReturnService {
     if (order.companyId) {
       this.realtime.emitOmsOrderEvent(order.companyId, {
         orderId: omsOrderId,
-        status: order.status === OmsOrderStatus.returned ? OmsOrderStatus.returned : OmsOrderStatus.failed_delivery,
+        status: order.status,
         event: 'carrier.return_stage_updated',
       });
       this.realtime.emitOmsReturnEvent(order.companyId, {
@@ -442,6 +434,12 @@ export class ShippingAutoReturnService {
     receivedLines?: Array<{ productId: string; quantity: number; locationId?: string; lotId?: string }>,
     targetLocationId?: string,
   ): Promise<{ success: boolean; returnId?: string; message?: string }> {
+    if (user.role === 'client_admin' || user.role === 'client_staff') {
+      throw new ForbiddenException(
+        'Warehouse return receipt can only be confirmed by warehouse staff.',
+      );
+    }
+
     this.logger.log(`Confirming physical warehouse return receipt for returnId=${omsReturnId} by user=${user.id}`);
 
     const omsReturn = await this.prisma.omsReturn.findUnique({
@@ -671,13 +669,14 @@ export class ShippingAutoReturnService {
 
   /**
    * Helper to confirm return receipt for an order by omsOrderId directly.
+   * Does not invent a return: Field Delivery without an explicit return is not receivable.
    */
   async confirmWarehouseReturnReceiptForOrder(
     user: AuthPrincipal,
     omsOrderId: string,
     targetLocationId?: string,
   ): Promise<{ success: boolean; returnId?: string; message?: string }> {
-    let activeReturn = await this.prisma.omsReturn.findFirst({
+    const activeReturn = await this.prisma.omsReturn.findFirst({
       where: {
         omsOrderId,
         status: { in: [OmsReturnStatus.requested, OmsReturnStatus.approved] },
@@ -686,20 +685,47 @@ export class ShippingAutoReturnService {
     });
 
     if (!activeReturn) {
-      // Create draft first if not present
-      const createRes = await this.processCarrierReturnEvent({
-        omsOrderId,
-        awb: 'MANUAL',
-        stage: 'returned_to_sender',
-        reason: 'Warehouse Physical Receipt Confirmation',
-      });
-      if (!createRes.success || !createRes.returnId) {
-        return { success: false, message: createRes.message || 'Failed to initialize return draft' };
-      }
-      activeReturn = { id: createRes.returnId };
+      return {
+        success: false,
+        message:
+          'No return is awaiting warehouse receipt for this order. Field Delivery is not a return.',
+      };
     }
 
     return this.confirmWarehouseReturnReceipt(user, activeReturn.id, undefined, targetLocationId);
+  }
+
+  private async promoteOrderToReturnPendingReceipt(
+    order: { id: string; companyId: string; status: OmsOrderStatus; orderNumber?: string | null },
+    actorId: string,
+  ): Promise<void> {
+    if (
+      order.status === OmsOrderStatus.return_pending_receipt ||
+      order.status === OmsOrderStatus.returned ||
+      order.status === OmsOrderStatus.cancelled
+    ) {
+      return;
+    }
+    await this.prisma.omsOrder.update({
+      where: { id: order.id },
+      data: { status: OmsOrderStatus.return_pending_receipt },
+    });
+    await this.prisma.omsOrderEvent.create({
+      data: {
+        omsOrderId: order.id,
+        companyId: order.companyId,
+        eventType: 'oms.return_pending_receipt',
+        createdBy: actorId,
+        payload: { previousStatus: order.status },
+      },
+    });
+    if (order.companyId) {
+      this.realtime.emitOmsOrderEvent(order.companyId, {
+        orderId: order.id,
+        status: OmsOrderStatus.return_pending_receipt,
+        event: 'oms.return_pending_receipt',
+      });
+    }
   }
 
   /**

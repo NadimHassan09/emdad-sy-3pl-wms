@@ -9,6 +9,12 @@ import { validateSync } from 'class-validator';
 import { randomUUID } from 'node:crypto';
 
 import { AuthPrincipal } from '../../common/auth/current-user.types';
+import { assertDiscreteUomPositiveIntegerQuantity } from '../../common/utils/discrete-uom-quantity';
+import { buildExcelBuffer, ExcelExportColumn } from '../../common/utils/excel-export.util';
+import {
+  parseImportShipDateMdY,
+  validateImportOrderNumber,
+} from '../client-portal/order-import/oms-client-import.validation';
 import { getOutboundClientImportTemplate } from '../client-portal/order-import/outbound-client-import.schema';
 import {
   ADMIN_OUTBOUND_EXPORT_COLUMNS,
@@ -149,6 +155,81 @@ export class OutboundOrdersCsvService {
     return {
       filename: `outbound-orders-${stamp}.csv`,
       body: rowsToCsv(headers, rows),
+      rowCount: items.length,
+      truncated: truncated || total > items.length,
+    };
+  }
+
+  async exportXlsx(
+    user: AuthPrincipal,
+    query: ListOutboundQueryDto,
+    opts?: { columnIds?: string[]; arabicHeaders?: boolean; ids?: string[] },
+  ): Promise<{ filename: string; buffer: Buffer; rowCount: number; truncated: boolean }> {
+    const columnIds = adminOrderedColumnIds(ADMIN_OUTBOUND_EXPORT_COLUMNS, opts?.columnIds);
+    if (columnIds.length === 0) {
+      throw new BadRequestException('Select at least one valid export column.');
+    }
+
+    const { items, total, truncated } = await this.outbound.listForExport(user, query, {
+      maxRows: OUTBOUND_EXPORT_MAX_ROWS,
+      ids: opts?.ids,
+    });
+
+    const arabic = Boolean(opts?.arabicHeaders);
+    const headers = adminHeaderLabels(ADMIN_OUTBOUND_EXPORT_COLUMNS, columnIds, arabic);
+    const columns: ExcelExportColumn[] = columnIds.map((id, idx) => ({
+      header: headers[idx] ?? id,
+      key: id,
+    }));
+
+    const rows = items.map((o) => {
+      const lineCount = o.lines?.length ?? 0;
+      const totalQty = (o.lines ?? []).reduce(
+        (sum, l) => sum + Number(l.requestedQuantity ?? 0),
+        0,
+      );
+      const cells: Record<string, string | number> = {
+        order_number: o.orderNumber,
+        status: o.status,
+        company_id: o.companyId,
+        company_name: o.company?.name ?? '',
+        external_reference: o.externalReference ?? '',
+        client_reference: o.clientReference ?? '',
+        destination_address: o.destinationAddress ?? '',
+        required_ship_date: o.requiredShipDate
+          ? new Date(o.requiredShipDate).toISOString().slice(0, 10)
+          : '',
+        carrier: o.carrier ?? '',
+        tracking_number: o.trackingNumber ?? '',
+        requires_packing: o.requiresPacking ? 'true' : 'false',
+        notes: o.notes ?? '',
+        line_count: lineCount,
+        total_requested_quantity: totalQty,
+        product_name: exportProductNames(o.lines),
+        product_weight: exportProductWeights(o.lines),
+        shipping_method: o.shippingMethod ?? '',
+        execution_mode: o.executionMode ?? '',
+        created_at: o.createdAt ? new Date(o.createdAt).toISOString() : '',
+        confirmed_at: o.confirmedAt ? new Date(o.confirmedAt).toISOString() : '',
+        shipped_at: o.shippedAt ? new Date(o.shippedAt).toISOString() : '',
+      };
+      const rowObj: Record<string, unknown> = {};
+      for (const id of columnIds) {
+        rowObj[id] = cells[id] ?? '';
+      }
+      return rowObj;
+    });
+
+    const buffer = await buildExcelBuffer({
+      sheetName: 'Outbound Orders',
+      columns,
+      rows,
+    });
+
+    const stamp = new Date().toISOString().slice(0, 10);
+    return {
+      filename: `outbound-orders-${stamp}.xlsx`,
+      buffer,
       rowCount: items.length,
       truncated: truncated || total > items.length,
     };
@@ -295,11 +376,22 @@ export class OutboundOrdersCsvService {
 
     for (const g of groups) {
       const ref = g.externalReference.trim();
-      if (!ref) {
+      const refResult = validateImportOrderNumber(ref);
+      if (!refResult.ok) {
         errors.push({
           rowNumber: g.headerRow,
-          externalReference: null,
-          reason: 'external_reference is required.',
+          externalReference: ref || null,
+          reason: refResult.message,
+        });
+        continue;
+      }
+
+      const dateResult = parseImportShipDateMdY(g.fields.required_ship_date || '');
+      if (!dateResult.ok) {
+        errors.push({
+          rowNumber: g.headerRow,
+          externalReference: ref,
+          reason: dateResult.message,
         });
         continue;
       }
@@ -340,6 +432,7 @@ export class OutboundOrdersCsvService {
       const products = await this.outbound.findProductsBySkus(companyId, skus);
       const bySku = new Map(products.map((p) => [p.sku.toUpperCase(), p]));
       const lineDtos: CreateOutboundOrderDto['lines'] = [];
+      const seenProductIds = new Set<string>();
       let lineFailed = false;
       for (const line of g.lines) {
         const sku = line.sku.trim();
@@ -362,6 +455,17 @@ export class OutboundOrdersCsvService {
           lineFailed = true;
           continue;
         }
+        if (seenProductIds.has(product.id)) {
+          errors.push({
+            rowNumber: line.rowNumber,
+            externalReference: ref,
+            reason: `Duplicate product line: SKU "${sku}" appears more than once in the order. Each product can only appear once.`,
+          });
+          lineFailed = true;
+          continue;
+        }
+        seenProductIds.add(product.id);
+
         const qty = Number(line.requestedQuantity);
         if (!Number.isFinite(qty) || qty <= 0) {
           errors.push({
@@ -372,6 +476,25 @@ export class OutboundOrdersCsvService {
           lineFailed = true;
           continue;
         }
+        try {
+          assertDiscreteUomPositiveIntegerQuantity(
+            product.uom,
+            qty,
+            'Requested quantity',
+          );
+        } catch (err: unknown) {
+          errors.push({
+            rowNumber: line.rowNumber,
+            externalReference: ref,
+            reason:
+              err instanceof Error
+                ? err.message
+                : `Invalid requested_quantity for UOM "${product.uom}".`,
+          });
+          lineFailed = true;
+          continue;
+        }
+
         lineDtos.push({
           productId: product.id,
           requestedQuantity: qty,
@@ -393,8 +516,8 @@ export class OutboundOrdersCsvService {
 
       const plain = {
         companyId,
-        destinationAddress: g.fields.destination_address,
-        requiredShipDate: g.fields.required_ship_date,
+        destinationAddress: (g.fields.destination_address ?? '').trim(),
+        requiredShipDate: dateResult.ymd,
         carrier: g.fields.carrier || undefined,
         clientReference: g.fields.client_reference || undefined,
         notes: g.fields.notes || undefined,

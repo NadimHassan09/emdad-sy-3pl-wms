@@ -153,15 +153,6 @@ export function BillingInvoiceDetailPage() {
     onError: () => toast.error('Could not issue invoice.'),
   });
 
-  const deleteMut = useMutation({
-    mutationFn: () => BillingApi.deleteInvoice(id),
-    onSuccess: () => {
-      toast.success('Invoice deleted.');
-      void qc.invalidateQueries({ queryKey: QK.billing.invoices });
-      window.history.back();
-    },
-    onError: (err: Error) => toast.error(err.message),
-  });
 
   const addLineMut = useMutation({
     mutationFn: (payload: CreateManualInvoiceLinePayload) => BillingApi.addManualLine(id, payload),
@@ -273,19 +264,6 @@ export function BillingInvoiceDetailPage() {
                   onClick={() => statusMut.mutate('cancelled')}
                 >
                   Cancel invoice
-                </Button>
-              ) : null}
-              {canMutate && (isDraft || invoice.status === 'cancelled') ? (
-                <Button
-                  size="sm"
-                  variant="danger"
-                  loading={deleteMut.isPending}
-                  onClick={() => {
-                    if (!window.confirm(`Delete invoice ${invoice.invoiceNumber}?`)) return;
-                    deleteMut.mutate();
-                  }}
-                >
-                  Delete
                 </Button>
               ) : null}
             </div>

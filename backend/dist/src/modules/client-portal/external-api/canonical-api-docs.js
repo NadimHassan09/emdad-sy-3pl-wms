@@ -273,8 +273,8 @@ function canonicalApiDocs(scope) {
             },
             {
                 name: 'address.*',
-                required: 'Yes (street optional)',
-                description: 'Arabic hierarchy: governorate, city, neighborhood (+ optional street).',
+                required: 'Yes (governorate, city, neighborhood, street)',
+                description: 'Arabic hierarchy: governorate, city, neighborhood, and street. street (detailed address) is required and must be more than 10 characters (e.g. street name, building number, floor).',
             },
             {
                 name: 'lines[].sku / quantity / unitPrice',

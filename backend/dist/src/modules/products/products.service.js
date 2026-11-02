@@ -26,6 +26,7 @@ const product_barcode_util_1 = require("./product-barcode.util");
 const product_delete_references_util_1 = require("./product-delete-references.util");
 const product_volume_util_1 = require("./product-volume.util");
 const avatar_url_1 = require("../media/avatar-url");
+const excel_export_util_1 = require("../../common/utils/excel-export.util");
 const SKU_RETRY_LIMIT = 5;
 const BARCODE_RETRY_LIMIT = 8;
 const INTERNAL_ROLES = new Set([
@@ -143,9 +144,12 @@ let ProductsService = class ProductsService {
         throw lastError;
     }
     async list(user, query) {
-        const includeArchived = (0, coerce_boolean_1.coerceOptionalBool)(query.includeArchived) === true;
+        const includeArchived = (0, coerce_boolean_1.coerceOptionalBool)(query.includeArchived) === true || query.status === 'archived';
         const where = {};
-        if (!includeArchived) {
+        if (query.status && query.status !== 'all') {
+            where.status = query.status;
+        }
+        else if (!includeArchived) {
             where.status = { in: ['active', 'suspended'] };
         }
         const companyId = (0, company_read_scope_1.readCompanyIdCatalogFilter)(this.companyAccess, user, query.companyId);
@@ -183,8 +187,13 @@ let ProductsService = class ProductsService {
         }
         if (and.length)
             where.AND = and;
+        const countScopeWhere = { ...where };
+        delete countScopeWhere.status;
+        if (!includeArchived && query.status !== 'archived') {
+            countScopeWhere.status = { in: ['active', 'suspended'] };
+        }
         return this.withProductCatalogRls(user, async (tx) => {
-            const [items, total] = await Promise.all([
+            const [items, total, statusAgg] = await Promise.all([
                 tx.product.findMany({
                     where,
                     orderBy: { createdAt: 'desc' },
@@ -193,7 +202,22 @@ let ProductsService = class ProductsService {
                     include: { company: { select: { id: true, name: true, logoPath: true } } },
                 }),
                 tx.product.count({ where }),
+                tx.product.groupBy({
+                    by: ['status'],
+                    where: countScopeWhere,
+                    _count: { _all: true },
+                }),
             ]);
+            const statusCounts = {
+                all: 0,
+                active: 0,
+                suspended: 0,
+                archived: 0,
+            };
+            for (const row of statusAgg) {
+                statusCounts[row.status] = row._count._all;
+                statusCounts.all += row._count._all;
+            }
             const ids = items.map((p) => p.id);
             const sums = ids.length === 0
                 ? []
@@ -265,7 +289,105 @@ let ProductsService = class ProductsService {
                     archivable: stockZero && p.status !== 'archived',
                 };
             });
-            return { items: rows, total, limit: query.limit, offset: query.offset };
+            return { items: rows, total, limit: query.limit, offset: query.offset, statusCounts };
+        });
+    }
+    async exportXlsx(user, query) {
+        const includeArchived = (0, coerce_boolean_1.coerceOptionalBool)(query.includeArchived) === true || query.status === 'archived';
+        const where = {};
+        if (query.status && query.status !== 'all') {
+            where.status = query.status;
+        }
+        else if (!includeArchived) {
+            where.status = { in: ['active', 'suspended'] };
+        }
+        const companyId = (0, company_read_scope_1.readCompanyIdCatalogFilter)(this.companyAccess, user, query.companyId);
+        if (companyId) {
+            where.companyId = companyId;
+        }
+        const and = [];
+        if (query.search?.trim()) {
+            const q = query.search.trim();
+            and.push({
+                OR: [
+                    { name: { contains: q, mode: 'insensitive' } },
+                    { sku: { contains: q, mode: 'insensitive' } },
+                    { barcode: { contains: q, mode: 'insensitive' } },
+                    { company: { name: { contains: q, mode: 'insensitive' } } },
+                ],
+            });
+        }
+        if (query.productName?.trim()) {
+            and.push({ name: { contains: query.productName.trim(), mode: 'insensitive' } });
+        }
+        if (query.sku?.trim()) {
+            and.push({ sku: { contains: query.sku.trim(), mode: 'insensitive' } });
+        }
+        if (query.productBarcode?.trim()) {
+            const b = query.productBarcode.trim();
+            and.push({
+                AND: [{ barcode: { not: null } }, { barcode: { contains: b, mode: 'insensitive' } }],
+            });
+        }
+        if (and.length)
+            where.AND = and;
+        return this.withProductCatalogRls(user, async (tx) => {
+            const products = await tx.product.findMany({
+                where,
+                orderBy: { createdAt: 'desc' },
+                include: { company: { select: { id: true, name: true } } },
+            });
+            const ids = products.map((p) => p.id);
+            const sums = ids.length === 0
+                ? []
+                : await tx.currentStock.groupBy({
+                    by: ['productId'],
+                    where: { productId: { in: ids } },
+                    _sum: { quantityOnHand: true, quantityReserved: true },
+                });
+            const sumByProduct = new Map(sums.map((s) => [
+                s.productId,
+                {
+                    onHand: s._sum.quantityOnHand?.toString() ?? '0',
+                    reserved: s._sum.quantityReserved?.toString() ?? '0',
+                },
+            ]));
+            const rows = products.map((p) => {
+                const stock = sumByProduct.get(p.id) ?? { onHand: '0', reserved: '0' };
+                return {
+                    sku: p.sku,
+                    name: p.name,
+                    companyName: p.company?.name ?? '—',
+                    barcode: p.barcode ?? '—',
+                    status: p.status,
+                    uom: p.uom,
+                    trackingType: p.trackingType,
+                    onHand: stock.onHand,
+                    reserved: stock.reserved,
+                    minStockThreshold: p.minStockThreshold,
+                    weightKg: p.weightKg ? p.weightKg.toString() : '—',
+                    createdAt: p.createdAt ? p.createdAt.toISOString() : '—',
+                };
+            });
+            const columns = [
+                { header: 'SKU', key: 'sku', width: 16 },
+                { header: 'Product Name', key: 'name', width: 28 },
+                { header: 'Company', key: 'companyName', width: 22 },
+                { header: 'Barcode', key: 'barcode', width: 18 },
+                { header: 'Status', key: 'status', width: 14 },
+                { header: 'UOM', key: 'uom', width: 12 },
+                { header: 'Tracking', key: 'trackingType', width: 14 },
+                { header: 'On Hand', key: 'onHand', width: 12 },
+                { header: 'Reserved', key: 'reserved', width: 12 },
+                { header: 'Min Stock', key: 'minStockThreshold', width: 12 },
+                { header: 'Weight (kg)', key: 'weightKg', width: 14 },
+                { header: 'Created At', key: 'createdAt', width: 20 },
+            ];
+            return (0, excel_export_util_1.buildExcelBuffer)({
+                sheetName: 'Products',
+                columns,
+                rows,
+            });
         });
     }
     async findById(id, user) {

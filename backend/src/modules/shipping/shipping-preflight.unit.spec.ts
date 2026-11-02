@@ -8,6 +8,7 @@ const base = {
   receiverPhone: '944000111',
   receiverCity: 'حمص',
   receiverNeighborhood: 'الأرمن',
+  receiverAddress: 'شارع الزهور - بناء الوفاء - طابق 2',
   senderName: 'مستودعات إمداد',
   senderPhone: '0996003448',
   senderNeighborhood: 'الشيخ نجار',
@@ -141,5 +142,17 @@ describe('preflightCarrierShipment', () => {
       receiverNeighborhood: '',
     });
     expect(area.ok).toBe(true);
+  });
+
+  it('stops Babel preflight when receiver address is 10 characters or fewer', () => {
+    const shortResult = preflightCarrierShipment({
+      ...base,
+      providerCode: BABEL_EXPRESS_CODE,
+      receiverAddress: 'دمشق', // 4 characters
+    });
+    expect(shortResult.ok).toBe(false);
+    if (!shortResult.ok) {
+      expect(shortResult.failure.message).toContain('receiver.address Must be more than 10 characters');
+    }
   });
 });

@@ -41,6 +41,10 @@ function label(text: string, isArabic: boolean): string {
     'Recipient phone is required.': 'رقم هاتف المستلم مطلوب.',
     'Governorate, City/Region, and Town/Neighborhood are required.':
       'المحافظة والمدينة/المنطقة والبلدة/الحي مطلوبة.',
+    'Street / detailed address is required and must be more than 10 characters.':
+      'العنوان التفصيلي / الشارع مطلوب ويجب أن يتجاوز 10 أحرف.',
+    'Street / detailed address must be more than 10 characters.':
+      'العنوان التفصيلي / الشارع يجب أن يتجاوز 10 أحرف.',
     'Name can only contain Arabic or English letters and spaces.':
       'الاسم يقبل حروف عربية أو إنجليزية ومسافات فقط.',
     Governorate: 'المحافظة',
@@ -86,6 +90,8 @@ function label(text: string, isArabic: boolean): string {
     Products: 'المنتجات',
     'Creating orders is not available for your account right now.':
       'إنشاء الطلبات غير متاح لحسابك حالياً.',
+    'Each product can only appear once in an order.':
+      'لا يمكن تكرار نفس المنتج في أكثر من بند داخل الطلب الواحد.',
   };
   return ar[text] ?? text;
 }
@@ -242,6 +248,11 @@ export function CreateEcommerceOrderPage(): ReactElement {
       setError(t('Add at least one line with quantity and price.'));
       return;
     }
+    const productIds = payloadLines.map((l) => l.productId);
+    if (new Set(productIds).size !== productIds.length) {
+      setError(t('Each product can only appear once in an order.'));
+      return;
+    }
 
     setContactSubmitted(true);
     if (!recipientName.trim()) {
@@ -258,6 +269,15 @@ export function CreateEcommerceOrderPage(): ReactElement {
     }
     if (!city.trim() || !district.trim() || !addressLine1.trim()) {
       setError(t('Governorate, City/Region, and Town/Neighborhood are required.'));
+      return;
+    }
+    const trimmedAddressLine2 = addressLine2.trim();
+    if (!trimmedAddressLine2) {
+      setError(t('Street / detailed address is required and must be more than 10 characters.'));
+      return;
+    }
+    if (trimmedAddressLine2.length <= 10) {
+      setError(t('Street / detailed address must be more than 10 characters.'));
       return;
     }
     if (!paymentMethod) {
@@ -371,6 +391,16 @@ export function CreateEcommerceOrderPage(): ReactElement {
               disabled={fieldsDisabled}
               placeholder={t('Street name, building, floor…')}
               className="md:col-span-2"
+              required
+              error={
+                contactSubmitted
+                  ? !addressLine2.trim()
+                    ? t('Street / detailed address is required and must be more than 10 characters.')
+                    : addressLine2.trim().length <= 10
+                      ? t('Street / detailed address must be more than 10 characters.')
+                      : undefined
+                  : undefined
+              }
             />
           </div>
           <DeliveryLocationMap

@@ -1,5 +1,6 @@
 import type { ReactElement } from 'react';
 import type { OmsOrderListItem } from '../../api/oms';
+import { orderOperationalStage } from '../../lib/oms-operational-stage';
 
 type Props = {
   order: OmsOrderListItem;
@@ -10,75 +11,62 @@ export function OmsStageBadge({ order, isArabic = false }: Props): ReactElement 
   const outboundStatus = order.linkedOutboundOrder?.status;
   const omsStatus = order.status;
 
-  // Processing stage: color-coded by outbound sub-stage (Picking = Yellow, Packing = Green, Shipping Details = Blue)
-  if (omsStatus === 'processing' || outboundStatus) {
-    if (
-      outboundStatus === 'picking' ||
-      outboundStatus === 'draft' ||
-      outboundStatus === 'allocated' ||
-      outboundStatus === 'pending_approval' ||
-      outboundStatus === 'confirmed' ||
-      outboundStatus === 'pending_stock'
-    ) {
-      return (
-        <span
-          className="inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-semibold bg-amber-50 text-amber-800 border border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800/60 shadow-xs whitespace-nowrap"
-          title={isArabic ? 'مرحلة الالتقاط' : 'Picking stage'}
-        >
-          <i className="fa-solid fa-hand-holding-box text-[11px] text-amber-600 dark:text-amber-400" aria-hidden="true" />
-          <span>{isArabic ? 'التقاط' : 'Picking'}</span>
-        </span>
-      );
-    }
+  const stage = orderOperationalStage(order);
 
-    if (outboundStatus === 'packing') {
-      return (
-        <span
-          className="inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800/60 shadow-xs whitespace-nowrap"
-          title={isArabic ? 'مرحلة التعبئة والتغليف' : 'Packing stage'}
-        >
-          <i className="fa-solid fa-boxes-packing text-[11px] text-emerald-600 dark:text-emerald-400" aria-hidden="true" />
-          <span>{isArabic ? 'تعبئة' : 'Packing'}</span>
-        </span>
-      );
-    }
+  if (stage === 'picking') {
+    return (
+      <span
+        className="inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-semibold bg-amber-50 text-amber-800 border border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800/60 shadow-xs whitespace-nowrap"
+        title={isArabic ? 'مرحلة الالتقاط' : 'Picking stage'}
+      >
+        <i className="fa-solid fa-hand-holding-box text-[11px] text-amber-600 dark:text-amber-400" aria-hidden="true" />
+        <span>{isArabic ? 'التقاط' : 'Picking'}</span>
+      </span>
+    );
+  }
 
-    if (
-      outboundStatus === 'waiting_for_shipping_method' ||
-      outboundStatus === 'waiting_for_shipping_details'
-    ) {
-      const hasShipmentSent = Boolean(
-        order.trackingNumber?.trim() ||
-        order.linkedOutboundOrder?.trackingNumber?.trim() ||
-        order.linkedOutboundOrder?.hasCarrierShipment,
-      );
+  if (stage === 'packing') {
+    return (
+      <span
+        className="inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800/60 shadow-xs whitespace-nowrap"
+        title={isArabic ? 'مرحلة التعبئة والتغليف' : 'Packing stage'}
+      >
+        <i className="fa-solid fa-boxes-packing text-[11px] text-emerald-600 dark:text-emerald-400" aria-hidden="true" />
+        <span>{isArabic ? 'تعبئة' : 'Packing'}</span>
+      </span>
+    );
+  }
 
-      if (hasShipmentSent) {
-        return (
-          <span
-            className="inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800/60 shadow-xs whitespace-nowrap"
-            title={
-              isArabic
-                ? 'تم إرسال الشحنة لشركة الشحن - بانتظار تأكيد الشحن'
-                : 'Shipment request sent to carrier - Waiting for shipping confirmation'
-            }
-          >
-            <i className="fa-solid fa-paper-plane text-[11px] text-emerald-600 dark:text-emerald-400" aria-hidden="true" />
-            <span>{isArabic ? 'بانتظار تأكيد الشحن' : 'Waiting for Shipping Confirmation'}</span>
-          </span>
-        );
-      }
+  if (stage === 'shipping_confirmation') {
+    return (
+      <span
+        className="inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800/60 shadow-xs whitespace-nowrap"
+        title={
+          order.cancellationUnconfirmed
+            ? isArabic
+              ? 'الناقل لم يُرجع الشحنة. الإلغاء غير مؤكد وما زالت مرتبطة بالطلب.'
+              : 'Carrier did not return this shipment. Cancellation is not confirmed; the assignment stays in place.'
+            : isArabic
+              ? 'تم إرسال الشحنة لشركة الشحن - بانتظار تأكيد الشحن'
+              : 'Shipment request sent to carrier - Waiting for shipping confirmation'
+        }
+      >
+        <i className="fa-solid fa-paper-plane text-[11px] text-emerald-600 dark:text-emerald-400" aria-hidden="true" />
+        <span>{isArabic ? 'بانتظار تأكيد الشحن' : 'Waiting for Shipping Confirmation'}</span>
+      </span>
+    );
+  }
 
-      return (
-        <span
-          className="inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-semibold bg-sky-50 text-sky-800 border border-sky-200 dark:bg-sky-950/40 dark:text-sky-300 dark:border-sky-800/60 shadow-xs whitespace-nowrap"
-          title={isArabic ? 'مرحلة تفاصيل الشحن' : 'Shipping Details stage'}
-        >
-          <i className="fa-solid fa-truck-ramp-box text-[11px] text-sky-600 dark:text-sky-400" aria-hidden="true" />
-          <span>{isArabic ? 'تفاصيل الشحن' : 'Shipping Details'}</span>
-        </span>
-      );
-    }
+  if (stage === 'shipping_details') {
+    return (
+      <span
+        className="inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-semibold bg-sky-50 text-sky-800 border border-sky-200 dark:bg-sky-950/40 dark:text-sky-300 dark:border-sky-800/60 shadow-xs whitespace-nowrap"
+        title={isArabic ? 'مرحلة تفاصيل الشحن' : 'Shipping Details stage'}
+      >
+        <i className="fa-solid fa-truck-ramp-box text-[11px] text-sky-600 dark:text-sky-400" aria-hidden="true" />
+        <span>{isArabic ? 'تفاصيل الشحن' : 'Shipping Details'}</span>
+      </span>
+    );
   }
 
   // Stages outside processing
@@ -135,7 +123,16 @@ export function OmsStageBadge({ order, isArabic = false }: Props): ReactElement 
     return (
       <span className="inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-semibold bg-amber-50 text-amber-800 border border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800/60 shadow-xs whitespace-nowrap">
         <i className="fa-solid fa-triangle-exclamation text-[11px] text-amber-600 dark:text-amber-400" aria-hidden="true" />
-        <span>{isArabic ? 'تعذر التسليم' : 'Failed Delivery'}</span>
+        <span>{isArabic ? 'فشل التسليم' : 'Field Delivery'}</span>
+      </span>
+    );
+  }
+
+  if (omsStatus === 'return_pending_receipt') {
+    return (
+      <span className="inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-semibold bg-fuchsia-50 text-fuchsia-800 border border-fuchsia-200 dark:bg-fuchsia-950/40 dark:text-fuchsia-300 dark:border-fuchsia-800/60 shadow-xs whitespace-nowrap">
+        <i className="fa-solid fa-clock text-[11px] text-fuchsia-600 dark:text-fuchsia-400" aria-hidden="true" />
+        <span>{isArabic ? 'مرتجع بانتظار الاستلام' : 'Return Pending Receipt'}</span>
       </span>
     );
   }
@@ -144,7 +141,7 @@ export function OmsStageBadge({ order, isArabic = false }: Props): ReactElement 
     return (
       <span className="inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-semibold bg-rose-50 text-rose-800 border border-rose-200 dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-800/60 shadow-xs whitespace-nowrap">
         <i className="fa-solid fa-rotate-left text-[11px] text-rose-600 dark:text-rose-400" aria-hidden="true" />
-        <span>{isArabic ? 'مرتجع' : 'Returned'}</span>
+        <span>{isArabic ? 'مرتجع مستلم' : 'Return Received'}</span>
       </span>
     );
   }

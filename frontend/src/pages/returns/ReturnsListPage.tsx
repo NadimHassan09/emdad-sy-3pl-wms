@@ -3,13 +3,12 @@ import { useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 
 import { ReturnsApi, type ReturnOrderListItem, type ReturnOrderStatus } from '../../api/returns';
-import { Alert, FILTER_APPLY_BUTTON_CLASS } from '@ds';
+import { Alert, FILTER_APPLY_BUTTON_CLASS, StatusCardNav, STATUS_CARD_TONES, type StatusCardItem } from '@ds';
 import { AdminListPageShell } from '../../components/AdminListPageShell';
 import { Button } from '../../components/Button';
 import { Column, DataTable } from '../../components/DataTable';
 import { FilterPanel } from '../../components/FilterPanel';
 import { NewReturnModal } from '../../components/returns/NewReturnModal';
-import { SelectField } from '../../components/SelectField';
 import { ServerPaginationBar } from '../../components/ServerPaginationBar';
 import { StatusBadge } from '../../components/StatusBadge';
 import { TextField } from '../../components/TextField';
@@ -62,7 +61,7 @@ export function ReturnsListPage() {
     () => ({ status: '', orderSearch: '', createdFrom: '', createdTo: '' }),
     [],
   );
-  const { draftFilters, appliedFilters, setDraft, applyFilters, resetFilters } = useFilters(initial);
+  const { draftFilters, appliedFilters, setDraft, applyFilters, applyPatch, resetFilters } = useFilters(initial);
 
   const listParams = useMemo(
     () => ({
@@ -190,18 +189,52 @@ export function ReturnsListPage() {
     [isArabic, locale],
   );
 
-  const statusOptions = useMemo(
+  const statusItems: StatusCardItem[] = useMemo(
     () => [
-      { value: '', label: t('All', 'الكل') },
-      { value: 'draft', label: t('Draft', 'مسودة') },
-      { value: 'confirmed', label: t('Confirmed', 'مؤكد') },
-      { value: 'receiving', label: t('Receiving', 'استلام') },
-      { value: 'inspecting', label: t('Inspecting', 'فحص') },
-      { value: 'completed', label: t('Completed', 'مكتمل') },
-      { value: 'cancelled', label: t('Cancelled', 'ملغي') },
+      {
+        value: '',
+        label: t('All', 'الكل'),
+        count: pagination.total,
+        ...STATUS_CARD_TONES.slate,
+      },
+      {
+        value: 'draft',
+        label: t('Draft', 'مسودة'),
+        ...STATUS_CARD_TONES.slate,
+      },
+      {
+        value: 'confirmed',
+        label: t('Confirmed', 'مؤكد'),
+        ...STATUS_CARD_TONES.blue,
+      },
+      {
+        value: 'receiving',
+        label: t('Receiving', 'استلام'),
+        ...STATUS_CARD_TONES.cyan,
+      },
+      {
+        value: 'inspecting',
+        label: t('Inspecting', 'فحص'),
+        ...STATUS_CARD_TONES.amber,
+      },
+      {
+        value: 'completed',
+        label: t('Completed', 'مكتمل'),
+        ...STATUS_CARD_TONES.emerald,
+      },
+      {
+        value: 'cancelled',
+        label: t('Cancelled', 'ملغي'),
+        ...STATUS_CARD_TONES.rose,
+      },
     ],
-    [isArabic],
+    [pagination.total, isArabic],
   );
+
+  const handleSelectStatus = (newStatus: string) => {
+    applyPatch({ status: newStatus });
+    setDraft((prev) => ({ ...prev, status: newStatus }));
+  };
 
   const pagerLabels = {
     previous: t('Previous', 'السابق'),
@@ -243,6 +276,14 @@ export function ReturnsListPage() {
         />
       ) : null}
 
+      <div className="mb-4">
+        <StatusCardNav
+          items={statusItems}
+          value={appliedFilters.status}
+          onChange={handleSelectStatus}
+        />
+      </div>
+
       <FilterPanel
         title={t('Filters', 'الفلاتر')}
         onApply={applyFilters}
@@ -268,12 +309,6 @@ export function ReturnsListPage() {
             value={draftFilters.orderSearch}
             onChange={(e) => setDraft({ ...draftFilters, orderSearch: e.target.value })}
             placeholder={t('Return #, reference…', 'رقم الإرجاع، مرجع…')}
-          />
-          <SelectField
-            label={t('Status', 'الحالة')}
-            value={draftFilters.status}
-            onChange={(e) => setDraft({ ...draftFilters, status: e.target.value })}
-            options={statusOptions}
           />
           <TextField
             label={t('Created from', 'من تاريخ')}

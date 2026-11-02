@@ -18,6 +18,7 @@ export const SHIPPING_LOCKED_STATUSES = new Set([
   'delivered',
   'cancelled',
   'failed_delivery',
+  'return_pending_receipt',
   'returned',
 ]);
 
@@ -28,6 +29,7 @@ export const SHIPPING_IDENTITY_LOCKED_STATUSES = new Set([
   'delivered',
   'cancelled',
   'failed_delivery',
+  'return_pending_receipt',
   'returned',
 ]);
 
@@ -35,6 +37,7 @@ export type ShippingConfigFields = {
   shippingMethod?: ShippingMethod | null;
   shippingProviderCode?: string | null;
   shippingServiceId?: string | null;
+  shippingHubId?: string | null;
   shippingReceiverLat?: number | string | null;
   shippingReceiverLng?: number | string | null;
   shippingPackageType?: ShippingPackageType | null;
@@ -144,6 +147,9 @@ export function shippingPrismaData(fields: ShippingConfigFields) {
   if (fields.shippingServiceId !== undefined) {
     data.shippingServiceId = fields.shippingServiceId;
   }
+  if (fields.shippingHubId !== undefined) {
+    data.shippingHubId = fields.shippingHubId?.trim() || null;
+  }
   if (fields.shippingReceiverLat !== undefined) {
     data.shippingReceiverLat =
       fields.shippingReceiverLat == null ? null : fields.shippingReceiverLat;
@@ -193,6 +199,7 @@ export function copyShippingFieldsFromOms(oms: {
   shippingMethod?: ShippingMethod | null;
   shippingProviderCode?: string | null;
   shippingServiceId?: string | null;
+  shippingHubId?: string | null;
   shippingReceiverLat?: { toString(): string } | number | string | null;
   shippingReceiverLng?: { toString(): string } | number | string | null;
   shippingPackageType?: ShippingPackageType | null;
@@ -209,6 +216,7 @@ export function copyShippingFieldsFromOms(oms: {
     shippingMethod: oms.shippingMethod ?? ShippingMethod.manual,
     shippingProviderCode: oms.shippingProviderCode ?? null,
     shippingServiceId: oms.shippingServiceId ?? null,
+    shippingHubId: oms.shippingHubId ?? null,
     shippingReceiverLat:
       oms.shippingReceiverLat == null ? null : oms.shippingReceiverLat.toString(),
     shippingReceiverLng:
@@ -231,6 +239,7 @@ const SHIPPING_PATCH_KEYS: (keyof ShippingConfigFields)[] = [
   'shippingMethod',
   'shippingProviderCode',
   'shippingServiceId',
+  'shippingHubId',
   'shippingReceiverLat',
   'shippingReceiverLng',
   'shippingPackageType',

@@ -37,13 +37,17 @@ function etaLabel(quote: ShippingRateQuote): string {
   return `${Math.max(1, n - 1)} - ${n + 1} days`;
 }
 
+const NEAREST_HUB_LABEL = 'الأقرب إلى المشتري';
+
 type Props = {
   providers: ShippingProviderAdminView[];
   quotes: ShippingRateQuote[];
   errors: ShippingRateError[];
   selectedCarrierId: string;
   selectedServiceId?: string;
+  selectedHubId?: string;
   onSelect: (carrierId: string, serviceId?: string) => void;
+  onSelectHub?: (carrierId: string, serviceId: string, hubId: string) => void;
   loading?: boolean;
   disabled?: boolean;
   emptyHint?: string | null;
@@ -58,7 +62,9 @@ export function ShippingCarrierCards({
   errors,
   selectedCarrierId,
   selectedServiceId,
+  selectedHubId,
   onSelect,
+  onSelectHub,
   loading = false,
   disabled = false,
   emptyHint = null,
@@ -191,6 +197,45 @@ export function ShippingCarrierCards({
                     <div className="text-xs text-text-muted">
                       <span>Est. delivery: {eta}</span>
                     </div>
+
+                    {isBranch && quote.hubs && quote.hubs.length > 0 ? (
+                      <div
+                        className="pt-1"
+                        onClick={(e) => e.stopPropagation()}
+                        onKeyDown={(e) => e.stopPropagation()}
+                      >
+                        <label className="mb-1 block text-[11px] font-semibold text-text-body">
+                          فرع التسليم
+                        </label>
+                        <select
+                          className="w-full rounded-lg border border-border-subtle bg-surface-card px-2 py-1.5 text-xs text-text-strong"
+                          value={isSelected ? selectedHubId || '' : quote.nearestHubId || ''}
+                          disabled={disabled}
+                          onChange={(e) => {
+                            const hubId = e.target.value;
+                            onSelect(quote.carrierId, quote.serviceId);
+                            onSelectHub?.(quote.carrierId, quote.serviceId, hubId);
+                          }}
+                        >
+                          <option value="">
+                            {quote.nearestHubDetermined
+                              ? 'اختر الفرع'
+                              : 'تعذر تحديد الأقرب — اختر الفرع'}
+                          </option>
+                          {quote.hubs.map((hub) => (
+                            <option key={hub.id} value={hub.id}>
+                              {hub.name}
+                              {hub.nearest ? ` — ${NEAREST_HUB_LABEL}` : ''}
+                            </option>
+                          ))}
+                        </select>
+                        {!quote.nearestHubDetermined && quote.hubs.length > 1 ? (
+                          <p className="mt-1 text-[11px] text-amber-700 dark:text-amber-300">
+                            تعذر تحديد أقرب فرع للمشتري. اختر الفرع يدوياً قبل الإرسال.
+                          </p>
+                        ) : null}
+                      </div>
+                    ) : null}
 
                     <div className="flex flex-wrap items-center gap-2 pt-0.5 text-[11px] text-text-muted">
                       <span className="inline-flex items-center gap-1">

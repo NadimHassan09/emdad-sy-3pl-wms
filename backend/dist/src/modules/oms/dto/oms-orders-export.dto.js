@@ -18,6 +18,7 @@ class OmsOrdersExportDto extends list_oms_orders_query_dto_1.ListOmsOrdersQueryD
     columnIds;
     arabicHeaders;
     ids;
+    format;
 }
 exports.OmsOrdersExportDto = OmsOrdersExportDto;
 __decorate([
@@ -42,4 +43,9 @@ __decorate([
     (0, is_uuid_loose_1.IsUuidLoose)({ each: true }),
     __metadata("design:type", Array)
 ], OmsOrdersExportDto.prototype, "ids", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    __metadata("design:type", String)
+], OmsOrdersExportDto.prototype, "format", void 0);
 //# sourceMappingURL=oms-orders-export.dto.js.map

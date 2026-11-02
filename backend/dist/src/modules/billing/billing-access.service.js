@@ -138,6 +138,19 @@ let BillingAccessService = class BillingAccessService {
         if (exports.BILLING_BLOCKED_STATUSES.includes(company.status)) {
             throw new billing_exceptions_1.BillingCycleExpiredException();
         }
+        const cutoverPolicy = await this.prisma.financialPolicy.findUnique({
+            where: { key: 'cutover_active' },
+            select: { value: true },
+        });
+        if (cutoverPolicy?.value === 'true') {
+            const financialAccount = await this.prisma.clientFinancialAccount.findUnique({
+                where: { companyId },
+                select: { status: true },
+            });
+            if (financialAccount && financialAccount.status === 'active') {
+                return;
+            }
+        }
         const plan = await this.prisma.billingPlan.findFirst({
             where: { companyId, active: true },
             select: { id: true },

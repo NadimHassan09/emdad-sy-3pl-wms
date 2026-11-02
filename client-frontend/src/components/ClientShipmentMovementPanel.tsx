@@ -90,6 +90,9 @@ export function ClientShipmentMovementPanel({ order }: Props): ReactElement {
   const errorMessage = data?.error;
   const infoMessage = data?.message;
   const statusLabel = data?.statusLabel;
+  const historical = data?.shipmentState === 'cancelled' || data?.shipmentState === 'superseded';
+  const cancellationUnconfirmed =
+    Boolean(data?.cancellationUnconfirmed) || data?.lookupState === 'not_found';
 
   return (
     <Card padding="none">
@@ -128,7 +131,36 @@ export function ClientShipmentMovementPanel({ order }: Props): ReactElement {
           </p>
         ) : null}
 
-        {isError || errorMessage ? (
+        {historical ? (
+          <p className="text-sm text-[var(--text-muted)]">
+            {data?.shipmentState === 'superseded'
+              ? isArabic
+                ? 'هذه الشحنة استُبدلت ولم تعد الشحنة النشطة.'
+                : 'This shipment was replaced and is no longer the active assignment.'
+              : isArabic
+                ? 'هذه الشحنة لم تعد نشطة. رقم التتبع محفوظ للمراجعة.'
+                : 'This shipment is no longer active. The tracking number is kept for audit.'}
+          </p>
+        ) : null}
+
+        {!historical && cancellationUnconfirmed ? (
+          <div className="space-y-2">
+            <p className="text-sm text-amber-800">
+              {isArabic
+                ? 'الناقل لم يُرجع هذه الشحنة. الإلغاء غير مؤكد، وما زالت مرتبطة بهذا الطلب.'
+                : 'The carrier did not return this shipment. Cancellation is not confirmed, and the current assignment stays in place.'}
+            </p>
+            <button
+              type="button"
+              onClick={() => void refetch()}
+              className="text-xs font-medium text-sky-700 hover:underline"
+            >
+              {isArabic ? 'إعادة المحاولة' : 'Try again'}
+            </button>
+          </div>
+        ) : null}
+
+        {!historical && !cancellationUnconfirmed && (isError || errorMessage) ? (
           <p className="text-sm text-rose-700">
             {errorMessage ||
               (isArabic
@@ -137,7 +169,11 @@ export function ClientShipmentMovementPanel({ order }: Props): ReactElement {
           </p>
         ) : null}
 
-        {!isLoading && !errorMessage && events.length === 0 ? (
+        {!isLoading &&
+        !historical &&
+        !cancellationUnconfirmed &&
+        !errorMessage &&
+        events.length === 0 ? (
           <p className="text-sm text-[var(--text-muted)]">
             {infoMessage ||
               (isArabic ? 'لا توجد بيانات لحركة الشحنة حالياً.' : 'No shipment movement data available currently.')}
@@ -157,7 +193,14 @@ export function ClientShipmentMovementPanel({ order }: Props): ReactElement {
                   />
                   <div className={`rounded-lg border px-3 py-2 ${tones.card}`}>
                     <div className="flex flex-wrap items-center justify-between gap-2">
-                      <span className="text-sm font-semibold">{event.title}</span>
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-sm font-semibold">{event.title}</span>
+                        {event.source === 'emdad' && (
+                          <span className="rounded bg-slate-200/80 dark:bg-slate-700 px-1.5 py-0.5 text-[10px] font-medium text-slate-700 dark:text-slate-300">
+                            {isArabic ? 'إجراء داخلي' : 'Internal'}
+                          </span>
+                        )}
+                      </div>
                       <span className={`rounded px-1.5 py-0.5 text-[10px] font-medium ${tones.badge}`}>
                         {date} · {time}
                       </span>

@@ -1,6 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.outboundRequiresPacking = outboundRequiresPacking;
+exports.manualShippingConfirmNeedsMethodStep = manualShippingConfirmNeedsMethodStep;
 exports.nextOutboundAdminAction = nextOutboundAdminAction;
 exports.assertOutboundAdminStageAction = assertOutboundAdminStageAction;
 const client_1 = require("@prisma/client");
@@ -8,6 +9,11 @@ const domain_exceptions_1 = require("../../common/errors/domain-exceptions");
 const outbound_confirm_lock_util_1 = require("./outbound-confirm-lock.util");
 function outboundRequiresPacking(flags) {
     return flags.requiresPacking !== false && flags.planRequiresPacking !== false;
+}
+function manualShippingConfirmNeedsMethodStep(status, shippingMethod) {
+    return (shippingMethod === 'manual' &&
+        (status === client_1.OutboundOrderStatus.waiting_for_shipping_method ||
+            status === 'waiting_for_shipping_method'));
 }
 function nextOutboundAdminAction(status, requiresPacking) {
     if ((0, outbound_confirm_lock_util_1.isOutboundConfirmable)(status))

@@ -12,6 +12,11 @@ import { useDebounced } from '../../lib/useDebounced';
 import { SelectField } from '../SelectField';
 import { TextField } from '../TextField';
 import { ShippingCarrierCards } from './ShippingCarrierCards';
+import {
+  mapPayerForCarrier,
+  resolvePaymentModeFromPayer,
+  type ShippingPaymentMode,
+} from '../../lib/shipping-payer';
 
 
 type Props = {
@@ -64,9 +69,6 @@ function parseCoord(raw: string): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
-function formatAreaLabel(dest?: ShippingDestinationArea): string {
-  return [dest?.governorate, dest?.city, dest?.neighborhood].filter(Boolean).join(' / ');
-}
 
 export function OrderShippingFields({
   value,
@@ -155,8 +157,6 @@ export function OrderShippingFields({
   });
 
   const geometry = boundaryQuery.data?.geometry ?? null;
-  const boundaryMissing =
-    hasDestination && boundaryQuery.isFetched && !geometry;
 
   useEffect(() => {
     if (!carrier || !geometry) return;
@@ -195,6 +195,8 @@ export function OrderShippingFields({
     weightKg: weightN,
     volumeCbm: volumeN,
     deliveryType: value.shippingDeliveryType,
+    hubId:
+      value.shippingDeliveryType === 'hub' ? value.shippingHubId.trim() : '',
     pickupType: value.shippingPickupType || 'address',
     governorate: destKey.governorate,
     city: destKey.city,
@@ -233,6 +235,7 @@ export function OrderShippingFields({
         ...(debouncedRates.codAmount != null && Number.isFinite(debouncedRates.codAmount)
           ? { codAmount: debouncedRates.codAmount }
           : {}),
+        ...(debouncedRates.hubId ? { hubId: debouncedRates.hubId } : {}),
       }),
     enabled: Boolean(
       ratesReady &&
@@ -268,6 +271,19 @@ export function OrderShippingFields({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [carrier, quotes, ratesQuery.isFetching, ratesQuery.isFetched, value.shippingDeliveryType]);
 
+  useEffect(() => {
+    if (!carrier || readOnly || value.shippingDeliveryType !== 'hub' || value.shippingHubId.trim()) {
+      return;
+    }
+    const quote =
+      quotes.find((q) => q.serviceId === value.shippingServiceId) ??
+      quotes.find((q) => q.carrierId === value.shippingProviderCode);
+    if (quote?.nearestHubDetermined && quote.nearestHubId) {
+      onChange(patch(value, { shippingHubId: quote.nearestHubId }));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [carrier, quotes, value.shippingServiceId, value.shippingDeliveryType, value.shippingHubId, readOnly]);
+
   let emptyHint: string | null = null;
   if (carrier && !ratesQuery.isFetching) {
     if (!hasDestination) {
@@ -285,7 +301,6 @@ export function OrderShippingFields({
     }
   }
 
-  const areaLabel = formatAreaLabel(destination);
 
   return (
     <div className="space-y-3">
@@ -423,6 +438,8 @@ export function OrderShippingFields({
                 onChange(
                   patch(value, {
                     shippingDeliveryType: e.target.value as OrderShippingFieldsValue['shippingDeliveryType'],
+                    shippingHubId:
+                      e.target.value === 'hub' ? value.shippingHubId : '',
                   }),
                 )
               }
@@ -450,17 +467,26 @@ export function OrderShippingFields({
               ]}
             />
             <SelectField
-              label="Payer"
-              value="sender"
-              disabled
-              onChange={() =>
+              label="Payer (دافع الشحن)"
+              value={resolvePaymentModeFromPayer(value.shippingPayer)}
+              disabled={readOnly}
+              onChange={(e) => {
+                const mode = e.target.value as ShippingPaymentMode;
+                const carrier = value.shippingProviderCode || '';
                 onChange(
                   patch(value, {
-                    shippingPayer: 'sender',
+                    shippingPayer: carrier
+                      ? mapPayerForCarrier(mode, carrier)
+                      : mode === 'RECIPIENT_PAYS'
+                        ? 'receiver'
+                        : 'sender',
                   }),
-                )
-              }
-              options={[{ value: 'sender', label: 'Sender (locked)' }]}
+                );
+              }}
+              options={[
+                { value: 'EMDAD_PAYS', label: 'Emdad Pays / إمداد تتحمل تكلفة الشحن' },
+                { value: 'RECIPIENT_PAYS', label: 'Recipient Pays / المستلم يتحمل تكلفة الشحن' },
+              ]}
             />
           </div>
 
@@ -496,11 +522,26 @@ export function OrderShippingFields({
             errors={rateErrors}
             selectedCarrierId={value.shippingProviderCode}
             selectedServiceId={value.shippingServiceId}
-            onSelect={(carrierId, serviceId) =>
+            selectedHubId={value.shippingHubId}
+            onSelect={(carrierId, serviceId) => {
+              const quote = quotes.find((q) => q.serviceId === serviceId);
               onChange(
                 patch(value, {
                   shippingProviderCode: carrierId,
                   shippingServiceId: serviceId ?? '',
+                  shippingHubId:
+                    quote?.deliveryType === 'hub'
+                      ? value.shippingHubId || quote.nearestHubId || ''
+                      : '',
+                }),
+              );
+            }}
+            onSelectHub={(carrierId, serviceId, hubId) =>
+              onChange(
+                patch(value, {
+                  shippingProviderCode: carrierId,
+                  shippingServiceId: serviceId,
+                  shippingHubId: hubId,
                 }),
               )
             }

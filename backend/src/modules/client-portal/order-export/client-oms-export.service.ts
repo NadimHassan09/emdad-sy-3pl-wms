@@ -6,6 +6,7 @@ import { rowsToCsv } from '../../oms/oms-orders-csv.util';
 import { ClientOmsOrdersService } from '../oms/client-oms-orders.service';
 import { ClientOmsOrdersExportDto } from '../oms/dto/bulk-confirm-client-oms-orders.dto';
 import { exportProductNames, exportProductWeights } from '../../oms/order-export-product-cells';
+import { buildExcelBuffer } from '../../../common/utils/excel-export.util';
 import {
   CLIENT_OMS_EXPORT_COLUMNS,
   headerLabels,
@@ -47,7 +48,7 @@ function cell(order: Record<string, unknown>, id: string): string {
     case 'payment_method':
       return String(order.paymentMethod ?? '');
     case 'carrier':
-      return String(order.carrier ?? '');
+      return '';
     case 'tracking_number':
       return String(order.trackingNumber ?? '');
     case 'warehouse_status':
@@ -79,6 +80,25 @@ export class ClientOmsExportService {
     return CLIENT_OMS_EXPORT_COLUMNS;
   }
 
+  private buildExportQuery(dto: ClientOmsOrdersExportDto) {
+    return {
+      orderSearch: dto.orderSearch,
+      status: dto.status as OmsOrderStatus | undefined,
+      storeChannel: dto.storeChannel,
+      customer: dto.customer,
+      phone: dto.phone,
+      city: dto.city,
+      carrier: dto.carrier,
+      startOrderNo: dto.startOrderNo,
+      endOrderNo: dto.endOrderNo,
+      totalOp: dto.totalOp as any,
+      totalValue: dto.totalValue,
+      operationalStage: dto.operationalStage as any,
+      createdFrom: dto.createdFrom,
+      createdTo: dto.createdTo,
+    };
+  }
+
   async exportCsv(client: ClientPrincipal, dto: ClientOmsOrdersExportDto) {
     const columnIds = orderedColumnIds(CLIENT_OMS_EXPORT_COLUMNS, dto.columnIds);
     if (columnIds.length === 0) {
@@ -87,13 +107,7 @@ export class ClientOmsExportService {
 
     const { items, truncated } = await this.oms.listForExport(
       client,
-      {
-        orderSearch: dto.orderSearch,
-        status: dto.status as OmsOrderStatus | undefined,
-        storeChannel: dto.storeChannel,
-        createdFrom: dto.createdFrom,
-        createdTo: dto.createdTo,
-      },
+      this.buildExportQuery(dto),
       { maxRows: MAX_ROWS, ids: dto.ids },
     );
 
@@ -106,6 +120,45 @@ export class ClientOmsExportService {
     return {
       filename: `oms-orders-${stamp}.csv`,
       body: rowsToCsv(headers, rows),
+      rowCount: items.length,
+      truncated,
+    };
+  }
+
+  async exportXlsx(client: ClientPrincipal, dto: ClientOmsOrdersExportDto) {
+    const columnIds = orderedColumnIds(CLIENT_OMS_EXPORT_COLUMNS, dto.columnIds);
+    if (columnIds.length === 0) {
+      throw new BadRequestException('Select at least one valid export column.');
+    }
+
+    const { items, truncated } = await this.oms.listForExport(
+      client,
+      this.buildExportQuery(dto),
+      { maxRows: MAX_ROWS, ids: dto.ids },
+    );
+
+    const arabic = Boolean(dto.arabicHeaders);
+    const headers = headerLabels(CLIENT_OMS_EXPORT_COLUMNS, columnIds, arabic);
+
+    const rows = items.map((order) => {
+      const record: Record<string, unknown> = {};
+      for (const id of columnIds) {
+        record[id] = cell(order as unknown as Record<string, unknown>, id);
+      }
+      return record;
+    });
+
+    const stamp = new Date().toISOString().slice(0, 10);
+    const buffer = await buildExcelBuffer({
+      sheetName: 'Online Orders',
+      columns: columnIds.map((id, idx) => ({ header: headers[idx] ?? id, key: id })),
+      rows,
+      isRtl: arabic,
+    });
+
+    return {
+      filename: `oms-orders-${stamp}.xlsx`,
+      buffer,
       rowCount: items.length,
       truncated,
     };

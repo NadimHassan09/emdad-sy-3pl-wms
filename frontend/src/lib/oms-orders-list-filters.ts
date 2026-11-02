@@ -265,7 +265,9 @@ export function buildOmsOrdersListParams(
     totalValue: totalOp ? totalValue : undefined,
     status: (status || undefined) as OmsOrderStatus | undefined,
     operationalStage:
-      status === 'processing' && isOmsOperationalStage(stage) ? stage : undefined,
+      (status === 'processing' || status === 'ready_to_ship') && isOmsOperationalStage(stage)
+        ? stage
+        : undefined,
   };
 }
 
@@ -356,15 +358,11 @@ export function buildOmsAppliedFilterSummary(
     const payerLabel =
       applied.shippingPayer === 'receiver'
         ? opts.isArabic
-          ? 'المستلم'
-          : 'Receiver'
-        : applied.shippingPayer === 'reseller'
-          ? opts.isArabic
-            ? 'الوسيط'
-            : 'Reseller'
-          : opts.isArabic
-            ? 'المرسل'
-            : 'Sender';
+          ? 'المستلم يتحمل تكلفة الشحن'
+          : 'Recipient Pays'
+        : opts.isArabic
+          ? 'إمداد تتحمل تكلفة الشحن'
+          : 'Emdad Pays';
     parts.push(opts.isArabic ? `دافع الشحن: ${payerLabel}` : `Payer: ${payerLabel}`);
   }
   if (applied.carrier.trim()) {

@@ -26,30 +26,39 @@ export type BatchSummary = {
 };
 
 function operationalKey(member: BatchMemberSnapshot): string | null {
-  if (member.status !== 'processing') return null;
   const outbound = member.outboundStatus ?? '';
   if (
-    outbound === 'picking' ||
-    outbound === 'draft' ||
-    outbound === 'allocated' ||
-    outbound === 'pending_approval' ||
-    outbound === 'confirmed' ||
-    outbound === 'pending_stock'
+    member.status === 'ready_to_ship' ||
+    outbound === 'waiting_for_shipping_method' ||
+    outbound === 'waiting_for_shipping_details' ||
+    outbound === 'ready_to_ship'
   ) {
-    return 'picking';
-  }
-  if (outbound === 'packing') return 'packing';
-  if (outbound === 'waiting_for_shipping_method' || outbound === 'waiting_for_shipping_details') {
+    if (outbound === 'ready_to_ship' || outbound === 'packed') {
+      return 'dispatch';
+    }
     return 'shipping_details';
   }
-  if (outbound === 'packed' || outbound === 'ready_to_ship') return 'dispatch';
-  return 'processing';
+  if (member.status === 'processing') {
+    if (
+      outbound === 'picking' ||
+      outbound === 'draft' ||
+      outbound === 'allocated' ||
+      outbound === 'pending_approval' ||
+      outbound === 'confirmed' ||
+      outbound === 'pending_stock'
+    ) {
+      return 'picking';
+    }
+    if (outbound === 'packing') return 'packing';
+    return 'processing';
+  }
+  return null;
 }
 
 /** True when the member has progressed past picking into packing or later. */
 function isPicked(member: BatchMemberSnapshot): boolean {
   if (DONE_STATUSES.has(member.status) || SHIPPED_STATUSES.has(member.status)) return true;
-  if (member.status !== 'processing') return false;
+  if (member.status === 'ready_to_ship') return true;
   const outbound = member.outboundStatus ?? '';
   return (
     outbound === 'packing' ||
@@ -64,7 +73,7 @@ function isPicked(member: BatchMemberSnapshot): boolean {
 /** True when packing is done (ready for / past shipping details). */
 function isPacked(member: BatchMemberSnapshot): boolean {
   if (DONE_STATUSES.has(member.status) || SHIPPED_STATUSES.has(member.status)) return true;
-  if (member.status !== 'processing') return false;
+  if (member.status === 'ready_to_ship') return true;
   const outbound = member.outboundStatus ?? '';
   return (
     outbound === 'waiting_for_shipping_method' ||
@@ -77,9 +86,15 @@ function isPacked(member: BatchMemberSnapshot): boolean {
 
 function isReadyToShip(member: BatchMemberSnapshot): boolean {
   if (member.status === 'ready_to_ship') return true;
-  if (member.status !== 'processing') return false;
+  if (DONE_STATUSES.has(member.status) || SHIPPED_STATUSES.has(member.status)) return true;
   const outbound = member.outboundStatus ?? '';
-  return outbound === 'packed' || outbound === 'ready_to_ship';
+  return (
+    outbound === 'waiting_for_shipping_method' ||
+    outbound === 'waiting_for_shipping_details' ||
+    outbound === 'packed' ||
+    outbound === 'ready_to_ship' ||
+    outbound === 'shipped'
+  );
 }
 
 export function isBatchIssue(member: BatchMemberSnapshot): boolean {
@@ -140,7 +155,7 @@ export function summarizeBatchMembers(members: BatchMemberSnapshot[]): BatchSumm
     };
   }
   const stageKey = top[0];
-  const operational = new Set(['picking', 'packing', 'shipping_details', 'dispatch', 'processing']);
+  const operational = new Set(['picking', 'packing', 'shipping_details', 'shipping_confirmation', 'dispatch', 'processing']);
   return {
     orderCount,
     completedCount,

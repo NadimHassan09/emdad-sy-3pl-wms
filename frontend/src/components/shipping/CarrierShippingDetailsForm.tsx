@@ -1,14 +1,27 @@
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
-import { ShippingApi, type ShippingPayer } from '../../api/shipping';
+import { ShippingApi } from '../../api/shipping';
+import {
+  mapPayerForCarrier,
+  resolvePaymentModeFromPayer,
+  type ShippingPaymentMode,
+} from '../../lib/shipping-payer';
 import { QK } from '../../constants/query-keys';
-import { applyQuoteCurrency, type RateCurrencyFilter } from '../../lib/shipping-compare';
+import {
+  applyQuoteCurrency,
+  buildClientDestinationKey,
+  createClientQuoteFingerprint,
+  isClientHubQuoteStale,
+  type RateCurrencyFilter,
+} from '../../lib/shipping-compare';
 import { useDebounced } from '../../lib/useDebounced';
 import { CascadingAddressSelector } from '../CascadingAddressSelector';
 import { TextField } from '../TextField';
 import {
+  getBabelPackingValidationError,
   hasOverPacking,
+  isBabelProvider,
   packingSummary,
   providerSupportedCurrencies,
   resizeCartons,
@@ -31,6 +44,7 @@ type Props = {
   hideCarrierSelect?: boolean;
   codAmount?: number | null;
   showTitle?: boolean;
+  isArabic?: boolean;
   /**
    * Fires whenever carrier quote refresh state changes.
    * Parents must disable Continue / Save while true.
@@ -56,6 +70,7 @@ type ShippingQuoteSnapshot = {
   codAmount: number | null;
   parts: Array<{ weight: number }>;
   packingInvalid: boolean;
+  hubId: string;
 };
 
 type SettledQuoteRequest = ShippingQuoteSnapshot & {
@@ -124,9 +139,12 @@ export function CarrierShippingDetailsForm({
   hideCarrierSelect = false,
   codAmount = null,
   showTitle = true,
+  isArabic: isArabicProp,
   onQuotesRefreshingChange,
   onSelectedCarrierAvailableChange,
 }: Props) {
+  const isArabic = isArabicProp ?? (typeof document !== 'undefined' && document.documentElement.dir === 'rtl');
+  const qc = useQueryClient();
   const readOnly = locked || disabled;
   const [rateCurrency, setRateCurrency] = useState<RateCurrencyFilter>('all');
   /** Monotonic id — late responses from superseded requests are discarded. */
@@ -143,13 +161,18 @@ export function CarrierShippingDetailsForm({
     [listedProviders],
   );
 
+  const isBabel = isBabelProvider(value.shippingProviderCode);
   const partsCount = value.cartons.length;
   const weightKg =
     value.packageType === 'envelope' ? 1 : totalCartonsWeightKg(value.cartons, value.catalog);
   const volumeCbm =
     value.packageType === 'envelope' ? 0 : totalCartonsVolumeCbm(value.cartons);
   const packingRows = packingSummary(value.cartons, value.catalog);
-  const packingInvalid = hasOverPacking(packingRows);
+  const babelValidationError = useMemo(
+    () => (isBabel && value.packageType === 'box' ? getBabelPackingValidationError(value.cartons, value.catalog, false) : null),
+    [isBabel, value.packageType, value.cartons, value.catalog],
+  );
+  const packingInvalid = hasOverPacking(packingRows) || Boolean(babelValidationError);
   const babelParts = toBabelPartsFromCartons(
     value.cartons,
     value.catalog,
@@ -158,72 +181,52 @@ export function CarrierShippingDetailsForm({
   const quoteWeight =
     value.packageType === 'envelope' ? Math.max(weightKg, 1) : Math.max(weightKg, 0.001);
 
-  const liveSnapshot = useMemo<ShippingQuoteSnapshot>(
+  const liveAddressSnapshot = useMemo(
     () => ({
       governorate: value.city.trim(),
       city: value.district.trim(),
       neighborhood: value.addressLine1.trim(),
-      packageType: value.packageType,
-      weightKg: quoteWeight,
-      volumeCbm,
-      deliveryType: value.deliveryType,
-      pickupType: 'address',
-      currency: value.currency,
-      codAmount,
-      parts: babelParts,
-      packingInvalid,
     }),
-    [
-      value.city,
-      value.district,
-      value.addressLine1,
-      value.packageType,
-      value.deliveryType,
-      value.currency,
-      quoteWeight,
-      volumeCbm,
-      codAmount,
-      babelParts,
-      packingInvalid,
-    ],
+    [value.city, value.district, value.addressLine1],
   );
 
-  const debouncedSnapshot = useDebounced(liveSnapshot, SHIPPING_QUOTE_DEBOUNCE_MS);
-  const liveSnapshotKey = stableRateKey(liveSnapshot as unknown as Record<string, unknown>);
-  const debouncedSnapshotKey = stableRateKey(debouncedSnapshot as unknown as Record<string, unknown>);
-  const snapshotPending = liveSnapshotKey !== debouncedSnapshotKey;
+  const debouncedAddress = useDebounced(liveAddressSnapshot, SHIPPING_QUOTE_DEBOUNCE_MS);
+  const addressPending =
+    liveAddressSnapshot.governorate !== debouncedAddress.governorate ||
+    liveAddressSnapshot.city !== debouncedAddress.city ||
+    liveAddressSnapshot.neighborhood !== debouncedAddress.neighborhood;
 
-  const inputsHaveAddress = Boolean(liveSnapshot.governorate && liveSnapshot.city);
+  const inputsHaveAddress = Boolean(liveAddressSnapshot.governorate && liveAddressSnapshot.city);
 
   const addressResolveQuery = useQuery({
     queryKey: QK.shipping.resolveAddress({
-      governorate: debouncedSnapshot.governorate,
-      city: debouncedSnapshot.city,
-      neighborhood: debouncedSnapshot.neighborhood,
+      governorate: debouncedAddress.governorate,
+      city: debouncedAddress.city,
+      neighborhood: debouncedAddress.neighborhood,
     }),
     queryFn: ({ signal }) =>
       ShippingApi.resolveAddressFromNames(
         {
-          governorate: debouncedSnapshot.governorate,
-          cityRegion: debouncedSnapshot.city,
-          townNeighborhood: debouncedSnapshot.neighborhood,
+          governorate: debouncedAddress.governorate,
+          cityRegion: debouncedAddress.city,
+          townNeighborhood: debouncedAddress.neighborhood,
         },
         signal,
       ),
     enabled:
-      Boolean(debouncedSnapshot.governorate && debouncedSnapshot.city) && !snapshotPending,
+      Boolean(debouncedAddress.governorate && debouncedAddress.city) && !addressPending,
     staleTime: 30_000,
     gcTime: 60_000,
   });
 
   const resolvedLocation = useMemo(() => {
-    if (snapshotPending || addressResolveQuery.isFetching) return null;
+    if (addressPending || addressResolveQuery.isFetching) return null;
     if (addressResolveQuery.data?.found !== true) return null;
     return addressResolveQuery.data;
-  }, [snapshotPending, addressResolveQuery.isFetching, addressResolveQuery.data]);
+  }, [addressPending, addressResolveQuery.isFetching, addressResolveQuery.data]);
 
   const isResolvingLocation =
-    inputsHaveAddress && (snapshotPending || addressResolveQuery.isFetching);
+    inputsHaveAddress && (addressPending || addressResolveQuery.isFetching);
 
   const locationResolveError =
     inputsHaveAddress &&
@@ -234,23 +237,48 @@ export function CarrierShippingDetailsForm({
       : null;
 
   const settledQuoteRequest = useMemo<SettledQuoteRequest | null>(() => {
-    if (snapshotPending || !resolvedLocation || debouncedSnapshot.packingInvalid) return null;
+    if (addressPending || !resolvedLocation || packingInvalid) return null;
     if (
-      !debouncedSnapshot.governorate ||
-      !debouncedSnapshot.city ||
-      !debouncedSnapshot.packageType ||
-      !debouncedSnapshot.deliveryType ||
-      !Number.isFinite(debouncedSnapshot.weightKg) ||
-      debouncedSnapshot.weightKg <= 0
+      !debouncedAddress.governorate ||
+      !debouncedAddress.city ||
+      !value.packageType ||
+      !value.deliveryType ||
+      !Number.isFinite(quoteWeight) ||
+      quoteWeight <= 0
     ) {
       return null;
     }
     return {
-      ...debouncedSnapshot,
+      governorate: debouncedAddress.governorate,
+      city: debouncedAddress.city,
+      neighborhood: debouncedAddress.neighborhood,
+      packageType: value.packageType,
+      weightKg: quoteWeight,
+      volumeCbm,
+      deliveryType: value.deliveryType,
+      pickupType: 'address',
+      currency: value.currency,
+      codAmount,
+      parts: babelParts,
+      packingInvalid,
+      hubId: value.deliveryType === 'hub' ? value.shippingHubId.trim() : '',
       receiverLat: resolvedLocation.lat,
       receiverLng: resolvedLocation.lng,
     };
-  }, [snapshotPending, resolvedLocation, debouncedSnapshot]);
+  }, [
+    addressPending,
+    resolvedLocation,
+    packingInvalid,
+    debouncedAddress,
+    value.packageType,
+    value.deliveryType,
+    value.shippingHubId,
+    value.currency,
+    quoteWeight,
+    volumeCbm,
+    codAmount,
+    babelParts,
+  ]);
 
   const settledQuoteKey = settledQuoteRequest
     ? stableRateKey(settledQuoteRequest as unknown as Record<string, unknown>)
@@ -289,6 +317,7 @@ export function CarrierShippingDetailsForm({
           Number.isFinite(settledQuoteRequest.codAmount)
             ? { codAmount: settledQuoteRequest.codAmount }
             : {}),
+          ...(settledQuoteRequest.hubId ? { hubId: settledQuoteRequest.hubId } : {}),
         },
         signal,
       );
@@ -318,7 +347,7 @@ export function CarrierShippingDetailsForm({
   const isRefreshingCarrierQuotes =
     !hideCarrierSelect &&
     inputsHaveAddress &&
-    (snapshotPending ||
+    (addressPending ||
       isResolvingLocation ||
       (inputsReady && (ratesQuery.isFetching || ratesQuery.isPending)));
 
@@ -329,9 +358,25 @@ export function CarrierShippingDetailsForm({
   const rateErrors =
     isRefreshingCarrierQuotes || !ratesQuery.isSuccess ? [] : (ratesQuery.data?.errors ?? []);
 
+  const selectedQuote =
+    quotes.find((q) => q.serviceId === value.shippingServiceId) ??
+    quotes.find((q) => q.carrierId === value.shippingProviderCode);
+  const hubRequired =
+    selectedQuote?.deliveryType === 'hub' && (selectedQuote.hubs?.length ?? 0) > 0;
+  const hubReady = !hubRequired || Boolean(value.shippingHubId.trim());
+
+  const hubQuoteStale = isClientHubQuoteStale({
+    deliveryType: value.deliveryType,
+    selectedHubId: value.shippingHubId,
+    fingerprintHubId: value.quoteFingerprint?.hubId,
+  });
+
   const selectedAvailable = Boolean(
     value.shippingProviderCode &&
-      quotes.some((q) => q.carrierId === value.shippingProviderCode),
+      quotes.some((q) => q.carrierId === value.shippingProviderCode) &&
+      hubReady &&
+      !hubQuoteStale &&
+      !ratesQuery.isError,
   );
 
   useEffect(() => {
@@ -352,14 +397,98 @@ export function CarrierShippingDetailsForm({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [connectedProviders, value.shippingProviderCode, readOnly, hideCarrierSelect]);
 
+  useEffect(() => {
+    if (isRefreshingCarrierQuotes || !selectedQuote) return;
+    const fp = createClientQuoteFingerprint({
+      providerCode: selectedQuote.carrierId,
+      serviceId: selectedQuote.serviceId,
+      currency: selectedQuote.currency,
+      amount: selectedQuote.price,
+      deliveryType: selectedQuote.deliveryType || value.deliveryType,
+      packageType: value.packageType,
+      weightKg: quoteWeight,
+      destinationKey: buildClientDestinationKey({
+        governorate: value.city,
+        city: value.district,
+        neighborhood: value.addressLine1,
+      }),
+      partsKey: babelParts.map((p) => String(p.weight)).join(','),
+      hubId: value.deliveryType === 'hub' ? value.shippingHubId : '',
+    });
+    const prev = value.quoteFingerprint;
+    if (
+      prev &&
+      prev.serviceId === fp.serviceId &&
+      prev.amount === fp.amount &&
+      prev.currency === fp.currency &&
+      (prev.hubId || '') === (fp.hubId || '') &&
+      prev.deliveryType === fp.deliveryType
+    ) {
+      return;
+    }
+    onChange(patch(value, { quoteFingerprint: fp }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    isRefreshingCarrierQuotes,
+    selectedQuote,
+    value.shippingHubId,
+    value.deliveryType,
+    quoteWeight,
+  ]);
+
+  useEffect(() => {
+    if (readOnly || hideCarrierSelect) return;
+    if (value.deliveryType !== 'hub' || value.shippingHubId.trim()) return;
+    const quote =
+      quotes.find((q) => q.serviceId === value.shippingServiceId) ??
+      quotes.find((q) => q.carrierId === value.shippingProviderCode);
+    if (quote?.nearestHubDetermined && quote.nearestHubId) {
+      onChange(patch(value, { shippingHubId: quote.nearestHubId }));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [quotes, value.shippingServiceId, value.deliveryType, value.shippingHubId, readOnly, hideCarrierSelect]);
+
   const handleSelectCarrier = (carrierId: string, serviceId?: string) => {
     if (isRefreshingCarrierQuotes) return;
+    const quote = quotes.find((q) => q.serviceId === serviceId);
+    const nextHub =
+      quote?.deliveryType === 'hub'
+        ? value.shippingHubId || quote.nearestHubId || ''
+        : '';
+    const currentMode = resolvePaymentModeFromPayer(value.shippingPayer);
+    const nextPayer = carrierId ? mapPayerForCarrier(currentMode, carrierId) : value.shippingPayer;
     onChange(
       patch(value, {
         shippingProviderCode: carrierId,
         shippingServiceId: serviceId ?? '',
+        shippingHubId: nextHub,
+        shippingPayer: nextPayer,
+        ...(quote?.deliveryType === 'hub' && nextHub !== (value.quoteFingerprint?.hubId || '')
+          ? { quoteFingerprint: null }
+          : {}),
       }),
     );
+  };
+
+  const handleSelectHub = (carrierId: string, serviceId: string, hubId: string) => {
+    if (isRefreshingCarrierQuotes) return;
+    const currentMode = resolvePaymentModeFromPayer(value.shippingPayer);
+    const nextPayer = carrierId ? mapPayerForCarrier(currentMode, carrierId) : value.shippingPayer;
+    onChange(
+      patch(value, {
+        shippingProviderCode: carrierId,
+        shippingServiceId: serviceId,
+        shippingHubId: hubId,
+        shippingPayer: nextPayer,
+        quoteFingerprint: null,
+      }),
+    );
+    qc.invalidateQueries({ queryKey: ['shipping', 'rates'] });
+  };
+
+  const handleRefreshHubQuote = () => {
+    qc.invalidateQueries({ queryKey: ['shipping', 'rates'] });
+    void ratesQuery.refetch();
   };
 
   let emptyHint: string | null = null;
@@ -372,6 +501,11 @@ export function CarrierShippingDetailsForm({
       emptyHint = 'Resolving delivery pin from address…';
     } else if (!(weightKg > 0) && value.packageType !== 'envelope') {
       emptyHint = 'Assign products to packages so total weight can be calculated.';
+    } else if (ratesQuery.isError) {
+      emptyHint =
+        ratesQuery.error instanceof Error
+          ? ratesQuery.error.message
+          : 'Carrier quote failed. Confirm the destination and retry before sending.';
     }
   }
 
@@ -413,13 +547,19 @@ export function CarrierShippingDetailsForm({
           districtRequired
           addressLine1Required
         />
-        <TextField
-          label="Street / Detailed Address"
-          value={value.addressLine2}
-          onChange={(e) => onChange(patch(value, { addressLine2: e.target.value }))}
-          disabled={readOnly}
-          placeholder="Street, building, floor…"
-        />
+        <div>
+          <TextField
+            label="Street / Detailed Address *"
+            value={value.addressLine2}
+            onChange={(e) => onChange(patch(value, { addressLine2: e.target.value }))}
+            disabled={readOnly}
+            placeholder="Street, building, floor (more than 10 characters)…"
+            required
+          />
+          <p className="mt-1 text-xs text-text-muted">
+            Must be more than 10 characters / يجب أن يكون العنوان أكثر من 10 أحرف
+          </p>
+        </div>
       </section>
 
       <section className="space-y-3 rounded-xl border border-border-subtle bg-surface-card p-4">
@@ -456,8 +596,31 @@ export function CarrierShippingDetailsForm({
 
         {value.packageType === 'box' ? (
           <>
+            {isBabel ? (
+              <div className="rounded-xl border border-sky-300 bg-sky-50/80 dark:border-sky-800 dark:bg-sky-950/40 p-3 space-y-1.5">
+                <div className="flex items-center gap-2 text-xs font-bold text-sky-900 dark:text-sky-100">
+                  <i className="fa-solid fa-boxes-stacked text-sky-600" />
+                  <span>توزيع الطرود لشحنة بابل إكسبريس (Babel Multi-Package Breakdown)</span>
+                </div>
+                <p className="text-xs text-sky-800/90 dark:text-sky-200/90">
+                  شركة بابل تدعم تقسيم الطلب على عدة طرود وتصدر بوليصة شحن وباركود منفصل لكل طرد. يرجى تحديد عدد الطرود وتوزيع كميات المنتجات عليها بالكامل.
+                </p>
+                {babelValidationError ? (
+                  <div className="flex items-center gap-1.5 text-xs font-semibold text-amber-800 dark:text-amber-300 bg-amber-500/15 p-2 rounded-lg border border-amber-500/30">
+                    <i className="fa-solid fa-triangle-exclamation text-amber-600" />
+                    <span>{babelValidationError}</span>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-1.5 text-xs font-semibold text-emerald-800 dark:text-emerald-300 bg-emerald-500/15 p-2 rounded-lg border border-emerald-500/30">
+                    <i className="fa-solid fa-circle-check text-emerald-600" />
+                    <span>تم توزيع كافة المنتجات على {partsCount} طرد بنجاح.</span>
+                  </div>
+                )}
+              </div>
+            ) : null}
+
             <TextField
-              label="Number of packages"
+              label="Number of packages / عدد الطرود"
               type="number"
               min={1}
               max={50}
@@ -526,7 +689,14 @@ export function CarrierShippingDetailsForm({
           <PillToggle
             disabled={readOnly}
             value={value.deliveryType}
-            onChange={(deliveryType) => onChange(patch(value, { deliveryType }))}
+            onChange={(deliveryType) =>
+              onChange(
+                patch(value, {
+                  deliveryType,
+                  shippingHubId: deliveryType === 'hub' ? value.shippingHubId : '',
+                }),
+              )
+            }
             options={[
               {
                 value: 'address',
@@ -543,19 +713,36 @@ export function CarrierShippingDetailsForm({
         </div>
 
         <div>
-          <div className="mb-1.5 text-xs font-medium text-text-muted">Shipping Payer (دافع الشحن)</div>
-          <PillToggle<ShippingPayer>
+          <div className="mb-1.5 text-xs font-medium text-text-muted">
+            {isArabic ? 'دافع أجور الشحن' : 'Shipping Payer'}
+          </div>
+          <PillToggle<ShippingPaymentMode>
             disabled={readOnly}
-            value={value.shippingPayer}
-            onChange={(shippingPayer) => onChange(patch(value, { shippingPayer }))}
+            value={resolvePaymentModeFromPayer(value.shippingPayer)}
+            onChange={(mode) => {
+              const carrier = value.shippingProviderCode.trim();
+              const nextPayer = carrier
+                ? mapPayerForCarrier(mode, carrier)
+                : mode === 'RECIPIENT_PAYS'
+                  ? 'receiver'
+                  : 'sender';
+              onChange(patch(value, { shippingPayer: nextPayer }));
+            }}
             options={[
-              { value: 'sender', label: 'Sender (المرسل)' },
-              { value: 'receiver', label: 'Receiver (المستلم)' },
-              { value: 'reseller', label: 'Reseller (الوسيط)' },
+              {
+                value: 'EMDAD_PAYS',
+                label: isArabic ? 'إمداد تتحمل تكلفة الشحن (افتراضي)' : 'Emdad Pays (Default)',
+              },
+              {
+                value: 'RECIPIENT_PAYS',
+                label: isArabic ? 'المستلم يتحمل تكلفة الشحن' : 'Recipient Pays',
+              },
             ]}
           />
           <p className="mt-1 text-[11px] text-text-faint">
-            Default is Sender. If the carrier rejects Sender, switch to Receiver or Reseller and send again.
+            {isArabic
+              ? 'إمداد تسدد أجور الشحن لشركة النقل وتفوتر المتجر؛ لا يُطلب من المستلم دفع أجور شحن.'
+              : 'Emdad settles shipping charges with the carrier; client is billed separately; recipient pays 0 shipping.'}
           </p>
         </div>
       </section>
@@ -586,13 +773,38 @@ export function CarrierShippingDetailsForm({
               </button>
             ))}
           </div>
+
+        {hubQuoteStale ? (
+          <div className="mb-4 rounded-xl border border-amber-300 bg-amber-50 p-3 text-xs text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-200 flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <i className={`fa-solid fa-arrows-rotate text-amber-600 dark:text-amber-400 ${ratesQuery.isFetching ? 'fa-spin' : ''}`} />
+              <span>
+                {isArabic
+                  ? 'تم تغيير فرع التسليم — يرجى تحديث سعر الشحن وتأكيده قبل إرسال الشحنة.'
+                  : 'Delivery hub selection changed. Refresh the quote and confirm the new rate before sending.'}
+              </span>
+            </div>
+            <button
+              type="button"
+              disabled={ratesQuery.isFetching}
+              onClick={handleRefreshHubQuote}
+              className="inline-flex items-center gap-1.5 rounded-lg bg-amber-600 px-3 py-1.5 text-xs font-semibold text-white shadow-xs hover:bg-amber-700 disabled:opacity-50 transition-colors cursor-pointer"
+            >
+              <i className={`fa-solid fa-rotate text-[11px] ${ratesQuery.isFetching ? 'fa-spin' : ''}`} />
+              <span>{isArabic ? 'تحديث وتأكيد السعر' : 'Refresh & Confirm Rate'}</span>
+            </button>
+          </div>
+        ) : null}
+
         <ShippingCarrierCards
           providers={listedProviders}
           quotes={quotes}
           errors={rateErrors}
           selectedCarrierId={value.shippingProviderCode}
           selectedServiceId={value.shippingServiceId}
+          selectedHubId={value.shippingHubId}
           onSelect={handleSelectCarrier}
+          onSelectHub={handleSelectHub}
           loading={isRefreshingCarrierQuotes}
           disabled={readOnly || isRefreshingCarrierQuotes}
           emptyHint={emptyHint}

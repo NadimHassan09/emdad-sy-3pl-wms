@@ -55,6 +55,7 @@ let UsersController = class UsersController {
 exports.UsersController = UsersController;
 __decorate([
     (0, common_1.Get)(),
+    (0, common_1.UseGuards)(internal_admin_guard_1.InternalAdminGuard),
     __param(0, (0, current_user_decorator_1.CurrentUser)()),
     __param(1, (0, common_1.Query)()),
     __metadata("design:type", Function),
@@ -82,6 +83,7 @@ __decorate([
 ], UsersController.prototype, "upsertWorkerProfile", null);
 __decorate([
     (0, common_1.Get)(':id'),
+    (0, common_1.UseGuards)(internal_admin_guard_1.InternalAdminGuard),
     __param(0, (0, current_user_decorator_1.CurrentUser)()),
     __param(1, (0, common_1.Param)('id', parse_uuid_loose_pipe_1.ParseUuidLoosePipe)),
     __metadata("design:type", Function),

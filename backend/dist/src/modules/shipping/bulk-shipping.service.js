@@ -18,6 +18,7 @@ const realtime_service_1 = require("../realtime/realtime.service");
 const bulk_shipping_eligibility_1 = require("./bulk-shipping.eligibility");
 const shipping_constants_1 = require("./shipping.constants");
 const shipping_provider_registry_1 = require("./shipping-provider.registry");
+const bulk_shipping_selection_1 = require("./bulk-shipping.selection");
 const shipping_service_1 = require("./shipping.service");
 let BulkShippingService = BulkShippingService_1 = class BulkShippingService {
     prisma;
@@ -26,6 +27,8 @@ let BulkShippingService = BulkShippingService_1 = class BulkShippingService {
     realtime;
     logger = new common_1.Logger(BulkShippingService_1.name);
     runningJobs = new Set();
+    acknowledgedAmbiguous = new Set();
+    pendingSelections = new Map();
     constructor(prisma, registry, shipping, realtime) {
         this.prisma = prisma;
         this.registry = registry;
@@ -136,6 +139,13 @@ let BulkShippingService = BulkShippingService_1 = class BulkShippingService {
                         : selectedProviderCode === shipping_constants_1.MANUAL_SHIPPING_CODE
                             ? 'Manual — no carrier label'
                             : 'No shipping label available from carrier API',
+                codAmount: order.omsOrder?.codAmount != null
+                    ? Number(order.omsOrder.codAmount)
+                    : order.codAmount != null
+                        ? Number(order.codAmount)
+                        : null,
+                codCurrency: order.omsOrder?.currency ?? order.currency ?? null,
+                supportedCodCurrencies: quotes.find((q) => q.providerCode === selectedProviderCode)?.supportedCodCurrencies ?? [],
             });
         }
         const priced = lines.filter((l) => l.recommendedPrice != null);
@@ -178,6 +188,29 @@ let BulkShippingService = BulkShippingService_1 = class BulkShippingService {
             }
             if (!byId.has(item.outboundOrderId)) {
                 throw new common_1.BadRequestException(`Order not found: ${item.outboundOrderId}`);
+            }
+        }
+        for (const item of items) {
+            const code = item.providerCode.trim().toUpperCase();
+            const order = byId.get(item.outboundOrderId);
+            const serviceId = item.serviceId?.trim() || order?.shippingServiceId || null;
+            const deliveryType = item.deliveryType?.trim() || order?.shippingDeliveryType || null;
+            const payer = item.payer?.trim() || order?.shippingPayer || null;
+            if (code !== shipping_constants_1.MANUAL_SHIPPING_CODE) {
+                this.pendingSelections.set(item.outboundOrderId, {
+                    serviceId,
+                    deliveryType,
+                    hubId: item.hubId?.trim() || null,
+                    payer,
+                    quotedCurrency: item.quotedCurrency ?? null,
+                });
+                const collection = item.codCollectionCurrency?.trim().toUpperCase();
+                if (collection === 'USD' || collection === 'SYP') {
+                    await this.shipping.saveCodCollection(item.outboundOrderId, collection);
+                }
+                else {
+                    await this.shipping.clearCodCollection(item.outboundOrderId);
+                }
             }
         }
         const job = await this.prisma.bulkShippingJob.create({
@@ -239,7 +272,7 @@ let BulkShippingService = BulkShippingService_1 = class BulkShippingService {
             throw new common_1.NotFoundException('Bulk shipping job not found.');
         return this.toJobView(job);
     }
-    async retryItem(jobId, outboundOrderId) {
+    async retryItem(jobId, outboundOrderId, opts) {
         const item = await this.prisma.bulkShippingJobItem.findFirst({
             where: { jobId, outboundOrderId },
         });
@@ -270,6 +303,9 @@ let BulkShippingService = BulkShippingService_1 = class BulkShippingService {
                 return this.getJob(jobId);
             }
             throw new common_1.BadRequestException('Order is no longer eligible for bulk shipping retry.');
+        }
+        if (opts?.acknowledgeNoExternalShipment) {
+            this.acknowledgedAmbiguous.add(outboundOrderId);
         }
         await this.prisma.bulkShippingJobItem.update({
             where: { id: item.id },
@@ -482,14 +518,62 @@ let BulkShippingService = BulkShippingService_1 = class BulkShippingService {
                 this.emitProgress(jobId);
                 return;
             }
+            const pending = this.pendingSelections.get(item.outboundOrderId);
+            const existing = await this.prisma.outboundOrder.findUnique({
+                where: { id: item.outboundOrderId },
+                select: {
+                    shippingServiceId: true,
+                    shippingDeliveryType: true,
+                    shippingPayer: true,
+                    city: true,
+                    district: true,
+                    addressLine1: true,
+                    shippingReceiverLat: true,
+                    shippingReceiverLng: true,
+                },
+            });
+            const patch = (0, bulk_shipping_selection_1.bulkSelectionPatch)({
+                providerCode,
+                serviceId: pending?.serviceId ?? existing?.shippingServiceId,
+                deliveryType: pending?.deliveryType ?? existing?.shippingDeliveryType,
+                hubId: pending?.hubId ?? existing?.shippingHubId,
+                payer: pending?.payer ?? existing?.shippingPayer,
+                quotedCurrency: item.quotedCurrency ?? pending?.quotedCurrency,
+            });
+            const resolvedCoords = existing?.shippingReceiverLat == null || existing?.shippingReceiverLng == null
+                ? this.shipping.resolveReceiverCoordinatesFromAddress({
+                    governorate: existing?.city,
+                    cityRegion: existing?.district,
+                    townNeighborhood: existing?.addressLine1,
+                })
+                : null;
             await this.prisma.outboundOrder.update({
                 where: { id: item.outboundOrderId },
                 data: {
-                    shippingMethod: client_1.ShippingMethod.carrier,
-                    shippingProviderCode: providerCode,
+                    shippingMethod: patch.shippingMethod,
+                    shippingProviderCode: patch.shippingProviderCode,
+                    shippingServiceId: patch.shippingServiceId,
+                    shippingHubId: patch.shippingHubId,
+                    ...(patch.shippingDeliveryType
+                        ? { shippingDeliveryType: patch.shippingDeliveryType }
+                        : {}),
+                    ...(patch.shippingPayer ? { shippingPayer: patch.shippingPayer } : {}),
+                    ...(patch.shippingQuotedCurrency
+                        ? { shippingQuotedCurrency: patch.shippingQuotedCurrency }
+                        : {}),
+                    ...(resolvedCoords
+                        ? {
+                            shippingReceiverLat: resolvedCoords.lat,
+                            shippingReceiverLng: resolvedCoords.lng,
+                        }
+                        : {}),
                 },
             });
-            await this.shipping.ensureShipmentForOutbound(item.outboundOrderId);
+            this.pendingSelections.delete(item.outboundOrderId);
+            await this.shipping.ensureShipmentForOutbound(item.outboundOrderId, {
+                acknowledgeNoExternalShipment: this.acknowledgedAmbiguous.has(item.outboundOrderId),
+            });
+            this.acknowledgedAmbiguous.delete(item.outboundOrderId);
             const created = await this.prisma.carrierShipment.findFirst({
                 where: {
                     outboundOrderId: item.outboundOrderId,
@@ -499,11 +583,11 @@ let BulkShippingService = BulkShippingService_1 = class BulkShippingService {
             });
             if (created?.externalAwb) {
                 if (item.quotedPrice != null) {
-                    await this.prisma.carrierShipment.update({
-                        where: { id: created.id },
+                    await this.prisma.outboundOrder.update({
+                        where: { id: item.outboundOrderId },
                         data: {
-                            shippingCost: item.quotedPrice,
-                            currency: item.quotedCurrency ?? created.currency,
+                            shippingQuotedPrice: item.quotedPrice,
+                            shippingQuotedCurrency: item.quotedCurrency ?? undefined,
                         },
                     });
                 }
@@ -631,7 +715,15 @@ let BulkShippingService = BulkShippingService_1 = class BulkShippingService {
             where: { id: { in: ids } },
             include: {
                 company: { select: { name: true } },
-                omsOrder: { select: { id: true, orderNumber: true, trackingNumber: true } },
+                omsOrder: {
+                    select: {
+                        id: true,
+                        orderNumber: true,
+                        trackingNumber: true,
+                        codAmount: true,
+                        currency: true,
+                    },
+                },
                 carrierShipments: { select: { status: true, externalAwb: true } },
             },
         });
@@ -703,13 +795,15 @@ let BulkShippingService = BulkShippingService_1 = class BulkShippingService {
             if (!order.shippingPackageType || !order.shippingDeliveryType)
                 return null;
             const creds = await this.shipping.getDecryptedCredentials(providerCode);
+            const pickup = await this.shipping.getConfiguredPickupParty();
             const result = await adapter.getQuote(creds, {
                 receiverLat: lat,
                 receiverLng: lng,
                 packageType: order.shippingPackageType,
                 weightKg: order.shippingPackageType === 'envelope' ? 1 : weightKg,
                 deliveryType: order.shippingDeliveryType,
-                pickupType: order.shippingPickupType ?? undefined,
+                pickupType: 'address',
+                pickup,
             });
             if (!Number.isFinite(result.price))
                 return null;
@@ -717,11 +811,16 @@ let BulkShippingService = BulkShippingService_1 = class BulkShippingService {
                 where: { code: providerCode },
                 select: { name: true },
             });
+            const deliveryType = result.effectiveDeliveryType ?? order.shippingDeliveryType;
             return {
                 providerCode,
                 providerName: provider?.name ?? providerCode,
                 price: result.price,
                 currency: result.currency || 'USD',
+                serviceId: result.serviceId ?? null,
+                serviceName: result.serviceName ?? null,
+                deliveryType,
+                supportedCodCurrencies: [],
             };
         }
         catch (err) {

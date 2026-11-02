@@ -27,8 +27,8 @@ __decorate([
 ], CreateClientOmsOrderLineDto.prototype, "productId", void 0);
 __decorate([
     (0, class_transformer_1.Type)(() => Number),
-    (0, class_validator_1.IsInt)({ message: 'Requested quantity must be a whole number (no decimals).' }),
-    (0, class_validator_1.IsPositive)({ message: 'Requested quantity must be a positive whole number greater than zero.' }),
+    (0, class_validator_1.IsNumber)({ maxDecimalPlaces: 4 }, { message: 'Requested quantity must be a number with up to 4 decimal places.' }),
+    (0, class_validator_1.IsPositive)({ message: 'Requested quantity must be a positive number greater than zero.' }),
     __metadata("design:type", Number)
 ], CreateClientOmsOrderLineDto.prototype, "requestedQuantity", void 0);
 __decorate([
@@ -97,8 +97,10 @@ __decorate([
     __metadata("design:type", String)
 ], CreateClientOmsOrderDto.prototype, "addressLine1", void 0);
 __decorate([
-    (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsString)(),
+    (0, class_validator_1.IsNotEmpty)({ message: 'Street / detailed address is required and must be more than 10 characters.' }),
+    (0, class_transformer_1.Transform)(({ value }) => (typeof value === 'string' ? value.trim() : value)),
+    (0, class_validator_1.MinLength)(11, { message: 'Street / detailed address must be more than 10 characters.' }),
     __metadata("design:type", String)
 ], CreateClientOmsOrderDto.prototype, "addressLine2", void 0);
 __decorate([

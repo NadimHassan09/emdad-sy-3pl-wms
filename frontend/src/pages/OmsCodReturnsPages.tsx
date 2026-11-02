@@ -1,13 +1,29 @@
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 
-import { Badge, AdvancedFilterSection, countNonEmptyFilters } from '@ds';
+import {
+  Badge,
+  AdvancedFilterSection,
+  countNonEmptyFilters,
+  Alert,
+  StatusCardNav,
+  STATUS_CARD_TONES,
+  type StatusCardItem,
+} from '@ds';
 import type { Tone } from '@ds';
+import { useAuth } from '../auth/AuthContext';
+import { getReturnStatusOptions, getReturnStatusDisplay, RETURN_STATUS_TONE } from '../lib/oms-return-status';
+import { CompaniesApi } from '../api/companies';
 import type { CodRecord, CodRecordStatus, OmsReturn } from '../api/oms';
 import { CodApi, OmsReturnsApi } from '../api/oms';
 import { AdminListPageShell } from '../components/AdminListPageShell';
 import { Button } from '../components/Button';
+import { Combobox } from '../components/Combobox';
+import { Modal } from '../components/Modal';
+import { QK } from '../constants/query-keys';
+import { companyFilterComboboxOptions } from '../lib/company-filter-options';
+import { buildCodListParams } from '../lib/oms-cod-list-params';
 import { ConfirmReturnByScanModal } from '../components/ConfirmReturnByScanModal';
 import { CreateOmsReturnModal } from '../components/oms/CreateOmsReturnModal';
 import { ExpressReturnModal } from '../components/oms/ExpressReturnModal';
@@ -94,22 +110,7 @@ const COD_STATUS_SELECT_CLASS: Record<CodRecordStatus, string> = {
     'border-rose-300 bg-rose-50 text-rose-900 dark:border-rose-700/60 dark:bg-rose-950/40 dark:text-rose-100',
 };
 
-const RETURN_STATUS_OPTIONS = [
-  { value: '', label: 'All statuses' },
-  { value: 'requested', label: 'Requested' },
-  { value: 'approved', label: 'Approved' },
-  { value: 'rejected', label: 'Rejected' },
-  { value: 'completed', label: 'Completed' },
-  { value: 'cancelled', label: 'Cancelled' },
-];
 
-const RETURN_STATUS_TONE: Record<OmsReturn['status'], Tone> = {
-  requested: 'warning',
-  approved: 'brand',
-  rejected: 'danger',
-  completed: 'success',
-  cancelled: 'neutral',
-};
 
 /** Returns that can still be confirmed (not yet terminal). */
 function isConfirmableReturn(r: OmsReturn): boolean {
@@ -126,32 +127,34 @@ export function OmsCodPage() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
   const [bulkStatus, setBulkStatus] = useState<CodRecordStatus>('available');
 
-  const { draftFilters, appliedFilters, setDraft, applyFilters, resetFilters } =
+  const { draftFilters, appliedFilters, setDraft, applyFilters, applyPatch, resetFilters } =
     useFilters({
       search: '',
       status: '',
+      companyId: '',
       createdFrom: '',
       createdTo: '',
       amountMin: '',
       amountMax: '',
     });
   const [advancedOpen, setAdvancedOpen] = useCachedState('oms-cod:advanced-filters-open', false);
+  const [exportingKind, setExportingKind] = useState<'xlsx' | 'pdf' | null>(null);
 
-  const listParams = useMemo(
-    () => ({
-      search: (appliedFilters.search ?? '').trim() || undefined,
-      status: ((appliedFilters.status ?? '').trim() || undefined) as CodRecordStatus | undefined,
-      createdFrom: (appliedFilters.createdFrom ?? '').trim() || undefined,
-      createdTo: (appliedFilters.createdTo ?? '').trim() || undefined,
-      amountMin: (appliedFilters.amountMin ?? '').trim()
-        ? Number(appliedFilters.amountMin)
-        : undefined,
-      amountMax: (appliedFilters.amountMax ?? '').trim()
-        ? Number(appliedFilters.amountMax)
-        : undefined,
-    }),
-    [appliedFilters],
+  const companiesQuery = useQuery({
+    queryKey: QK.companies,
+    queryFn: () => CompaniesApi.list(),
+    staleTime: 10 * 60_000,
+  });
+  const clientOptions = useMemo(
+    () =>
+      companyFilterComboboxOptions(
+        companiesQuery.data,
+        isArabic ? 'كل العملاء' : 'All Clients',
+      ),
+    [companiesQuery.data, isArabic],
   );
+
+  const listParams = useMemo(() => buildCodListParams(appliedFilters), [appliedFilters]);
 
   const pagination = useChunkedServerPagination<CodRecord>({
     chunkSize: CHUNK_SIZE_STANDARD,
@@ -160,6 +163,43 @@ export function OmsCodPage() {
     rtQueryKeyPrefix: ['oms-cod-records'],
     chunkQueryKeyPrefix: 'oms-cod-records-chunk',
   });
+
+  const codStatusItems: StatusCardItem[] = useMemo(
+    () => [
+      {
+        value: '',
+        label: isArabic ? 'كل الحالات' : 'All statuses',
+        count: pagination.total,
+        ...STATUS_CARD_TONES.slate,
+      },
+      {
+        value: 'pending',
+        label: isArabic ? 'معلق' : 'Pending',
+        ...STATUS_CARD_TONES.amber,
+      },
+      {
+        value: 'available',
+        label: isArabic ? 'متاح' : 'Available',
+        ...STATUS_CARD_TONES.cyan,
+      },
+      {
+        value: 'paid_out',
+        label: isArabic ? 'تم الصرف' : 'Paid out',
+        ...STATUS_CARD_TONES.emerald,
+      },
+      {
+        value: 'returned',
+        label: isArabic ? 'مرتجع' : 'Returned',
+        ...STATUS_CARD_TONES.rose,
+      },
+    ],
+    [pagination.total, isArabic],
+  );
+
+  const handleSelectCodStatus = (newStatus: string) => {
+    applyPatch({ status: newStatus });
+    setDraft((prev) => ({ ...prev, status: newStatus }));
+  };
 
   const statusMut = useMutation({
     mutationFn: ({ id, status }: { id: string; status: CodRecordStatus }) =>
@@ -354,6 +394,14 @@ export function OmsCodPage() {
       isArabic={isArabic}
       showSectionNav
     >
+      <div className="mb-4">
+        <StatusCardNav
+          items={codStatusItems}
+          value={appliedFilters.status}
+          onChange={handleSelectCodStatus}
+        />
+      </div>
+
       <AdvancedFilterSection
         advancedOpen={advancedOpen}
         onAdvancedOpenChange={setAdvancedOpen}
@@ -361,6 +409,7 @@ export function OmsCodPage() {
         loading={pagination.isFetching}
         activeCount={countNonEmptyFilters(appliedFilters, [
           'status',
+          'companyId',
           'createdFrom',
           'createdTo',
           'amountMin',
@@ -402,14 +451,52 @@ export function OmsCodPage() {
                 </option>
               ))}
             </select>
+            <div className="min-w-[12rem] flex-1 sm:max-w-xs">
+              <Combobox
+                label={isArabic ? 'العميل' : 'Client'}
+                value={draftFilters.companyId ?? ''}
+                onChange={(value) => setDraft({ companyId: value })}
+                options={clientOptions}
+                placeholder={isArabic ? 'كل العملاء' : 'All Clients'}
+              />
+            </div>
             <button
               type="button"
-              className="rounded-lg border border-border px-3 py-2 text-sm font-medium"
-              onClick={() =>
-                void CodApi.exportCsv(listParams).catch((err: Error) => toast.error(err.message))
-              }
+              disabled={exportingKind !== null}
+              className="rounded-lg border border-border px-3 py-2 text-sm font-medium disabled:opacity-60"
+              onClick={() => {
+                setExportingKind('xlsx');
+                void CodApi.exportExcel(listParams)
+                  .catch((err: Error) => toast.error(err.message))
+                  .finally(() => setExportingKind(null));
+              }}
             >
-              {isArabic ? 'تصدير' : 'Export'}
+              {exportingKind === 'xlsx'
+                ? isArabic
+                  ? 'جاري التصدير…'
+                  : 'Exporting…'
+                : isArabic
+                  ? 'تصدير Excel'
+                  : 'Export Excel'}
+            </button>
+            <button
+              type="button"
+              disabled={exportingKind !== null}
+              className="rounded-lg border border-border px-3 py-2 text-sm font-medium disabled:opacity-60"
+              onClick={() => {
+                setExportingKind('pdf');
+                void CodApi.exportPdf(listParams)
+                  .catch((err: Error) => toast.error(err.message))
+                  .finally(() => setExportingKind(null));
+              }}
+            >
+              {exportingKind === 'pdf'
+                ? isArabic
+                  ? 'جاري التصدير…'
+                  : 'Exporting…'
+                : isArabic
+                  ? 'تصدير PDF'
+                  : 'Export PDF'}
             </button>
           </div>
         }
@@ -444,6 +531,15 @@ export function OmsCodPage() {
               </option>
             ))}
           </select>
+        </div>
+        <div className="min-w-0">
+          <Combobox
+            label={isArabic ? 'العميل' : 'Client'}
+            value={draftFilters.companyId ?? ''}
+            onChange={(value) => setDraft({ companyId: value })}
+            options={clientOptions}
+            placeholder={isArabic ? 'كل العملاء' : 'All Clients'}
+          />
         </div>
         <div className="min-w-0">
           <label className={`${FILTER_FIELD_LABEL_CLASS} ${FILTER_FIELD_LABEL_GAP_CLASS}`}>
@@ -573,10 +669,17 @@ export function OmsReturnsPage() {
   const [expressOpen, setExpressOpen] = useState(false);
   const [scanOpen, setScanOpen] = useState(false);
 
+  const { user } = useAuth();
+  const canRollback =
+    user?.role === 'super_admin' || user?.role === 'wh_manager' || user?.role === 'wh_operator';
+  const [rollbackTarget, setRollbackTarget] = useState<OmsReturn | null>(null);
+
+  const statusOptions = useMemo(() => getReturnStatusOptions(isArabic), [isArabic]);
+
   // ─── Row selection ──────────────────────────────────────────────────────────
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
 
-  const { draftFilters, appliedFilters, setDraft, applyFilters, resetFilters } =
+  const { draftFilters, appliedFilters, setDraft, applyFilters, applyPatch, resetFilters } =
     useFilters({
       search: '',
       status: '',
@@ -602,12 +705,61 @@ export function OmsReturnsPage() {
     chunkQueryKeyPrefix: 'oms-returns-chunk',
   });
 
+  const returnsStatusItems: StatusCardItem[] = useMemo(
+    () => [
+      {
+        value: '',
+        label: isArabic ? 'كل المرتجعات' : 'All returns',
+        count: pagination.total,
+        ...STATUS_CARD_TONES.slate,
+      },
+      {
+        value: 'pending',
+        label: isArabic ? 'قيد الانتظار' : 'Pending',
+        ...STATUS_CARD_TONES.amber,
+      },
+      {
+        value: 'completed',
+        label: isArabic ? 'مستلم' : 'Received',
+        ...STATUS_CARD_TONES.emerald,
+      },
+      {
+        value: 'rejected',
+        label: isArabic ? 'مرفوض' : 'Rejected',
+        ...STATUS_CARD_TONES.rose,
+      },
+      {
+        value: 'cancelled',
+        label: isArabic ? 'ملغي' : 'Cancelled',
+        ...STATUS_CARD_TONES.purple,
+      },
+    ],
+    [pagination.total, isArabic],
+  );
+
+  const handleSelectReturnStatus = (newStatus: string) => {
+    applyPatch({ status: newStatus });
+    setDraft((prev) => ({ ...prev, status: newStatus }));
+  };
+
   // ─── Mutations ──────────────────────────────────────────────────────────────
   const confirmMut = useMutation({
     mutationFn: (id: string) => OmsReturnsApi.confirmReturn(id),
     onSuccess: () => {
       toast.success(isArabic ? 'تم تأكيد الإرجاع بنجاح.' : 'Return confirmed successfully.');
       void qc.invalidateQueries({ queryKey: ['oms-returns'] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const rollbackMut = useMutation({
+    mutationFn: ({ id, targetStatus }: { id: string; targetStatus: 'out_for_delivery' | 'ready_to_ship' }) =>
+      OmsReturnsApi.rollbackReturn(id, { targetStatus }),
+    onSuccess: (data) => {
+      toast.success(data.message || (isArabic ? 'تم التراجع عن استلام المرتجع بنجاح.' : 'Return receipt rolled back successfully.'));
+      setRollbackTarget(null);
+      void qc.invalidateQueries({ queryKey: ['oms-returns'] });
+      void qc.invalidateQueries({ queryKey: ['oms-orders'] });
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -698,7 +850,7 @@ export function OmsReturnsPage() {
       width: '2.5rem',
     },
     {
-      header: 'Return #',
+      header: isArabic ? 'رقم المرتجع' : 'Return #',
       accessor: (row) => (
         <Link
           to={`/oms/returns/${row.id}`}
@@ -710,7 +862,7 @@ export function OmsReturnsPage() {
       ),
     },
     {
-      header: 'Order',
+      header: isArabic ? 'الطلب' : 'Order',
       accessor: (row) =>
         row.omsOrder ? (
           <Link
@@ -725,27 +877,27 @@ export function OmsReturnsPage() {
         ),
     },
     {
-      header: 'Client',
+      header: isArabic ? 'العميل' : 'Client',
       accessor: (row) => row.company?.name ?? '—',
     },
     {
-      header: 'Status',
+      header: isArabic ? 'الحالة' : 'Status',
       accessor: (row) => (
-        <Badge tone={RETURN_STATUS_TONE[row.status]} size="xs" dot className="w-fit max-w-max">
-          {row.status.replace(/_/g, ' ')}
+        <Badge tone={RETURN_STATUS_TONE[row.status] || 'neutral'} size="xs" dot className="w-fit max-w-max">
+          {getReturnStatusDisplay(row.status, isArabic)}
         </Badge>
       ),
     },
     {
-      header: 'Reason',
+      header: isArabic ? 'السبب' : 'Reason',
       accessor: (row) => row.reason ?? '—',
     },
     {
-      header: 'Created',
+      header: isArabic ? 'تاريخ الإنشاء' : 'Created',
       accessor: (row) => new Date(row.createdAt).toLocaleString(),
     },
     {
-      header: 'Actions',
+      header: isArabic ? 'الإجراءات' : 'Actions',
       accessor: (row) => (
         <div
           onClick={(e) => e.stopPropagation()}
@@ -761,16 +913,27 @@ export function OmsReturnsPage() {
               aria-label={`Confirm return ${row.returnNumber}`}
             >
               <i className="fa-solid fa-check text-[10px]" aria-hidden />
-              {isArabic ? 'تأكيد' : 'Confirm'}
+              {isArabic ? 'تأكيد الاستلام' : 'Confirm'}
             </button>
+          ) : row.status === 'completed' ? (
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs font-medium text-emerald-700 dark:text-emerald-400">
+                {isArabic ? 'مرتجع مستلم' : 'Received'}
+              </span>
+              {canRollback ? (
+                <button
+                  type="button"
+                  onClick={() => setRollbackTarget(row)}
+                  className="inline-flex items-center gap-1 rounded border border-rose-300 bg-rose-50 px-2 py-0.5 text-[11px] font-semibold text-rose-700 transition hover:bg-rose-100 hover:text-rose-800 dark:border-rose-800/50 dark:bg-rose-950/40 dark:text-rose-300 dark:hover:bg-rose-900/60"
+                  title={isArabic ? 'التراجع عن الاستلام وإعادة دورة الشحن' : 'Rollback receipt and restore shipping'}
+                >
+                  <i className="fa-solid fa-rotate-left text-[9px]" aria-hidden />
+                  {isArabic ? 'تراجع' : 'Rollback'}
+                </button>
+              ) : null}
+            </div>
           ) : (
-            <span className="text-xs text-text-faint">
-              {row.status === 'completed'
-                ? isArabic
-                  ? 'مكتمل'
-                  : 'Done'
-                : '—'}
-            </span>
+            <span className="text-xs text-text-faint">—</span>
           )}
         </div>
       ),
@@ -833,6 +996,68 @@ export function OmsReturnsPage() {
         }}
       />
 
+      {/* Confirmation Modal for Rollback */}
+      <Modal
+        open={Boolean(rollbackTarget)}
+        onClose={() => setRollbackTarget(null)}
+        title={isArabic ? 'تأكيد التراجع عن استلام المرتجع (Rollback)' : 'Confirm Return Rollback'}
+      >
+        {rollbackTarget ? (
+          <div className="space-y-4 text-sm text-text-strong">
+            <Alert
+              variant="warning"
+              title={
+                isArabic
+                  ? 'تنبيه: سيتم عكس المخزون وإلغاء الاستلام'
+                  : 'Warning: Inventory will be reversed and return cancelled'
+              }
+            >
+              {isArabic
+                ? `سيتم سحب كامل الكمية المستلمة في المرتجع (${rollbackTarget.returnNumber}) من موقع المرتجعات بحركة تعويضية في السجل، وإعادة الطلب (${rollbackTarget.omsOrder?.orderNumber ?? rollbackTarget.omsOrderId}) لدورة الشحن.`
+                : `The received quantities for return (${rollbackTarget.returnNumber}) will be deducted from the Returns location with a compensating ledger entry, and the order (${rollbackTarget.omsOrder?.orderNumber ?? rollbackTarget.omsOrderId}) will return to the shipping workflow.`}
+            </Alert>
+            <p className="text-text-muted">
+              {isArabic
+                ? 'يرجى التأكد من أن البضاعة ما زالت موجودة في موقع المرتجعات ولم يتم نقلها أو صرفها لطلب آخر.'
+                : 'Please ensure that the inventory is still untouched in the Returns location and has not been transferred or allocated to another order.'}
+            </p>
+            <div className="flex flex-wrap justify-end gap-2 pt-2">
+              <Button variant="secondary" onClick={() => setRollbackTarget(null)}>
+                {isArabic ? 'إلغاء' : 'Cancel'}
+              </Button>
+              <Button
+                variant="primary"
+                className="bg-blue-600 hover:bg-blue-700 text-white"
+                loading={rollbackMut.isPending}
+                onClick={() =>
+                  rollbackMut.mutate({
+                    id: rollbackTarget.id,
+                    targetStatus: 'out_for_delivery',
+                  })
+                }
+              >
+                <i className="fa-solid fa-truck-fast mr-1.5" aria-hidden />
+                {isArabic ? 'إعادة الإرسال مع الناقل (خارج للتسليم)' : 'Reship (Out for Delivery)'}
+              </Button>
+              <Button
+                variant="primary"
+                className="bg-indigo-600 hover:bg-indigo-700 text-white"
+                loading={rollbackMut.isPending}
+                onClick={() =>
+                  rollbackMut.mutate({
+                    id: rollbackTarget.id,
+                    targetStatus: 'ready_to_ship',
+                  })
+                }
+              >
+                <i className="fa-solid fa-box-archive mr-1.5" aria-hidden />
+                {isArabic ? 'إعادة لتجهيز الشحن (جاهز للشحن)' : 'Ready to Ship'}
+              </Button>
+            </div>
+          </div>
+        ) : null}
+      </Modal>
+
       {/* ─── Bulk action bar ─────────────────────────────────────────────────── */}
       {selectionCount > 0 && (
         <div className="sticky top-14 z-20 mb-3 flex items-center justify-between gap-3 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2.5 shadow-sm dark:border-emerald-800/40 dark:bg-emerald-950/30">
@@ -880,6 +1105,14 @@ export function OmsReturnsPage() {
         </div>
       )}
 
+      <div className="mb-4">
+        <StatusCardNav
+          items={returnsStatusItems}
+          value={appliedFilters.status}
+          onChange={handleSelectReturnStatus}
+        />
+      </div>
+
       <AdvancedFilterSection
         advancedOpen={advancedOpen}
         onAdvancedOpenChange={setAdvancedOpen}
@@ -916,7 +1149,7 @@ export function OmsReturnsPage() {
               aria-label={isArabic ? 'الحالة' : 'Status'}
               className={FILTER_COMPACT_SELECT_CLASS}
             >
-              {RETURN_STATUS_OPTIONS.map((opt) => (
+              {statusOptions.map((opt) => (
                 <option key={opt.value || 'all'} value={opt.value}>
                   {opt.label}
                 </option>
@@ -949,7 +1182,7 @@ export function OmsReturnsPage() {
             onChange={(e) => setDraft({ status: e.target.value })}
             className={FILTER_FIELD_CONTROL_CLASS}
           >
-            {RETURN_STATUS_OPTIONS.map((opt) => (
+            {statusOptions.map((opt) => (
               <option key={opt.value || 'all'} value={opt.value}>
                 {opt.label}
               </option>

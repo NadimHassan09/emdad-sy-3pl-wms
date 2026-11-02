@@ -29,6 +29,7 @@ import {
   BulkShippingPreviewDto,
 } from './dto/bulk-shipping.dto';
 import { ConnectShippingProviderDto } from './dto/connect-shipping-provider.dto';
+import { RegisterShippingWebhookDto } from './dto/register-shipping-webhook.dto';
 import { UpsertShippingFxDto } from './dto/upsert-shipping-fx.dto';
 import { UpsertShippingOriginAddressDto } from './dto/upsert-shipping-origin-address.dto';
 import { QuoteShippingRatesDto } from './dto/quote-shipping-rates.dto';
@@ -36,11 +37,34 @@ import { ResolveAddressFromPinDto } from './dto/resolve-address-from-pin.dto';
 import { ResolveAddressFromNamesDto } from './dto/resolve-address-from-names.dto';
 import { BabelExpressAdapter } from './providers/babel-express/babel-express.adapter';
 import { BabelGeoSyncService } from './providers/babel-express/babel-geo-sync.service';
-import { BABEL_EXPRESS_CODE } from './shipping.constants';
+import { BABEL_EXPRESS_CODE, SENA_EXPRESS_CODE } from './shipping.constants';
 import { ShippingFxService } from './shipping-fx.service';
 import { ShippingService } from './shipping.service';
+import { ShippingFeeService } from './shipping-fee.service';
 import { ShippingTrackingService } from './shipping-tracking.service';
 import { ShippingProviderRegistry } from './shipping-provider.registry';
+
+const STAGING_WEBHOOK_HOSTS = new Set(['staging-admin.emdadsy.com', 'staging-client.emdadsy.com']);
+
+function assertStagingWebhookUrl(webhookUrl: string, providerCode: string): string | null {
+  let parsed: URL;
+  try {
+    parsed = new URL(webhookUrl);
+  } catch {
+    return 'Webhook URL is not valid.';
+  }
+  if (parsed.protocol !== 'https:') {
+    return 'Webhook URL must use HTTPS.';
+  }
+  if (!STAGING_WEBHOOK_HOSTS.has(parsed.hostname.toLowerCase())) {
+    return 'Webhook URL must be a staging host (staging-admin.emdadsy.com or staging-client.emdadsy.com).';
+  }
+  const expectedPath = `/api/shipping/webhooks/${providerCode}`;
+  if (parsed.pathname.replace(/\/+$/, '') !== expectedPath) {
+    return `Webhook path must be ${expectedPath}.`;
+  }
+  return null;
+}
 
 class ResolveBabelNeighbourhoodDto {
   @Type(() => Number)
@@ -67,7 +91,13 @@ export class ShippingController {
     private readonly encryption: EncryptionService,
     private readonly tracking: ShippingTrackingService,
     private readonly registry: ShippingProviderRegistry,
+    private readonly fees: ShippingFeeService,
   ) {}
+
+  @Get('orders/:omsOrderId/carrier-costs')
+  carrierCosts(@Param('omsOrderId') omsOrderId: string) {
+    return this.fees.carrierCostHistoryForOrder(omsOrderId);
+  }
 
   @Get('providers')
   listProviders() {
@@ -126,6 +156,7 @@ export class ShippingController {
       body.username,
       body.password,
       user.id,
+      body.webhookSecret,
     );
   }
 
@@ -246,12 +277,39 @@ export class ShippingController {
   @Post('providers/:providerCode/register-webhook')
   async registerWebhook(
     @Param('providerCode') providerCode: string,
-    @Body() body: { webhookUrl: string; secret: string },
+    @Body() body: RegisterShippingWebhookDto,
   ) {
     const code = providerCode.toUpperCase().trim();
+    if (code === SENA_EXPRESS_CODE) {
+      const secret = body.secret?.trim();
+      if (!secret) {
+        return { ok: false, message: 'Webhook secret is required.' };
+      }
+      const connection = await this.prisma.shippingProviderConnection.findFirst({
+        where: { provider: { code } },
+      });
+      if (!connection) {
+        return { ok: false, message: `Provider ${code} is not connected.` };
+      }
+      await this.prisma.shippingProviderConnection.update({
+        where: { id: connection.id },
+        data: { webhookSecret: secret },
+      });
+      return {
+        ok: true,
+        secretSaved: true,
+        secretPrefix: `${secret.slice(0, 6)}…`,
+        message: 'SENA Express webhook secret saved successfully.',
+      };
+    }
     const adapter = this.registry.get(code);
     if (!adapter || !adapter.registerWebhook) {
       return { ok: false, message: `Provider ${code} does not support automatic webhook registration.` };
+    }
+    const webhookUrl = (body.webhookUrl || '').trim();
+    const urlError = assertStagingWebhookUrl(webhookUrl, code);
+    if (urlError) {
+      return { ok: false, message: urlError };
     }
     const connection = await this.prisma.shippingProviderConnection.findFirst({
       where: { provider: { code } },
@@ -263,14 +321,45 @@ export class ShippingController {
       username: this.encryption.decrypt(connection.encryptedUsername),
       password: connection.encryptedPassword ? this.encryption.decrypt(connection.encryptedPassword) : '',
     };
-    const result = await adapter.registerWebhook(credentials, body.webhookUrl, body.secret);
-    if (result.ok) {
+    const requestedSecret = body.secret?.trim() || '';
+    const existingSecret = connection.webhookSecret?.trim() || '';
+    const registerSecret =
+      code === BABEL_EXPRESS_CODE
+        ? requestedSecret.length >= 32
+          ? requestedSecret
+          : existingSecret.length >= 32
+            ? existingSecret
+            : ''
+        : requestedSecret;
+    const result = await adapter.registerWebhook(credentials, webhookUrl, registerSecret);
+    if (!result.ok) return { ok: false, message: result.message };
+
+    const webhookSecret = result.secret || body.secret?.trim() || '';
+    if (webhookSecret) {
       await this.prisma.shippingProviderConnection.update({
         where: { id: connection.id },
-        data: { webhookSecret: body.secret },
+        data: { webhookSecret },
       });
     }
-    return result;
+
+    let testPing: { ok: boolean; message?: string } | undefined;
+    if (result.webhookId && adapter.testRegisteredWebhook) {
+      testPing = await adapter.testRegisteredWebhook(credentials, result.webhookId);
+    }
+
+    return {
+      ok: true,
+      webhookId: result.webhookId,
+      secretSaved: Boolean(webhookSecret),
+      secretPrefix: webhookSecret ? `${webhookSecret.slice(0, 6)}…` : null,
+      testPing,
+      message: result.message,
+    };
+  }
+
+  @Post('shipments/:outboundOrderId/refresh-sila-awb')
+  refreshSilaAwb(@Param('outboundOrderId') outboundOrderId: string) {
+    return this.tracking.refreshSilaCarrierIdentifiers(outboundOrderId);
   }
 
   @Get('bulk/eligible')

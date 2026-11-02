@@ -5,7 +5,7 @@ import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { Alert, Badge, Card, ListPageHeader, Skeleton } from '@ds';
 
 import { InventoryApi, type LedgerRow, type StockRow } from '../api/inventory';
-import { ProductsApi, type Product, type ProductUom } from '../api/products';
+import { ProductsApi, type ProductUom } from '../api/products';
 import { Column, DataTable } from '../components/DataTable';
 import { FilterPanel } from '../components/FilterPanel';
 import { SelectField } from '../components/SelectField';

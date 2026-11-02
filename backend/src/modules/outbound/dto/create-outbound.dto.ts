@@ -1,15 +1,17 @@
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import {
   ArrayMinSize,
   IsArray,
   IsBoolean,
   IsDateString,
   IsIn,
+  IsNotEmpty,
   IsNumber,
   IsObject,
   IsOptional,
   IsPositive,
   IsString,
+  MinLength,
   ValidateNested,
 } from 'class-validator';
 
@@ -35,6 +37,9 @@ export class CreateOutboundOrderDto extends ShippingConfigDto {
   companyId?: string;
 
   @IsString()
+  @IsNotEmpty({ message: 'Destination address is required.' })
+  @Transform(({ value }: { value: unknown }) => (typeof value === 'string' ? value.trim() : value))
+  @MinLength(1, { message: 'Destination address cannot be empty.' })
   destinationAddress!: string;
 
   @IsDateString()

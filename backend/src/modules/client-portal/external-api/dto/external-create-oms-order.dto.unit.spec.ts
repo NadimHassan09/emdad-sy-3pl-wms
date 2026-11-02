@@ -16,6 +16,7 @@ const validPayload = {
     governorate: 'حلب',
     city: 'أتارب',
     neighborhood: 'أرناز',
+    street: 'Al-Mutanabbi Street, Building 4, Floor 2',
   },
   lines: [{ sku: 'SKU-100', quantity: 2, unitPrice: 10 }],
 };
@@ -96,5 +97,30 @@ describe('ExternalCreateOmsOrderDto', () => {
     const errors = await validate(dto);
     expect(errors).toHaveLength(0);
     expect(dto.paymentMethod).toBe('PREPAID');
+  });
+
+  it('rejects missing or short street address (<= 10 characters)', async () => {
+    const missingStreetDto = plainToInstance(ExternalCreateOmsOrderDto, {
+      ...validPayload,
+      address: {
+        governorate: 'حلب',
+        city: 'أتارب',
+        neighborhood: 'أرناز',
+      },
+    });
+    const missingErrors = await validate(missingStreetDto);
+    expect(missingErrors.some((e) => e.property === 'address')).toBe(true);
+
+    const shortStreetDto = plainToInstance(ExternalCreateOmsOrderDto, {
+      ...validPayload,
+      address: {
+        governorate: 'حلب',
+        city: 'أتارب',
+        neighborhood: 'أرناز',
+        street: 'Short 123', // 9 characters
+      },
+    });
+    const shortErrors = await validate(shortStreetDto);
+    expect(shortErrors.some((e) => e.property === 'address')).toBe(true);
   });
 });

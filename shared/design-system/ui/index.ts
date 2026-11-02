@@ -162,3 +162,6 @@ export {
   FilterBarActions,
   StatusFilter,
 } from './FilterBar';
+
+export { StatusCardNav } from './StatusCardNav';
+export type { StatusCardNavProps, StatusCardItem } from './StatusCardNav';

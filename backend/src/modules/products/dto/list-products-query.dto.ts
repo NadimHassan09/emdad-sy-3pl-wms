@@ -48,4 +48,10 @@ export class ListProductsQueryDto extends PaginationDto {
   @IsOptional()
   @IsBoolean()
   includeArchived?: boolean;
+
+  @EmptyToUndefined()
+  @IsOptional()
+  @IsString()
+  status?: string;
 }
+

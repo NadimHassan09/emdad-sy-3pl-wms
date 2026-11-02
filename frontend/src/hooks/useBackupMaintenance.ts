@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState } from 'react';
 
 import { BackupsApi, type BackupStatus } from '../api/backups';
 import { QK } from '../constants/query-keys';
+import { isBackupJobId } from '../lib/backup-display';
 
 export type BackupActiveOperation = {
   busy: boolean;
@@ -31,10 +32,14 @@ export function useBackupMaintenanceWatch(enabled: boolean, trackedJobId: string
 
   const statusQuery = useQuery({
     queryKey: QK.backups.status(jobId ?? 'none'),
-    queryFn: () => BackupsApi.status(jobId!),
-    enabled: enabled && !!jobId && (maintenanceVisible || !!activeQuery.data?.maintenance),
+    queryFn: ({ queryKey }) => BackupsApi.status(String(queryKey[2] ?? '')),
+    enabled:
+      enabled &&
+      isBackupJobId(jobId) &&
+      (maintenanceVisible || !!activeQuery.data?.maintenance),
     refetchInterval: 15_000,
     staleTime: 5_000,
+    retry: false,
   });
 
   useEffect(() => {

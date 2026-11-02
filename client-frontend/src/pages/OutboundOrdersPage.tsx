@@ -6,8 +6,10 @@ import {
   AdvancedFilterSection,
   countNonEmptyFilters,
   FILTER_COMPACT_SEARCH_CLASS,
-  FILTER_COMPACT_SELECT_CLASS,
   FILTER_FIELD_CONTROL_CLASS,
+  StatusCardNav,
+  STATUS_CARD_TONES,
+  type StatusCardItem,
 } from '@ds';
 import {
   CHUNK_SIZE_STANDARD,
@@ -31,14 +33,6 @@ import {
   CLIENT_OUTBOUND_EXPORT_COLUMNS,
   downloadClientOrdersExport,
 } from '../services/clientOrdersExport';
-
-const OUTBOUND_STATUS_OPTIONS = [
-  { value: '', label: 'All statuses' },
-  { value: 'pending_approval', label: 'Waiting for approval' },
-  { value: 'in_progress', label: 'In progress' },
-  { value: 'shipped', label: 'Shipped' },
-  { value: 'cancelled', label: 'Cancelled' },
-];
 
 function outboundLabel(label: string, isArabic: boolean): string {
   if (!isArabic) return label;
@@ -137,7 +131,7 @@ export function OutboundOrdersPage(): ReactElement {
     });
   };
 
-  const onExportSubmit = async (payload: { columnIds: string[]; arabicHeaders: boolean }) => {
+  const onExportSubmit = async (payload: { columnIds: string[]; arabicHeaders: boolean; format?: 'xlsx' | 'csv' }) => {
     if (exporting) return;
     setExporting(true);
     setExportError(null);
@@ -155,6 +149,54 @@ export function OutboundOrdersPage(): ReactElement {
     } finally {
       setExporting(false);
     }
+  };
+
+  const statusCards: StatusCardItem[] = useMemo(() => {
+    const totalCount = pagination.serverPagination.total;
+    return [
+      {
+        value: '',
+        label: t('All statuses'),
+        count: appliedFilters.status === '' ? totalCount : undefined,
+        tone: STATUS_CARD_TONES.slate.tone,
+        ring: STATUS_CARD_TONES.slate.ring,
+      },
+      {
+        value: 'pending_approval',
+        label: t('Waiting for approval'),
+        count: appliedFilters.status === 'pending_approval' ? totalCount : undefined,
+        tone: STATUS_CARD_TONES.amber.tone,
+        ring: STATUS_CARD_TONES.amber.ring,
+      },
+      {
+        value: 'in_progress',
+        label: t('In progress'),
+        count: appliedFilters.status === 'in_progress' ? totalCount : undefined,
+        tone: STATUS_CARD_TONES.blue.tone,
+        ring: STATUS_CARD_TONES.blue.ring,
+      },
+      {
+        value: 'shipped',
+        label: t('Shipped'),
+        count: appliedFilters.status === 'shipped' ? totalCount : undefined,
+        tone: STATUS_CARD_TONES.purple.tone,
+        ring: STATUS_CARD_TONES.purple.ring,
+      },
+      {
+        value: 'cancelled',
+        label: t('Cancelled'),
+        count: appliedFilters.status === 'cancelled' ? totalCount : undefined,
+        tone: STATUS_CARD_TONES.rose.tone,
+        ring: STATUS_CARD_TONES.rose.ring,
+      },
+    ];
+  }, [appliedFilters.status, pagination.serverPagination.total, t]);
+
+  const handleStatusChange = (val: string) => {
+    setDraft({ status: val });
+    setTimeout(() => {
+      applyFilters();
+    }, 0);
   };
 
 
@@ -205,6 +247,15 @@ export function OutboundOrdersPage(): ReactElement {
         }
       />
 
+      {/* Standardized Status Card Nav */}
+      <StatusCardNav
+        items={statusCards}
+        value={appliedFilters.status || ''}
+        onChange={handleStatusChange}
+        isArabic={isArabic}
+        className="w-full"
+      />
+
       {!hideImportUi ? (
         <ClientOrderImportModal
           kind="outbound"
@@ -244,35 +295,21 @@ export function OutboundOrdersPage(): ReactElement {
         onAdvancedOpenChange={setAdvancedOpen}
         isArabic={isArabic}
         loading={pagination.isFetching}
-        activeCount={countNonEmptyFilters(appliedFilters, ['status'])}
+        activeCount={countNonEmptyFilters(appliedFilters, ['search'])}
         onApply={applyFilters}
         onReset={() => {
           resetFilters();
           setAdvancedOpen(false);
         }}
         compact={
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-            <div className="relative min-w-0 flex-1 sm:max-w-sm">
-              <i className="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-text-faint text-xs" />
-              <input
-                value={draftFilters.search}
-                onChange={(e) => setDraft({ search: e.target.value })}
-                placeholder={t('Search order number...')}
-                className={FILTER_COMPACT_SEARCH_CLASS}
-              />
-            </div>
-            <select
-              value={draftFilters.status}
-              onChange={(e) => setDraft({ status: e.target.value })}
-              aria-label={t('All statuses')}
-              className={FILTER_COMPACT_SELECT_CLASS}
-            >
-              {OUTBOUND_STATUS_OPTIONS.map((o) => (
-                <option key={o.value || 'all'} value={o.value}>
-                  {o.value === '' ? t('All statuses') : t(o.label)}
-                </option>
-              ))}
-            </select>
+          <div className="relative min-w-0 flex-1 sm:max-w-sm">
+            <i className="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-text-faint text-xs" />
+            <input
+              value={draftFilters.search}
+              onChange={(e) => setDraft({ search: e.target.value })}
+              placeholder={t('Search order number...')}
+              className={FILTER_COMPACT_SEARCH_CLASS}
+            />
           </div>
         }
       >
@@ -284,20 +321,6 @@ export function OutboundOrdersPage(): ReactElement {
             placeholder={t('Search order number...')}
             className={FILTER_FIELD_CONTROL_CLASS}
           />
-        </div>
-        <div className="min-w-0">
-          <label className="mb-1 block text-xs font-semibold text-text-muted">{t('Status')}</label>
-          <select
-            value={draftFilters.status}
-            onChange={(e) => setDraft({ status: e.target.value })}
-            className={FILTER_FIELD_CONTROL_CLASS}
-          >
-            {OUTBOUND_STATUS_OPTIONS.map((o) => (
-              <option key={o.value || 'all'} value={o.value}>
-                {o.value === '' ? t('All statuses') : t(o.label)}
-              </option>
-            ))}
-          </select>
         </div>
       </AdvancedFilterSection>
 

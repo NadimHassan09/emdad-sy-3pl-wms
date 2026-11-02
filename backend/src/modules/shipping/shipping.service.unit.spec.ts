@@ -27,7 +27,7 @@ describe('ShippingService.ensureShipmentForOutbound', () => {
                 recipientName: 'Ali',
                 recipientPhone: '+963999000111',
                 shippingPhoneCountry: 'SY',
-                destinationAddress: 'Damascus',
+                destinationAddress: 'Damascus, Mezzeh Western Villas',
                 addressLine1: null,
                 addressLine2: null,
                 district: null,
@@ -62,6 +62,7 @@ describe('ShippingService.ensureShipmentForOutbound', () => {
       },
       carrierShipment: {
         findFirst: jest.fn().mockResolvedValue(overrides.created ?? null),
+        findUnique: jest.fn().mockResolvedValue({ id: 'claim-1', rawResultMeta: {} }),
         create: jest.fn().mockResolvedValue({ id: 'claim-1' }),
         update: jest.fn().mockResolvedValue({}),
         updateMany: jest.fn().mockResolvedValue({ count: 0 }),
@@ -215,9 +216,110 @@ describe('ShippingService.ensureShipmentForOutbound', () => {
     expect(prisma.omsOrder.update).toHaveBeenCalledWith(
       expect.objectContaining({
         where: { id: 'oms-1' },
-        data: expect.objectContaining({ trackingNumber: 'AWB-1' }),
+        data: expect.objectContaining({
+          trackingNumber: 'AWB-1',
+          carrier: 'Babel Express',
+          shippingProviderCode: 'BABEL_EXPRESS',
+          shippingServiceId: 'BABEL_EXPRESS:address',
+        }),
       }),
     );
+  });
+
+  it('1. successful Babel submit replaces leftover TARABUT identity', async () => {
+    const { service, prisma, createShipment } = buildService({
+      order: {
+        id: 'out-1',
+        companyId: 'co-1',
+        status: 'ready_to_ship',
+        shippingMethod: ShippingMethod.carrier,
+        shippingProviderCode: 'BABEL_EXPRESS',
+        shippingServiceId: 'BABEL_EXPRESS:address',
+        trackingNumber: 'TARABUT-OLD-AWB',
+        carrier: 'ترابط',
+        recipientName: 'Ali',
+        recipientPhone: '+963999000111',
+        shippingPhoneCountry: 'SY',
+        destinationAddress: 'Damascus, Mezzeh Western Villas',
+        addressLine1: null,
+        addressLine2: null,
+        district: null,
+        city: 'Damascus',
+        shippingReceiverLat: 33.5,
+        shippingReceiverLng: 36.3,
+        shippingPackageType: 'box',
+        shippingContents: 'Goods',
+        shippingDeliveryType: 'address',
+        shippingPickupType: 'address',
+        shippingPayer: 'reseller',
+        shippingWeightKg: 2,
+        paymentMethod: null,
+        codAmount: null,
+        currency: 'USD',
+        orderNumber: 'OUT-1',
+        clientReference: null,
+        lines: [],
+        omsOrder: {
+          id: 'oms-1',
+          orderNumber: 'OMS-2026-02291',
+          trackingNumber: 'TARABUT-OLD-AWB',
+          carrier: 'ترابط',
+          shippingServiceId: 'SILA_SY:fd4f088d-243b-4582-bb72-bb97c69b589c:area',
+          paymentMethod: null,
+          codAmount: null,
+          currency: 'USD',
+        },
+      },
+    });
+    await service.ensureShipmentForOutbound('out-1');
+    expect(createShipment).toHaveBeenCalledTimes(1);
+    expect(prisma.omsOrder.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          carrier: 'Babel Express',
+          trackingNumber: 'AWB-1',
+          shippingProviderCode: 'BABEL_EXPRESS',
+          shippingServiceId: 'BABEL_EXPRESS:address',
+        }),
+      }),
+    );
+    expect(prisma.outboundOrder.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          carrier: 'Babel Express',
+          trackingNumber: 'AWB-1',
+          shippingProviderCode: 'BABEL_EXPRESS',
+        }),
+      }),
+    );
+  });
+
+  it('4. failed Babel submit does not replace OMS carrier identity', async () => {
+    const createShipment = jest.fn().mockRejectedValue(new Error('Babel down'));
+    const { service, prisma } = buildService({ createShipment });
+    await service.ensureShipmentForOutbound('out-1');
+    expect(prisma.omsOrder.update).not.toHaveBeenCalled();
+    expect(prisma.outboundOrder.update).not.toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ carrier: 'Babel Express' }),
+      }),
+    );
+  });
+
+  it('4. ambiguous submit without a confirmed AWB does not replace the active shipment', async () => {
+    const createShipment = jest.fn().mockRejectedValue(new Error('timeout waiting for carrier response'));
+    const { service, prisma, registry } = buildService({ createShipment });
+    registry.get.mockReturnValue({
+      createShipment,
+      findShipmentByReference: jest.fn().mockResolvedValue(null),
+    } as never);
+    await service.ensureShipmentForOutbound('out-1');
+    expect(prisma.carrierShipment.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ status: CarrierShipmentStatus.failed }),
+      }),
+    );
+    expect(prisma.omsOrder.update).not.toHaveBeenCalled();
   });
 
   it('provider failure: marks claim failed and does not ship', async () => {

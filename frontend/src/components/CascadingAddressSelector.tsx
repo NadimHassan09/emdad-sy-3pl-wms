@@ -29,8 +29,8 @@ export type CascadingAddressSelectorProps = {
 };
 
 /**
- * Cascading City → District → Address Line 1 selectors.
- * Dropdown suggestions are optional — users may type any value freely.
+ * Cascading Governorate (city) → City/Region (district) → Town/Neighborhood (addressLine1) selectors.
+ * Strictly enforces canonical Syrian geographic hierarchy.
  */
 export function CascadingAddressSelector({
   value,
@@ -39,9 +39,9 @@ export function CascadingAddressSelector({
   cityLabel = 'Governorate',
   districtLabel = 'City/Region',
   addressLine1Label = 'Town/Neighborhood',
-  cityPlaceholder = 'Select or type governorate…',
-  districtPlaceholder = 'Select or type city/region…',
-  addressLine1Placeholder = 'Select or type town/neighborhood…',
+  cityPlaceholder = 'Select governorate…',
+  districtPlaceholder = 'Select city/region…',
+  addressLine1Placeholder = 'Select town/neighborhood…',
   disabled = false,
   cityRequired = false,
   districtRequired = false,
@@ -52,25 +52,14 @@ export function CascadingAddressSelector({
     () => listDistricts(value.city, data),
     [data, value.city],
   );
-
-  const cityOptions = useMemo(
-    () => toComboboxOptions(cities, value.city || undefined),
-    [cities, value.city],
+  const neighborhoods = useMemo(
+    () => listNeighborhoods(value.city, value.district, data),
+    [data, value.city, value.district],
   );
 
-  const districtOptions = useMemo(
-    () => toComboboxOptions(districts, value.district || undefined),
-    [districts, value.district],
-  );
-
-  const addressOptions = useMemo(
-    () =>
-      toComboboxOptions(
-        listNeighborhoods(value.city, value.district, data),
-        value.addressLine1 || undefined,
-      ),
-    [data, value.city, value.district, value.addressLine1],
-  );
+  const cityOptions = useMemo(() => toComboboxOptions(cities), [cities]);
+  const districtOptions = useMemo(() => toComboboxOptions(districts), [districts]);
+  const addressOptions = useMemo(() => toComboboxOptions(neighborhoods), [neighborhoods]);
 
   return (
     <>
@@ -78,11 +67,14 @@ export function CascadingAddressSelector({
         label={cityLabel}
         value={value.city}
         onChange={(city) => {
-          const knownPick = city !== '' && cities.includes(city) && city !== value.city;
+          const nextDistricts = listDistricts(city, data);
+          const nextDistrict = nextDistricts.includes(value.district) ? value.district : '';
+          const nextNeighborhoods = nextDistrict ? listNeighborhoods(city, nextDistrict, data) : [];
+          const nextAddressLine1 = nextNeighborhoods.includes(value.addressLine1) ? value.addressLine1 : '';
           onChange({
             city,
-            district: knownPick || city === '' ? '' : value.district,
-            addressLine1: knownPick || city === '' ? '' : value.addressLine1,
+            district: nextDistrict,
+            addressLine1: nextAddressLine1,
           });
         }}
         options={cityOptions}
@@ -90,29 +82,33 @@ export function CascadingAddressSelector({
         disabled={disabled}
         required={cityRequired}
         clearable={!cityRequired}
-        allowCustomValue
+        allowCustomValue={false}
         emptyMessage={cityOptions.length === 0 ? 'No governorates available' : 'No matches'}
       />
       <Combobox
         label={districtLabel}
         value={value.district}
         onChange={(district) => {
-          const knownPick =
-            district !== '' && districts.includes(district) && district !== value.district;
+          const nextNeighborhoods = listNeighborhoods(value.city, district, data);
+          const nextAddressLine1 = nextNeighborhoods.includes(value.addressLine1) ? value.addressLine1 : '';
           onChange({
             city: value.city,
             district,
-            addressLine1: knownPick || district === '' ? '' : value.addressLine1,
+            addressLine1: nextAddressLine1,
           });
         }}
         options={districtOptions}
         placeholder={districtPlaceholder}
-        disabled={disabled}
+        disabled={disabled || !value.city}
         required={districtRequired}
         clearable={!districtRequired}
-        allowCustomValue
+        allowCustomValue={false}
         emptyMessage={
-          districtOptions.length === 0 ? 'Type a city/region or pick a governorate for suggestions' : 'No matches'
+          !value.city
+            ? 'Select a governorate first'
+            : districtOptions.length === 0
+              ? 'No cities available for this governorate'
+              : 'No matches'
         }
       />
       <Combobox
@@ -127,14 +123,16 @@ export function CascadingAddressSelector({
         }
         options={addressOptions}
         placeholder={addressLine1Placeholder}
-        disabled={disabled}
+        disabled={disabled || !value.district}
         required={addressLine1Required}
         clearable={!addressLine1Required}
-        allowCustomValue
+        allowCustomValue={false}
         emptyMessage={
-          addressOptions.length === 0
-            ? 'Type a town/neighborhood or pick a city/region for suggestions'
-            : 'No matches'
+          !value.district
+            ? 'Select a city/region first'
+            : addressOptions.length === 0
+              ? 'No neighborhoods available for this city'
+              : 'No matches'
         }
       />
     </>

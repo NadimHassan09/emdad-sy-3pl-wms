@@ -80,6 +80,15 @@ let OmsOutboundSyncService = class OmsOutboundSyncService {
             where: { id: oms.id },
             data: { status: next, ...extra },
         });
+        if (next === client_1.OmsOrderStatus.shipped) {
+            await tx.inboundSourceAllocation.updateMany({
+                where: {
+                    OR: [{ omsOrderId: oms.id }, { outboundOrderId }],
+                    status: 'allocated',
+                },
+                data: { status: 'fulfilled' },
+            });
+        }
         const eventType = next === client_1.OmsOrderStatus.shipped
             ? 'oms.shipped'
             : next === client_1.OmsOrderStatus.ready_to_ship
@@ -126,7 +135,7 @@ let OmsOutboundSyncService = class OmsOutboundSyncService {
                 select: { id: true, orderNumber: true },
             });
             if (existing) {
-                if (oms.status !== client_1.OmsOrderStatus.processing) {
+                if (oms_order_transitions_1.OMS_PRE_FULFILLMENT.has(oms.status)) {
                     await tx.omsOrder.update({
                         where: { id: oms.id },
                         data: {

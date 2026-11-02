@@ -19,14 +19,6 @@ type Props = {
   onImported: () => void;
 };
 
-type ClientSummary = {
-  created?: number;
-  invalid?: number;
-  duplicate?: number;
-  createdOrderNumbers?: string[];
-  errors?: Array<{ rowNumber: number; orderNumber: string | null; error: string; field?: string | null }>;
-};
-
 function errorsToCsv(
   errors: Array<{ rowNumber: number; externalReference?: string | null; orderNumber?: string | null; reason?: string; error?: string }>,
 ): string {
@@ -55,7 +47,7 @@ export function OmsOrdersImportModal({ open, onClose, onImported }: Props) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [companyId, setCompanyId] = useState('');
   const [file, setFile] = useState<File | null>(null);
-  const [result, setResult] = useState<(Record<string, any> & ClientSummary) | null>(null);
+  const [result, setResult] = useState<any | null>(null);
 
   const companiesQuery = useQuery({
     queryKey: QK.companies,
@@ -82,7 +74,7 @@ export function OmsOrdersImportModal({ open, onClose, onImported }: Props) {
 
   const importMut = useMutation({
     mutationFn: (f: File) => OmsApi.importOrders(f, companyId),
-    onSuccess: (data) => {
+    onSuccess: (data: any) => {
       setResult(data);
       const imported = data.imported ?? data.created ?? 0;
       const failed = data.failed ?? data.invalid ?? 0;
@@ -130,8 +122,8 @@ export function OmsOrdersImportModal({ open, onClose, onImported }: Props) {
       <div className="space-y-4 text-sm text-text-body">
         <p>
           {t([
-            'Pick a client, download the client CSV/Excel template, then upload once. Same validation as the client portal (complete rows only).',
-            'اختر عميلًا، نزّل قالب العميل CSV/Excel، ثم ارفع الملف مرة واحدة. نفس قواعد التحقق في بوابة العميل (صفوف مكتملة فقط).',
+            'Pick a client, download the client CSV/Excel template, then upload once. Same validation as the client portal (complete rows only). Street / detailed address is required and must be more than 10 characters.',
+            'اختر عميلًا، نزّل قالب العميل CSV/Excel، ثم ارفع الملف مرة واحدة. نفس قواعد التحقق في بوابة العميل (صفوف مكتملة فقط). حقل العنوان التفصيلي (الشارع) إلزامي ويجب أن يكون أكثر من 10 أحرف.',
           ])}
         </p>
 

@@ -15,16 +15,12 @@ const client_1 = require("@prisma/client");
 const crypto_1 = require("crypto");
 const client_auth_principal_1 = require("../../../common/auth/client-auth-principal");
 const order_planning_date_1 = require("../../../common/utils/order-planning-date");
+const discrete_uom_quantity_1 = require("../../../common/utils/discrete-uom-quantity");
 const outbound_service_1 = require("../../outbound/outbound.service");
 const outbound_client_import_schema_1 = require("./outbound-client-import.schema");
 const order_import_grouping_1 = require("./order-import.grouping");
 const spreadsheet_parse_1 = require("./spreadsheet.parse");
-function parsePositiveQty(raw) {
-    const n = Number(String(raw).trim().replace(/,/g, ''));
-    if (!Number.isFinite(n) || n <= 0)
-        return null;
-    return n;
-}
+const oms_client_import_validation_1 = require("./oms-client-import.validation");
 let OutboundClientImportService = class OutboundClientImportService {
     outbound;
     constructor(outbound) {
@@ -54,20 +50,21 @@ let OutboundClientImportService = class OutboundClientImportService {
         const skuToProduct = new Map(products.map((p) => [p.sku.trim().toUpperCase(), p]));
         for (const group of groups) {
             const firstRow = group.rowNumbers[0] ?? 0;
-            const orderNumber = group.orderNumber.trim();
+            const orderNumberResult = (0, oms_client_import_validation_1.validateImportOrderNumber)(group.orderNumber);
             const pushErr = (error, field, rowNumber = firstRow) => {
                 errors.push({
                     rowNumber,
-                    orderNumber: orderNumber || null,
+                    orderNumber: orderNumberResult.ok ? orderNumberResult.value : group.orderNumber?.trim() || null,
                     error,
                     field: field ?? null,
                 });
             };
-            if (!orderNumber || group.conflict?.field === 'order_number') {
+            if (!orderNumberResult.ok) {
                 invalid++;
-                pushErr('Order number is required.', 'order_number');
+                pushErr(orderNumberResult.message, 'order_number');
                 continue;
             }
+            const orderNumber = orderNumberResult.value;
             if (group.conflict) {
                 invalid++;
                 pushErr(group.conflict.error, group.conflict.field);
@@ -97,6 +94,7 @@ let OutboundClientImportService = class OutboundClientImportService {
                 continue;
             }
             const lines = [];
+            const seenProductIds = new Set();
             let lineInvalid = false;
             for (const line of group.lines) {
                 const sku = line.values.sku?.trim() ?? '';
@@ -113,14 +111,31 @@ let OutboundClientImportService = class OutboundClientImportService {
                     lineInvalid = true;
                     break;
                 }
-                const qty = parsePositiveQty(line.values.requested_quantity ?? '');
-                if (qty == null) {
+                if (seenProductIds.has(product.id)) {
                     invalid++;
-                    pushErr('Requested quantity must be greater than 0.', 'requested_quantity', line.rowNumber);
+                    pushErr(`Duplicate SKU "${sku}" in the same order. Each product can only appear once.`, 'sku', line.rowNumber);
                     lineInvalid = true;
                     break;
                 }
-                lines.push({ productId: product.id, requestedQuantity: qty });
+                seenProductIds.add(product.id);
+                const qtyResult = (0, oms_client_import_validation_1.validateImportPositiveQuantity)(line.values.requested_quantity ?? '', 'Requested quantity');
+                if (!qtyResult.ok) {
+                    invalid++;
+                    pushErr(qtyResult.message, 'requested_quantity', line.rowNumber);
+                    lineInvalid = true;
+                    break;
+                }
+                try {
+                    (0, discrete_uom_quantity_1.assertDiscreteUomPositiveIntegerQuantity)(product.uom, qtyResult.value, 'Requested quantity');
+                }
+                catch (err) {
+                    invalid++;
+                    const msg = err instanceof Error ? err.message : 'Invalid quantity for product UOM.';
+                    pushErr(msg, 'requested_quantity', line.rowNumber);
+                    lineInvalid = true;
+                    break;
+                }
+                lines.push({ productId: product.id, requestedQuantity: qtyResult.value });
             }
             if (lineInvalid)
                 continue;

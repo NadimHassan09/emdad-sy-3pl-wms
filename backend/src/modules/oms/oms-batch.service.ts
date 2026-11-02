@@ -4,6 +4,7 @@ import { Prisma } from '@prisma/client';
 import { AuthPrincipal } from '../../common/auth/current-user.types';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { withTenantRls } from '../../common/prisma/tenant-rls';
+import { ShippingTrackingService } from '../shipping/shipping-tracking.service';
 import { summarizeBatchMembers, type BatchMemberSnapshot } from './oms-batch-summary';
 import { serializeOmsOrderListItem, type OmsOrderWithRelations } from './oms-order.mapper';
 
@@ -11,7 +12,10 @@ const ACTIVE = { removedAt: null } as const;
 
 @Injectable()
 export class OmsBatchService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly shippingTracking: ShippingTrackingService,
+  ) {}
 
   async create(user: AuthPrincipal, ids: string[], name?: string) {
     const unique = [...new Set(ids.map((id) => id.trim()).filter(Boolean))];
@@ -281,5 +285,36 @@ export class OmsBatchService {
       }
       return { updated: result.count };
     });
+  }
+
+  async cancelShipments(user: AuthPrincipal, batchId: string, orderIds?: string[]) {
+    const batch = await this.get(user, batchId);
+    const validMemberIds = new Set(batch.orders.map((row) => row.order.id));
+    const targetIds =
+      orderIds && orderIds.length > 0
+        ? orderIds.filter((id) => validMemberIds.has(id))
+        : [...validMemberIds];
+
+    const results = [];
+    for (const orderId of targetIds) {
+      try {
+        const res = await this.shippingTracking.cancelCarrierShipmentForOrder({
+          omsOrderId: orderId,
+          user,
+          reason: `Batch cancellation from batch ${batch.batchNumber}`,
+        });
+        results.push(res);
+      } catch (err: any) {
+        results.push({
+          success: false,
+          status: 'error',
+          message: err?.message || 'Error cancelling shipment',
+          orderId,
+          orderNumber: orderId,
+          errorCode: 'exception',
+        });
+      }
+    }
+    return results;
   }
 }

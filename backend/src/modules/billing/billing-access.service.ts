@@ -171,6 +171,21 @@ export class BillingAccessService {
       throw new BillingCycleExpiredException();
     }
 
+    // Under Financial Management cutover, active client accounts are not blocked by legacy cycle expiry
+    const cutoverPolicy = await this.prisma.financialPolicy.findUnique({
+      where: { key: 'cutover_active' },
+      select: { value: true },
+    });
+    if (cutoverPolicy?.value === 'true') {
+      const financialAccount = await this.prisma.clientFinancialAccount.findUnique({
+        where: { companyId },
+        select: { status: true },
+      });
+      if (financialAccount && financialAccount.status === 'active') {
+        return;
+      }
+    }
+
     const plan = await this.prisma.billingPlan.findFirst({
       where: { companyId, active: true },
       select: { id: true },

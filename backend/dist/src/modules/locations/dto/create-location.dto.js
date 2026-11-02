@@ -12,6 +12,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.CreateLocationDto = void 0;
 const client_1 = require("@prisma/client");
 const class_validator_1 = require("class-validator");
+const query_transform_1 = require("../../../common/transformers/query-transform");
 const is_uuid_loose_1 = require("../../../common/validators/is-uuid-loose");
 class CreateLocationDto {
     warehouseId;
@@ -28,6 +29,7 @@ __decorate([
     __metadata("design:type", String)
 ], CreateLocationDto.prototype, "warehouseId", void 0);
 __decorate([
+    (0, query_transform_1.EmptyToUndefined)(),
     (0, class_validator_1.IsOptional)(),
     (0, is_uuid_loose_1.IsUuidLoose)(),
     __metadata("design:type", String)

@@ -9,13 +9,14 @@ export type ClientOmsExportColumnOption = {
 };
 
 export type ClientOmsExportHeaderLang = 'ar' | 'en';
+export type ExportFileFormat = 'xlsx' | 'csv';
 
 type Props = {
   open: boolean;
   onClose: () => void;
   columns: ClientOmsExportColumnOption[];
   exporting: boolean;
-  onExport: (payload: { columnIds: string[]; arabicHeaders: boolean }) => void;
+  onExport: (payload: { columnIds: string[]; arabicHeaders: boolean; format: ExportFileFormat }) => void;
   isArabic?: boolean;
   errorMessage?: string | null;
   /** Optional override; defaults to OMS title. */
@@ -33,7 +34,8 @@ export function ClientOmsOrdersExportModal({
   title,
 }: Props): ReactElement {
   const [selected, setSelected] = useState<Set<string>>(() => new Set(columns.map((c) => c.id)));
-  /** CSV column headlines language — Arabic by default. */
+  const [format, setFormat] = useState<ExportFileFormat>('xlsx');
+  /** Column headlines language — Arabic by default. */
   const [headerLang, setHeaderLang] = useState<ClientOmsExportHeaderLang>('ar');
 
   const columnKey = columns.map((c) => c.id).join(',');
@@ -41,6 +43,7 @@ export function ClientOmsOrdersExportModal({
     if (open) {
       setSelected(new Set(columns.map((c) => c.id)));
       setHeaderLang('ar');
+      setFormat('xlsx');
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, columnKey]);
@@ -53,8 +56,11 @@ export function ClientOmsOrdersExportModal({
     if (!isArabic) {
       return {
         title: title ?? 'Export OMS Orders',
-        hint: 'Select the fields you want to include in the exported file.',
-        headerLang: 'CSV column headers',
+        hint: 'Select the fields and file format you want to export.',
+        formatLabel: 'File format',
+        excel: 'Excel (.xlsx)',
+        csv: 'CSV (.csv)',
+        headerLang: 'Column headers language',
         arabic: 'Arabic',
         english: 'English',
         selectAll: 'Select All',
@@ -62,14 +68,17 @@ export function ClientOmsOrdersExportModal({
         selected: (n: number) => `Selected: ${n} field${n === 1 ? '' : 's'}`,
         needOne: 'Please select at least one field to export.',
         cancel: 'Cancel',
-        exportCsv: 'Export CSV',
+        exportBtn: format === 'xlsx' ? 'Export Excel' : 'Export CSV',
         exporting: 'Exporting...',
       };
     }
     return {
       title: title ?? 'تصدير الطلبات الإلكترونية',
-      hint: 'اختر الحقول التي تريد تضمينها في ملف التصدير.',
-      headerLang: 'عناوين أعمدة CSV',
+      hint: 'اختر الحقول وصيغة الملف التي تريد تصديرها.',
+      formatLabel: 'صيغة الملف',
+      excel: 'إكسل (.xlsx)',
+      csv: 'CSV (.csv)',
+      headerLang: 'لغة عناوين الأعمدة',
       arabic: 'عربي',
       english: 'إنجليزي',
       selectAll: 'تحديد الكل',
@@ -77,10 +86,10 @@ export function ClientOmsOrdersExportModal({
       selected: (n: number) => `المحدد: ${n} حقل`,
       needOne: 'يرجى اختيار حقل واحد على الأقل للتصدير.',
       cancel: 'إلغاء',
-      exportCsv: 'تصدير CSV',
+      exportBtn: format === 'xlsx' ? 'تصدير إكسل' : 'تصدير CSV',
       exporting: 'جاري التصدير...',
     };
-  }, [isArabic, title]);
+  }, [isArabic, title, format]);
 
   const toggle = (id: string) => {
     setSelected((prev) => {
@@ -115,10 +124,11 @@ export function ClientOmsOrdersExportModal({
               onExport({
                 columnIds: columns.filter((c) => selected.has(c.id)).map((c) => c.id),
                 arabicHeaders,
+                format,
               });
             }}
           >
-            {exporting ? labels.exporting : labels.exportCsv}
+            {exporting ? labels.exporting : labels.exportBtn}
           </Button>
         </div>
       }
@@ -129,27 +139,53 @@ export function ClientOmsOrdersExportModal({
         <Alert variant="error" title={errorMessage} className="mb-3" />
       ) : null}
 
-      <div className="mb-4 flex flex-wrap items-center gap-2">
-        <span className="text-sm text-text-body">{labels.headerLang}</span>
-        <div className="inline-flex rounded-lg border border-border-strong p-0.5">
-          <Button
-            type="button"
-            variant={headerLang === 'ar' ? 'primary' : 'ghost'}
-            size="sm"
-            disabled={exporting}
-            onClick={() => setHeaderLang('ar')}
-          >
-            {labels.arabic}
-          </Button>
-          <Button
-            type="button"
-            variant={headerLang === 'en' ? 'primary' : 'ghost'}
-            size="sm"
-            disabled={exporting}
-            onClick={() => setHeaderLang('en')}
-          >
-            {labels.english}
-          </Button>
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3 p-2.5 rounded-lg border border-border-default bg-surface-muted">
+        <div className="flex items-center gap-2">
+          <span className="text-xs font-semibold text-text-body">{labels.formatLabel}</span>
+          <div className="inline-flex rounded-lg border border-border-strong p-0.5 bg-surface-base">
+            <Button
+              type="button"
+              variant={format === 'xlsx' ? 'primary' : 'ghost'}
+              size="sm"
+              disabled={exporting}
+              onClick={() => setFormat('xlsx')}
+            >
+              {labels.excel}
+            </Button>
+            <Button
+              type="button"
+              variant={format === 'csv' ? 'primary' : 'ghost'}
+              size="sm"
+              disabled={exporting}
+              onClick={() => setFormat('csv')}
+            >
+              {labels.csv}
+            </Button>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <span className="text-xs font-semibold text-text-body">{labels.headerLang}</span>
+          <div className="inline-flex rounded-lg border border-border-strong p-0.5 bg-surface-base">
+            <Button
+              type="button"
+              variant={headerLang === 'ar' ? 'primary' : 'ghost'}
+              size="sm"
+              disabled={exporting}
+              onClick={() => setHeaderLang('ar')}
+            >
+              {labels.arabic}
+            </Button>
+            <Button
+              type="button"
+              variant={headerLang === 'en' ? 'primary' : 'ghost'}
+              size="sm"
+              disabled={exporting}
+              onClick={() => setHeaderLang('en')}
+            >
+              {labels.english}
+            </Button>
+          </div>
         </div>
       </div>
 

@@ -1,11 +1,15 @@
 import {
   BadRequestException,
+  ForbiddenException,
+  HttpStatus,
   Inject,
   Injectable,
   Logger,
   NotFoundException,
+  Optional,
   forwardRef,
 } from '@nestjs/common';
+import { InboundTraceabilityService } from './inbound-traceability.service';
 import {
   OmsOrderStatus,
   OutboundOrderStatus,
@@ -15,8 +19,9 @@ import {
 
 import { readCompanyIdCatalogFilter } from '../../common/auth/company-read-scope';
 import { AuthPrincipal } from '../../common/auth/current-user.types';
+import { isInternalAdminRole } from '../../common/auth/rbac-policy';
 import { CompanyAccessService } from '../../common/company-access/company-access.service';
-import { InvalidStateException } from '../../common/errors/domain-exceptions';
+import { DomainException, InvalidStateException } from '../../common/errors/domain-exceptions';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { withTenantRls } from '../../common/prisma/tenant-rls';
 import { assertDiscreteUomPositiveIntegerQuantity } from '../../common/utils/discrete-uom-quantity';
@@ -25,6 +30,9 @@ import { assertProductOrderableForOrders } from '../../common/utils/assert-produ
 import { normalizeRecipientContact } from '../../common/validators/recipient-contact';
 import { RealtimeService } from '../realtime/realtime.service';
 import { adminOutboundListItem } from '../realtime/realtime-client.payload';
+import { BillingAccessService } from '../billing/billing-access.service';
+import { OmsReturnsService } from '../oms-returns/oms-returns.service';
+import { haversineDistanceKm } from '../shipping/geo-polygon.util';
 import { OutboundService } from '../outbound/outbound.service';
 import { CodRecordsService } from '../cod/cod-records.service';
 import {
@@ -70,9 +78,16 @@ import {
 import { assertOmsOrderDeletable } from './oms-order-delete.policy';
 import { OrderAllocationService } from './order-allocation.service';
 import { ShippingGeoService } from '../shipping/shipping-geo.service';
+import { ShippingFeeService } from '../shipping/shipping-fee.service';
 import { ShippingService } from '../shipping/shipping.service';
 import { ShippingTrackingService } from '../shipping/shipping-tracking.service';
 import { ShippingAutoReturnService } from '../shipping/shipping-auto-return.service';
+import { SILA_SY_CODE } from '../shipping/shipping.constants';
+import {
+  ACTIVE_CARRIER_SHIPMENT_WHERE,
+  isAwbPendingReassignment,
+} from '../shipping/shipping-lifecycle.util';
+import { resolveShippingCarrierName } from '../shipping/shipping-carrier-resolver';
 import { resolveOmsDeliveryLocation } from './oms-delivery-resolution';
 import {
   assertShippingIntentReady,
@@ -153,16 +168,21 @@ const ORDER_INCLUDE = {
       carrier: true,
       shippingProviderCode: true,
       shippingServiceId: true,
+      shippingHubId: true,
       shippingMethod: true,
       trackingNumber: true,
       carrierShipments: {
+        where: ACTIVE_CARRIER_SHIPMENT_WHERE,
         select: {
           id: true,
           status: true,
+          trackingNumber: true,
           externalAwb: true,
           providerCode: true,
           rawResultMeta: true,
+          supersededAt: true,
         },
+        orderBy: { createdAt: 'desc' },
         take: 1,
       },
     },
@@ -209,7 +229,18 @@ export class OmsOrdersService {
     private readonly geo: ShippingGeoService,
     @Inject(forwardRef(() => ShippingAutoReturnService))
     private readonly autoReturn: ShippingAutoReturnService,
+    private readonly shippingFees: ShippingFeeService,
+    @Inject(forwardRef(() => BillingAccessService))
+    private readonly billingAccess: BillingAccessService,
+    @Inject(forwardRef(() => OmsReturnsService))
+    private readonly omsReturns: OmsReturnsService,
+    @Optional()
+    private readonly traceability?: InboundTraceabilityService,
   ) {}
+
+  async assertBillingAllowed(companyId: string): Promise<void> {
+    await this.billingAccess.assertOperationalBilling(companyId);
+  }
 
   /** Shared list filter builder — export must use the exact same where clause. */
   buildListWhere(
@@ -226,7 +257,7 @@ export class OmsOrdersService {
       const expanded = OMS_LIST_STATUS_EXPANSIONS[query.status];
       where.status = expanded ? { in: expanded } : query.status;
     }
-    if (query.operationalStage && (!query.status || query.status === OmsOrderStatus.processing)) {
+    if (query.operationalStage) {
       andParts.push(buildOperationalStageWhere(query.operationalStage));
     }
     if (query.storeChannel?.trim()) {
@@ -416,8 +447,45 @@ export class OmsOrdersService {
    */
   async assertImportCreateReady(user: AuthPrincipal, dto: CreateOmsOrderDto): Promise<void> {
     const companyId = this.companyAccess.resolveWriteCompanyId(user, dto.companyId);
+    await this.billingAccess.assertOperationalBilling(companyId);
     assertCalendarDateNotBeforeToday(dto.requiredShipDate, 'Required ship date');
     assertAndNormalizeRecipientContact(dto);
+    assertOmsCreatePaymentMethodRequired(dto.paymentMethod);
+    if (!dto.addressLine2?.trim()) {
+      throw new BadRequestException(
+        'Street / detailed address is required and must be more than 10 characters.',
+      );
+    }
+    if (dto.addressLine2.trim().length <= 10) {
+      throw new BadRequestException(
+        'Street / detailed address must be more than 10 characters.',
+      );
+    }
+    if (dto.outboundOrderId) {
+      await this.assertOutboundLinkable(user, dto.outboundOrderId, companyId);
+    }
+    const seenProductIds = new Set<string>();
+    for (const l of dto.lines) {
+      if (seenProductIds.has(l.productId)) {
+        throw new BadRequestException('Duplicate product lines are not allowed in a single order.');
+      }
+      seenProductIds.add(l.productId);
+    }
+    const resolved = await resolveOmsDeliveryLocation(this.geo, {
+      governorate: dto.city,
+      city: dto.district,
+      neighborhood: dto.addressLine1,
+      street: dto.addressLine2,
+    });
+    if (!resolved.complete) {
+      const errorMsg =
+        resolved.reasons.governorate ||
+        resolved.reasons.city ||
+        resolved.reasons.neighborhood ||
+        resolved.reasons.address ||
+        'Delivery address is invalid.';
+      throw new BadRequestException(errorMsg);
+    }
     const destination = composeDestinationAddress(dto);
     if (!destination) {
       throw new BadRequestException(
@@ -457,6 +525,7 @@ export class OmsOrdersService {
       shippingMethod,
       shippingProviderCode: dto.shippingProviderCode,
       shippingServiceId: dto.shippingServiceId,
+      shippingHubId: dto.shippingHubId,
       shippingReceiverLat: dto.shippingReceiverLat,
       shippingReceiverLng: dto.shippingReceiverLng,
       shippingPackageType: dto.shippingPackageType,
@@ -483,6 +552,7 @@ export class OmsOrdersService {
     },
   ) {
     const companyId = this.companyAccess.resolveWriteCompanyId(user, dto.companyId);
+    await this.billingAccess.assertOperationalBilling(companyId);
     assertCalendarDateNotBeforeToday(dto.requiredShipDate, 'Required ship date');
     const contact = assertAndNormalizeRecipientContact(dto);
     const bulkImport = opts?.bulkImport;
@@ -505,7 +575,85 @@ export class OmsOrdersService {
       await this.assertOutboundLinkable(user, dto.outboundOrderId, companyId);
     }
 
-    let destination = composeDestinationAddress(dto);
+    let canonicalCity = dto.city?.trim() || null;
+    let canonicalDistrict = dto.district?.trim() || null;
+    let canonicalAddressLine1 = dto.addressLine1?.trim() || null;
+    let canonicalAddressLine2 = dto.addressLine2?.trim() || null;
+    let canonicalLat: number | null =
+      dto.shippingReceiverLat != null && Number.isFinite(Number(dto.shippingReceiverLat))
+        ? Number(dto.shippingReceiverLat)
+        : null;
+    let canonicalLng: number | null =
+      dto.shippingReceiverLng != null && Number.isFinite(Number(dto.shippingReceiverLng))
+        ? Number(dto.shippingReceiverLng)
+        : null;
+
+    if (!needsInformation) {
+      if (!canonicalAddressLine2) {
+        throw new BadRequestException(
+          'Street / detailed address is required and must be more than 10 characters.',
+        );
+      }
+      if (canonicalAddressLine2.length <= 10) {
+        throw new BadRequestException(
+          'Street / detailed address must be more than 10 characters.',
+        );
+      }
+
+      const resolved = await resolveOmsDeliveryLocation(this.geo, {
+        governorate: dto.city,
+        city: dto.district,
+        neighborhood: dto.addressLine1,
+        street: dto.addressLine2,
+      });
+      if (!resolved.complete) {
+        const errorMsg =
+          resolved.reasons.governorate ||
+          resolved.reasons.city ||
+          resolved.reasons.neighborhood ||
+          resolved.reasons.address ||
+          'Delivery address is invalid.';
+        throw new BadRequestException(errorMsg);
+      }
+      canonicalCity = resolved.city;
+      canonicalDistrict = resolved.district;
+      canonicalAddressLine1 = resolved.addressLine1;
+      canonicalAddressLine2 = resolved.addressLine2;
+
+      // Validate supplied coordinates against the resolved geographic location
+      if (canonicalLat != null && canonicalLng != null) {
+        const boundary = await this.geo.lookupBoundary({
+          governorate: canonicalCity,
+          city: canonicalDistrict,
+          neighborhood: canonicalAddressLine1,
+        });
+        const clientPoint = { lat: canonicalLat, lng: canonicalLng };
+        let coordsValid = false;
+        if (boundary && this.geo.containsPoint(boundary, clientPoint)) {
+          coordsValid = true;
+        } else if (resolved.lat != null && resolved.lng != null) {
+          const distKm = haversineDistanceKm(clientPoint, { lat: resolved.lat, lng: resolved.lng });
+          if (distKm <= 35) {
+            coordsValid = true;
+          }
+        }
+        if (!coordsValid) {
+          throw new BadRequestException(
+            `Supplied coordinates (${canonicalLat}, ${canonicalLng}) do not match the resolved delivery location (${canonicalCity}, ${canonicalDistrict}).`,
+          );
+        }
+      } else {
+        canonicalLat = resolved.lat;
+        canonicalLng = resolved.lng;
+      }
+    }
+
+    let destination = composeDestinationAddress({
+      city: canonicalCity ?? undefined,
+      district: canonicalDistrict ?? undefined,
+      addressLine1: canonicalAddressLine1 ?? undefined,
+      addressLine2: canonicalAddressLine2 ?? undefined,
+    });
     if (!destination && dto.outboundOrderId) {
       const linked = await this.outbound.findById(dto.outboundOrderId, user);
       destination = linked.destinationAddress?.trim() || 'Linked outbound order';
@@ -536,7 +684,18 @@ export class OmsOrdersService {
     }
     for (const p of products) assertProductOrderableForOrders(p.status);
     const productById = new Map(products.map((p) => [p.id, p]));
+
+    const seenProductIds = new Set<string>();
     for (const l of dto.lines) {
+      if (seenProductIds.has(l.productId)) {
+        const p = productById.get(l.productId);
+        throw new BadRequestException(
+          p?.sku
+            ? `Duplicate product line: SKU "${p.sku}" appears more than once in the order. Each product can only appear once.`
+            : 'Duplicate product line: Each product can only appear once in an order.',
+        );
+      }
+      seenProductIds.add(l.productId);
       const p = productById.get(l.productId)!;
       assertDiscreteUomPositiveIntegerQuantity(p.uom, l.requestedQuantity, 'Requested quantity');
     }
@@ -568,8 +727,9 @@ export class OmsOrdersService {
       shippingMethod,
       shippingProviderCode: dto.shippingProviderCode,
       shippingServiceId: dto.shippingServiceId,
-      shippingReceiverLat: dto.shippingReceiverLat,
-      shippingReceiverLng: dto.shippingReceiverLng,
+      shippingHubId: dto.shippingHubId,
+      shippingReceiverLat: canonicalLat,
+      shippingReceiverLng: canonicalLng,
       shippingPackageType: dto.shippingPackageType,
       shippingContents: dto.shippingContents,
       shippingDeliveryType: dto.shippingDeliveryType,
@@ -585,9 +745,9 @@ export class OmsOrdersService {
     assertShippingIntentReady(shippingFields);
     await this.shipping.assertLiveCarrierSelection({
       fields: shippingFields,
-      governorate: dto.city,
-      city: dto.district,
-      neighborhood: dto.addressLine1,
+      governorate: canonicalCity ?? undefined,
+      city: canonicalDistrict ?? undefined,
+      neighborhood: canonicalAddressLine1 ?? undefined,
     });
 
     // Stock is gated at admin Approve — create may proceed without available qty.
@@ -597,12 +757,12 @@ export class OmsOrdersService {
       const qty = new Prisma.Decimal(l.requestedQuantity);
       const unitPrice =
         l.unitPrice != null ? new Prisma.Decimal(l.unitPrice) : null;
+      const discount =
+        l.discountAmount != null ? new Prisma.Decimal(l.discountAmount) : new Prisma.Decimal(0);
       const lineTotal =
-        l.lineTotal != null
-          ? new Prisma.Decimal(l.lineTotal)
-          : unitPrice != null
-            ? unitPrice.mul(qty)
-            : null;
+        unitPrice != null
+          ? Prisma.Decimal.max(0, unitPrice.mul(qty).sub(discount))
+          : null;
       return { ...l, qty, unitPrice, lineTotal };
     });
 
@@ -614,12 +774,7 @@ export class OmsOrdersService {
       dto.shippingFee != null ? new Prisma.Decimal(dto.shippingFee) : new Prisma.Decimal(0);
     const subtotal = linesSum.add(shippingFee);
     // COD is merchandise collection only — shipping fee is client billing, not receiver COD.
-    const derivedCod =
-      dto.codAmount != null
-        ? new Prisma.Decimal(dto.codAmount)
-        : dto.paymentMethod === 'COD'
-          ? linesSum
-          : null;
+    const derivedCod = dto.paymentMethod === 'COD' ? linesSum : null;
 
     const codStatus = deriveCodStatus(dto.paymentMethod, derivedCod);
     const now = new Date();
@@ -662,10 +817,10 @@ export class OmsOrdersService {
             contact.recipientName !== undefined ? contact.recipientName : dto.recipientName,
           recipientPhone:
             contact.recipientPhone !== undefined ? contact.recipientPhone : dto.recipientPhone,
-          city: dto.city,
-          district: dto.district,
-          addressLine1: dto.addressLine1,
-          addressLine2: dto.addressLine2,
+          city: canonicalCity,
+          district: canonicalDistrict,
+          addressLine1: canonicalAddressLine1,
+          addressLine2: canonicalAddressLine2,
           deliveryInstructions: dto.deliveryInstructions,
           paymentMethod: dto.paymentMethod,
           subtotal,
@@ -742,6 +897,8 @@ export class OmsOrdersService {
           },
         });
       }
+
+      await this.shippingFees.syncClientRate(tx, created.id, { lock: provisionOutbound });
 
       if (provisionOutbound) {
         await this.sync.createOutboundFromOms(tx, {
@@ -866,7 +1023,8 @@ export class OmsOrdersService {
     }
 
     const created = await withTenantRls(this.prisma, user, async (tx) => {
-      if (dto.shippingFee != null) {
+      const rated = await this.shippingFees.syncClientRate(tx, existing.id, { lock: true });
+      if (!rated.applied && rated.reason !== 'already_applied' && dto.shippingFee != null) {
         const linesSum = existing.lines.reduce((sum, l) => {
           if (l.lineTotal != null) return sum.add(l.lineTotal);
           if (l.unitPrice != null) return sum.add(l.unitPrice.mul(l.requestedQuantity));
@@ -966,7 +1124,7 @@ export class OmsOrdersService {
   async markFailedDelivery(id: string, user: AuthPrincipal) {
     const existing = await this.resolveOrder(id, user);
     const next = assertOmsTransition(existing.status, 'failed_delivery', 'admin');
-    const transitioned = await this.transition(id, user, {
+    await this.transition(id, user, {
       allowed: [existing.status],
       next,
       event: 'order.failed_delivery',
@@ -975,20 +1133,11 @@ export class OmsOrdersService {
       },
     });
 
-    try {
-      await this.autoReturn.processCarrierReturnEvent({
-        omsOrderId: existing.id,
-        awb: existing.trackingNumber || 'MANUAL',
-        stage: 'returned_to_sender',
-        reason: 'Failed Delivery / تعذر التسليم',
-        timestamp: new Date(),
-        principal: user,
-      });
-    } catch (err) {
-      this.logger.error(
-        `Failed to create automated return draft for order ${existing.orderNumber} on failed delivery: ${err instanceof Error ? err.message : String(err)}`,
-      );
-    }
+    await this.autoReturn.cancelUnconfirmedDraftReturns({
+      omsOrderId: existing.id,
+      companyId: existing.companyId,
+      reason: 'Auto-cancelled: Field Delivery is not a return.',
+    });
 
     const refreshed = await this.resolveOrder(id, user);
     return serializeOmsOrder(refreshed);
@@ -1058,6 +1207,9 @@ export class OmsOrdersService {
       cancelledFromStatus: order.cancelledFromStatus,
       events: timeline,
     });
+    const inboundTraceability = this.traceability
+      ? await this.traceability.getTraceabilityForOrder(order.id, user)
+      : [];
     return {
       ...serializeOmsOrder(order),
       cancelledFromStatus: order.cancelledFromStatus ?? null,
@@ -1072,40 +1224,93 @@ export class OmsOrdersService {
         ...r,
         quantity: r.quantity.toString(),
       })),
+      inboundTraceability,
     };
   }
 
   async getShippingMovement(id: string, user: AuthPrincipal) {
     const order = await this.resolveOrder(id, user);
+    const activeShipment = order.outboundOrderId
+      ? await this.prisma.carrierShipment.findFirst({
+          where: {
+            outboundOrderId: order.outboundOrderId,
+            ...ACTIVE_CARRIER_SHIPMENT_WHERE,
+          },
+          orderBy: { createdAt: 'desc' },
+          select: {
+            id: true,
+            status: true,
+            supersededAt: true,
+            externalAwb: true,
+            trackingNumber: true,
+            providerCode: true,
+            rawResultMeta: true,
+            lastErrorSafe: true,
+          },
+        })
+      : null;
+    const historicalShipment =
+      !activeShipment && order.outboundOrderId
+        ? await this.prisma.carrierShipment.findFirst({
+            where: { outboundOrderId: order.outboundOrderId },
+            orderBy: { createdAt: 'desc' },
+            select: {
+              id: true,
+              status: true,
+              supersededAt: true,
+              externalAwb: true,
+              trackingNumber: true,
+              providerCode: true,
+              rawResultMeta: true,
+              lastErrorSafe: true,
+            },
+          })
+        : null;
 
-    let awb = (order.trackingNumber || '').trim();
-    let providerCode = order.shippingProviderCode;
+    const providerCode = activeShipment?.providerCode || order.shippingProviderCode;
+    const resolvedName = resolveShippingCarrierName({
+      carrier: order.carrier,
+      shippingProviderCode: providerCode,
+      shippingServiceId: order.shippingServiceId || order.outboundOrder?.shippingServiceId,
+      outboundOrder: {
+        carrier: order.outboundOrder?.carrier,
+        shippingProviderCode: order.outboundOrder?.shippingProviderCode,
+        shippingServiceId: order.outboundOrder?.shippingServiceId,
+        carrierShipments: activeShipment
+          ? [
+              {
+                status: 'created',
+                supersededAt: null,
+                providerCode: activeShipment.providerCode,
+                rawResultMeta: activeShipment.rawResultMeta,
+              },
+            ]
+          : order.outboundOrder?.carrierShipments,
+      },
+    });
 
-    if (order.outboundOrderId) {
-      const carrierShipment = await this.prisma.carrierShipment.findFirst({
-        where: { outboundOrderId: order.outboundOrderId },
-        orderBy: { createdAt: 'desc' },
-        select: {
-          externalAwb: true,
-          trackingNumber: true,
-          providerCode: true,
-        },
+    if (historicalShipment) {
+      return this.shippingTracking.getLocalShipmentMovement({
+        shipment: historicalShipment,
+        providerName: resolvedName || order.carrier,
       });
-      if (carrierShipment) {
-        if (!awb) {
-          awb = (carrierShipment.externalAwb || carrierShipment.trackingNumber || '').trim();
-        }
-        if (!providerCode) {
-          providerCode = carrierShipment.providerCode;
-        }
-      }
     }
 
-    if (!awb) {
+    const awbPending = isAwbPendingReassignment(activeShipment?.rawResultMeta);
+    let lookupAwb = '';
+    if (!awbPending && activeShipment) {
+      lookupAwb =
+        activeShipment.providerCode === SILA_SY_CODE
+          ? (activeShipment.externalAwb || '').trim()
+          : (activeShipment.externalAwb || activeShipment.trackingNumber || '').trim();
+    }
+
+    if (!lookupAwb) {
       return {
         providerCode: providerCode || null,
-        providerName: order.carrier || null,
+        providerName: resolvedName || order.carrier || null,
         awb: null,
+        awbPending: true,
         isDelivered: order.status === 'delivered' || order.status === 'completed',
         events: [],
         message: 'لا توجد بيانات لحركة الشحنة حالياً.',
@@ -1113,14 +1318,26 @@ export class OmsOrdersService {
     }
 
     return this.shippingTracking.getShipmentTrackingHistory({
-      awb,
+      awb: lookupAwb,
       providerCode,
-      carrierName: order.carrier,
+      carrierName: resolvedName || order.carrier,
     });
   }
 
   async update(id: string, user: AuthPrincipal, dto: UpdateOmsOrderDto) {
     const existing = await this.resolveOrder(id, user);
+    if (dto.addressLine2 !== undefined && dto.addressLine2 !== null) {
+      if (!dto.addressLine2.trim()) {
+        throw new BadRequestException(
+          'Street / detailed address is required and must be more than 10 characters.',
+        );
+      }
+      if (dto.addressLine2.trim().length <= 10) {
+        throw new BadRequestException(
+          'Street / detailed address must be more than 10 characters.',
+        );
+      }
+    }
     const contact = assertAndNormalizeRecipientContact(dto);
     const destination =
       dto.destinationAddress !== undefined
@@ -1143,13 +1360,28 @@ export class OmsOrdersService {
       shippingReceiverLng?: number | null;
       destinationAddress?: string;
     } = {};
-    if (existing.needsInformation) {
+    const hasAddressUpdate =
+      dto.city !== undefined ||
+      dto.district !== undefined ||
+      dto.addressLine1 !== undefined ||
+      dto.addressLine2 !== undefined;
+
+    if (existing.needsInformation || hasAddressUpdate) {
       const resolved = await resolveOmsDeliveryLocation(this.geo, {
         governorate: dto.city !== undefined ? dto.city : existing.city,
         city: dto.district !== undefined ? dto.district : existing.district,
         neighborhood: dto.addressLine1 !== undefined ? dto.addressLine1 : existing.addressLine1,
         street: dto.addressLine2 !== undefined ? dto.addressLine2 : existing.addressLine2,
       });
+      if (hasAddressUpdate && !resolved.complete) {
+        const errorMsg =
+          resolved.reasons.governorate ||
+          resolved.reasons.city ||
+          resolved.reasons.neighborhood ||
+          resolved.reasons.address ||
+          'Delivery address is invalid.';
+        throw new BadRequestException(errorMsg);
+      }
       if (resolved.complete) {
         const userLat = dto.shippingReceiverLat ?? existing.shippingReceiverLat;
         const userLng = dto.shippingReceiverLng ?? existing.shippingReceiverLng;
@@ -1247,6 +1479,7 @@ export class OmsOrdersService {
           shippingMethod: dto.shippingMethod,
           shippingProviderCode: dto.shippingProviderCode,
           shippingServiceId: dto.shippingServiceId,
+          shippingHubId: dto.shippingHubId,
           shippingReceiverLat: dto.shippingReceiverLat,
           shippingReceiverLng: dto.shippingReceiverLng,
           shippingPackageType: dto.shippingPackageType,
@@ -1284,6 +1517,10 @@ export class OmsOrdersService {
           dto.shippingServiceId !== undefined
             ? dto.shippingServiceId
             : existing.shippingServiceId,
+        shippingHubId:
+          dto.shippingHubId !== undefined
+            ? dto.shippingHubId
+            : (existing as { shippingHubId?: string | null }).shippingHubId,
         shippingReceiverLat:
           dto.shippingReceiverLat !== undefined
             ? dto.shippingReceiverLat
@@ -1338,21 +1575,16 @@ export class OmsOrdersService {
         return sum;
       }, new Prisma.Decimal(0));
 
-      // Subtotal = shipping fee + sum of line totals (always recalculated).
-      const nextSubtotal =
-        dto.subtotal != null
-          ? new Prisma.Decimal(dto.subtotal)
-          : linesSum.add(nextShipping);
+      // Subtotal = shipping fee + sum of line totals (always recalculated server-side).
+      const nextSubtotal = linesSum.add(nextShipping);
 
-      // COD defaults to merchandise (linesSum). Shipping remains on subtotal / client billing.
+      // COD defaults to merchandise (linesSum) when COD. Shipping remains on subtotal / client billing.
       const nextCod =
-        dto.codAmount != null
-          ? new Prisma.Decimal(dto.codAmount)
-          : nextPayment === 'COD' &&
-              (dto.paymentMethod !== undefined ||
-                dto.subtotal !== undefined ||
-                dto.shippingFee !== undefined)
-            ? linesSum
+        nextPayment === 'COD' &&
+        (dto.paymentMethod !== undefined || dto.shippingFee !== undefined)
+          ? linesSum
+          : nextPayment !== 'COD' && dto.paymentMethod !== undefined
+            ? null
             : undefined;
 
       const row = await tx.omsOrder.update({
@@ -1365,12 +1597,22 @@ export class OmsOrdersService {
           ...(contact.shippingPhoneCountry !== undefined
             ? { shippingPhoneCountry: contact.shippingPhoneCountry }
             : {}),
-          city: dto.city,
-          district: dto.district,
-          addressLine1: dto.addressLine1,
-          addressLine2: dto.addressLine2,
+          city: incompletePatch.city !== undefined ? incompletePatch.city : dto.city,
+          district: incompletePatch.district !== undefined ? incompletePatch.district : dto.district,
+          addressLine1:
+            incompletePatch.addressLine1 !== undefined
+              ? incompletePatch.addressLine1
+              : dto.addressLine1,
+          addressLine2:
+            incompletePatch.addressLine2 !== undefined
+              ? incompletePatch.addressLine2
+              : dto.addressLine2,
           deliveryInstructions: dto.deliveryInstructions,
-          ...(destination ? { destinationAddress: destination } : {}),
+          ...(incompletePatch.destinationAddress
+            ? { destinationAddress: incompletePatch.destinationAddress }
+            : destination
+              ? { destinationAddress: destination }
+              : {}),
           requiredShipDate: dto.requiredShipDate
             ? new Date(dto.requiredShipDate)
             : undefined,
@@ -1433,6 +1675,8 @@ export class OmsOrdersService {
             shippingPrismaData({
               shippingMethod: row.shippingMethod,
               shippingProviderCode: row.shippingProviderCode,
+              shippingServiceId: row.shippingServiceId,
+              shippingHubId: row.shippingHubId,
               shippingReceiverLat: row.shippingReceiverLat?.toString() ?? null,
               shippingReceiverLng: row.shippingReceiverLng?.toString() ?? null,
               shippingPackageType: row.shippingPackageType,
@@ -1452,6 +1696,73 @@ export class OmsOrdersService {
         });
       }
 
+      const normLoc = (val?: string | null) => (val ?? '').trim().toLowerCase();
+      const destinationChanged =
+        normLoc(existing.city) !== normLoc(row.city) ||
+        normLoc(existing.district) !== normLoc(row.district) ||
+        normLoc(existing.addressLine1) !== normLoc(row.addressLine1);
+
+      let refreshed = row;
+      if (destinationChanged) {
+        const isLocked = Boolean(existing.clientShippingRateAppliedAt);
+        const rated = await this.shippingFees.syncClientRate(tx, row.id, {
+          lock: isLocked,
+          force: true,
+        });
+        if (rated.applied) {
+          refreshed =
+            (await tx.omsOrder.findUnique({ where: { id: row.id }, include: ORDER_INCLUDE })) ??
+            row;
+
+          const closedInvoice = await tx.invoice.findFirst({
+            where: {
+              companyId: row.companyId,
+              status: { in: ['unpaid', 'paid'] },
+              OR: [
+                { lines: { some: { description: { contains: row.orderNumber } } } },
+                ...(row.outboundOrderId
+                  ? [{ lines: { some: { description: { contains: row.outboundOrderId } } } }]
+                  : []),
+              ],
+            },
+            select: { id: true, invoiceNumber: true, status: true },
+          });
+
+          const previousFeeDecimal = existing.shippingFee ?? new Prisma.Decimal(0);
+          const nextFeeDecimal = refreshed.shippingFee ?? new Prisma.Decimal(0);
+          const feeDelta = nextFeeDecimal.sub(previousFeeDecimal);
+
+          await this.events.record(tx, {
+            omsOrderId: row.id,
+            outboundOrderId: row.outboundOrderId ?? undefined,
+            companyId: row.companyId,
+            eventType: 'oms.destination_changed',
+            createdBy: user.id,
+            payload: {
+              previousDestination: {
+                governorate: existing.city,
+                cityRegion: existing.district,
+                townNeighborhood: existing.addressLine1,
+              },
+              newDestination: {
+                governorate: row.city,
+                cityRegion: row.district,
+                townNeighborhood: row.addressLine1,
+              },
+              previousShippingFee: previousFeeDecimal.toString(),
+              newShippingFee: nextFeeDecimal.toString(),
+              shippingFeeDelta: feeDelta.toString(),
+              invoiceNumber: closedInvoice?.invoiceNumber ?? null,
+              invoiceStatus: closedInvoice?.status ?? null,
+              isInvoiceClosed: Boolean(closedInvoice),
+              note: closedInvoice
+                ? 'Destination updated on an order linked to a closed invoice. Delta logged for subsequent financial settlement; invoice was not mutated.'
+                : undefined,
+            },
+          });
+        }
+      }
+
       await this.events.record(tx, {
         omsOrderId: row.id,
         outboundOrderId: row.outboundOrderId ?? undefined,
@@ -1463,7 +1774,7 @@ export class OmsOrdersService {
             ? { outboundOrderId: dto.outboundOrderId }
             : undefined,
       });
-      return row;
+      return refreshed ?? row;
     });
 
     this.emitOms('order.updated', updated.companyId, updated.id, updated.status);
@@ -1505,6 +1816,38 @@ export class OmsOrdersService {
       }
     }
     assertOmsTransition(existing.status, 'cancel', actor);
+
+    const silaCancel = await this.shippingTracking.requestSilaCancel({
+      outboundOrderId: existing.outboundOrderId,
+      orderNumber: existing.orderNumber,
+    });
+    if (silaCancel) {
+      if (silaCancel.outcome === 'pending_confirmation') {
+        throw new DomainException(
+          'SILA_CANCEL_PENDING',
+          silaCancel.message ||
+            'Cancellation is waiting for the courier to confirm. The order is not cancelled yet.',
+          HttpStatus.CONFLICT,
+          { courierCancel: silaCancel.courierCancel },
+        );
+      }
+      if (silaCancel.outcome === 'refused') {
+        throw new DomainException(
+          'SILA_CANCEL_REFUSED',
+          silaCancel.message || 'Sila refused to cancel this cargo.',
+          HttpStatus.CONFLICT,
+          { errorCode: silaCancel.errorCode },
+        );
+      }
+      if (silaCancel.outcome === 'retry') {
+        throw new DomainException(
+          'SILA_CANCEL_RETRY',
+          silaCancel.message || 'Sila cancel is temporarily unavailable. Try again shortly.',
+          HttpStatus.CONFLICT,
+          { retryAfterSeconds: silaCancel.retryAfterSeconds, errorCode: silaCancel.errorCode },
+        );
+      }
+    }
 
     const updated = await withTenantRls(this.prisma, user, async (tx) => {
       const outbound = existing.outboundOrderId
@@ -1582,6 +1925,14 @@ export class OmsOrdersService {
         source: 'oms_cancel_release_allocation',
         orderId: updated.id,
       });
+      const silaRow = await this.prisma.carrierShipment.findFirst({
+        where: { outboundOrderId: updated.outboundOrderId, providerCode: SILA_SY_CODE },
+        select: { id: true, rawResultMeta: true },
+        orderBy: { createdAt: 'desc' },
+      });
+      if (silaRow) {
+        await this.shippingTracking.clearSilaCancelMeta(silaRow.id, silaRow.rawResultMeta);
+      }
     }
     return serializeOmsOrder(updated);
   }
@@ -1717,6 +2068,53 @@ export class OmsOrdersService {
     return serializeOmsOrder(updated);
   }
 
+  async cancelShipment(id: string, user: AuthPrincipal, reason?: string, force?: boolean) {
+    const existing = await this.resolveOrder(id, user);
+    const result = await this.shippingTracking.cancelCarrierShipmentForOrder({
+      omsOrderId: existing.id,
+      user,
+      reason,
+      force,
+    });
+    const fresh = result.success
+      ? await this.prisma.omsOrder.findUnique({
+          where: { id: existing.id },
+          include: ORDER_INCLUDE,
+        })
+      : existing;
+    return {
+      result,
+      order: serializeOmsOrder(fresh ?? existing),
+    };
+  }
+
+  async cancelShipmentsBulk(ids: string[], user: AuthPrincipal, reason?: string) {
+    if (!ids || ids.length === 0) {
+      return [];
+    }
+    const results = [];
+    for (const id of ids) {
+      try {
+        const res = await this.shippingTracking.cancelCarrierShipmentForOrder({
+          omsOrderId: id,
+          user,
+          reason,
+        });
+        results.push(res);
+      } catch (err: any) {
+        results.push({
+          success: false,
+          status: 'error',
+          message: err?.message || 'Cancellation error',
+          orderId: id,
+          orderNumber: id,
+          errorCode: 'exception',
+        });
+      }
+    }
+    return results;
+  }
+
   async allocate(id: string, user: AuthPrincipal, dto: AllocateOmsOrderDto) {
     const order = await this.resolveOrder(id, user);
     if (!order.outboundOrderId) {
@@ -1772,16 +2170,19 @@ export class OmsOrdersService {
   async markOutForDelivery(id: string, user: AuthPrincipal) {
     const existing = await this.resolveOrder(id, user);
 
-    // Recover from failed_delivery when carrier resumes delivery attempt.
-    if (existing.status === OmsOrderStatus.failed_delivery) {
+    // Recover from Field Delivery / pending return when retrying delivery.
+    if (
+      existing.status === OmsOrderStatus.failed_delivery ||
+      existing.status === OmsOrderStatus.return_pending_receipt
+    ) {
       assertOmsTransition(existing.status, 'resume_shipping', 'admin');
       await this.autoReturn.cancelUnconfirmedDraftReturns({
         omsOrderId: existing.id,
         companyId: existing.companyId,
-        reason: 'Auto-cancelled: admin resumed out-for-delivery after failed_delivery.',
+        reason: 'Auto-cancelled: admin resumed out-for-delivery.',
       });
       return this.transition(id, user, {
-        allowed: [OmsOrderStatus.failed_delivery],
+        allowed: [existing.status],
         next: OmsOrderStatus.out_for_delivery,
         event: 'oms.out_for_delivery_resumed',
         extra: { outForDeliveryAt: existing.outForDeliveryAt ?? new Date() },
@@ -1908,11 +2309,14 @@ export class OmsOrdersService {
 
     assertOmsTransition(existing.status, 'mark_delivered', 'admin');
 
-    if (existing.status === OmsOrderStatus.failed_delivery) {
+    if (
+      existing.status === OmsOrderStatus.failed_delivery ||
+      existing.status === OmsOrderStatus.return_pending_receipt
+    ) {
       await this.autoReturn.cancelUnconfirmedDraftReturns({
         omsOrderId: existing.id,
         companyId: existing.companyId,
-        reason: `Auto-cancelled: admin marked order delivered after failed_delivery.`,
+        reason: `Auto-cancelled: admin marked order delivered.`,
       });
     }
 
@@ -2001,29 +2405,23 @@ export class OmsOrdersService {
       existing.status === OmsOrderStatus.shipped ||
       existing.status === OmsOrderStatus.out_for_delivery
     ) {
-      await this.transition(id, user, {
-        allowed: [existing.status],
-        next: OmsOrderStatus.failed_delivery,
-        event: 'order.failed_delivery',
-        extra: {
-          deliveryFailedAt: new Date(),
-        },
-      });
+      throw new InvalidStateException(
+        'Out for Delivery is not a return. Mark Field Delivery first, then create a return pending receipt.',
+      );
     }
 
-    try {
-      await this.autoReturn.processCarrierReturnEvent({
-        omsOrderId: existing.id,
-        awb: existing.trackingNumber || 'MANUAL',
-        stage: 'return_created',
-        reason: 'Admin coordinated return / تنسيق المرتجع',
-        timestamp: new Date(),
-        principal: user,
-      });
-    } catch (err) {
-      this.logger.error(
-        `Failed to create automated return draft for order ${existing.orderNumber}: ${err instanceof Error ? err.message : String(err)}`,
-      );
+    assertOmsTransition(existing.status, 'mark_returned', 'admin');
+
+    const res = await this.autoReturn.processCarrierReturnEvent({
+      omsOrderId: existing.id,
+      awb: existing.trackingNumber || 'MANUAL',
+      stage: 'return_created',
+      reason: 'Admin coordinated return / تنسيق المرتجع',
+      timestamp: new Date(),
+      principal: user,
+    });
+    if (!res.success) {
+      throw new BadRequestException(res.message || 'Failed to create return pending receipt.');
     }
 
     const refreshed = await this.resolveOrder(id, user);
@@ -2033,6 +2431,23 @@ export class OmsOrdersService {
   async undoConfirmedReturn(id: string, user: AuthPrincipal) {
     const existing = await this.resolveOrder(id, user);
     return this.autoReturn.undoConfirmedReturn(user, existing.id);
+  }
+
+  async rollbackReturn(
+    id: string,
+    user: AuthPrincipal,
+    options?: { targetStatus?: 'out_for_delivery' | 'ready_to_ship' },
+  ) {
+    const existing = await this.resolveOrder(id, user);
+    const completedReturn = await this.prisma.omsReturn.findFirst({
+      where: { omsOrderId: existing.id, status: 'completed' },
+      orderBy: { completedAt: 'desc' },
+      select: { id: true },
+    });
+    if (!completedReturn) {
+      throw new NotFoundException('No completed return found for this order to rollback.');
+    }
+    return this.omsReturns.rollbackReturn(completedReturn.id, user, options);
   }
 
   async confirmReturnReceipt(id: string, user: AuthPrincipal) {
@@ -2327,6 +2742,143 @@ export class OmsOrdersService {
 
     this.emitOms(opts.event, updated.companyId, updated.id, updated.status);
     return serializeOmsOrder(updated);
+  }
+
+  /**
+   * Manually adjusts the client-facing shipping fee on an OMS order.
+   * Can be performed by Admin / Super Admin regardless of order lifecycle status.
+   * Updates shippingFee, subtotal, and creates an auditable order event.
+   * Carrier shipment records, tracking numbers, and actual costs remain untouched.
+   */
+  async adjustShippingFee(
+    user: AuthPrincipal,
+    id: string,
+    dto: { shippingFee: number; reason?: string },
+    context?: { mode?: 'single' | 'bulk'; bulkBatchId?: string },
+  ) {
+    if (!isInternalAdminRole(user.role)) {
+      throw new ForbiddenException('Only Admin and Super Admin users can adjust shipping fees.');
+    }
+
+    if (
+      typeof dto.shippingFee !== 'number' ||
+      !Number.isFinite(dto.shippingFee) ||
+      dto.shippingFee < 0
+    ) {
+      throw new BadRequestException('Shipping fee must be a valid non-negative number.');
+    }
+
+    const result = await withTenantRls(this.prisma, user, async (tx) => {
+      const order = await tx.omsOrder.findUnique({
+        where: { id },
+        include: {
+          lines: true,
+        },
+      });
+
+      if (!order) {
+        throw new NotFoundException(`OMS order ${id} not found.`);
+      }
+
+      if (user.companyId && order.companyId !== user.companyId) {
+        throw new ForbiddenException('Access to company resource denied.');
+      }
+
+      const previousFee = order.shippingFee != null ? order.shippingFee : new Prisma.Decimal(0);
+      const newFee = new Prisma.Decimal(dto.shippingFee);
+      const diff = newFee.sub(previousFee);
+
+      const linesSum = order.lines.reduce((sum, l) => {
+        if (l.lineTotal != null) return sum.add(l.lineTotal);
+        if (l.unitPrice != null) return sum.add(l.unitPrice.mul(l.requestedQuantity));
+        return sum;
+      }, new Prisma.Decimal(0));
+
+      const newSubtotal = linesSum.add(newFee);
+
+      const closedInvoice = await tx.invoice.findFirst({
+        where: {
+          companyId: order.companyId,
+          status: { in: ['unpaid', 'paid', 'open', 'overdue'] },
+          OR: [
+            { lines: { some: { description: { contains: order.orderNumber } } } },
+            ...(order.outboundOrderId
+              ? [{ lines: { some: { description: { contains: order.outboundOrderId } } } }]
+              : []),
+          ],
+        },
+        select: { id: true, invoiceNumber: true, status: true },
+      });
+
+      const updated = await tx.omsOrder.update({
+        where: { id: order.id },
+        data: {
+          shippingFee: newFee,
+          subtotal: newSubtotal,
+          clientShippingRateAppliedAt: order.clientShippingRateAppliedAt ?? new Date(),
+          clientShippingRateBreakdown: {
+            ...(typeof order.clientShippingRateBreakdown === 'object' &&
+            order.clientShippingRateBreakdown !== null
+              ? (order.clientShippingRateBreakdown as object)
+              : {}),
+            manualOverride: true,
+            adjustedAt: new Date().toISOString(),
+            adjustedByUserId: user.id,
+            adjustmentReason: dto.reason?.trim() || null,
+            previousFee: previousFee.toString(),
+            newFee: newFee.toString(),
+            difference: diff.toString(),
+          },
+        },
+      });
+
+      if (order.outboundOrderId) {
+        await tx.outboundOrder.update({
+          where: { id: order.outboundOrderId },
+          data: { shippingFee: newFee },
+        });
+      }
+
+      const mode = context?.mode ?? 'single';
+      await this.events.record(tx, {
+        omsOrderId: order.id,
+        outboundOrderId: order.outboundOrderId ?? undefined,
+        companyId: order.companyId,
+        eventType: 'shipping_fee.adjusted',
+        createdBy: user.id,
+        payload: {
+          orderId: order.id,
+          orderNumber: order.orderNumber,
+          previousShippingFee: previousFee.toString(),
+          newShippingFee: newFee.toString(),
+          difference: diff.toString(),
+          reason: dto.reason?.trim() || null,
+          mode,
+          bulkBatchId: context?.bulkBatchId ?? null,
+          invoiceNumber: closedInvoice?.invoiceNumber ?? null,
+          invoiceStatus: closedInvoice?.status ?? null,
+          isInvoiceClosed: Boolean(closedInvoice),
+          timestamp: new Date().toISOString(),
+        },
+      });
+
+      return {
+        id: updated.id,
+        orderNumber: updated.orderNumber,
+        companyId: updated.companyId,
+        shippingFee: newFee.toString(),
+        newShippingFee: newFee.toString(),
+        previousShippingFee: previousFee.toString(),
+        difference: diff.toString(),
+        subtotal: newSubtotal.toString(),
+        status: updated.status,
+        invoiceNumber: closedInvoice?.invoiceNumber ?? null,
+        isInvoiceClosed: Boolean(closedInvoice),
+      };
+    });
+
+    this.emitOms('order.updated', result.companyId, result.id, result.status);
+    return result;
   }
 
   private emitOms(

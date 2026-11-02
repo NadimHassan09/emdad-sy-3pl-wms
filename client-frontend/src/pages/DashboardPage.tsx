@@ -43,18 +43,23 @@ const PENDING_FULFILLMENT = new Set<ClientOmsOrderStatus>([
   'picking',
   'packing',
   'ready_to_ship',
-  'failed_delivery',
 ]);
 const OUT_FOR_DELIVERY = new Set<ClientOmsOrderStatus>(['shipped', 'out_for_delivery']);
 const DELIVERED = new Set<ClientOmsOrderStatus>(['delivered', 'completed']);
-/** True returns only — do not mix cancelled / rejected / failed_delivery into “Returned”. */
-const RETURNED = new Set<ClientOmsOrderStatus>(['returned']);
-const CANCELLED_OR_FAILED = new Set<ClientOmsOrderStatus>(['cancelled', 'rejected']);
-/** Still in flight — not delivered, returned, or cancelled. */
+/** True returns only — Field Delivery is not a return. */
+const RETURNED = new Set<ClientOmsOrderStatus>(['returned', 'return_pending_receipt']);
+const CANCELLED_OR_FAILED = new Set<ClientOmsOrderStatus>([
+  'cancelled',
+  'rejected',
+  'failed_delivery',
+]);
+/** Still in flight — not delivered, return-received, or cancelled. */
 const OPEN_OMS = new Set<ClientOmsOrderStatus>([
   ...WAITING,
   ...PENDING_FULFILLMENT,
   ...OUT_FOR_DELIVERY,
+  'failed_delivery',
+  'return_pending_receipt',
 ]);
 /** Orders that need merchant/ops attention. */
 const NEEDS_ATTENTION = new Set<ClientOmsOrderStatus>([

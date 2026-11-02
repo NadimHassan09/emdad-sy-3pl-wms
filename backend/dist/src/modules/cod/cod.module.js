@@ -9,6 +9,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.CodModule = void 0;
 const common_1 = require("@nestjs/common");
 const company_access_module_1 = require("../../common/company-access/company-access.module");
+const pdf_module_1 = require("../../pdf/pdf.module");
 const cod_controller_1 = require("./cod.controller");
 const cod_records_service_1 = require("./cod-records.service");
 let CodModule = class CodModule {
@@ -16,7 +17,7 @@ let CodModule = class CodModule {
 exports.CodModule = CodModule;
 exports.CodModule = CodModule = __decorate([
     (0, common_1.Module)({
-        imports: [company_access_module_1.CompanyAccessModule],
+        imports: [company_access_module_1.CompanyAccessModule, pdf_module_1.PdfModule],
         controllers: [cod_controller_1.CodController],
         providers: [cod_records_service_1.CodRecordsService],
         exports: [cod_records_service_1.CodRecordsService],

@@ -71,6 +71,9 @@ let OmsReturnsController = class OmsReturnsController {
     confirmByScan(user, body) {
         return this.returns.confirmReturnByScan(user, body.code);
     }
+    rollback(user, id, body) {
+        return this.returns.rollbackReturn(id, user, body);
+    }
 };
 exports.OmsReturnsController = OmsReturnsController;
 __decorate([
@@ -204,6 +207,15 @@ __decorate([
     __metadata("design:paramtypes", [Object, Object]),
     __metadata("design:returntype", void 0)
 ], OmsReturnsController.prototype, "confirmByScan", null);
+__decorate([
+    (0, common_1.Post)(':id/rollback'),
+    __param(0, (0, current_user_decorator_1.CurrentUser)()),
+    __param(1, (0, common_1.Param)('id', parse_uuid_loose_pipe_1.ParseUuidLoosePipe)),
+    __param(2, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, String, Object]),
+    __metadata("design:returntype", void 0)
+], OmsReturnsController.prototype, "rollback", null);
 exports.OmsReturnsController = OmsReturnsController = __decorate([
     (0, common_1.Controller)('oms/returns'),
     __metadata("design:paramtypes", [oms_returns_service_1.OmsReturnsService])

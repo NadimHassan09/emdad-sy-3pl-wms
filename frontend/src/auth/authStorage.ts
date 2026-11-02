@@ -79,13 +79,39 @@ export function isPersistSessionEnabled(): boolean {
   }
 }
 
+export function isJwtExpired(token: string | null): boolean {
+  if (!token) return true;
+  try {
+    const parts = token.split('.');
+    if (parts.length !== 3) return false;
+    const rawPayload = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+    const jsonStr = decodeURIComponent(
+      atob(rawPayload)
+        .split('')
+        .map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
+        .join(''),
+    );
+    const payload = JSON.parse(jsonStr);
+    if (typeof payload.exp !== 'number') return false;
+    return payload.exp * 1000 <= Date.now() + 10_000;
+  } catch {
+    return false;
+  }
+}
+
 export function getAccessToken(): string | null {
   try {
     if (isPersistExpired()) {
       clearAccessToken({ keepPersist: false });
       return sessionStorage.getItem(ACCESS_TOKEN_KEY);
     }
-    return localStorage.getItem(ACCESS_TOKEN_KEY) ?? sessionStorage.getItem(ACCESS_TOKEN_KEY);
+    const token = localStorage.getItem(ACCESS_TOKEN_KEY) ?? sessionStorage.getItem(ACCESS_TOKEN_KEY);
+    if (token && isJwtExpired(token)) {
+      sessionStorage.removeItem(ACCESS_TOKEN_KEY);
+      localStorage.removeItem(ACCESS_TOKEN_KEY);
+      return null;
+    }
+    return token;
   } catch {
     return null;
   }

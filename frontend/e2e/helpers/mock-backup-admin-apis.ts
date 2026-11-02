@@ -243,6 +243,27 @@ export async function mockBackupAdminApis(page: Page) {
       return;
     }
 
+    if (url.includes('/backups/manual-cooldown')) {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          success: true,
+          data: {
+            cooldownSeconds: 900,
+            cooldownMinutes: 15,
+            minMinutes: 1,
+            maxMinutes: 1440,
+            remainingSeconds: 0,
+            nextAllowedAt: null,
+            runningManualJobId: null,
+            canCreate: true,
+          },
+        }),
+      });
+      return;
+    }
+
     if (url.includes('/backups/storage-policy')) {
       await route.fulfill({
         status: 200,

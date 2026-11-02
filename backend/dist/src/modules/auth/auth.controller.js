@@ -21,7 +21,9 @@ const multer_1 = require("multer");
 const current_user_decorator_1 = require("../../common/auth/current-user.decorator");
 const public_decorator_1 = require("../../common/auth/public.decorator");
 const auth_service_1 = require("./auth.service");
+const change_password_dto_1 = require("./dto/change-password.dto");
 const login_dto_1 = require("./dto/login.dto");
+const update_profile_dto_1 = require("./dto/update-profile.dto");
 const google_oauth_service_1 = require("./google-oauth.service");
 class LogoutDto {
     soft;
@@ -84,6 +86,12 @@ let AuthController = class AuthController {
     }
     deleteAvatar(user) {
         return this.auth.deleteAvatar(user);
+    }
+    updateProfile(user, dto) {
+        return this.auth.updateProfile(user, dto);
+    }
+    changePassword(user, dto, req, res) {
+        return this.auth.changePassword(user, dto, req, res);
     }
 };
 exports.AuthController = AuthController;
@@ -195,6 +203,25 @@ __decorate([
     __metadata("design:paramtypes", [Object]),
     __metadata("design:returntype", void 0)
 ], AuthController.prototype, "deleteAvatar", null);
+__decorate([
+    (0, common_1.Patch)('profile'),
+    __param(0, (0, current_user_decorator_1.CurrentUser)()),
+    __param(1, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, update_profile_dto_1.UpdateProfileDto]),
+    __metadata("design:returntype", void 0)
+], AuthController.prototype, "updateProfile", null);
+__decorate([
+    (0, common_1.Post)('change-password'),
+    (0, common_1.HttpCode)(200),
+    __param(0, (0, current_user_decorator_1.CurrentUser)()),
+    __param(1, (0, common_1.Body)()),
+    __param(2, (0, common_1.Req)()),
+    __param(3, (0, common_1.Res)({ passthrough: true })),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, change_password_dto_1.ChangePasswordDto, Object, Object]),
+    __metadata("design:returntype", void 0)
+], AuthController.prototype, "changePassword", null);
 exports.AuthController = AuthController = __decorate([
     (0, common_1.Controller)('auth'),
     __metadata("design:paramtypes", [auth_service_1.AuthService,

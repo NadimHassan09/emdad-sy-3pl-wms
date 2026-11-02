@@ -67,6 +67,7 @@ let UsersService = class UsersService {
         this.realtime = realtime;
     }
     async list(actor, query) {
+        (0, internal_rbac_1.assertInternalAdmin)(actor);
         const where = this.buildListWhere(actor, query);
         const [rows, total] = await this.prisma.$transaction([
             this.prisma.user.findMany({
@@ -126,6 +127,7 @@ let UsersService = class UsersService {
         return and.length ? { AND: and } : {};
     }
     async findById(id, actor) {
+        (0, internal_rbac_1.assertInternalAdmin)(actor);
         const u = await this.prisma.user.findUnique({
             where: { id },
             select: USER_LIST_SELECT,
@@ -138,13 +140,13 @@ let UsersService = class UsersService {
         return this.toListRow(u);
     }
     async getWorkerProfile(userId, actor) {
-        (0, internal_rbac_1.assertInternalAdmin)(actor);
         const user = await this.prisma.user.findUnique({
             where: { id: userId },
             select: { id: true, companyId: true, role: true, worker: { select: user_worker_profile_util_1.WORKER_PROFILE_SELECT } },
         });
         if (!user)
             throw new common_1.NotFoundException('User not found.');
+        (0, internal_rbac_1.assertCanManageTargetRole)(actor, user.role);
         if (user.companyId) {
             this.companyAccess.assertCompanyAccess(actor, user.companyId);
         }
@@ -152,7 +154,6 @@ let UsersService = class UsersService {
         return (0, user_worker_profile_util_1.toWorkerProfileSummary)(user.worker);
     }
     async upsertWorkerProfile(userId, dto, actor) {
-        (0, internal_rbac_1.assertInternalAdmin)(actor);
         const user = await this.prisma.user.findUnique({
             where: { id: userId },
             select: {
@@ -166,6 +167,7 @@ let UsersService = class UsersService {
         });
         if (!user)
             throw new common_1.NotFoundException('User not found.');
+        (0, internal_rbac_1.assertCanManageTargetRole)(actor, user.role);
         if (user.companyId) {
             this.companyAccess.assertCompanyAccess(actor, user.companyId);
         }
@@ -245,6 +247,7 @@ let UsersService = class UsersService {
         const passwordHash = await this.password.hash(dto.password);
         if (dto.kind === 'system') {
             const role = mapSystemRoleToUserRole(dto.systemRole);
+            (0, internal_rbac_1.assertCanCreateTargetRole)(actor, role, 'You cannot create an account with an equal or higher role.');
             const tenantCompanyId = role === client_1.UserRole.wh_operator
                 ? await this.resolveWorkerProvisionCompanyId(actor)
                 : null;
@@ -284,6 +287,7 @@ let UsersService = class UsersService {
                 return row;
             });
         }
+        (0, internal_rbac_1.assertCanCreateTargetRole)(actor, dto.clientRole, 'You cannot create an account with an equal or higher role.');
         const companyId = this.companyAccess.resolveWriteCompanyId(actor, dto.companyId);
         const u = await this.prisma.user.create({
             data: {
@@ -301,7 +305,6 @@ let UsersService = class UsersService {
         return row;
     }
     async update(id, dto, actor) {
-        (0, internal_rbac_1.assertInternalAdmin)(actor);
         const keys = Object.keys(dto).filter((k) => dto[k] !== undefined);
         if (keys.length === 0) {
             throw new common_1.BadRequestException('No changes provided.');
@@ -319,8 +322,16 @@ let UsersService = class UsersService {
         });
         if (!existing)
             throw new common_1.NotFoundException('User not found.');
+        (0, internal_rbac_1.assertCanManageTargetRole)(actor, existing.role);
         if (existing.companyId) {
             this.companyAccess.assertCompanyAccess(actor, existing.companyId);
+        }
+        const isStatusOnly = keys.length === 1 && keys[0] === 'status';
+        if (!isStatusOnly) {
+            (0, internal_rbac_1.assertCanEditExistingUser)(actor);
+        }
+        if (dto.password !== undefined) {
+            (0, internal_rbac_1.assertCanSetOtherUserPassword)(actor);
         }
         const isSystem = existing.companyId === null;
         if (dto.email !== undefined) {
@@ -336,6 +347,7 @@ let UsersService = class UsersService {
             if (!isSystem && !CLIENT_ROLES.includes(dto.role)) {
                 throw new common_1.ConflictException('Invalid role for a client user.');
             }
+            (0, internal_rbac_1.assertCanCreateTargetRole)(actor, dto.role, 'You cannot assign an equal or higher role.');
         }
         if (dto.companyId !== undefined) {
             if (isSystem) {
@@ -396,16 +408,16 @@ let UsersService = class UsersService {
         return this.update(id, { status: client_1.UserStatus.inactive }, actor);
     }
     async remove(id, actor) {
-        (0, internal_rbac_1.assertInternalAdmin)(actor);
         if (actor.id === id) {
             throw new common_1.ForbiddenException('You cannot delete your own user account.');
         }
         const u = await this.prisma.user.findUnique({
             where: { id },
-            select: { id: true, companyId: true },
+            select: { id: true, companyId: true, role: true },
         });
         if (!u)
             throw new common_1.NotFoundException('User not found.');
+        (0, internal_rbac_1.assertCanManageTargetRole)(actor, u.role);
         if (u.companyId) {
             this.companyAccess.assertCompanyAccess(actor, u.companyId);
         }

@@ -175,6 +175,13 @@ const NAV_CATALOG: Array<NavItemDef & { roles: InternalRole[] }> = [
     roles: ADMIN_ROLES,
   },
   {
+    labelKey: 'Finance',
+    iconKey: 'Reports',
+    to: '/finance/overview',
+    match: (p) => p.startsWith('/finance'),
+    roles: ['super_admin', 'wh_manager', 'finance'],
+  },
+  {
     labelKey: 'Billing',
     iconKey: 'Reports',
     to: '/billing/plans',

@@ -12,24 +12,35 @@ export function useFilters<T extends object>(initialFilters: T) {
   const cacheKey = `filters:${pathname}`;
   const initial = useMemo(() => ({ ...initialFilters }), [initialFilters]);
 
-  const [draftFilters, setDraftFilters] = useCachedState<T>(`${cacheKey}:draft`, initial);
-  const [appliedFilters, setAppliedFilters] = useCachedState<T>(
+  const [rawDraftFilters, setDraftFilters] = useCachedState<T>(`${cacheKey}:draft`, initial);
+  const [rawAppliedFilters, setAppliedFilters] = useCachedState<T>(
     `${cacheKey}:applied`,
     initial,
   );
 
+  const draftFilters = useMemo(
+    () => ({ ...initial, ...(rawDraftFilters ?? {}) }),
+    [initial, rawDraftFilters],
+  );
+
+  const appliedFilters = useMemo(
+    () => ({ ...initial, ...(rawAppliedFilters ?? {}) }),
+    [initial, rawAppliedFilters],
+  );
+
   const setDraft = useCallback(
     (patch: Partial<T> | ((prev: T) => T)) => {
-      setDraftFilters((prev) =>
-        typeof patch === 'function' ? (patch as (p: T) => T)(prev) : { ...prev, ...patch },
-      );
+      setDraftFilters((prev) => {
+        const base = { ...initial, ...(prev ?? {}) };
+        return typeof patch === 'function' ? (patch as (p: T) => T)(base) : { ...base, ...patch };
+      });
     },
-    [setDraftFilters],
+    [initial, setDraftFilters],
   );
 
   const applyFilters = useCallback(() => {
-    setAppliedFilters({ ...draftFilters });
-  }, [draftFilters, setAppliedFilters]);
+    setAppliedFilters({ ...initial, ...draftFilters });
+  }, [initial, draftFilters, setAppliedFilters]);
 
   const resetFilters = useCallback(() => {
     const z = { ...initial };
@@ -41,12 +52,12 @@ export function useFilters<T extends object>(initialFilters: T) {
   const applyPatch = useCallback(
     (patch: Partial<T>) => {
       setDraftFilters((prev) => {
-        const next = { ...prev, ...patch } as T;
+        const next = { ...initial, ...(prev ?? {}), ...patch } as T;
         setAppliedFilters(next);
         return next;
       });
     },
-    [setDraftFilters, setAppliedFilters],
+    [initial, setDraftFilters, setAppliedFilters],
   );
 
   return {

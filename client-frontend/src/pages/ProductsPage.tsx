@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState, type ReactElement } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 
-import { Alert, Badge, Button, EmptyState, Skeleton } from '@ds';
+import { Alert, Badge, Button, EmptyState, Skeleton, StatusCardNav, STATUS_CARD_TONES, type StatusCardItem } from '@ds';
 import {
   CHUNK_SIZE_STANDARD,
   useChunkedServerPagination,
@@ -20,6 +20,7 @@ import { isClientArabic } from '../lib/client-ui-language';
 import { isClientAdmin } from '../lib/rbac';
 import {
   deleteClientProduct,
+  downloadClientProductsExcel,
   fetchClientProducts,
   type ClientProductRow,
 } from '../services/clientProductsService';
@@ -140,6 +141,98 @@ export function ProductsPage(): ReactElement {
     },
   });
 
+  const [statusFilter, setStatusFilter] = useState<'all' | 'in_stock' | 'low_stock' | 'out_of_stock'>('all');
+  const [exporting, setExporting] = useState(false);
+
+  const handleExport = async () => {
+    try {
+      setExporting(true);
+      await downloadClientProductsExcel({
+        search: filterKey.search,
+      });
+      setActionSuccess(isArabic ? 'تم تحميل ملف الإكسل بنجاح.' : 'Export downloaded successfully.');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Export failed';
+      setActionError(msg);
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  const { rowsWithHealth, counts } = useMemo(() => {
+    let availableCount = 0;
+    let lowCount = 0;
+    let outCount = 0;
+
+    const list = pagination.rows.map((p) => {
+      const reserved = Number(p.totalReserved ?? 0);
+      const onHand = Number(p.totalOnHand ?? 0);
+      const available =
+        p.totalAvailable != null
+          ? Number(p.totalAvailable)
+          : Math.max(0, onHand - reserved);
+      const health = stockHealth(available, Number(p.minStockThreshold) || 0);
+      if (health === 'available') availableCount++;
+      else if (health === 'low') lowCount++;
+      else if (health === 'out') outCount++;
+      return {
+        ...p,
+        calculatedAvailable: available,
+        calculatedOnHand: onHand,
+        calculatedReserved: reserved,
+        health,
+      };
+    });
+
+    return {
+      rowsWithHealth: list,
+      counts: {
+        all: pagination.total || list.length,
+        in_stock: availableCount,
+        low_stock: lowCount,
+        out_of_stock: outCount,
+      },
+    };
+  }, [pagination.rows, pagination.total]);
+
+  const displayedRows = useMemo(() => {
+    if (statusFilter === 'all') return rowsWithHealth;
+    if (statusFilter === 'in_stock') return rowsWithHealth.filter((r) => r.health === 'available');
+    if (statusFilter === 'low_stock') return rowsWithHealth.filter((r) => r.health === 'low');
+    if (statusFilter === 'out_of_stock') return rowsWithHealth.filter((r) => r.health === 'out');
+    return rowsWithHealth;
+  }, [rowsWithHealth, statusFilter]);
+
+  const statusCards: StatusCardItem[] = useMemo(
+    () => [
+      {
+        value: 'all',
+        label: isArabic ? 'كل المنتجات' : 'All products',
+        count: counts.all,
+        ...STATUS_CARD_TONES.slate,
+      },
+      {
+        value: 'in_stock',
+        label: t('In stock'),
+        count: counts.in_stock,
+        ...STATUS_CARD_TONES.emerald,
+      },
+      {
+        value: 'low_stock',
+        label: t('Low stock'),
+        count: counts.low_stock,
+        ...STATUS_CARD_TONES.amber,
+      },
+      {
+        value: 'out_of_stock',
+        label: t('Out of stock'),
+        count: counts.out_of_stock,
+        ...STATUS_CARD_TONES.rose,
+      },
+    ],
+    [isArabic, t, counts],
+  );
+
   return (
     <div className="space-y-5 animate-enter">
       <ListPageHeader
@@ -147,22 +240,39 @@ export function ProductsPage(): ReactElement {
         title={t('Inventory')}
         subtitle={t('Sellable stock and catalog')}
         actions={
-          canManageProducts ? (
+          <div className="flex items-center gap-2">
             <Button
-              variant="primary"
+              variant="secondary"
               size="md"
-              disabled={!billingAccess.operationalAllowed}
-              title={
-                !billingAccess.operationalAllowed
-                  ? billingAccess.restriction.actionBlockedReason
-                  : undefined
+              disabled={exporting}
+              onClick={handleExport}
+              startIcon={
+                exporting ? (
+                  <i className="fa-solid fa-spinner fa-spin text-xs" aria-hidden="true" />
+                ) : (
+                  <i className="fa-solid fa-file-excel text-xs text-status-success-fg" aria-hidden="true" />
+                )
               }
-              onClick={() => navigate('/products/new')}
-              startIcon={<i className="fa-solid fa-plus text-xs" aria-hidden="true" />}
             >
-              {t('New product')}
+              {exporting ? (isArabic ? 'جاري التصدير…' : 'Exporting…') : (isArabic ? 'تصدير إكسل' : 'Export Excel')}
             </Button>
-          ) : null
+            {canManageProducts ? (
+              <Button
+                variant="primary"
+                size="md"
+                disabled={!billingAccess.operationalAllowed}
+                title={
+                  !billingAccess.operationalAllowed
+                    ? billingAccess.restriction.actionBlockedReason
+                    : undefined
+                }
+                onClick={() => navigate('/products/new')}
+                startIcon={<i className="fa-solid fa-plus text-xs" aria-hidden="true" />}
+              >
+                {t('New product')}
+              </Button>
+            ) : null}
+          </div>
         }
       />
 
@@ -184,6 +294,12 @@ export function ProductsPage(): ReactElement {
           }
         />
       ) : null}
+
+      <StatusCardNav
+        items={statusCards}
+        value={statusFilter}
+        onChange={(val) => setStatusFilter(val as any)}
+      />
 
       <Card className="p-4">
         <div className="relative">
@@ -223,26 +339,27 @@ export function ProductsPage(): ReactElement {
                     ))}
                   </tr>
                 ))
-              ) : pagination.rows.length === 0 ? (
+              ) : displayedRows.length === 0 ? (
                 <tr>
                   <td colSpan={7} className="px-5 py-6">
                     <EmptyState
                       size="sm"
                       icon={<i className="fa-solid fa-boxes-stacked text-2xl" aria-hidden="true" />}
                       title={
-                        debouncedSearch.trim()
+                        debouncedSearch.trim() || statusFilter !== 'all'
                           ? t('No products match your search.')
                           : t('No products found.')
                       }
                       description={
-                        debouncedSearch.trim()
+                        debouncedSearch.trim() || statusFilter !== 'all'
                           ? undefined
                           : t('Add your first catalog product to track sellable stock.')
                       }
                       action={
                         canManageProducts &&
                         billingAccess.operationalAllowed &&
-                        !debouncedSearch.trim() ? (
+                        !debouncedSearch.trim() &&
+                        statusFilter === 'all' ? (
                           <Button
                             variant="primary"
                             size="sm"
@@ -257,14 +374,10 @@ export function ProductsPage(): ReactElement {
                   </td>
                 </tr>
               ) : (
-                pagination.rows.map((p) => {
-                  const reserved = Number(p.totalReserved ?? 0);
-                  const onHand = Number(p.totalOnHand ?? 0);
-                  const available =
-                    p.totalAvailable != null
-                      ? Number(p.totalAvailable)
-                      : Math.max(0, onHand - reserved);
-                  const health = stockHealth(available, Number(p.minStockThreshold) || 0);
+                displayedRows.map((p) => {
+                  const available = p.calculatedAvailable;
+                  const onHand = p.calculatedOnHand;
+                  const health = p.health;
                   const healthTone =
                     health === 'out' ? 'danger' : health === 'low' ? 'warning' : 'success';
                   const healthLabel =

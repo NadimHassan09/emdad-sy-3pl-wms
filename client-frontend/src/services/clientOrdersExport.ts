@@ -91,6 +91,19 @@ export async function downloadClientOrdersExport(
     ids?: string[];
     orderSearch?: string;
     status?: string;
+    customer?: string;
+    phone?: string;
+    city?: string;
+    carrier?: string;
+    startOrderNo?: string;
+    endOrderNo?: string;
+    createdFrom?: string;
+    createdTo?: string;
+    totalOp?: string;
+    totalValue?: string;
+    operationalStage?: string;
+    storeChannel?: string;
+    [key: string]: unknown;
   },
 ): Promise<void> {
   const response = await apiClient.post<Blob>(EXPORT_PATH[kind], payload, {

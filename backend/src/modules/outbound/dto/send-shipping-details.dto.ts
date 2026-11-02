@@ -49,6 +49,12 @@ export class QuoteFingerprintDto {
   @MaxLength(500)
   partsKey?: string;
 
+  @EmptyToUndefined()
+  @IsOptional()
+  @IsString()
+  @MaxLength(64)
+  hubId?: string;
+
   @IsString()
   @MaxLength(40)
   quotedAt!: string;

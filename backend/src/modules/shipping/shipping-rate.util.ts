@@ -28,6 +28,10 @@ export type ShippingRateQuote = {
   providerName?: string;
   /** Carrier logo URL from provider response. Only set when API returns it. Never invent. */
   logoUrl?: string;
+  /** Hubs for Hub Delivery. Omitted when the carrier has no selectable hubs. */
+  hubs?: Array<{ id: string; name: string; nearest?: boolean }>;
+  nearestHubId?: string | null;
+  nearestHubDetermined?: boolean;
   /** Verified COD currencies for this service and delivery type. Empty means unknown. */
   supportedCodCurrencies?: string[];
   /** Payable amount used for recommendation (may differ from display if prices[]). */

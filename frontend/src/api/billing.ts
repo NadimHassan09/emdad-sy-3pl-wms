@@ -226,6 +226,7 @@ export type BillingRateSnapshot = {
 export type BillingInvoiceRow = {
   id: string;
   companyId: string;
+  company?: { id: string; name: string } | null;
   billingCycleId: string | null;
   invoiceSource: BillingInvoiceSource;
   invoiceNumber: string;
@@ -242,6 +243,7 @@ export type BillingInvoiceRow = {
   dueDate: string | null;
   createdAt: string;
   updatedAt: string;
+  notes?: string | null;
   billingCycle?: BillingInvoiceCycleSummary | null;
   lines?: BillingInvoiceLineRow[];
 };
@@ -286,6 +288,7 @@ export type UpdateInvoicePayload = {
   discountType?: 'fixed' | 'percentage' | null;
   discountValue?: number | null;
   vatPercentage?: number;
+  notes?: string | null;
 };
 
 export type BillingPlanOverviewItem = {
@@ -475,7 +478,7 @@ export const BillingApi = {
   },
 
   /** Templates API is not available on this backend build yet. */
-  async listTemplates(_params?: { activeOnly?: boolean }): Promise<BillingPlanTemplateRow[]> {
+  async listTemplates(_params?: { activeOnly?: boolean; search?: string }): Promise<BillingPlanTemplateRow[]> {
     return [];
   },
 
@@ -496,7 +499,9 @@ export const BillingApi = {
     throw new Error('Billing plan templates are not available yet.');
   },
 
-  async listCompaniesWithoutPlan(_search?: string): Promise<Array<{ id: string; name: string }>> {
+  async listCompaniesWithoutPlan(
+    _search?: string,
+  ): Promise<Array<{ id: string; name: string; status?: string }>> {
     const { data } = await api.get<Array<{ id: string; name: string; status?: string }>>(
       '/companies',
       { params: { includeAll: true } },
@@ -505,7 +510,7 @@ export const BillingApi = {
     const withPlan = new Set(plans.items.map((row) => row.companyId));
     return data
       .filter((c) => !withPlan.has(c.id))
-      .map((c) => ({ id: c.id, name: c.name }));
+      .map((c) => ({ id: c.id, name: c.name, status: c.status }));
   },
 
   async listCycles(companyId?: string): Promise<BillingCycleRow[]> {

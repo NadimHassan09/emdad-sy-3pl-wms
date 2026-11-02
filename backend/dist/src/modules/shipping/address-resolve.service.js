@@ -17,6 +17,7 @@ const common_1 = require("@nestjs/common");
 const syria_address_hierarchy_json_1 = __importDefault(require("../../data/syria-locations/syria-address-hierarchy.json"));
 const syria_location_index_json_1 = __importDefault(require("../../data/syria-locations/syria-location-index.json"));
 const geo_polygon_util_1 = require("./geo-polygon.util");
+const location_match_1 = require("./location-match");
 const SEP = '\u001f';
 const MAX_DISTANCE_KM = 1;
 const BABEL_CITY_PRIMARY_DISTRICT = {
@@ -190,6 +191,9 @@ let AddressResolveService = class AddressResolveService {
                     lng: fromHierarchy.lng,
                     source: 'neighborhood',
                     resolvedLabel: townNeighborhood,
+                    governorate,
+                    cityRegion,
+                    townNeighborhood,
                 };
             }
             const neighborhood = this.resolveTownAcrossDistricts(governorate, cityRegion, townNeighborhood);
@@ -200,6 +204,9 @@ let AddressResolveService = class AddressResolveService {
                     lng: neighborhood.lng,
                     source: 'neighborhood',
                     resolvedLabel: townNeighborhood,
+                    governorate,
+                    cityRegion,
+                    townNeighborhood,
                 };
             }
         }
@@ -212,8 +219,30 @@ let AddressResolveService = class AddressResolveService {
                     lng: city.lng,
                     source: 'city',
                     resolvedLabel: cityRegion,
+                    governorate,
+                    cityRegion,
                 };
             }
+        }
+        if (cityRegion || townNeighborhood) {
+            const matched = (0, location_match_1.matchIndexedTown)(this.points, governorate, [cityRegion, townNeighborhood]);
+            if (matched) {
+                return {
+                    found: true,
+                    lat: matched.lat,
+                    lng: matched.lng,
+                    source: 'neighborhood',
+                    resolvedLabel: matched.townNeighborhood,
+                    governorate: matched.governorate,
+                    cityRegion: matched.cityRegion,
+                    townNeighborhood: matched.townNeighborhood,
+                };
+            }
+            const parts = [townNeighborhood, cityRegion, governorate].filter(Boolean);
+            return {
+                found: false,
+                message: `No stored coordinates for ${parts.join(' — ')}. Missing neighborhood.`,
+            };
         }
         const gov = this.lookupGovernorate(governorate);
         if (gov) {

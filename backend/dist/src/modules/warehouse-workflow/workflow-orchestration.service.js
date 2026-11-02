@@ -281,7 +281,8 @@ let WorkflowOrchestrationService = class WorkflowOrchestrationService {
                         await this.spawnShippingDetailsIfNeeded(tx, wf.id, orderId);
                     }
                     else {
-                        await this.spawnPackIfNeeded(tx, wf.id, orderId);
+                        const lineIds = body.picks.map((p) => p.outbound_order_line_id);
+                        await this.spawnPackIfNeeded(tx, wf.id, orderId, lineIds, true);
                     }
                 }
                 break;
@@ -305,13 +306,14 @@ let WorkflowOrchestrationService = class WorkflowOrchestrationService {
                 break;
         }
     }
-    async spawnPackIfNeeded(tx, instanceId, orderId) {
+    async spawnPackIfNeeded(tx, instanceId, orderId, knownLineIds, packingAlreadyRequired = false) {
         const existing = await tx.warehouseTask.findFirst({
             where: {
                 workflowInstanceId: instanceId,
                 taskType: client_1.WarehouseTaskType.pack,
             },
             orderBy: { createdAt: 'desc' },
+            select: { id: true, status: true },
         });
         if (existing &&
             [client_1.WarehouseTaskStatus.pending, client_1.WarehouseTaskStatus.assigned, client_1.WarehouseTaskStatus.in_progress].includes(existing.status)) {
@@ -320,14 +322,31 @@ let WorkflowOrchestrationService = class WorkflowOrchestrationService {
         if (existing?.status === client_1.WarehouseTaskStatus.completed) {
             return;
         }
-        const order = await tx.outboundOrder.findUnique({
-            where: { id: orderId },
-            include: { lines: { orderBy: { lineNumber: 'asc' } } },
-        });
-        if (!order)
-            throw new common_1.BadRequestException('Outbound order missing for pack spawn.');
-        if (order.requiresPacking === false)
-            return;
+        let lineIds = knownLineIds?.filter((id) => typeof id === 'string' && id.length > 0) ?? [];
+        if (lineIds.length === 0) {
+            const order = await tx.outboundOrder.findUnique({
+                where: { id: orderId },
+                select: {
+                    requiresPacking: true,
+                    lines: { orderBy: { lineNumber: 'asc' }, select: { id: true } },
+                },
+            });
+            if (!order)
+                throw new common_1.BadRequestException('Outbound order missing for pack spawn.');
+            if (order.requiresPacking === false)
+                return;
+            lineIds = order.lines.map((l) => l.id);
+        }
+        else if (!packingAlreadyRequired) {
+            const order = await tx.outboundOrder.findUnique({
+                where: { id: orderId },
+                select: { requiresPacking: true },
+            });
+            if (!order)
+                throw new common_1.BadRequestException('Outbound order missing for pack spawn.');
+            if (order.requiresPacking === false)
+                return;
+        }
         const seq = await this.nextNodeSequence(tx, instanceId);
         const node = await tx.workflowNode.create({
             data: {
@@ -346,7 +365,7 @@ let WorkflowOrchestrationService = class WorkflowOrchestrationService {
                 slaMinutes: (0, task_sla_defaults_1.defaultSlaMinutesForTaskType)(client_1.WarehouseTaskType.pack),
                 payload: {
                     outbound_order_id: orderId,
-                    outbound_order_line_ids: order.lines.map((l) => l.id),
+                    outbound_order_line_ids: lineIds,
                 },
             },
         });

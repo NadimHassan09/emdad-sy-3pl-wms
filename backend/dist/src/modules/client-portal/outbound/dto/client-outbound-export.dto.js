@@ -19,6 +19,7 @@ class ClientOutboundOrdersExportDto {
     ids;
     orderSearch;
     status;
+    format;
 }
 exports.ClientOutboundOrdersExportDto = ClientOutboundOrdersExportDto;
 __decorate([
@@ -54,4 +55,9 @@ __decorate([
     (0, class_validator_1.MaxLength)(64),
     __metadata("design:type", String)
 ], ClientOutboundOrdersExportDto.prototype, "status", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    __metadata("design:type", String)
+], ClientOutboundOrdersExportDto.prototype, "format", void 0);
 //# sourceMappingURL=client-outbound-export.dto.js.map

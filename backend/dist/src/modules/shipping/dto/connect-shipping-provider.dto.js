@@ -14,6 +14,7 @@ const class_validator_1 = require("class-validator");
 class ConnectShippingProviderDto {
     username;
     password;
+    webhookSecret;
 }
 exports.ConnectShippingProviderDto = ConnectShippingProviderDto;
 __decorate([
@@ -24,10 +25,14 @@ __decorate([
 ], ConnectShippingProviderDto.prototype, "username", void 0);
 __decorate([
     (0, class_validator_1.IsString)(),
-    (0, class_validator_1.IsNotEmpty)(),
-    (0, class_validator_1.MinLength)(1),
+    (0, class_validator_1.IsOptional)(),
     __metadata("design:type", String)
 ], ConnectShippingProviderDto.prototype, "password", void 0);
+__decorate([
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.IsOptional)(),
+    __metadata("design:type", String)
+], ConnectShippingProviderDto.prototype, "webhookSecret", void 0);
 class ShippingMethodDto {
     shippingMethod;
 }

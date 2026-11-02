@@ -30,6 +30,7 @@ export const OMS_PRIMARY_STATUSES: ReadonlySet<OmsOrderStatus> = new Set([
   OmsOrderStatus.delivered,
   OmsOrderStatus.cancelled,
   OmsOrderStatus.failed_delivery,
+  OmsOrderStatus.return_pending_receipt,
   OmsOrderStatus.returned,
 ]);
 
@@ -40,6 +41,7 @@ export const OMS_TERMINAL_STATUSES: ReadonlySet<OmsOrderStatus> = new Set([
   OmsOrderStatus.completed,
   OmsOrderStatus.delivered,
   OmsOrderStatus.failed_delivery,
+  OmsOrderStatus.return_pending_receipt,
   OmsOrderStatus.returned,
 ]);
 
@@ -130,16 +132,34 @@ const ALLOWED: Partial<Record<TransitionKey, OmsOrderStatus>> = {
     OmsOrderStatus.out_for_delivery,
   [`${OmsOrderStatus.failed_delivery}|resume_shipping|system`]:
     OmsOrderStatus.out_for_delivery,
+  [`${OmsOrderStatus.return_pending_receipt}|resume_shipping|admin`]:
+    OmsOrderStatus.out_for_delivery,
+  [`${OmsOrderStatus.return_pending_receipt}|resume_shipping|system`]:
+    OmsOrderStatus.out_for_delivery,
+  [`${OmsOrderStatus.return_pending_receipt}|mark_delivered|admin`]:
+    OmsOrderStatus.delivered,
+  [`${OmsOrderStatus.return_pending_receipt}|mark_delivered|system`]:
+    OmsOrderStatus.delivered,
 
-  // Full return after warehouse receive/complete
-  [`${OmsOrderStatus.delivered}|mark_returned|system`]: OmsOrderStatus.returned,
-  [`${OmsOrderStatus.delivered}|mark_returned|admin`]: OmsOrderStatus.returned,
-  [`${OmsOrderStatus.shipped}|mark_returned|system`]: OmsOrderStatus.returned,
-  [`${OmsOrderStatus.shipped}|mark_returned|admin`]: OmsOrderStatus.returned,
-  [`${OmsOrderStatus.out_for_delivery}|mark_returned|system`]: OmsOrderStatus.returned,
-  [`${OmsOrderStatus.out_for_delivery}|mark_returned|admin`]: OmsOrderStatus.returned,
-  [`${OmsOrderStatus.failed_delivery}|mark_returned|system`]: OmsOrderStatus.returned,
-  [`${OmsOrderStatus.failed_delivery}|mark_returned|admin`]: OmsOrderStatus.returned,
+  // Create a return request (warehouse has not received yet)
+  [`${OmsOrderStatus.failed_delivery}|mark_returned|admin`]:
+    OmsOrderStatus.return_pending_receipt,
+  [`${OmsOrderStatus.failed_delivery}|mark_returned|system`]:
+    OmsOrderStatus.return_pending_receipt,
+  [`${OmsOrderStatus.delivered}|mark_returned|admin`]:
+    OmsOrderStatus.return_pending_receipt,
+  [`${OmsOrderStatus.delivered}|mark_returned|system`]:
+    OmsOrderStatus.return_pending_receipt,
+  [`${OmsOrderStatus.shipped}|mark_returned|system`]:
+    OmsOrderStatus.return_pending_receipt,
+  [`${OmsOrderStatus.out_for_delivery}|mark_returned|system`]:
+    OmsOrderStatus.return_pending_receipt,
+
+  // Physical warehouse confirmation
+  [`${OmsOrderStatus.return_pending_receipt}|mark_returned|system`]:
+    OmsOrderStatus.returned,
+  [`${OmsOrderStatus.return_pending_receipt}|mark_returned|admin`]:
+    OmsOrderStatus.returned,
 };
 
 export function assertOmsTransition(

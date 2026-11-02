@@ -78,6 +78,13 @@ export interface OmsWaybillItem {
   price: number;
 }
 
+export interface OmsWaybillPartInfo {
+  partIndex: number;
+  partTotal: number;
+  partBarcode: string;
+  mainAwb: string;
+}
+
 export interface OmsWaybillData {
   orderId: string;
   orderNumber: string;
@@ -87,6 +94,7 @@ export interface OmsWaybillData {
   carrierLogoUrl?: string;
   isCarrierAwbFromApi: boolean;
   shippingMethod: 'carrier' | 'manual';
+  shippingProviderCode?: string | null;
   createdAt: string;
   qrCodeData: string;
   company: {
@@ -118,4 +126,12 @@ export interface OmsWaybillData {
   items: OmsWaybillItem[];
   totalQuantity: number;
   labelUrl?: string;
+  // Multi-part package fields (e.g. Babel Express)
+  partIndex?: number;
+  partTotal?: number;
+  partBarcode?: string;
+  mainAwb?: string;
+  partBarcodes?: string[];
+  parts?: OmsWaybillPartInfo[];
 }
+

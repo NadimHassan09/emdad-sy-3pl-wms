@@ -9,7 +9,8 @@ var __metadata = (this && this.__metadata) || function (k, v) {
     if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.UpdateCodStatusDto = exports.CreateCodAdjustmentDto = exports.ListCodRecordsQueryDto = void 0;
+exports.SetCodStatusByScanDto = exports.UpdateCodStatusDto = exports.CreateCodAdjustmentDto = exports.ListCodRecordsQueryDto = void 0;
+const class_transformer_1 = require("class-transformer");
 const class_validator_1 = require("class-validator");
 const client_1 = require("@prisma/client");
 const pagination_dto_1 = require("../../../common/dto/pagination.dto");
@@ -20,6 +21,10 @@ class ListCodRecordsQueryDto extends pagination_dto_1.PaginationDto {
     status;
     omsOrderId;
     search;
+    createdFrom;
+    createdTo;
+    amountMin;
+    amountMax;
 }
 exports.ListCodRecordsQueryDto = ListCodRecordsQueryDto;
 __decorate([
@@ -47,6 +52,32 @@ __decorate([
     (0, class_validator_1.MaxLength)(200),
     __metadata("design:type", String)
 ], ListCodRecordsQueryDto.prototype, "search", void 0);
+__decorate([
+    (0, query_transform_1.EmptyToUndefined)(),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsDateString)(),
+    __metadata("design:type", String)
+], ListCodRecordsQueryDto.prototype, "createdFrom", void 0);
+__decorate([
+    (0, query_transform_1.EmptyToUndefined)(),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsDateString)(),
+    __metadata("design:type", String)
+], ListCodRecordsQueryDto.prototype, "createdTo", void 0);
+__decorate([
+    (0, query_transform_1.EmptyToUndefined)(),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_transformer_1.Type)(() => Number),
+    (0, class_validator_1.IsNumber)(),
+    __metadata("design:type", Number)
+], ListCodRecordsQueryDto.prototype, "amountMin", void 0);
+__decorate([
+    (0, query_transform_1.EmptyToUndefined)(),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_transformer_1.Type)(() => Number),
+    (0, class_validator_1.IsNumber)(),
+    __metadata("design:type", Number)
+], ListCodRecordsQueryDto.prototype, "amountMax", void 0);
 class CreateCodAdjustmentDto {
     amount;
     reason;
@@ -70,4 +101,18 @@ __decorate([
     (0, class_validator_1.IsEnum)(client_1.CodRecordStatus),
     __metadata("design:type", String)
 ], UpdateCodStatusDto.prototype, "status", void 0);
+class SetCodStatusByScanDto {
+    code;
+    status;
+}
+exports.SetCodStatusByScanDto = SetCodStatusByScanDto;
+__decorate([
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.MaxLength)(500),
+    __metadata("design:type", String)
+], SetCodStatusByScanDto.prototype, "code", void 0);
+__decorate([
+    (0, class_validator_1.IsEnum)(client_1.CodRecordStatus),
+    __metadata("design:type", String)
+], SetCodStatusByScanDto.prototype, "status", void 0);
 //# sourceMappingURL=cod.dto.js.map

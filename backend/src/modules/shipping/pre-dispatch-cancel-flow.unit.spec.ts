@@ -91,7 +91,7 @@ describe('Critical pre-dispatch cancel flow', () => {
     // Tracking cleared on OMS
     expect(prismaMock.omsOrder.update).toHaveBeenCalledWith(
       expect.objectContaining({
-        data: { trackingNumber: null },
+        data: expect.objectContaining({ trackingNumber: null, carrier: null }),
       }),
     );
 

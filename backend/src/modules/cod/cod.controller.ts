@@ -6,6 +6,7 @@ import { CurrentUser } from '../../common/auth/current-user.decorator';
 import { AuthPrincipal } from '../../common/auth/current-user.types';
 import { ParseUuidLoosePipe } from '../../common/pipes/parse-uuid-loose.pipe';
 import { CodRecordsService } from './cod-records.service';
+import { codExportContentDisposition } from './cod-export.util';
 import {
   CreateCodAdjustmentDto,
   ListCodRecordsQueryDto,
@@ -37,10 +38,26 @@ export class CodController {
     @Query() query: ListCodRecordsQueryDto,
     @Res() res: Response,
   ) {
-    const csv = await this.cod.exportCsv(user, query);
-    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
-    res.setHeader('Content-Disposition', 'attachment; filename="cod-records.csv"');
-    res.send(csv);
+    const { buffer, filename } = await this.cod.exportXlsx(user, query);
+    res.setHeader(
+      'Content-Type',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    );
+    res.setHeader('Content-Disposition', codExportContentDisposition(filename));
+    res.send(buffer);
+  }
+
+  @Get('records/export.pdf')
+  @Header('Cache-Control', 'no-store')
+  async exportRecordsPdf(
+    @CurrentUser() user: AuthPrincipal,
+    @Query() query: ListCodRecordsQueryDto,
+    @Res() res: Response,
+  ) {
+    const { buffer, filename } = await this.cod.exportPdf(user, query);
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', codExportContentDisposition(filename));
+    res.send(buffer);
   }
 
   @Get('records/:id')

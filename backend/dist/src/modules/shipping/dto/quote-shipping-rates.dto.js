@@ -28,6 +28,12 @@ class QuoteShippingRatesDto {
     city;
     neighborhood;
     currency;
+    rateCurrency;
+    collectionMode;
+    payer;
+    includeAllDeliveryTypes;
+    providerCode;
+    hubId;
 }
 exports.QuoteShippingRatesDto = QuoteShippingRatesDto;
 __decorate([
@@ -106,4 +112,34 @@ __decorate([
     (0, class_validator_1.IsString)(),
     __metadata("design:type", String)
 ], QuoteShippingRatesDto.prototype, "currency", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    __metadata("design:type", String)
+], QuoteShippingRatesDto.prototype, "rateCurrency", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsIn)(['all', 'explicit']),
+    __metadata("design:type", String)
+], QuoteShippingRatesDto.prototype, "collectionMode", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsIn)(['sender', 'receiver', 'reseller']),
+    __metadata("design:type", String)
+], QuoteShippingRatesDto.prototype, "payer", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsBoolean)(),
+    __metadata("design:type", Boolean)
+], QuoteShippingRatesDto.prototype, "includeAllDeliveryTypes", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    __metadata("design:type", String)
+], QuoteShippingRatesDto.prototype, "providerCode", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    __metadata("design:type", String)
+], QuoteShippingRatesDto.prototype, "hubId", void 0);
 //# sourceMappingURL=quote-shipping-rates.dto.js.map

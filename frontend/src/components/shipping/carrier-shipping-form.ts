@@ -5,6 +5,11 @@ import type {
   ShippingPackageType,
   ShippingPayer,
 } from '../../api/shipping';
+import type { ClientQuoteFingerprint } from '../../lib/shipping-compare';
+import {
+  mapPayerForCarrier,
+  resolvePaymentModeFromPayer,
+} from '../../lib/shipping-payer';
 
 export type ShippingCurrency = 'USD' | 'SYP';
 
@@ -53,6 +58,8 @@ export type CarrierShippingFormValue = {
   shippingPayer: ShippingPayer;
   shippingProviderCode: string;
   shippingServiceId: string;
+  shippingHubId: string;
+  quoteFingerprint?: ClientQuoteFingerprint | null;
 };
 
 export function providerSupportedCurrencies(providerCode: string): ShippingCurrency[] {
@@ -65,12 +72,6 @@ export function currencyAfterCarrierSelect(providerCode: string): ShippingCurren
   const supported = providerSupportedCurrencies(providerCode);
   if (supported.length === 1 && supported[0] === 'SYP') return 'SYP';
   return 'USD';
-}
-
-function numStr(v: string | number | null | undefined, fallback = '0'): string {
-  if (v == null || v === '') return fallback;
-  const n = Number(v);
-  return Number.isFinite(n) ? String(n) : fallback;
 }
 
 export function newLineId(): string {
@@ -180,10 +181,11 @@ export function buildCarrierShippingFormFromOrder(order: OutboundOrder): Carrier
   const savedDelivery = order.shippingDeliveryType;
   const savedPayer = order.shippingPayer;
   const savedCurrency = (order.omsOrder?.currency ?? order.currency ?? 'USD').trim().toUpperCase();
-  const shippingPayer: ShippingPayer =
-    savedPayer === 'receiver' || savedPayer === 'reseller' || savedPayer === 'sender'
-      ? savedPayer
-      : 'sender';
+  const carrierCode = (order.shippingProviderCode ?? '').trim();
+  const paymentMode = resolvePaymentModeFromPayer(savedPayer);
+  const shippingPayer: ShippingPayer = carrierCode
+    ? mapPayerForCarrier(paymentMode, carrierCode)
+    : (savedPayer === 'receiver' ? 'receiver' : 'sender');
 
   return {
     city: (order.city ?? '').trim(),
@@ -199,18 +201,25 @@ export function buildCarrierShippingFormFromOrder(order: OutboundOrder): Carrier
     shippingPayer,
     shippingProviderCode: (order.shippingProviderCode ?? '').trim(),
     shippingServiceId: ((order as { shippingServiceId?: string }).shippingServiceId ?? '').trim(),
+    shippingHubId: ((order as { shippingHubId?: string | null }).shippingHubId ?? '').trim(),
   };
 }
 
 export function resizeCartons(
   cartons: ShippingCartonValue[],
   count: number,
-  catalog: OrderProductCatalog[],
+  _catalog: OrderProductCatalog[],
 ): ShippingCartonValue[] {
   const n = Math.max(1, Math.min(50, Math.floor(count) || 1));
   const next = [...cartons];
   while (next.length < n) {
-    next.push(emptyCarton(catalog[0]?.productId ?? ''));
+    next.push({
+      cartonId: newCartonId(),
+      lines: [],
+      lengthCm: '10',
+      widthCm: '10',
+      heightCm: '10',
+    });
   }
   return next.slice(0, n);
 }
@@ -293,6 +302,64 @@ export function hasOverPacking(summary: PackingSummaryRow[]): boolean {
   return summary.some((r) => r.overPacked);
 }
 
+export function isBabelProvider(providerCode?: string | null): boolean {
+  if (!providerCode) return false;
+  const code = providerCode.trim().toUpperCase();
+  return code === 'BABEL' || code === 'BABEL_EXPRESS' || code.includes('BABEL');
+}
+
+export function isCartonValid(carton: ShippingCartonValue): boolean {
+  return carton.lines.some(
+    (ln) => ln.productId.trim() !== '' && Number(ln.quantity) > 0,
+  );
+}
+
+export function isPackingComplete(
+  cartons: ShippingCartonValue[],
+  catalog: OrderProductCatalog[],
+): boolean {
+  if (catalog.length === 0) return true;
+  if (cartons.length === 0) return false;
+  for (const c of cartons) {
+    if (!isCartonValid(c)) return false;
+  }
+  const summary = packingSummary(cartons, catalog);
+  if (hasOverPacking(summary)) return false;
+  return summary.every((r) => r.remaining === 0);
+}
+
+export function getBabelPackingValidationError(
+  cartons: ShippingCartonValue[],
+  catalog: OrderProductCatalog[],
+  isArabic = false,
+): string | null {
+  if (catalog.length === 0) return null;
+  if (cartons.length === 0) {
+    return isArabic ? 'يجب إضافة طرد واحد على الأقل.' : 'At least one package is required.';
+  }
+  for (let i = 0; i < cartons.length; i++) {
+    if (!isCartonValid(cartons[i])) {
+      return isArabic
+        ? `الطرد رقم ${i + 1} فارغ. يرجى اختيار منتج وتحديد كميته أو حذف الطرد.`
+        : `Package ${i + 1} is empty. Please select a product and quantity or remove the package.`;
+    }
+  }
+  const summary = packingSummary(cartons, catalog);
+  const over = summary.find((r) => r.overPacked);
+  if (over) {
+    return isArabic
+      ? `الكمية الموزعة للمنتج "${over.productName}" تتجاوز الكمية المطلوبة.`
+      : `Distributed quantity for "${over.productName}" exceeds ordered quantity.`;
+  }
+  const remaining = summary.find((r) => r.remaining > 0);
+  if (remaining) {
+    return isArabic
+      ? `يوجد كمية متبقية (${remaining.remaining}) للمنتج "${remaining.productName}" لم يتم توزيعها على الطرود.`
+      : `Remaining quantity (${remaining.remaining}) for "${remaining.productName}" has not been allocated to packages.`;
+  }
+  return null;
+}
+
 export function toStoredCartons(cartons: ShippingCartonValue[]): StoredShippingCarton[] {
   return cartons
     .map((c) => {
@@ -372,11 +439,17 @@ export function carrierFormToSavePayload(
     shippingMethod: 'carrier',
     shippingProviderCode: form.shippingProviderCode.trim() || null,
     shippingServiceId: form.shippingServiceId?.trim() || null,
+    shippingHubId: form.deliveryType === 'hub' ? form.shippingHubId?.trim() || null : null,
     shippingPackageType: form.packageType || 'box',
     shippingContents: contentsFromCartons(form.cartons, form.catalog) || null,
     shippingDeliveryType: form.deliveryType || 'address',
     shippingPickupType: 'address',
-    shippingPayer: form.shippingPayer || 'sender',
+    shippingPayer: form.shippingProviderCode.trim()
+      ? mapPayerForCarrier(
+          resolvePaymentModeFromPayer(form.shippingPayer),
+          form.shippingProviderCode.trim(),
+        )
+      : form.shippingPayer || 'sender',
     shippingWeightKg: weight > 0 ? weight : null,
     shippingVolumeCbm: volume >= 0 ? volume : 0,
     shippingPackages: stored.length > 0 ? stored : null,

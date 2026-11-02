@@ -1,7 +1,14 @@
-import type { ReactElement } from 'react';
+import { useMemo, useState, type ReactElement } from 'react';
 import { useNavigate } from 'react-router-dom';
 
-import { Button, EmptyState, ListPageHeader } from '@ds';
+import {
+  Button,
+  EmptyState,
+  ListPageHeader,
+  StatusCardNav,
+  STATUS_CARD_TONES,
+  type StatusCardItem,
+} from '@ds';
 
 import {
   CHUNK_SIZE_STANDARD,
@@ -36,6 +43,15 @@ function labelText(label: string, isArabic: boolean): string {
     'Linked order': 'الطلب المرتبط',
     Lines: 'البنود',
     Created: 'تاريخ الإنشاء',
+    'All statuses': 'كل الحالات',
+    Requested: 'تم الطلب',
+    Approved: 'تمت الموافقة',
+    'In progress': 'قيد المعالجة',
+    Completed: 'مكتمل',
+    Rejected: 'مرفوض',
+    Cancelled: 'ملغي',
+    Pending: 'قيد الانتظار',
+    Receiving: 'جاري الاستلام',
     'No returns yet': 'لا توجد مرتجعات بعد',
     'Create a return for an online order.': 'أنشئ مرتجعاً لطلب إلكتروني.',
     'Create a return for a shipped outbound order.': 'أنشئ مرتجعاً لطلب صادر مشحون.',
@@ -85,6 +101,7 @@ function ReturnsListPage({ source }: Props): ReactElement {
   const isArabic = isClientArabic();
   const t = (label: string) => labelText(label, isArabic);
   const billingAccess = useClientOperationalAccess(isArabic);
+  const [status, setStatus] = useState('');
 
   const basePath = source === 'oms' ? '/ecommerce-orders/returns' : '/outbound-orders/returns';
   const title = source === 'oms' ? t('Online returns') : t('Outbound returns');
@@ -99,10 +116,10 @@ function ReturnsListPage({ source }: Props): ReactElement {
 
   const pagination = useChunkedServerPagination<ListRow>({
     chunkSize: CHUNK_SIZE_STANDARD,
-    filterKey: { source },
+    filterKey: { source, status: status || undefined },
     fetchChunk: async (offset, limit) => {
       if (source === 'oms') {
-        const page = await fetchClientOmsReturns({ offset, limit });
+        const page = await fetchClientOmsReturns({ offset, limit, status: status || undefined });
         return {
           items: page.items.map(mapOmsReturn),
           total: page.total,
@@ -110,7 +127,12 @@ function ReturnsListPage({ source }: Props): ReactElement {
           offset: page.offset,
         };
       }
-      const page = await fetchClientReturns({ offset, limit, source });
+      const page = await fetchClientReturns({
+        offset,
+        limit,
+        source,
+        status: status || undefined,
+      });
       return {
         items: page.items.map(mapWhReturn),
         total: page.total,
@@ -118,9 +140,96 @@ function ReturnsListPage({ source }: Props): ReactElement {
         offset: page.offset,
       };
     },
-    rtQueryKeyPrefix: ['client', 'returns', source],
-    chunkQueryKeyPrefix: `client-returns-${source}-chunk`,
+    rtQueryKeyPrefix: ['client', 'returns', source, status],
+    chunkQueryKeyPrefix: `client-returns-${source}-${status}-chunk`,
   });
+
+  const statusCards: StatusCardItem[] = useMemo(() => {
+    const totalCount = pagination.serverPagination.total;
+    if (source === 'oms') {
+      return [
+        {
+          value: '',
+          label: t('All statuses'),
+          count: status === '' ? totalCount : undefined,
+          tone: STATUS_CARD_TONES.slate.tone,
+          ring: STATUS_CARD_TONES.slate.ring,
+        },
+        {
+          value: 'requested',
+          label: t('Requested'),
+          count: status === 'requested' ? totalCount : undefined,
+          tone: STATUS_CARD_TONES.amber.tone,
+          ring: STATUS_CARD_TONES.amber.ring,
+        },
+        {
+          value: 'approved',
+          label: t('Approved'),
+          count: status === 'approved' ? totalCount : undefined,
+          tone: STATUS_CARD_TONES.blue.tone,
+          ring: STATUS_CARD_TONES.blue.ring,
+        },
+        {
+          value: 'in_progress',
+          label: t('In progress'),
+          count: status === 'in_progress' ? totalCount : undefined,
+          tone: STATUS_CARD_TONES.cyan.tone,
+          ring: STATUS_CARD_TONES.cyan.ring,
+        },
+        {
+          value: 'completed',
+          label: t('Completed'),
+          count: status === 'completed' ? totalCount : undefined,
+          tone: STATUS_CARD_TONES.emerald.tone,
+          ring: STATUS_CARD_TONES.emerald.ring,
+        },
+        {
+          value: 'rejected',
+          label: t('Rejected'),
+          count: status === 'rejected' ? totalCount : undefined,
+          tone: STATUS_CARD_TONES.rose.tone,
+          ring: STATUS_CARD_TONES.rose.ring,
+        },
+      ];
+    }
+    return [
+      {
+        value: '',
+        label: t('All statuses'),
+        count: status === '' ? totalCount : undefined,
+        tone: STATUS_CARD_TONES.slate.tone,
+        ring: STATUS_CARD_TONES.slate.ring,
+      },
+      {
+        value: 'pending',
+        label: t('Pending'),
+        count: status === 'pending' ? totalCount : undefined,
+        tone: STATUS_CARD_TONES.amber.tone,
+        ring: STATUS_CARD_TONES.amber.ring,
+      },
+      {
+        value: 'receiving',
+        label: t('Receiving'),
+        count: status === 'receiving' ? totalCount : undefined,
+        tone: STATUS_CARD_TONES.blue.tone,
+        ring: STATUS_CARD_TONES.blue.ring,
+      },
+      {
+        value: 'completed',
+        label: t('Completed'),
+        count: status === 'completed' ? totalCount : undefined,
+        tone: STATUS_CARD_TONES.emerald.tone,
+        ring: STATUS_CARD_TONES.emerald.ring,
+      },
+      {
+        value: 'cancelled',
+        label: t('Cancelled'),
+        count: status === 'cancelled' ? totalCount : undefined,
+        tone: STATUS_CARD_TONES.rose.tone,
+        ring: STATUS_CARD_TONES.rose.ring,
+      },
+    ];
+  }, [source, status, pagination.serverPagination.total, t]);
 
   const createButton = (
     <Button
@@ -145,6 +254,15 @@ function ReturnsListPage({ source }: Props): ReactElement {
       />
 
       {source === 'oms' ? <StorePillTabs isArabic={isArabic} /> : null}
+
+      {/* Standardized Status Card Nav */}
+      <StatusCardNav
+        items={statusCards}
+        value={status}
+        onChange={setStatus}
+        isArabic={isArabic}
+        className="w-full"
+      />
 
       <Card className="overflow-hidden">
         {pagination.isInitialLoading ? (

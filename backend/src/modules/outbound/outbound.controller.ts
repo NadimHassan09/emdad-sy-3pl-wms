@@ -95,7 +95,18 @@ export class OutboundController {
     @Body() dto: OutboundOrdersExportDto,
     @Res({ passthrough: true }) res: Response,
   ) {
-    const { columnIds, arabicHeaders, ids, ...query } = dto;
+    const { columnIds, arabicHeaders, ids, format, ...query } = dto;
+    if (format === 'xlsx') {
+      const result = await this.csv.exportXlsx(user, query, { columnIds, arabicHeaders, ids });
+      res.setHeader(
+        'Content-Type',
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      );
+      res.setHeader('Content-Disposition', `attachment; filename="${result.filename}"`);
+      res.setHeader('X-Export-Row-Count', String(result.rowCount));
+      res.setHeader('X-Export-Truncated', result.truncated ? 'true' : 'false');
+      return res.send(result.buffer);
+    }
     const result = await this.csv.exportCsv(user, query, { columnIds, arabicHeaders, ids });
     res.setHeader('Content-Type', 'text/csv; charset=utf-8');
     res.setHeader('Content-Disposition', `attachment; filename="${result.filename}"`);

@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 
 import { ClientPrincipal } from '../../../common/auth/client-principal.types';
+import { buildExcelBuffer, ExcelExportColumn } from '../../../common/utils/excel-export.util';
 import { rowsToCsv } from '../../oms/oms-orders-csv.util';
 import { ClientInboundOrdersService } from '../inbound/client-inbound-orders.service';
 import { ClientInboundOrdersExportDto } from '../inbound/dto/client-inbound-export.dto';
@@ -73,6 +74,46 @@ export class ClientInboundExportService {
     return {
       filename: `inbound-orders-${stamp}.csv`,
       body: rowsToCsv(headers, rows),
+      rowCount: items.length,
+      truncated,
+    };
+  }
+
+  async exportXlsx(client: ClientPrincipal, dto: ClientInboundOrdersExportDto) {
+    const columnIds = orderedColumnIds(CLIENT_INBOUND_EXPORT_COLUMNS, dto.columnIds);
+    if (columnIds.length === 0) {
+      throw new BadRequestException('Select at least one valid export column.');
+    }
+
+    const { items, truncated } = await this.inbound.listForExport(
+      client,
+      { orderSearch: dto.orderSearch, status: dto.status },
+      { maxRows: MAX_ROWS, ids: dto.ids },
+    );
+
+    const arabic = Boolean(dto.arabicHeaders);
+    const headers = headerLabels(CLIENT_INBOUND_EXPORT_COLUMNS, columnIds, arabic);
+    const columns: ExcelExportColumn[] = columnIds.map((id, idx) => ({
+      header: headers[idx] ?? id,
+      key: id,
+    }));
+    const rows = items.map((order) => {
+      const rowObj: Record<string, string> = {};
+      for (const id of columnIds) {
+        rowObj[id] = cell(order as unknown as Record<string, unknown>, id);
+      }
+      return rowObj;
+    });
+
+    const buffer = await buildExcelBuffer({
+      sheetName: 'Inbound Orders',
+      columns,
+      rows,
+    });
+    const stamp = new Date().toISOString().slice(0, 10);
+    return {
+      filename: `inbound-orders-${stamp}.xlsx`,
+      buffer,
       rowCount: items.length,
       truncated,
     };

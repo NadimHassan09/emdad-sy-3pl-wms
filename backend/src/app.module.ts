@@ -42,6 +42,7 @@ import { CodModule } from './modules/cod/cod.module';
 import { OmsReturnsModule } from './modules/oms-returns/oms-returns.module';
 import { ShippingModule } from './modules/shipping/shipping.module';
 import { PdfModule } from './pdf/pdf.module';
+import { FinancialModule } from './modules/financial/financial.module';
 
 @Module({
   imports: [
@@ -96,6 +97,7 @@ import { PdfModule } from './pdf/pdf.module';
     OmsReturnsModule,
     ShippingModule,
     PdfModule,
+    FinancialModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: ThrottlerGuard },

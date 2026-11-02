@@ -73,11 +73,41 @@ export function listNeighborhoods(
 
 export function toComboboxOptions(
   values: string[],
-  selected?: string,
 ): Array<{ value: string; label: string }> {
-  const options = values.map((value) => ({ value, label: value }));
-  if (selected && !values.includes(selected)) {
-    return [{ value: selected, label: selected }, ...options];
+  return values.map((value) => ({ value, label: value }));
+}
+
+export function validateSyrianAddressHierarchy(
+  address: { city?: string | null; district?: string | null; addressLine1?: string | null },
+  data: SyriaAddressHierarchy = syriaAddressHierarchy,
+): { valid: boolean; error?: string } {
+  const city = address.city?.trim() ?? '';
+  const district = address.district?.trim() ?? '';
+  const neighborhood = address.addressLine1?.trim() ?? '';
+
+  if (!city) {
+    return { valid: false, error: 'Governorate is required.' };
   }
-  return options;
+  const cities = listCities(data);
+  if (!cities.includes(city)) {
+    return { valid: false, error: `Invalid governorate "${city}". Select a valid Syrian governorate.` };
+  }
+
+  if (!district) {
+    return { valid: false, error: 'City/Region is required.' };
+  }
+  const districts = listDistricts(city, data);
+  if (!districts.includes(district)) {
+    return { valid: false, error: `City/Region "${district}" does not belong to governorate "${city}".` };
+  }
+
+  if (!neighborhood) {
+    return { valid: false, error: 'Town/Neighborhood is required.' };
+  }
+  const neighborhoods = listNeighborhoods(city, district, data);
+  if (!neighborhoods.includes(neighborhood)) {
+    return { valid: false, error: `Town/Neighborhood "${neighborhood}" does not belong to ${district}, ${city}.` };
+  }
+
+  return { valid: true };
 }

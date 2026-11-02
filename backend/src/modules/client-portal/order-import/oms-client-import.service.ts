@@ -17,6 +17,7 @@ import {
   OMS_LEGACY_REJECTED_HEADERS,
   OMS_ORDER_LEVEL_FIELDS,
 } from './oms-client-import.schema';
+import { assertDiscreteUomPositiveIntegerQuantity } from '../../../common/utils/discrete-uom-quantity';
 import {
   parseImportShipDateMdY,
   validateImportAsciiNonNegativeInt,
@@ -24,6 +25,7 @@ import {
   validateImportCountryCode,
   validateImportOrderNumber,
   validateImportPaymentMethod,
+  validateImportPositiveQuantity,
   validateImportRecipientName,
   validateImportRecipientPhone,
 } from './oms-client-import.validation';
@@ -65,6 +67,7 @@ export class OmsClientImportService {
     originalName?: string,
   ): Promise<ClientOrderImportSummary> {
     const companyId = this.omsOrders.resolveImportCompanyId(user, companyIdRaw);
+    await this.omsOrders.assertBillingAllowed(companyId);
     const table = parseSpreadsheetTable(fileBuffer, originalName);
     const { dataRows } = assertImportTable(
       table,
@@ -185,6 +188,18 @@ export class OmsClientImportService {
         continue;
       }
 
+      const streetRaw = (group.fields.street ?? '').trim();
+      if (!streetRaw) {
+        invalid++;
+        pushErr('Street / detailed address is required and must be more than 10 characters.', 'street');
+        continue;
+      }
+      if (streetRaw.length <= 10) {
+        invalid++;
+        pushErr('Street / detailed address must be more than 10 characters.', 'street');
+        continue;
+      }
+
       const delivery = await resolveOmsDeliveryLocation(this.geo, {
         governorate: group.fields.governorate,
         city: group.fields.city,
@@ -213,6 +228,7 @@ export class OmsClientImportService {
         unitPrice: number;
         rowNumber: number;
       }> = [];
+      const seenProductIds = new Set<string>();
       let lineInvalid = false;
       for (const line of group.lines) {
         // product_name is documentation-only — intentionally ignored.
@@ -234,13 +250,37 @@ export class OmsClientImportService {
           lineInvalid = true;
           break;
         }
+        if (seenProductIds.has(product.id)) {
+          invalid++;
+          pushErr(
+            `Duplicate SKU "${sku}" in the same order. Each product can only appear once.`,
+            'sku',
+            line.rowNumber,
+          );
+          lineInvalid = true;
+          break;
+        }
+        seenProductIds.add(product.id);
         // Require exact SKU casing as stored? User said "كما هو مسجل" — case-insensitive match is OK for lookup;
         // product is found from DB. Keep case-insensitive SKU match like before.
 
-        const qtyResult = validateImportAsciiPositiveInt(line.values.quantity ?? '', 'Quantity');
+        const qtyResult = validateImportPositiveQuantity(line.values.quantity ?? '', 'Quantity');
         if (!qtyResult.ok) {
           invalid++;
           pushErr(qtyResult.message, 'quantity', line.rowNumber);
+          lineInvalid = true;
+          break;
+        }
+        try {
+          assertDiscreteUomPositiveIntegerQuantity(
+            product.uom,
+            qtyResult.value,
+            'Quantity',
+          );
+        } catch (err: unknown) {
+          invalid++;
+          const msg = err instanceof Error ? err.message : 'Invalid quantity for product UOM.';
+          pushErr(msg, 'quantity', line.rowNumber);
           lineInvalid = true;
           break;
         }
@@ -290,7 +330,6 @@ export class OmsClientImportService {
           productId: l.productId,
           requestedQuantity: l.requestedQuantity,
           unitPrice: l.unitPrice,
-          lineTotal: l.unitPrice * l.requestedQuantity,
         })),
       };
 

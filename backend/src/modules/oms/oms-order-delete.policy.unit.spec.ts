@@ -35,6 +35,7 @@ describe('oms-order-delete.policy', () => {
     OmsOrderStatus.shipped,
     OmsOrderStatus.delivered,
     OmsOrderStatus.failed_delivery,
+    OmsOrderStatus.return_pending_receipt,
     OmsOrderStatus.returned,
     OmsOrderStatus.rejected,
   ] as OmsOrderStatus[])('blocks deleting %s OMS orders', (status) => {

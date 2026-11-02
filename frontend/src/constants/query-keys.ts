@@ -125,6 +125,7 @@ export const QK = {
     health: ['backups', 'health'] as const,
     healthAudit: ['backups', 'audit', 'health'] as const,
     storagePolicy: ['backups', 'storage-policy'] as const,
+    manualCooldown: ['backups', 'manual-cooldown'] as const,
     googleDrive: ['integrations', 'google-drive'] as const,
   },
   shipping: {

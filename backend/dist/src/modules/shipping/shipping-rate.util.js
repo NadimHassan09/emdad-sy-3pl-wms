@@ -1,21 +1,47 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.annotateRateQuotes = annotateRateQuotes;
-const bulk_shipping_eligibility_1 = require("./bulk-shipping.eligibility");
-function annotateRateQuotes(quotes) {
-    const priced = quotes.filter((q) => q.available && Number.isFinite(q.price));
+const currency_conversion_1 = require("./currency-conversion");
+function annotateRateQuotes(quotes, options = {}) {
+    const snapshot = options.snapshot ?? (0, currency_conversion_1.getFxRateSnapshot)();
+    const preferred = options.preferredCurrency ?? null;
+    const enriched = quotes.map((q) => {
+        const cost = (0, currency_conversion_1.effectiveComparableCost)({
+            price: q.price,
+            currency: q.currency,
+            prices: q.prices,
+            preferredCurrency: preferred,
+        });
+        const comparable = (0, currency_conversion_1.comparableValueUsd)({
+            price: q.price,
+            currency: q.currency,
+            prices: q.prices,
+            preferredCurrency: preferred,
+        }, snapshot);
+        return {
+            ...q,
+            effectiveCostAmount: cost.amount,
+            effectiveCostCurrency: cost.currency,
+            comparableValueUsd: comparable,
+            fxRate: snapshot.usdToSypRate,
+            fxSource: snapshot.source,
+            fxTimestamp: snapshot.timestamp,
+        };
+    });
+    const priced = enriched.filter((q) => q.available && Number.isFinite(q.comparableValueUsd));
     const minNormPrice = priced.length
-        ? Math.min(...priced.map((q) => (0, bulk_shipping_eligibility_1.normalizePriceForComparison)(q.price, q.currency)))
+        ? Math.min(...priced.map((q) => q.comparableValueUsd))
         : null;
-    const withEta = quotes.filter((q) => q.available &&
+    const withEta = enriched.filter((q) => q.available &&
         q.estimatedDeliveryMax != null &&
         Number.isFinite(q.estimatedDeliveryMax));
     const minEta = withEta.length
         ? Math.min(...withEta.map((q) => q.estimatedDeliveryMax))
         : null;
-    const annotated = quotes.map((q) => {
-        const norm = (0, bulk_shipping_eligibility_1.normalizePriceForComparison)(q.price, q.currency);
-        const isCheapest = minNormPrice != null && q.available && Math.abs(norm - minNormPrice) < 1e-6;
+    const annotated = enriched.map((q) => {
+        const isCheapest = minNormPrice != null &&
+            q.available &&
+            Math.abs(q.comparableValueUsd - minNormPrice) < 1e-6;
         const isFastest = minEta != null && q.available && q.estimatedDeliveryMax === minEta;
         return {
             ...q,
@@ -25,8 +51,8 @@ function annotateRateQuotes(quotes) {
         };
     });
     return [...annotated].sort((a, b) => {
-        const pA = Number.isFinite(a.price) ? (0, bulk_shipping_eligibility_1.normalizePriceForComparison)(a.price, a.currency) : 999999;
-        const pB = Number.isFinite(b.price) ? (0, bulk_shipping_eligibility_1.normalizePriceForComparison)(b.price, b.currency) : 999999;
+        const pA = Number.isFinite(a.comparableValueUsd) ? a.comparableValueUsd : 999999;
+        const pB = Number.isFinite(b.comparableValueUsd) ? b.comparableValueUsd : 999999;
         return pA - pB;
     });
 }

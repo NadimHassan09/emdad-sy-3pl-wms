@@ -44,6 +44,15 @@ export class BillingCycleProcessorService {
   }
 
   async processExpiredCycles(): Promise<number> {
+    const cutoverPolicy = await this.prisma.financialPolicy.findUnique({
+      where: { key: 'cutover_active' },
+      select: { value: true },
+    });
+    if (cutoverPolicy?.value === 'true') {
+      this.log.log('Financial Management cutover active: skipping legacy billing cycle auto-restriction and invoice generation.');
+      return 0;
+    }
+
     const now = new Date();
     const due = await this.prisma.billingCycle.findMany({
       where: {

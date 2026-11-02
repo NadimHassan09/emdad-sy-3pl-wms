@@ -4,27 +4,57 @@ export const SILA_SY_BASE_URL =
   process.env.SILA_SY_BASE_URL ||
   'https://qhdhjzyduwzqutmialgp.supabase.co/functions/v1/public-api';
 
+const RETRYABLE_STATUS = new Set([429, 500, 503]);
+
 export class SilaSyApiError extends Error {
   constructor(
     message: string,
     readonly statusCode?: number,
     readonly body?: unknown,
+    readonly code?: string,
+    readonly details?: unknown,
+    readonly requestId?: string,
+    readonly retryAfterSeconds?: number,
   ) {
     super(message);
     this.name = 'SilaSyApiError';
   }
 }
 
+export type SilaListMeta = {
+  has_more?: boolean;
+  page?: number;
+  page_size?: number;
+  total?: number;
+};
+
+export type SilaEnvelope<T> = {
+  data: T;
+  meta?: SilaListMeta;
+  requestId?: string;
+};
+
 @Injectable()
 export class SilaSyHttpClient {
   private readonly logger = new Logger(SilaSyHttpClient.name);
 
   async get<T = unknown>(path: string, apiKey: string): Promise<T> {
+    const envelope = await this.request<T>('GET', path, apiKey, undefined);
+    return envelope.data;
+  }
+
+  async getEnvelope<T = unknown>(path: string, apiKey: string): Promise<SilaEnvelope<T>> {
     return this.request<T>('GET', path, apiKey, undefined);
   }
 
   async post<T = unknown>(path: string, apiKey: string, body: unknown): Promise<T> {
-    return this.request<T>('POST', path, apiKey, body);
+    const envelope = await this.request<T>('POST', path, apiKey, body);
+    return envelope.data;
+  }
+
+  async put<T = unknown>(path: string, apiKey: string, body?: unknown): Promise<T> {
+    const envelope = await this.request<T>('PUT', path, apiKey, body ?? {});
+    return envelope.data;
   }
 
   private async request<T>(
@@ -32,7 +62,8 @@ export class SilaSyHttpClient {
     path: string,
     apiKey: string,
     body: unknown,
-  ): Promise<T> {
+    attempt = 0,
+  ): Promise<SilaEnvelope<T>> {
     const url = `${SILA_SY_BASE_URL}/${path.replace(/^\//, '')}`;
 
     let res: Response;
@@ -64,43 +95,87 @@ export class SilaSyHttpClient {
 
     const record =
       json && typeof json === 'object' ? (json as Record<string, unknown>) : null;
+    const requestId = typeof record?.request_id === 'string' ? record.request_id : undefined;
+    if (requestId) {
+      this.logger.debug(`Sila-SY ${method} ${path} request_id=${requestId} status=${res.status}`);
+    }
 
-    // Sila envelope: { success: bool, data, error, request_id }
+    const errorObj =
+      record?.success === false && record.error && typeof record.error === 'object'
+        ? (record.error as Record<string, unknown>)
+        : null;
+    const retryAfter = readRetryAfter(res, errorObj);
+
+    if ((record?.success === false || !res.ok) && RETRYABLE_STATUS.has(res.status) && attempt < 1) {
+      const waitMs = Math.min(Math.max((retryAfter ?? 1) * 1000, 500), 15_000);
+      this.logger.warn(
+        `Sila-SY ${method} ${path} HTTP ${res.status} request_id=${requestId ?? 'n/a'}; retrying in ${waitMs}ms`,
+      );
+      await sleep(waitMs);
+      return this.request<T>(method, path, apiKey, body, attempt + 1);
+    }
+
     if (record?.success === false) {
-      const errorObj =
-        record.error && typeof record.error === 'object'
-          ? (record.error as Record<string, unknown>)
-          : null;
+      const code = typeof errorObj?.code === 'string' ? errorObj.code : undefined;
       const message =
         (typeof errorObj?.message === 'string' && errorObj.message.trim()) ||
-        (typeof errorObj?.code === 'string' && `Sila-SY error: ${errorObj.code}`) ||
+        (code && `Sila-SY error: ${code}`) ||
         'Sila-SY request failed.';
       const fieldDetail = formatSilaFieldErrors(errorObj);
       throw new SilaSyApiError(
         fieldDetail ? `${message} ${fieldDetail}` : message,
         res.status,
         json,
+        code,
+        errorObj?.details,
+        requestId,
+        retryAfter,
       );
     }
 
     if (!res.ok) {
-      // 401/403 without envelope
       if (res.status === 401 || res.status === 403) {
         throw new SilaSyApiError(
           'Invalid API key. Check that your X-API-Key starts with "sila_live_" and is correct.',
           res.status,
           json,
+          undefined,
+          undefined,
+          requestId,
         );
       }
-      throw new SilaSyApiError(`Sila-SY HTTP ${res.status}`, res.status, json);
+      throw new SilaSyApiError(
+        `Sila-SY HTTP ${res.status}`,
+        res.status,
+        json,
+        undefined,
+        undefined,
+        requestId,
+        retryAfter,
+      );
     }
 
-    // Return the inner `data` object when present, else the full response
+    const meta =
+      record?.meta && typeof record.meta === 'object'
+        ? (record.meta as SilaListMeta)
+        : undefined;
     if (record && 'data' in record) {
-      return record.data as T;
+      return { data: record.data as T, meta, requestId };
     }
-    return json as T;
+    return { data: json as T, meta, requestId };
   }
+}
+
+function readRetryAfter(
+  res: Response,
+  errorObj: Record<string, unknown> | null,
+): number | undefined {
+  const fromError = errorObj?.retry_after_seconds;
+  if (typeof fromError === 'number' && Number.isFinite(fromError)) return fromError;
+  const header = res.headers.get('retry-after') || res.headers.get('x-ratelimit-reset');
+  if (!header) return undefined;
+  const seconds = Number(header);
+  return Number.isFinite(seconds) ? seconds : undefined;
 }
 
 function formatSilaFieldErrors(errorObj: Record<string, unknown> | null): string {
@@ -114,4 +189,8 @@ function formatSilaFieldErrors(errorObj: Record<string, unknown> | null): string
     if (text.trim()) parts.push(`${field}: ${text.trim()}`);
   }
   return parts.length ? `(${parts.join('; ')})` : '';
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }

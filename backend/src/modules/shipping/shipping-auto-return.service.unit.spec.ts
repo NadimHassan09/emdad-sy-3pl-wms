@@ -85,7 +85,7 @@ describe('ShippingAutoReturnService', () => {
   });
 
   describe('processCarrierReturnEvent', () => {
-    it('creates return draft and sets order to failed_delivery WITHOUT modifying inventory on return_created', async () => {
+    it('creates a pending receipt return without restocking on return_created', async () => {
       const order = {
         id: 'ord-1',
         orderNumber: 'OMS-2026-001',
@@ -121,13 +121,9 @@ describe('ShippingAutoReturnService', () => {
       expect(stockHelpersMock.upsertPositiveWithMeta).not.toHaveBeenCalled();
       expect(ledgerMock.appendIfAbsent).not.toHaveBeenCalled();
 
-      // Order status updated to failed_delivery, NOT returned!
       expect(prismaMock.omsOrder.update).toHaveBeenCalledWith(
         expect.objectContaining({
-          where: { id: 'ord-1' },
-          data: expect.objectContaining({
-            status: OmsOrderStatus.failed_delivery,
-          }),
+          data: expect.objectContaining({ status: OmsOrderStatus.return_pending_receipt }),
         }),
       );
 
@@ -139,6 +135,78 @@ describe('ShippingAutoReturnService', () => {
             carrierOriginalStatus: 'CreatedFollowupShipment',
             carrierAwb: 'AWB-100',
           }),
+        }),
+      );
+    });
+
+    it('still creates a pending return when OMS is already delivered', async () => {
+      const order = {
+        id: 'ord-del',
+        orderNumber: 'OMS-2026-002',
+        companyId: 'comp-1',
+        status: OmsOrderStatus.delivered,
+        lines: [
+          { productId: 'prod-1', requestedQuantity: { sub: () => 1 }, unitPrice: null, specificLotId: null },
+        ],
+        outboundOrder: { id: 'out-del' },
+      };
+      prismaMock.omsOrder.findUnique.mockResolvedValueOnce(order);
+      prismaMock.omsReturn.findFirst.mockResolvedValueOnce(null);
+      prismaMock.omsReturn.findFirst.mockResolvedValueOnce(null);
+      prismaMock.omsReturn.create.mockResolvedValueOnce({
+        id: 'ret-del',
+        returnNumber: 'RET-002',
+        status: OmsReturnStatus.requested,
+      });
+
+      const res = await service.processCarrierReturnEvent({
+        omsOrderId: 'ord-del',
+        awb: 'AWB-DEL',
+        stage: 'returned_to_sender',
+      });
+      expect(res.success).toBe(true);
+      expect(res.returnId).toBe('ret-del');
+      expect(prismaMock.omsOrder.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ status: OmsOrderStatus.return_pending_receipt }),
+        }),
+      );
+      expect(stockHelpersMock.upsertPositiveWithMeta).not.toHaveBeenCalled();
+    });
+
+    it('never restocks on returned_to_sender — warehouse confirm owns inventory', async () => {
+      const order = {
+        id: 'ord-rts',
+        orderNumber: 'OMS-RTS',
+        companyId: 'comp-1',
+        status: OmsOrderStatus.return_pending_receipt,
+        lines: [],
+      };
+      prismaMock.omsOrder.findUnique.mockResolvedValueOnce(order);
+      prismaMock.omsReturn.findFirst.mockResolvedValueOnce(null);
+      prismaMock.omsReturn.findFirst.mockResolvedValueOnce({
+        id: 'ret-rts',
+        status: OmsReturnStatus.requested,
+        carrierReturnStage: 'returning_to_sender',
+        carrierAwb: 'AWB-RTS',
+      });
+      prismaMock.omsReturn.update.mockResolvedValueOnce({
+        id: 'ret-rts',
+        carrierReturnStage: 'returned_to_sender',
+      });
+
+      const res = await service.processCarrierReturnEvent({
+        omsOrderId: 'ord-rts',
+        awb: 'AWB-RTS',
+        stage: 'returned_to_sender',
+      });
+
+      expect(res.success).toBe(true);
+      expect(stockHelpersMock.upsertPositiveWithMeta).not.toHaveBeenCalled();
+      expect(ledgerMock.appendIfAbsent).not.toHaveBeenCalled();
+      expect(prismaMock.omsOrder.update).not.toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ status: OmsOrderStatus.returned }),
         }),
       );
     });
@@ -261,6 +329,67 @@ describe('ShippingAutoReturnService', () => {
 
       // COD return synced
       expect(codRecordsMock.markReturnedForOrder).toHaveBeenCalledWith('ord-1', user);
+    });
+
+    it('does not restock twice when the return is already completed', async () => {
+      prismaMock.omsReturn.findUnique.mockResolvedValueOnce({
+        id: 'ret-1',
+        status: OmsReturnStatus.completed,
+        lines: [],
+        omsOrder: { id: 'ord-1' },
+      });
+      const user: any = { id: 'operator-1', role: 'wh_operator' };
+      const res = await service.confirmWarehouseReturnReceipt(user, 'ret-1');
+      expect(res.success).toBe(true);
+      expect(stockHelpersMock.upsertPositiveWithMeta).not.toHaveBeenCalled();
+    });
+
+    it('rejects client users from confirming warehouse receipt', async () => {
+      const user: any = { id: 'client-1', role: 'client_admin', companyId: 'comp-1' };
+      await expect(service.confirmWarehouseReturnReceipt(user, 'ret-1')).rejects.toThrow(
+        /warehouse staff/i,
+      );
+      expect(prismaMock.omsReturn.findUnique).not.toHaveBeenCalled();
+    });
+
+    it('does not invent a return when Field Delivery has none', async () => {
+      prismaMock.omsReturn.findFirst.mockResolvedValueOnce(null);
+      const user: any = { id: 'operator-1', role: 'wh_operator' };
+      const res = await service.confirmWarehouseReturnReceiptForOrder(user, 'ord-fd');
+      expect(res.success).toBe(false);
+      expect(res.message).toMatch(/Field Delivery is not a return/i);
+      expect(prismaMock.omsReturn.create).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('duplicate provider return events', () => {
+    it('reuses the active return instead of creating a second one', async () => {
+      const order = {
+        id: 'ord-1',
+        orderNumber: 'OMS-1',
+        companyId: 'comp-1',
+        status: OmsOrderStatus.failed_delivery,
+        lines: [],
+      };
+      const existing = {
+        id: 'ret-1',
+        status: OmsReturnStatus.requested,
+        carrierReturnStage: 'return_created',
+        carrierAwb: 'AWB-1',
+      };
+      prismaMock.omsOrder.findUnique.mockResolvedValue(order);
+      prismaMock.omsReturn.findFirst
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce(existing);
+      prismaMock.omsReturn.update.mockResolvedValue({ ...existing, carrierReturnStage: 'returning_to_sender' });
+
+      const first = await service.processCarrierReturnEvent({
+        omsOrderId: 'ord-1',
+        awb: 'AWB-1',
+        stage: 'returning_to_sender',
+      });
+      expect(first.returnId).toBe('ret-1');
+      expect(prismaMock.omsReturn.create).not.toHaveBeenCalled();
     });
   });
 

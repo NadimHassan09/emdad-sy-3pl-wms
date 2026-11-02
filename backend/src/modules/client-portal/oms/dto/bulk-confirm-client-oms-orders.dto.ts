@@ -65,6 +65,51 @@ export class ClientOmsOrdersExportDto {
 
   @IsOptional()
   @IsString()
+  @MaxLength(120)
+  customer?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(60)
+  phone?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(80)
+  city?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(80)
+  carrier?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(40)
+  startOrderNo?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(40)
+  endOrderNo?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(10)
+  totalOp?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(40)
+  totalValue?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(40)
+  operationalStage?: string;
+
+  @IsOptional()
+  @IsString()
   @MaxLength(10)
   createdFrom?: string;
 
@@ -72,4 +117,8 @@ export class ClientOmsOrdersExportDto {
   @IsString()
   @MaxLength(10)
   createdTo?: string;
+
+  @IsOptional()
+  @IsString()
+  format?: 'csv' | 'xlsx';
 }

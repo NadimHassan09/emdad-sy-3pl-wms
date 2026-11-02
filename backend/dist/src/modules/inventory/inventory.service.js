@@ -25,6 +25,7 @@ const realtime_service_1 = require("../realtime/realtime.service");
 const realtime_ops_payload_1 = require("../realtime/realtime-ops.payload");
 const ledger_mapper_1 = require("./ledger-mapper");
 const stock_helpers_1 = require("./stock.helpers");
+const expected_return_hold_service_1 = require("./expected-return-hold.service");
 const stock_by_product_query_1 = require("./stock-by-product.query");
 const ledger_list_query_1 = require("./ledger-list.query");
 const UUID_LIKE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -50,12 +51,14 @@ let InventoryService = class InventoryService {
     companyAccess;
     audit;
     realtime;
-    constructor(prisma, stockHelpers, companyAccess, audit, realtime) {
+    expectedReturnHold;
+    constructor(prisma, stockHelpers, companyAccess, audit, realtime, expectedReturnHold) {
         this.prisma = prisma;
         this.stockHelpers = stockHelpers;
         this.companyAccess = companyAccess;
         this.audit = audit;
         this.realtime = realtime;
+        this.expectedReturnHold = expectedReturnHold;
     }
     async appendInboundLedgerStockFilter(and, orderIds) {
         if (orderIds.length === 0) {
@@ -684,12 +687,14 @@ let InventoryService = class InventoryService {
         const onHand = agg._sum.quantityOnHand ?? new client_1.Prisma.Decimal(0);
         const reserved = agg._sum.quantityReserved ?? new client_1.Prisma.Decimal(0);
         const available = agg._sum.quantityAvailable ?? new client_1.Prisma.Decimal(0);
+        const expectedReturn = await this.expectedReturnHold.expectedQuantityForProduct(companyId, productId);
         const base = {
             productId,
             companyId,
             onHand: onHand.toString(),
             reserved: reserved.toString(),
             available: available.toString(),
+            expectedReturn: expectedReturn.toString(),
         };
         if (!outboundOrderId)
             return base;
@@ -726,6 +731,7 @@ exports.InventoryService = InventoryService = __decorate([
         stock_helpers_1.StockHelpers,
         company_access_service_1.CompanyAccessService,
         audit_log_service_1.AuditLogService,
-        realtime_service_1.RealtimeService])
+        realtime_service_1.RealtimeService,
+        expected_return_hold_service_1.ExpectedReturnHoldService])
 ], InventoryService);
 //# sourceMappingURL=inventory.service.js.map

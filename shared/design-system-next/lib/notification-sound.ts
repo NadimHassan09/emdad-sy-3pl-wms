@@ -5,22 +5,29 @@
  */
 
 let sharedCtx: AudioContext | null = null;
+let hasUserInteracted = false;
 
 function getAudioContext(): AudioContext | null {
   if (typeof window === 'undefined') return null;
+  if (!hasUserInteracted) return null;
   const Ctor =
     window.AudioContext ??
     (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
   if (!Ctor) return null;
 
   if (!sharedCtx || sharedCtx.state === 'closed') {
-    sharedCtx = new Ctor();
+    try {
+      sharedCtx = new Ctor();
+    } catch {
+      return null;
+    }
   }
   return sharedCtx;
 }
 
 /** Call after user gesture so later `playNotificationSound` is allowed. */
 export function unlockNotificationAudio(): void {
+  hasUserInteracted = true;
   const ctx = getAudioContext();
   if (!ctx) return;
   if (ctx.state === 'suspended') {
@@ -32,6 +39,7 @@ export function unlockNotificationAudio(): void {
 
 /** Pleasant two-tone pop (~350ms). */
 export function playNotificationSound(): void {
+  if (!hasUserInteracted) return;
   const ctx = getAudioContext();
   if (!ctx) return;
 
