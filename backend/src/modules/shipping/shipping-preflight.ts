@@ -75,6 +75,7 @@ export function preflightCarrierShipment(input: PreflightInput): PreflightResult
   const code = input.providerCode.trim().toUpperCase();
   const constraint = carrierConstraintViolation({
     serviceName: input.serviceName,
+    carrierName: code,
     weightKg: input.weightKg,
     codAmount: input.codAmount,
     codCurrency: input.codCurrency,

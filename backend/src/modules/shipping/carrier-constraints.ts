@@ -16,6 +16,9 @@ export type CarrierConstraint = {
 export const CARRIER_CONSTRAINTS: CarrierConstraint[] = [
   { match: /karam|كرم/i, label: 'Karam', maxWeightKg: 10 },
   { match: /mersal|مرسال/i, label: 'Mersal', codCurrencies: ['USD'] },
+  // Sena merchant account: four creates with SYP COD succeeded; a USD COD create was
+  // rejected with "Currency is not supported for this merchant account" (3 Nov 2026).
+  { match: /sena|سينا/i, label: 'Sena', codCurrencies: ['SYP'] },
 ];
 
 export type ConstraintInput = {

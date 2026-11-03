@@ -6,6 +6,7 @@ import { OutboundApi } from '../../api/outbound';
 import { Alert, Button, Card } from '@ds';
 import { ConfirmModal } from '../ConfirmModal';
 import { CarrierShippingDetailsForm } from '../shipping/CarrierShippingDetailsForm';
+import { parsePackedShipmentError } from '../shipping/ShipmentErrorActions';
 import {
   buildCarrierShippingFormFromOrder,
   carrierFormToSavePayload,
@@ -43,6 +44,7 @@ export function ShippingDetailsStageCard({
   const qc = useQueryClient();
   const carrierMethod = order.shippingMethod === 'carrier';
   const latestShipment = order.carrierShipments?.[0] ?? null;
+  const sendError = parsePackedShipmentError(latestShipment?.lastErrorSafe);
   const shipmentCreated = latestShipment?.status === 'created';
   const detailsLocked = shipmentCreated;
 
@@ -235,8 +237,10 @@ export function ShippingDetailsStageCard({
 
           {carrierMethod && latestShipment?.status === 'failed' ? (
             <Alert variant="error" title="Carrier send failed">
-              {latestShipment.lastErrorSafe?.trim() ||
-                'Submission failed. Fix details and Send again.'}
+              {sendError?.message || 'Submission failed. Fix details and Send again.'}
+              {sendError?.requiredAction ? (
+                <div className="mt-1 text-xs">{sendError.requiredAction}</div>
+              ) : null}
             </Alert>
           ) : null}
 

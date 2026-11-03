@@ -27,6 +27,12 @@ describe('carrierConstraintViolation', () => {
     ).toBeNull();
   });
 
+  it('blocks Sena for USD COD and allows SYP COD', () => {
+    const base = { serviceName: 'شركة سينا - المركز الرئيسي', codAmount: 20, collectionMode: 'explicit' as const };
+    expect(carrierConstraintViolation({ ...base, codCurrency: 'USD' })).toMatch(/SYP only/);
+    expect(carrierConstraintViolation({ ...base, codCurrency: 'SYP' })).toBeNull();
+  });
+
   it('ignores couriers without documented limits', () => {
     expect(carrierConstraintViolation({ serviceName: 'TARABUT', weightKg: 500 })).toBeNull();
   });
