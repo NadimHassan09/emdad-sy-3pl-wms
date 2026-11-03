@@ -209,4 +209,10 @@ One row per route. Defects are logged below with ID, severity (S1 blocker, S2 ma
 | D-001 | S2 | Admin/Products,Inbound,Outbound | First client auto-selected after field cleared (Acme) | Staging UI check 2 Nov | Fixed, desktop verified | fe1cfc87 |
 | D-002 | S2 | Admin/Bulk shipping | Carrier with no quote selectable per order | Code review 2 Nov | Fixed, UI not yet verified | a7999e3d |
 | D-003 | S3 | Data | Hierarchy has CRLF in a city key and 13 neighbourhoods with trailing spaces | JSON scan | Open | |
+| D-005 | S3 | Products media | Two product images return 404 (`/api/client/media/products/f6fab62a…/a1cc3880…webp`, `…/3e2bbf4c…webp`): DB references files that are missing | Network log, staging admin Products page, 3 Nov | Open | |
 | D-004 | S3 | Backend tests | Jest run OOM after 23/144 suites; 9 suites failing (stale specs/drift) | jest-baseline | Open | |
+
+## Smoke pass log
+
+- 3 Nov 2026 (staging admin, super admin): loaded Clients, Locations, Warehouses, Inbound, Outbound, Inventory (stock, ledger → redirects to stock, adjustments), Tasks, Cycle count, Returns, OMS Orders. All rendered with their headings; no API response ≥ 400 except the two image 404s above. This is a load check only; the per-control/field/status passes in each row remain ⬜.
+- Observation: Outbound list triggers ~20 follow-up `GET /outbound-orders/:id` calls on load (N+1) — performance review item.
