@@ -68,6 +68,11 @@ All: target delivery 72 h, up to 3 attempts, proof-of-delivery photo. A courier 
 - Evidence (staging, read-only price quotes, nothing created at any carrier): 3 kg Aleppo → Sena, Fatih, Karam (hub), TARABUT, Mersal returned; 12 kg → Sila itself returns only Fatih (Karam, TARABUT, Mersal have no price tier), so the weight rule is a safety net behind the carrier's own tiers. COD 500,000 SYP explicit → Mersal returned as unavailable "Mersal collects COD in USD only"; in `all` mode (conversion allowed) it stays available.
 - Still open: COD minimums per courier (no published values yet; need Sena sandbox probe / carrier answer), Sena and Joud limits, TARABUT SYP COD (Sila lists SYP as a currency but only USD is verified).
 
+### 1.10 Sena sandbox end-to-end (3 Nov 2026)
+
+- Sena's merchant store currency is **SYP** (portal). A create with USD COD was rejected: "Currency is not supported for this merchant account". Rule added: Sena is offered only when the collection currency is SYP; the shipping form now sends the COD collection currency with every rate request. With SYP the same shipment was accepted (COD 20 USD converted to 260,008 SYP) and moved through shipped, out for delivery and delivered by webhook.
+- Open business decisions raised by this run: (a) FX rate source for COD conversion (currently a free public currency API), (b) client shipping-fee groups exist only for Aleppo on staging, (c) Babel price unit (D-013).
+
 ### 1.7 Test-suite baseline (incomplete)
 
 - Backend Jest run aborted with out-of-memory after 23 of 144 suites; of those, 14 passed and 9 failed (stale specs or drifted code, e.g. CSV template spec expecting `external_reference`). Full baseline still to be produced in batches.

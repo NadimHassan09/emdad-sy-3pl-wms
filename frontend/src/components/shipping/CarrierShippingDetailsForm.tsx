@@ -257,7 +257,7 @@ export function CarrierShippingDetailsForm({
       volumeCbm,
       deliveryType: value.deliveryType,
       pickupType: 'address',
-      currency: value.currency,
+      currency: value.collectionCurrency || value.currency,
       codAmount,
       parts: babelParts,
       packingInvalid,
@@ -274,6 +274,7 @@ export function CarrierShippingDetailsForm({
     value.deliveryType,
     value.shippingHubId,
     value.currency,
+    value.collectionCurrency,
     quoteWeight,
     volumeCbm,
     codAmount,
@@ -315,7 +316,12 @@ export function CarrierShippingDetailsForm({
           parts: settledQuoteRequest.parts,
           ...(settledQuoteRequest.codAmount != null &&
           Number.isFinite(settledQuoteRequest.codAmount)
-            ? { codAmount: settledQuoteRequest.codAmount }
+            ? {
+                codAmount: settledQuoteRequest.codAmount,
+                // Collection currency decides which carriers can actually take this COD.
+                currency: settledQuoteRequest.currency,
+                collectionMode: 'explicit' as const,
+              }
             : {}),
           ...(settledQuoteRequest.hubId ? { hubId: settledQuoteRequest.hubId } : {}),
         },
