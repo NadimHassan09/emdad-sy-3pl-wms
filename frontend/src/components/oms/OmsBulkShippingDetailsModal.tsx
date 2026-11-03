@@ -1,3 +1,4 @@
+import { useManagedFxSnapshot } from '../../hooks/useManagedFxSnapshot';
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Modal } from '../Modal';
@@ -198,6 +199,8 @@ export function OmsBulkShippingDetailsModal({
   onSuccess,
   isArabic = false,
 }: Props) {
+  // Loads the admin-managed USD/SYP rate into the shared comparison snapshot.
+  useManagedFxSnapshot();
   const toast = useToast();
   const qc = useQueryClient();
   const [rows, setRows] = useState<BulkShippingRow[]>([]);

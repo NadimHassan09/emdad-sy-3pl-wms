@@ -101,6 +101,8 @@ export type ShippingRateQuote = {
   unavailableReason?: string;
   price: number;
   currency: string;
+  /** Pound unit the carrier itself uses for SYP amounts; null when not confirmed. */
+  sypUnit?: 'new' | 'old' | null;
   /**
    * When the provider API returns multiple currencies, list them here.
    * UI shows USD first, then SYP. If omitted, `price` + `currency` are used.

@@ -15,11 +15,12 @@ import { OmsStageBadge } from '../components/oms/OmsStageBadge';
 import { OmsStatusBadge } from '../components/oms/OmsStatusBadge';
 import { useToast } from '../components/ToastProvider';
 import { QK } from '../constants/query-keys';
+import { useManagedFxSnapshot } from '../hooks/useManagedFxSnapshot';
 import { runInChunks } from '../lib/chunk-ids';
 import { isOmsAdminCancellableStatus } from '../lib/oms-order-cancel';
 import { omsOperationalStageLabel, orderOperationalStage, orderMainStatus } from '../lib/oms-operational-stage';
 import {
-  getClientFxSnapshot,
+  carrierSypUnit,
   toComparableUsd,
 } from '../lib/shipping-compare';
 
@@ -255,8 +256,9 @@ export function OmsBatchDetailPage() {
     return st === 'waiting_for_shipping_method' || st === 'waiting_for_shipping_details';
   });
 
+  const managedFx = useManagedFxSnapshot();
   const shippingAnalysis = useMemo(() => {
-    const fx = getClientFxSnapshot();
+    const fx = managedFx;
     const byProvider = new Map<
       string,
       { label: string; count: number; syp: number; usd: number }
@@ -320,8 +322,12 @@ export function OmsBatchDetailPage() {
       }))
       .sort((a, b) => b.count - a.count);
 
-    const totalUsdNorm = usdTotal + toComparableUsd(sypTotal, 'SYP', fx);
-    const totalSypNorm = sypTotal + usdTotal * fx.usdToSypRate;
+    // Each carrier's SYP is converted in that carrier's own pound unit before summing.
+    const totalUsdNorm = [...byProvider.entries()].reduce(
+      (sum, [code, v]) => sum + v.usd + toComparableUsd(v.syp, 'SYP', fx, carrierSypUnit(code)),
+      0,
+    );
+    const totalSypNorm = totalUsdNorm * fx.usdToSypRate;
 
     // Visible only in shipping-details stage after soft-assign (monitoring, not controls).
     return {
@@ -335,7 +341,7 @@ export function OmsBatchDetailPage() {
       totalSypNorm,
       show: inShippingStage && assigned > 0,
     };
-  }, [orders, isArabic, inShippingStage]);
+  }, [orders, isArabic, inShippingStage, managedFx]);
   const dispatch = scoped.filter(
     (order) =>
       order.status === 'ready_to_ship' ||

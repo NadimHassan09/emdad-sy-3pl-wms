@@ -11,8 +11,43 @@ export type FxRateSnapshot = {
 
 export const FX_FALLBACK_USD_TO_SYP = 14500;
 
-/** Prefer Vite env; fall back to known default with explicit source. */
+/**
+ * Syrian-pound unit a carrier itself uses (mirrors backend carrier-currency.ts). The carrier
+ * is the source of truth; a carrier that is not listed keeps the platform unit.
+ */
+export type SypUnit = 'new' | 'old';
+export const OLD_SYP_PER_NEW_SYP = 100;
+const CARRIER_SYP_UNITS: Record<string, SypUnit> = { BABEL_EXPRESS: 'new' };
+
+export function carrierSypUnit(providerCode?: string | null): SypUnit | null {
+  const key = providerCode?.trim().toUpperCase();
+  return key ? CARRIER_SYP_UNITS[key] ?? null : null;
+}
+
+function sypUnitOfRate(rate: number): SypUnit | null {
+  if (!Number.isFinite(rate) || rate <= 0) return null;
+  if (rate >= 2000) return 'old';
+  if (rate <= 500) return 'new';
+  return null;
+}
+
+/** The platform USD/SYP rate expressed in the carrier's own pound unit. */
+export function rateForCarrierUnit(platformRate: number, carrierUnit?: SypUnit | null): number {
+  const platformUnit = sypUnitOfRate(platformRate);
+  if (!carrierUnit || !platformUnit || carrierUnit === platformUnit) return platformRate;
+  return carrierUnit === 'new' ? platformRate / OLD_SYP_PER_NEW_SYP : platformRate * OLD_SYP_PER_NEW_SYP;
+}
+
+/** Rate managed by the admin on Shipping Companies; set once it has been fetched. */
+let managedFxSnapshot: FxRateSnapshot | null = null;
+
+export function setManagedFxSnapshot(snapshot: FxRateSnapshot | null): void {
+  managedFxSnapshot = snapshot;
+}
+
+/** Prefer the managed rate, then Vite env; fall back to known default with explicit source. */
 export function getClientFxSnapshot(): FxRateSnapshot {
+  if (managedFxSnapshot) return managedFxSnapshot;
   const raw = (import.meta as { env?: Record<string, string> }).env?.VITE_USD_TO_SYP_RATE;
   if (raw) {
     const n = Number(raw);
@@ -35,12 +70,13 @@ export function toComparableUsd(
   amount: number,
   currency: string | undefined,
   snapshot: FxRateSnapshot = getClientFxSnapshot(),
+  sypUnit?: SypUnit | null,
 ): number {
   if (!Number.isFinite(amount)) return Infinity;
   const curr = (currency ?? 'USD').toUpperCase().trim();
   if (curr === 'SYP') {
-    const rate = snapshot.usdToSypRate > 0 ? snapshot.usdToSypRate : FX_FALLBACK_USD_TO_SYP;
-    return amount / rate;
+    const platformRate = snapshot.usdToSypRate > 0 ? snapshot.usdToSypRate : FX_FALLBACK_USD_TO_SYP;
+    return amount / rateForCarrierUnit(platformRate, sypUnit);
   }
   return amount;
 }
@@ -71,11 +107,12 @@ export function comparableValueUsd(
     currency: string;
     prices?: Array<{ price: number; currency: string }>;
     preferredCurrency?: string | null;
+    sypUnit?: SypUnit | null;
   },
   snapshot: FxRateSnapshot = getClientFxSnapshot(),
 ): number {
   const cost = effectiveComparableCost(input);
-  return toComparableUsd(cost.amount, cost.currency, snapshot);
+  return toComparableUsd(cost.amount, cost.currency, snapshot, input.sypUnit);
 }
 
 export type DeliveryFilter = 'mixed' | 'address' | 'hub';
@@ -199,6 +236,7 @@ export function annotateQuotesForUi<
     currency: string;
     prices?: Array<{ price: number; currency: string }>;
     preferredCurrency?: string | null;
+    sypUnit?: SypUnit | null;
     estimatedDeliveryMax?: number;
   },
 >(

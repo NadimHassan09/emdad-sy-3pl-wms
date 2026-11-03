@@ -1,3 +1,4 @@
+import { carrierSypUnit, rateForCarrierUnit } from './carrier-currency';
 import { convertCodCollection, normalizeMoneyCurrency, type CodCollection } from './cod-collection';
 import { BABEL_EXPRESS_CODE, SILA_SY_CODE } from './shipping.constants';
 
@@ -132,7 +133,11 @@ export function resolveCollectionForService(input: {
     orderAmount,
     orderCurrency,
     collectionCurrency: target,
-    usdToSypRate: input.usdToSypRate,
+    // The carrier collects in its own pound unit, so the platform rate is rescaled to it.
+    usdToSypRate:
+      input.usdToSypRate == null
+        ? null
+        : rateForCarrierUnit(input.usdToSypRate, carrierSypUnit(input.providerCode)),
     rateSource: input.rateSource,
     rateAt: input.rateAt,
   });

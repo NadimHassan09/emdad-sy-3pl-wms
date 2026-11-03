@@ -19,6 +19,7 @@ import { RealtimeService } from '../realtime/realtime.service';
 import { composeDestinationAddress } from '../oms/oms-order.mapper';
 import { BabelAddressAdapter } from './providers/babel-express/babel-address.adapter';
 import { AddressResolveService } from './address-resolve.service';
+import { carrierSypUnit } from './carrier-currency';
 import { convertCodCollection } from './cod-collection';
 import { ShippingFxService } from './shipping-fx.service';
 import { BabelApiError } from './providers/babel-express/babel-express.http-client';
@@ -663,6 +664,7 @@ export class ShippingService implements OnModuleInit {
               ...(constraintReason ? { unavailableReason: constraintReason } : {}),
               price: res.price,
               currency: res.currency || 'USD',
+              sypUnit: carrierSypUnit(row.code),
               prices:
                 res.prices && res.prices.length > 0
                   ? res.prices

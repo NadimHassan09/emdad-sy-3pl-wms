@@ -5,7 +5,8 @@ import type {
   ShippingRateQuote,
 } from '../../api/shipping';
 import type { ShippingCurrency } from './carrier-shipping-form';
-import { annotateQuotesForUi, getClientFxSnapshot } from '../../lib/shipping-compare';
+import { annotateQuotesForUi } from '../../lib/shipping-compare';
+import { useManagedFxSnapshot } from '../../hooks/useManagedFxSnapshot';
 
 function formatMoney(price: number, currency: string): string {
   const cur = (currency.trim() || 'USD').toUpperCase();
@@ -71,11 +72,13 @@ export function ShippingCarrierCards({
   providersLoading = false,
 }: Props) {
   // Sort by effective comparable cost (FX-aware), never raw cross-currency numbers
+  const fx = useManagedFxSnapshot();
   const sortedQuotes = useMemo(() => {
     if (loading) return [];
     const valid = quotes.filter((q) => q.available && Number.isFinite(q.price));
-    return annotateQuotesForUi(valid, getClientFxSnapshot());
-  }, [quotes, loading]);
+    return annotateQuotesForUi(valid, fx);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [quotes, loading, fx.usdToSypRate, fx.source]);
 
   return (
     <div className="space-y-4">

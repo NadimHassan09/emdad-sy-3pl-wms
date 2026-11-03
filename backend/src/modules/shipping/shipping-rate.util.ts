@@ -4,6 +4,7 @@ import {
   getFxRateSnapshot,
   type FxRateSnapshot,
 } from './currency-conversion';
+import { carrierSypUnit, type SypUnit } from './carrier-currency';
 
 export type ShippingRateQuote = {
   carrierId: string;
@@ -15,6 +16,8 @@ export type ShippingRateQuote = {
   unavailableReason?: string;
   price: number;
   currency: string;
+  /** Pound unit the carrier itself uses for SYP amounts; null when not confirmed. */
+  sypUnit?: SypUnit | null;
   /** When the provider returns multiple currencies; UI shows USD then SYP. */
   prices?: Array<{ price: number; currency: string }>;
   estimatedDeliveryMin?: number;
@@ -79,6 +82,7 @@ export function annotateRateQuotes(
         currency: q.currency,
         prices: q.prices,
         preferredCurrency: preferred,
+        sypUnit: q.sypUnit ?? carrierSypUnit(q.carrierId),
       },
       snapshot,
     );

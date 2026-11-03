@@ -81,6 +81,20 @@ describe('shipping-compare assignment + filters', () => {
     expect(recommended[0].serviceId).toBe('babel-hub');
   });
 
+  it('compares Babel new-pound prices in the carrier unit, not 100x too cheap', () => {
+    const fx = { usdToSypRate: 13000, source: 'test', timestamp: new Date().toISOString() };
+    const annotated = annotateQuotesForUi(
+      [
+        { serviceId: 'babel', price: 300, currency: 'SYP', sypUnit: 'new' },
+        { serviceId: 'tarabut', price: 2, currency: 'USD' },
+      ] as any[],
+      fx,
+    );
+    // 300 new SYP = 30,000 old SYP = about 2.31 USD, so the 2 USD quote is the cheaper one.
+    expect(annotated.find((q) => q.isRecommended)?.serviceId).toBe('tarabut');
+    expect(annotated.find((q) => q.serviceId === 'babel')?.comparableValueUsd).toBeCloseTo(2.307, 2);
+  });
+
   it('never recommends a zero-priced quote and lists it last', () => {
     const annotated = annotateQuotesForUi(
       [

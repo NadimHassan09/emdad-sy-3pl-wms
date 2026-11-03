@@ -7,6 +7,8 @@
  * call sites. Do not treat the fallback as a silent permanent product FX feed.
  */
 
+import { carrierSypUnit, rateForCarrierUnit, type SypUnit } from './carrier-currency';
+
 export type ComparisonCurrency = 'USD';
 
 export type FxRateSnapshot = {
@@ -55,12 +57,14 @@ export function toComparableUsd(
   amount: number,
   currency: string | undefined,
   snapshot: FxRateSnapshot,
+  /** Pound unit of the carrier that quoted the amount; omitted keeps the platform unit. */
+  sypUnit?: SypUnit | null,
 ): number {
   if (!Number.isFinite(amount)) return Infinity;
   const curr = (currency ?? 'USD').toUpperCase().trim();
   if (curr === 'SYP') {
-    const rate = snapshot.usdToSypRate > 0 ? snapshot.usdToSypRate : FX_FALLBACK_USD_TO_SYP;
-    return amount / rate;
+    const platformRate = snapshot.usdToSypRate > 0 ? snapshot.usdToSypRate : FX_FALLBACK_USD_TO_SYP;
+    return amount / rateForCarrierUnit(platformRate, sypUnit);
   }
   return amount;
 }
@@ -105,9 +109,16 @@ export function comparableValueUsd(
     currency: string;
     prices?: Array<{ price: number; currency: string }>;
     preferredCurrency?: string | null;
+    sypUnit?: SypUnit | null;
+    providerCode?: string | null;
   },
   snapshot: FxRateSnapshot,
 ): number {
   const cost = effectiveComparableCost(input);
-  return toComparableUsd(cost.amount, cost.currency, snapshot);
+  return toComparableUsd(
+    cost.amount,
+    cost.currency,
+    snapshot,
+    input.sypUnit ?? carrierSypUnit(input.providerCode),
+  );
 }
