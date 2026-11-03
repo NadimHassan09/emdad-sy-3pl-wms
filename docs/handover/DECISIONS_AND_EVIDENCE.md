@@ -71,7 +71,7 @@ All: target delivery 72 h, up to 3 attempts, proof-of-delivery photo. A courier 
 ### 1.10 Sena sandbox end-to-end (3 Nov 2026)
 
 - Sena's merchant store currency is **SYP** (portal). A create with USD COD was rejected: "Currency is not supported for this merchant account". Rule added: Sena is offered only when the collection currency is SYP; the shipping form now sends the COD collection currency with every rate request. With SYP the same shipment was accepted (COD 20 USD converted to 260,008 SYP) and moved through shipped, out for delivery and delivered by webhook.
-- Open business decisions raised by this run: (a) FX rate source for COD conversion (currently a free public currency API), (b) client shipping-fee groups exist only for Aleppo on staging, (c) Babel price unit (D-013).
+- Open business decisions raised by this run: (a) FX rate source for COD conversion (currently a free public currency API), (b) client shipping-fee groups exist only for Aleppo on staging, (c) Syrian pound unit: Babel portal announces the new pound replacing the old one; Babel quotes (400 SYP) look ~100x smaller than other carriers in USD terms (D-013). EMDAD must state which unit it stores and convert each carrier's unit explicitly before any SYP comparison or COD.
 
 ### 1.7 Test-suite baseline (incomplete)
 
