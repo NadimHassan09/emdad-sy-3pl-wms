@@ -1,5 +1,5 @@
 import { Type } from 'class-transformer';
-import { IsDateString, IsIn, IsObject, IsOptional, IsString, ValidateNested } from 'class-validator';
+import { IsDateString, IsIn, IsObject, IsOptional, IsString, MaxLength, ValidateNested } from 'class-validator';
 
 export class UpdateInboundPlanDto {
   @IsOptional()
@@ -16,5 +16,6 @@ export class UpdateInboundPlanDto {
 
   @IsOptional()
   @IsString()
+  @MaxLength(500, { message: 'Notes must be at most 500 characters.' })
   notes?: string;
 }

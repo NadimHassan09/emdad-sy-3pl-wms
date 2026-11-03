@@ -2,12 +2,12 @@
 
 Generated 2026-11-03 by `qa_progress.py` from `QA_TRACKER.md` and `QA_FLOWS.md`. Do not edit by hand.
 
-## Overall: 24.2% tested, 75.8% remaining
+## Overall: 25.9% tested, 74.1% remaining
 
 | Layer | Weight | Done | Items |
 |---|---|---|---|
-| Route checks (functional, validation, roles, consistency, mobile) | 40% | 7.3% | 660 checks on 132 routes |
-| Business flows | 40% | 34.5% | 42 flows |
+| Route checks (functional, validation, roles, consistency, mobile) | 40% | 8.0% | 660 checks on 132 routes |
+| Business flows | 40% | 38.1% | 42 flows |
 | Cross-cutting (security, errors, responsive, data, tests, release) | 20% | 37.5% | 16 checks |
 
 ## Routes by module
@@ -16,6 +16,7 @@ Generated 2026-11-03 by `qa_progress.py` from `QA_TRACKER.md` and `QA_FLOWS.md`.
 
 | Module | Routes | Done | Remaining |
 |---|---|---|---|
+| orders | 12 | 14% | 86% |
 | audit-logs | 1 | 10% | 90% |
 | backups | 4 | 10% | 90% |
 | clients | 2 | 10% | 90% |
@@ -25,10 +26,10 @@ Generated 2026-11-03 by `qa_progress.py` from `QA_TRACKER.md` and `QA_FLOWS.md`.
 | forms | 1 | 10% | 90% |
 | internal | 1 | 10% | 90% |
 | notifications | 1 | 10% | 90% |
-| orders | 12 | 10% | 90% |
 | profile | 1 | 10% | 90% |
 | shipping | 2 | 10% | 90% |
 | warehouses | 1 | 10% | 90% |
+| inventory | 6 | 8% | 92% |
 | reports | 23 | 8% | 92% |
 | billing | 8 | 6% | 94% |
 | cycle-count | 4 | 5% | 95% |
@@ -36,10 +37,9 @@ Generated 2026-11-03 by `qa_progress.py` from `QA_TRACKER.md` and `QA_FLOWS.md`.
 | products | 2 | 5% | 95% |
 | users | 4 | 5% | 95% |
 | oms | 10 | 4% | 96% |
-| inventory | 6 | 3% | 97% |
 | returns | 3 | 3% | 97% |
 | tasks | 3 | 3% | 97% |
-| **Total** | 102 | **7.4%** | **92.6%** |
+| **Total** | 102 | **8.1%** | **91.9%** |
 
 ### Client portal
 
@@ -88,9 +88,9 @@ Generated 2026-11-03 by `qa_progress.py` from `QA_TRACKER.md` and `QA_FLOWS.md`.
 | F21 | Carriers | Webhooks in both directions (valid, invalid signature, duplicate, out-of-order) | ⬜ |
 | F22 | Carriers | Coverage per governorate and the carrier eligibility rules (weight, COD currency, zone) | 🔄 |
 | F23 | Currency | Per-carrier Syrian-pound unit and USD conversion (quotes, COD) | 🔄 |
-| F24 | Inbound | Inbound order: create, ASN, receive, quality, putaway, GRN | ⬜ |
-| F25 | Inventory | Stock views, lots, expiry, reservation, ledger | ⬜ |
-| F26 | Inventory | Adjustments, internal transfer, cycle count | ⬜ |
+| F24 | Inbound | Inbound order: create, ASN, receive, quality, putaway, GRN | 🔄 |
+| F25 | Inventory | Stock views, lots, expiry, reservation, ledger | 🔄 |
+| F26 | Inventory | Adjustments, internal transfer, cycle count | 🔄 |
 | F27 | Master data | Products (create, edit, images, lot tracking, dimensions) | 🔄 |
 | F28 | Master data | Clients (create, edit, suspend, contract) and client users | 🔄 |
 | F29 | Master data | Warehouses and locations hierarchy (zones, racks, shelves, packing and dock) | 🔄 |
@@ -126,7 +126,7 @@ Generated 2026-11-03 by `qa_progress.py` from `QA_TRACKER.md` and `QA_FLOWS.md`.
 
 ## Status counts (flows + cross-cutting)
 
-⛔ 2 · ✅ 7 · ❌ 1 · ⬜ 23 · 🔄 25
+⛔ 2 · ✅ 7 · ❌ 1 · ⬜ 20 · 🔄 28
 
 ## Definition of done (hand over to the client)
 

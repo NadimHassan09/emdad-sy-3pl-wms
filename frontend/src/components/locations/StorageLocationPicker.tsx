@@ -5,13 +5,14 @@ import type { LocationType } from '../../api/locations';
 import { LocationsApi } from '../../api/locations';
 import { QK } from '../../constants/query-keys';
 import { EXECUTION_LOOKUP_LIMIT } from '../../lib/location-resolve';
-import { isStorageLocationType } from '../../lib/location-types';
 import { localizedLocationTypeLabel } from '../../lib/ui-labels/locations';
 import { useWmsTranslation } from '../../lib/ui-i18n';
 import { Combobox } from '../Combobox';
 
+const PUTAWAY_DESTINATION_TYPES: string[] = ['internal', 'fridge', 'quarantine', 'scrap'];
+
 /** Preload these types so the putaway picker opens with a scrollable list (no typing required). */
-const STORAGE_PRELOAD_TYPES: LocationType[] = ['internal', 'fridge', 'packing', 'quarantine'];
+const STORAGE_PRELOAD_TYPES: LocationType[] = ['internal', 'fridge', 'quarantine'];
 
 type Props = {
   warehouseId: string;
@@ -98,7 +99,8 @@ export function StorageLocationPicker({
     }) => {
       if (seen.has(l.id)) return;
       if (l.status === 'blocked' || l.status === 'archived') return;
-      if (!isStorageLocationType(l.type)) return;
+      // Same set the backend accepts for putaway; packing, dock and output zones are not offered.
+      if (!PUTAWAY_DESTINATION_TYPES.includes(l.type)) return;
       seen.add(l.id);
       rows.push({
         value: l.id,
@@ -115,7 +117,7 @@ export function StorageLocationPicker({
     rows.sort((a, b) => a.label.localeCompare(b.label));
 
     const selected = selectedById.data;
-    if (value && selected && isStorageLocationType(selected.type) && !seen.has(value)) {
+    if (value && selected && PUTAWAY_DESTINATION_TYPES.includes(selected.type) && !seen.has(value)) {
       rows.unshift({
         value: selected.id,
         label: selected.fullPath,

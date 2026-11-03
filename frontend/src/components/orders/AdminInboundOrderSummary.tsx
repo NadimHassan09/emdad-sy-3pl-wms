@@ -257,12 +257,12 @@ export function AdminInboundOrderSummary({ order }: Props) {
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          {isPlannable ? (
+          {isPlannable || (isAdminMode && adminStageAction === 'complete_putaway') ? (
             <Link
               to={`/orders/inbound/${order.id}/edit`}
               className="inline-flex h-[34px] items-center rounded-lg border border-border bg-surface-card px-3 text-sm font-medium text-text-strong hover:bg-surface-sunken"
             >
-              {planReady ? 'Edit plan' : 'Complete plan'}
+              {isPlannable ? (planReady ? 'Edit plan' : 'Complete plan') : 'Change putaway locations'}
             </Link>
           ) : null}
           <Button

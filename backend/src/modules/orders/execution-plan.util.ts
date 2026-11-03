@@ -156,3 +156,10 @@ export function assertOutboundAdminPlanComplete(plan: OutboundExecutionPlan): vo
     );
   }
 }
+
+/** Location types stock may be put away into (sellable putaway). Packing, dock and output zones are not. */
+export const PUTAWAY_DESTINATION_LOCATION_TYPES: readonly string[] = ['internal', 'fridge', 'quarantine', 'scrap'];
+
+export function isPutawayDestinationType(type: string | null | undefined): boolean {
+  return !!type && PUTAWAY_DESTINATION_LOCATION_TYPES.includes(type);
+}

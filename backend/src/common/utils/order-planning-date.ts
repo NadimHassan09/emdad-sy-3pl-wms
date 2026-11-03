@@ -30,4 +30,12 @@ export function assertCalendarDateNotBeforeToday(value: string, fieldName: strin
   if (ymd < today) {
     throw new BadRequestException(`${fieldName} cannot be before today.`);
   }
+  // A plan date years away is a typo (for example 2999), not a real schedule.
+  const limit = new Date(`${today}T00:00:00Z`);
+  limit.setUTCDate(limit.getUTCDate() + MAX_PLANNING_DAYS_AHEAD);
+  if (ymd > limit.toISOString().slice(0, 10)) {
+    throw new BadRequestException(`${fieldName} cannot be more than 2 years from today.`);
+  }
 }
+
+const MAX_PLANNING_DAYS_AHEAD = 730;

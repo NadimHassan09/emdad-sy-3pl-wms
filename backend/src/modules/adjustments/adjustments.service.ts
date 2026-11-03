@@ -221,6 +221,23 @@ export class AdjustmentsService {
         'Quantity after',
       );
 
+      // Every line is applied against the same starting quantity, so two lines for one bin would
+      // double-count and leave the wrong balance. One line per product, location and lot.
+      const duplicate = await tx.stockAdjustmentLine.findFirst({
+        where: {
+          adjustmentId,
+          productId: dto.productId,
+          locationId: dto.locationId,
+          lotId: dto.lotId ?? null,
+        },
+        select: { id: true },
+      });
+      if (duplicate) {
+        throw new InvalidStateException(
+          'This product, location and lot is already in the adjustment. Edit that line instead of adding another.',
+        );
+      }
+
       const before = await this.stock.readOnHandForUpdate(tx, {
         companyId: adj.companyId,
         productId: dto.productId,
@@ -325,6 +342,16 @@ export class AdjustmentsService {
         }
         if (adj.lines.length === 0) {
           throw new BadRequestException('Cannot approve an adjustment with no lines.');
+        }
+        const seenBins = new Set<string>();
+        for (const line of adj.lines) {
+          const key = `${line.productId}|${line.locationId}|${line.lotId ?? ''}`;
+          if (seenBins.has(key)) {
+            throw new BadRequestException(
+              'The adjustment has two lines for the same product, location and lot. Remove one before approving.',
+            );
+          }
+          seenBins.add(key);
         }
 
         for (const line of adj.lines) {

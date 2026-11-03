@@ -1,3 +1,4 @@
+import { isPutawayDestinationType } from '../orders/execution-plan.util';
 import { BadRequestException, Inject, Injectable, Optional, forwardRef } from '@nestjs/common';
 import { ModuleRef } from '@nestjs/core';
 import {
@@ -396,8 +397,7 @@ export class TaskInventoryEffectsService {
           throw new InvalidLocationTypeException('Quarantine putaway requires a quarantine or scrap bin.');
         }
       } else {
-        const allowedSellablePutaway = new Set(['internal', 'fridge', 'quarantine', 'scrap']);
-        if (!allowedSellablePutaway.has(String(dest.type))) {
+        if (!isPutawayDestinationType(String(dest.type))) {
           throw new InvalidLocationTypeException(
             'Putaway destination must be storage (internal), fridge, quarantine, or scrap.',
           );

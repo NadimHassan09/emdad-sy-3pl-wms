@@ -31,9 +31,9 @@ A flow counts as ✅ only when it was run in the real UI or against the real car
 | F21 | Carriers | Webhooks in both directions (valid, invalid signature, duplicate, out-of-order) | ⬜ | |
 | F22 | Carriers | Coverage per governorate and the carrier eligibility rules (weight, COD currency, zone) | 🔄 | Rules built and unit-tested; Babel 10 governorates confirmed; others not probed |
 | F23 | Currency | Per-carrier Syrian-pound unit and USD conversion (quotes, COD) | 🔄 | Babel new pound proven from its ledger; Sena unit unconfirmed; FX page not browser-tested |
-| F24 | Inbound | Inbound order: create, ASN, receive, quality, putaway, GRN | ⬜ | |
-| F25 | Inventory | Stock views, lots, expiry, reservation, ledger | ⬜ | |
-| F26 | Inventory | Adjustments, internal transfer, cycle count | ⬜ | |
+| F24 | Inbound | Inbound order: create, ASN, receive, quality, putaway, GRN | 🔄 | Admin-executed path done end to end incl. GRN PDF, edge cases and recovery (D-028..D-031); worker/task execution, client-submitted inbound, import and quality hold not done |
+| F25 | Inventory | Stock views, lots, expiry, reservation, ledger | 🔄 | Stock/lot after receive checked; ledger reconciles per product (49/49); expiry and reservation screens, lot expiry report not done |
+| F26 | Inventory | Adjustments, internal transfer, cycle count | 🔄 | Adjustments (D-030) and internal transfer (13 cases) done; cycle count not done |
 | F27 | Master data | Products (create, edit, images, lot tracking, dimensions) | 🔄 | D-005 missing images; no CRUD pass |
 | F28 | Master data | Clients (create, edit, suspend, contract) and client users | 🔄 | Required-field messages only |
 | F29 | Master data | Warehouses and locations hierarchy (zones, racks, shelves, packing and dock) | 🔄 | Loads; D-003 dirty data |
@@ -66,7 +66,7 @@ A flow counts as ✅ only when it was run in the real UI or against the real car
 | X09 | UX | Responsive and mobile on key flows (touch targets, tables) | ⬜ | |
 | X10 | Quality | Performance: N+1 calls, slow pages, large lists | 🔄 | Outbound list N+1 noted |
 | X11 | Quality | Accessibility basics: focus order, labels, contrast, keyboard | ⬜ | |
-| X12 | Data | Data integrity: stock never negative, ledgers append-only, reservations released on cancel, COD totals | 🔄 | Unit tests exist; cancel releases the reservation (seen on test order); no full ledger audit |
+| X12 | Data | Data integrity: stock never negative, ledgers append-only, reservations released on cancel, COD totals | 🔄 | Stock never negative and never over-reserved (130 rows); ledger equals stock per product for 49 products after receive, transfer, adjust; location-level putaway gap (D-033); COD totals not audited |
 | X13 | Tests | Backend unit suite baseline (all suites, in batches) | 🔄 | Shipping area 46 suites / 362 tests pass; full run not done (D-004) |
 | X14 | Tests | Frontend unit suite and Playwright regression of fixed flows | 🔄 | Vitest lib 104 pass; Playwright not re-run |
 | X15 | Release | Handover pack: client documentation, decision log, known limitations, runbook | 🔄 | `DECISIONS_AND_EVIDENCE.md` and QA files exist; client-facing documents not written |

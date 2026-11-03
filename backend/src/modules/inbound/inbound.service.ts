@@ -43,6 +43,7 @@ import { WorkflowBootstrapService } from '../warehouse-workflow/workflow-bootstr
 import { WarehouseTasksService } from '../warehouse-workflow/warehouse-tasks.service';
 import {
   assertInboundAdminPlanComplete,
+  isPutawayDestinationType,
   normalizeExecutionMode,
   parseInboundExecutionPlan,
 } from '../orders/execution-plan.util';
@@ -167,6 +168,11 @@ export class InboundService {
     }
 
     assertCalendarDateNotBeforeToday(dto.expectedArrivalDate, 'Expected arrival date');
+    for (const line of dto.lines) {
+      if (line.expectedExpiryDate) {
+        assertCalendarDateNotBeforeToday(line.expectedExpiryDate, 'Expected expiry date');
+      }
+    }
 
     // Client portal submissions are completed by admin (dock / putaway / confirm).
     // Allow executionMode=admin without a full plan; admin fills it via updatePlan.
@@ -178,7 +184,10 @@ export class InboundService {
     if (dto.executionPlan && !clientSubmission) {
       const parsed = parseInboundExecutionPlan(dto.executionPlan);
       if (!parsed) throw new BadRequestException('Invalid executionPlan.');
-      if (executionMode === 'admin') assertInboundAdminPlanComplete(parsed);
+      if (executionMode === 'admin') {
+        assertInboundAdminPlanComplete(parsed);
+        await this.assertPutawayDestinationsUsable(parsed);
+      }
       executionPlan = parsed as unknown as Prisma.InputJsonValue;
     } else if (executionMode === 'admin' && !clientSubmission) {
       throw new BadRequestException('Admin execution requires executionPlan on create.');
@@ -537,12 +546,70 @@ export class InboundService {
     });
   }
 
+  /** Putaway-stage edit: only the destination splits may change; warehouse, dock and quantities stay. */
+  private async updatePutawayDestinations(
+    user: AuthPrincipal,
+    order: Awaited<ReturnType<InboundService['findById']>>,
+    dto: UpdateInboundPlanDto,
+  ) {
+    const existing = parseInboundExecutionPlan(order.executionPlan);
+    const next = parseInboundExecutionPlan(dto.executionPlan);
+    if (!existing || !next) throw new BadRequestException('Invalid executionPlan.');
+    if (
+      next.warehouseId !== existing.warehouseId ||
+      next.receivingDockId !== existing.receivingDockId ||
+      dto.notes !== undefined ||
+      dto.expectedArrivalDate !== undefined ||
+      dto.executionMode !== undefined
+    ) {
+      throw new InvalidStateException('During putaway only the putaway destinations can be changed.');
+    }
+    const qtyByProduct = (p: typeof existing) =>
+      JSON.stringify(p.lines.map((l) => [l.orderLineId ?? l.productId, l.productId, l.expectedQty]).sort());
+    const withIds = {
+      ...next,
+      lines: next.lines.map((pl) => ({
+        ...pl,
+        orderLineId:
+          pl.orderLineId ?? order.lines.find((l) => l.productId === pl.productId)?.id ?? undefined,
+      })),
+    };
+    if (qtyByProduct(withIds) !== qtyByProduct(existing)) {
+      throw new InvalidStateException('During putaway only the putaway destinations can be changed.');
+    }
+    assertInboundAdminPlanComplete(withIds);
+    await this.assertPutawayDestinationsUsable(withIds);
+    withIds.planUpdatedAt = new Date().toISOString();
+    return withTenantRls(this.prisma, user, (tx) =>
+      tx.inboundOrder.update({
+        where: { id: order.id },
+        data: { executionPlan: withIds as unknown as Prisma.InputJsonValue },
+        include: ORDER_INCLUDE,
+      }),
+    );
+  }
+
   async updatePlan(user: AuthPrincipal, id: string, dto: UpdateInboundPlanDto) {
     const order = await this.findById(id, user);
     if (!isInboundPlanEditable(order.status, order.lines)) {
-      throw new InvalidStateException(
-        `Plan can only be updated before receiving starts (current: ${order.status}).`,
-      );
+      // Once receiving is done and putaway is still open, the putaway destinations (and only they)
+      // can be corrected; otherwise a wrong destination would leave the order stuck for good.
+      const putawayOpen = await this.prisma.warehouseTask.findFirst({
+        where: {
+          taskType: WarehouseTaskType.putaway,
+          status: {
+            in: [WarehouseTaskStatus.pending, WarehouseTaskStatus.assigned, WarehouseTaskStatus.in_progress],
+          },
+          workflowInstance: { referenceType: 'inbound_order', referenceId: id },
+        },
+        select: { id: true },
+      });
+      if (!putawayOpen || normalizeExecutionMode(order.executionMode) !== 'admin' || !dto.executionPlan) {
+        throw new InvalidStateException(
+          `Plan can only be updated before receiving starts (current: ${order.status}).`,
+        );
+      }
+      return this.updatePutawayDestinations(user, order, dto);
     }
     const executionMode = normalizeExecutionMode(dto.executionMode ?? order.executionMode);
     let executionPlan: Prisma.InputJsonValue | undefined | null = undefined;
@@ -564,7 +631,10 @@ export class InboundService {
         return { ...pl, orderLineId };
       });
       parsed.planUpdatedAt = new Date().toISOString();
-      if (executionMode === 'admin') assertInboundAdminPlanComplete(parsed);
+      if (executionMode === 'admin') {
+        assertInboundAdminPlanComplete(parsed);
+        await this.assertPutawayDestinationsUsable(parsed);
+      }
       executionPlan = parsed as unknown as Prisma.InputJsonValue;
     } else if (executionMode === 'admin') {
       const existing = parseInboundExecutionPlan(order.executionPlan);
@@ -598,6 +668,38 @@ export class InboundService {
    * Starts receiving task; does NOT post receive or putaway.
    * Requires TASK_ONLY_FLOWS so Approve cannot use legacy confirm-only shortcuts incorrectly.
    */
+  /**
+   * A putaway destination must be a real storage bin of the plan's warehouse. Checked when the plan
+   * is saved and at approve, so the order cannot reach putaway with a destination that will fail.
+   */
+  private async assertPutawayDestinationsUsable(plan: {
+    warehouseId: string;
+    lines: Array<{ putaway?: Array<{ locationId: string }> }>;
+  }): Promise<void> {
+    const ids = [...new Set(plan.lines.flatMap((l) => (l.putaway ?? []).map((p) => p.locationId)))];
+    if (ids.length === 0) return;
+    const rows = await this.prisma.location.findMany({
+      where: { id: { in: ids } },
+      select: { id: true, fullPath: true, type: true, status: true, warehouseId: true },
+    });
+    const byId = new Map(rows.map((r) => [r.id, r]));
+    for (const id of ids) {
+      const loc = byId.get(id);
+      if (!loc) throw new BadRequestException('A putaway location in the plan was not found.');
+      if (loc.warehouseId !== plan.warehouseId) {
+        throw new BadRequestException(`Putaway location ${loc.fullPath} is not in the plan's warehouse.`);
+      }
+      if (String(loc.status) !== 'active') {
+        throw new BadRequestException(`Putaway location ${loc.fullPath} is not active.`);
+      }
+      if (!isPutawayDestinationType(String(loc.type))) {
+        throw new BadRequestException(
+          `Putaway location ${loc.fullPath} is a ${String(loc.type)} location. Choose a storage, fridge, quarantine or scrap location.`,
+        );
+      }
+    }
+  }
+
   async approveAdmin(user: AuthPrincipal, orderId: string) {
     const order = await this.findById(orderId, user);
     if (normalizeExecutionMode(order.executionMode) !== 'admin') {
@@ -612,6 +714,7 @@ export class InboundService {
     const plan = parseInboundExecutionPlan(order.executionPlan);
     if (!plan) throw new BadRequestException('Approve requires a saved executionPlan.');
     assertInboundAdminPlanComplete(plan);
+    await this.assertPutawayDestinationsUsable(plan);
 
     const stagingByLineId: Record<string, string> = {};
     for (const line of order.lines) {

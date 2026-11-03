@@ -11,6 +11,7 @@ import {
   IsPositive,
   IsString,
   Length,
+  MaxLength,
   ValidateNested,
 } from 'class-validator';
 import { InboundSourceType } from '@prisma/client';
@@ -45,10 +46,12 @@ export class CreateInboundOrderDto {
 
   @IsOptional()
   @IsString()
+  @MaxLength(100, { message: 'Client reference must be at most 100 characters.' })
   clientReference?: string;
 
   @IsOptional()
   @IsString()
+  @MaxLength(500, { message: 'Notes must be at most 500 characters.' })
   notes?: string;
 
   @IsOptional()

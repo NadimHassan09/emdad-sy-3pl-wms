@@ -39,12 +39,12 @@ One row per route. Defects are logged below with ID, severity (S1 blocker, S2 ma
 | `/finance/transactions` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load sweep 3 Nov: no API error, no console error, no crash |
 | `/forms` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load sweep 3 Nov: no API error, no console error, no crash |
 | `/internal` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load sweep 3 Nov: no API error, no console error, no crash |
-| `/inventory/adjustments` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load check only (3 Nov smoke pass) |
+| `/inventory/adjustments` | ✅ | ✅ | ⬜ | ⬜ | ⬜ | Create draft, add lines (9 validation cases), reason gate, approve, approve twice; D-030 |
 | `/inventory/adjustments/:id` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
 | `/inventory/ledger/:referenceType/:referenceId` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
 | `/inventory/ledger/line/:ledgerId/:createdAt` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
 | `/inventory/product/:productId` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
-| `/inventory/stock` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load check only (3 Nov smoke pass) |
+| `/inventory/stock` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Stock rows read through API after receive/transfer/adjust; ledger reconciles per product (49/49) |
 | `/locations` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load check only (3 Nov smoke pass) |
 | `/locations/:warehouseId` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
 | `/notifications` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load sweep 3 Nov: no API error, no console error, no crash |
@@ -58,10 +58,10 @@ One row per route. Defects are logged below with ID, severity (S1 blocker, S2 ma
 | `/oms/returns` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load sweep 3 Nov: no API error, no console error, no crash |
 | `/oms/returns/:id` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
 | `/oms/returns/:id/edit` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
-| `/orders/inbound` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load sweep 3 Nov: no API error, no console error, no crash |
-| `/orders/inbound/:id` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
+| `/orders/inbound` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load + created orders appear |
+| `/orders/inbound/:id` | ✅ | ⬜ | ⬜ | ⬜ | ⬜ | Approve, receive (auto from plan), putaway, GRN PDF; Change putaway locations during putaway (D-029) |
 | `/orders/inbound/:id/edit` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
-| `/orders/inbound/new` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load sweep 3 Nov: no API error, no console error, no crash |
+| `/orders/inbound/new` | ✅ | ✅ | ⬜ | ⬜ | ⬜ | Created through the UI: client, product, dock, putaway split, required-field message; API field sweep (qty, dates, lot, duplicates); D-028, D-031 |
 | `/orders/oms` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load check only (3 Nov smoke pass) |
 | `/orders/oms/:id` | ✅ | ⬜ | ⬜ | ⬜ | ⬜ | Cancel order, Cancel shipment (API and manual), carrier switch |
 | `/orders/oms/:id/waybill` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
@@ -197,7 +197,13 @@ Aliases (`/cod-reports`, `/returns`, `/returns/new`, `/returns/:id`, `/billing/i
 | D-024 | S2 | Waybill label | Client-controlled text (address, notes, delivery instructions, product name/SKU, city) was placed into the label HTML unescaped, and the PDF is rendered by a headless browser: HTML/script injection into the label | Client API validation sweep 3 Nov | Fixed: every user value goes through `esc`; unit test added | this commit |
 | D-025 | S3 | Order notes | Notes had no maximum (5,000 characters accepted; the admin plan form limits notes to 500) | Client API validation sweep 3 Nov | Fixed: notes limited to 500 on create and update | this commit |
 | D-026 | S3 | Other PDFs | Other server-rendered PDFs (GRN, DN, final contract, invoices, instruction sheets, return slips) were not yet checked for the same unescaped-HTML pattern | Follow-up of D-024 | Checked 3 Nov: GRN/DN/contract/invoice use Handlebars auto-escape (raw output only for the layout shell), COD export and instruction sheet escape explicitly; no further issue | |
-| D-027 | S3 | Test baseline | 5 OMS unit suites fail on the base commit (waybill-layout page count, line-numeric decimals, csv service, same-workflow-path, return rollback) | OMS jest run 3 Nov | Open (triage, part of D-004) | |
+| D-027 | S3 | Test baseline | 6 unit suites fail on the base commit (OMS waybill-layout page count, line-numeric decimals, csv service, same-workflow-path, return rollback; warehouse-tasks-list constructor) | OMS jest run 3 Nov | Open (triage, part of D-004) | |
+| D-028 | S2 | Inbound plan | The putaway picker offered Packing locations and the plan accepted them; the order was approved, receiving completed, then putaway failed and the order was stuck | Inbound UI/API test 3 Nov | Fixed: picker and backend accept only storage, fridge, quarantine, scrap bins of the plan's warehouse; checked on save and at approve | this commit |
+| D-029 | S2 | Inbound putaway | After receiving, the plan was locked, so a wrong putaway destination could not be corrected | Same test | Fixed: while putaway is open, only the putaway destinations can be changed (backend plus a "Change putaway locations" link on the order) | this commit |
+| D-030 | S2 | Stock adjustments | Two lines for the same product/location/lot were accepted; each was applied against the original quantity (5 set to 4 then 3 left 2) | Adjustments test 3 Nov | Fixed: duplicate line rejected on add and at approve | this commit |
+| D-031 | S3 | Inbound fields | Inbound notes (5,000 characters), client reference (500), arrival date 2999, and an expected expiry date in the past were accepted | Inbound API sweep 3 Nov | Fixed: notes 500, reference 100, planning dates at most 2 years ahead (also OMS/outbound dates), expected expiry cannot be in the past | this commit |
+| D-032 | S4 | Master data | Receiving dock is named "منظقة استلام" (typo for منطقة) | Inbound form 3 Nov | Open (rename in Locations) | |
+| D-033 | S3 | Ledger | Putaway (dock to bin) is not written to the inventory ledger; location-level history cannot be rebuilt (product-level totals reconcile) | Ledger audit 3 Nov | Open (design question) | |
 | D-004 | S3 | Backend tests | Jest run OOM after 23/144 suites; 9 suites failing (stale specs/drift) | jest-baseline | Open | |
 
 ## Smoke pass log
