@@ -48,12 +48,16 @@ describe('SenaExpressMapper', () => {
     });
 
     it('matches zone by display_name or country', () => {
-      expect(matchSenaZone(sampleZones, { country: 'United Arab Emirates' } as any)?.id).toBe(2);
+      expect(matchSenaZone(sampleZones, { city: 'United Arab Emirates' })?.id).toBe(2);
       expect(matchSenaZone(sampleZones, { address: 'Damascus highway' })?.id).toBe(10);
     });
 
-    it('falls back to first zone if no term matches', () => {
-      expect(matchSenaZone(sampleZones, { city: 'NonExistentCity' })?.id).toBe(2);
+    it('returns null when several zones exist and none matches', () => {
+      expect(matchSenaZone(sampleZones, { city: 'NonExistentCity' })).toBeNull();
+    });
+
+    it('uses the only zone when the merchant has a single one', () => {
+      expect(matchSenaZone([sampleZones[0]], { city: 'NonExistentCity' })?.id).toBe(sampleZones[0].id);
     });
 
     it('returns null if zones list is empty', () => {

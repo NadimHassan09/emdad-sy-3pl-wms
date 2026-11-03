@@ -150,7 +150,12 @@ export class SenaExpressAdapter implements ShippingProvider {
         neighborhood: input.receiver.neighborhood,
         address: input.receiver.address,
       });
-      zoneId = matched ? matched.id : 1;
+      if (!matched) {
+        throw new BadRequestException(
+          'SENA Express has no delivery zone for this destination. Choose another carrier or Manual Shipping.',
+        );
+      }
+      zoneId = matched.id;
     }
 
     const payload = mapCreateShipmentPayload(input, zoneId);
@@ -181,7 +186,7 @@ export class SenaExpressAdapter implements ShippingProvider {
   ): Promise<ShippingQuoteResult> {
     const options = await this.getServiceOptions(credentials, input);
     if (options.length === 0) {
-      throw new BadRequestException('SENA Express has no available delivery zones for this merchant.');
+      throw new BadRequestException('SENA Express does not serve this destination (no matching delivery zone).');
     }
 
     const preferredZoneId = parseSenaZoneIdFromServiceId(input.hubId);
@@ -219,9 +224,8 @@ export class SenaExpressAdapter implements ShippingProvider {
       neighborhood: input.neighborhood,
     });
 
-    const orderedZones = matchedZone
-      ? [matchedZone, ...zones.filter((z) => z.id !== matchedZone.id)]
-      : zones;
+    // Only a zone that matches the destination is offered; no match means Sena does not serve it.
+    const orderedZones = matchedZone ? [matchedZone] : [];
 
     return orderedZones.map((z) => {
       const price = Number(z.delivery_price ?? 0);

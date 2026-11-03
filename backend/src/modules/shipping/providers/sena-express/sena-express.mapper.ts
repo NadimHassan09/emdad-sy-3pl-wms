@@ -63,7 +63,9 @@ export function matchSenaZone(
     if (match) return match;
   }
 
-  return zones[0];
+  // No evidence this destination is served. A merchant with a single zone has no other
+  // option; with several zones, guessing the first would offer or route a wrong zone.
+  return zones.length === 1 ? zones[0] : null;
 }
 
 export function formatPhoneForSena(country: string | null | undefined, local: string | null | undefined): string {
