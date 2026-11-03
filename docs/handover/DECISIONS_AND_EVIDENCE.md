@@ -58,6 +58,8 @@ Environment for all checks: **staging only** (`wms_db_staging`, PM2 `emdad-wms-b
 | Mersal | home | **USD only** | — | free | price per zone |
 
 All: target delivery 72 h, up to 3 attempts, proof-of-delivery photo. A courier with no price tier covering the parcel weight returns no price. Delivery Joud is therefore also reachable as a Sila courier, in addition to its own API/portal.
+**Delivery Joud (Deliveroo Joud, Olivery platform) — own API read from the public Postman page (3 Nov).** Host `deliveroojoud.olivery.io`, JSON-RPC style: `login`, `password` and `db` travel in the request body (account credentials, no API key; no sandbox identified). Endpoints listed: `POST create_order`, `GET order`, `POST create_multi_orders` (V3), `GET get_areas`, `GET get_sub_areas`, `GET get_status`, `GET order_types`, `POST solve_stuck_order`, `POST create_sender`, **`POST edit_order`**. Order fields: customer name/mobile/address/area, `reference_id`, `cost`, `order_type_id`, `paid`, `delivery_fee_on_customer`, `delivery_fee_on_sender`, notes. Observations: an edit endpoint exists (unlike Babel/Sena/Sila); areas come from `get_areas`/`get_sub_areas` (coverage must be read from there, not assumed); the doc's sample data uses non-Syrian areas, so the account's real area list must be fetched before any mapping. Joud is also reachable as a Sila courier (see table above).
+
 *Not yet visible:* Sila merchant portal (not logged in on this browser); per-courier minimum COD values; per-zone coverage.
 
 ### 1.7 Test-suite baseline (incomplete)
