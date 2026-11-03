@@ -42,6 +42,24 @@ Environment for all checks: **staging only** (`wms_db_staging`, PM2 `emdad-wms-b
 
 - Finance policy keys (`cutover_active`, `cod_eligibility`, `cod_holding_days`, `shipping_fee_timing`, `minimum_payout_amount`) exist with API and admin page `finance/policies`. `cod_eligibility` covers the client's question "when does COD become due to the client" (`on_delivered`, `on_collection`, `on_remittance`). Features not yet agreed with the client (carrier reconciliation, in-transit float, client edit before confirmation) will be built behind admin-controlled flags, disabled by default.
 
+### 1.8 Carrier environments and published constraints (3 Nov 2026)
+
+**Sena Express — sandbox confirmed (safe for full E2E).** Sena portal → API settings has two tabs, *Live* and *Sandbox*. Live has no API key. Sandbox has an active `sena_test_…` key (last used 2026-11-03 03:20 by staging); the key prefix selects the environment on the same base URL (`syria.sena-express.com/api/v1/merchant`). Sandbox shipments are separate from real pickup/delivery/collection/settlement. Sandbox provides `POST /sandbox/shipments/{number}/status` to simulate statuses and a webhook delivery log (events from staging already acknowledged with HTTP 200: `order_delivered`, `order_out_for_delivery`, `pre_dispatch_carrier_failure_unlocked`, plus several stale `unmatched_awb`). Rate limit: 50 requests / 60 s per store, shared by Live and Sandbox. Create requires `reference` (duplicate-safe) and `delivery_zone_id` from `GET /zones`.
+
+**Sila SY — public courier catalogue (https://sila-sy.com/couriers).** Six couriers are reachable through Sila; limits that the system must respect before offering a courier:
+
+| Courier | Delivery | Currencies | COD fee | Return fee | Other |
+|---|---|---|---|---|---|
+| BABEL | home / branch pickup | SYP, USD | 1% of COD | 150% of delivery fee | per-parcel pricing |
+| DELIVEROO JOUD | home | SYP, USD | — | 100% of delivery fee | price per zone |
+| TARABUT | home | USD, SYP | 1% of COD | 100% of delivery fee | USD pricing |
+| Fatih Cargo | home / branch pickup | USD, SYP | — | 1.5 USD per shipment | per-parcel pricing |
+| Karam | via branches (119) | SYP, USD | 2% of COD | free | **max 10 kg per shipment** |
+| Mersal | home | **USD only** | — | free | price per zone |
+
+All: target delivery 72 h, up to 3 attempts, proof-of-delivery photo. A courier with no price tier covering the parcel weight returns no price. Delivery Joud is therefore also reachable as a Sila courier, in addition to its own API/portal.
+*Not yet visible:* Sila merchant portal (not logged in on this browser); per-courier minimum COD values; per-zone coverage.
+
 ### 1.7 Test-suite baseline (incomplete)
 
 - Backend Jest run aborted with out-of-memory after 23 of 144 suites; of those, 14 passed and 9 failed (stale specs or drifted code, e.g. CSV template spec expecting `external_reference`). Full baseline still to be produced in batches.
