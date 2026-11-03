@@ -17,7 +17,10 @@ export const FX_FALLBACK_USD_TO_SYP = 14500;
  */
 export type SypUnit = 'new' | 'old';
 export const OLD_SYP_PER_NEW_SYP = 100;
-const CARRIER_SYP_UNITS: Record<string, SypUnit> = { BABEL_EXPRESS: 'new' };
+const CARRIER_SYP_UNITS: Record<string, SypUnit> = {
+  BABEL_EXPRESS: 'new',
+  SENA_EXPRESS: 'new', // owner decision 3 Nov 2026, not yet confirmed by Sena
+};
 
 export function carrierSypUnit(providerCode?: string | null): SypUnit | null {
   const key = providerCode?.trim().toUpperCase();

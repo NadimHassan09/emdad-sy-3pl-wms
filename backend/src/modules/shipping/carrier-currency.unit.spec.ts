@@ -8,7 +8,8 @@ describe('carrier SYP unit', () => {
   it('knows Babel as new pound and leaves unconfirmed carriers alone', () => {
     expect(carrierSypUnit('BABEL_EXPRESS')).toBe('new');
     expect(carrierSypUnit('babel_express')).toBe('new');
-    expect(carrierSypUnit('SENA_EXPRESS')).toBeNull();
+    expect(carrierSypUnit('SENA_EXPRESS')).toBe('new');
+    expect(carrierSypUnit('SILA_SY')).toBeNull();
     expect(carrierSypUnit(null)).toBeNull();
   });
 
@@ -50,6 +51,6 @@ describe('carrier SYP unit', () => {
     const babel = resolveCollectionForService({ ...base, providerCode: 'BABEL_EXPRESS' });
     const sena = resolveCollectionForService({ ...base, providerCode: 'SENA_EXPRESS' });
     expect(babel.ok && babel.amount).toBe(2600);
-    expect(sena.ok && sena.amount).toBe(260000);
+    expect(sena.ok && sena.amount).toBe(2600);
   });
 });

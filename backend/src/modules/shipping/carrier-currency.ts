@@ -15,6 +15,11 @@ const CARRIER_SYP_UNITS: Record<string, { unit: SypUnit; evidence: string }> = {
     evidence:
       'Babel portal ledger (3 Oct 2026): "تحويل رصيد ليرة سورية جديدة الى دولار امريكي بسعر تصريف 136.00"; shipping fees 70-700 SYP; final balance "ليرة سورية جديدة".',
   },
+  SENA_EXPRESS: {
+    unit: 'new',
+    evidence:
+      'Owner decision (3 Nov 2026): treat Sena SYP as the new pound. Sena portal states only "SYP" and has not confirmed the unit; revisit when Sena answers.',
+  },
 };
 
 export function carrierSypUnit(providerCode?: string | null): SypUnit | null {
