@@ -30,7 +30,7 @@ A flow counts as ✅ only when it was run in the real UI or against the real car
 | F20 | Carriers | Delivery Joud | ⛔ | No adapter yet |
 | F21 | Carriers | Webhooks in both directions (valid, invalid signature, duplicate, out-of-order) | ⬜ | |
 | F22 | Carriers | Coverage per governorate and the carrier eligibility rules (weight, COD currency, zone) | 🔄 | Rules built and unit-tested; Babel 10 governorates confirmed; others not probed |
-| F23 | Currency | Per-carrier Syrian-pound unit and USD conversion (quotes, COD) | 🔄 | Babel new pound proven from its ledger; Sena unit unconfirmed; FX page not browser-tested |
+| F23 | Currency | Three currencies (USD, old SYP, new SYP): quotes, COD, finance, display | 🔄 | Owner model built and unit-tested; Babel unit proven (ledger and its `isNewSYP` API flag); Sena unit assumed new by owner decision; order currency selector and carrier cards not clicked through yet |
 | F24 | Inbound | Inbound order: create, ASN, receive, quality, putaway, GRN | 🔄 | Admin-executed path done end to end incl. GRN PDF, edge cases and recovery (D-028..D-031); worker/task execution, client-submitted inbound, import and quality hold not done |
 | F25 | Inventory | Stock views, lots, expiry, reservation, ledger | 🔄 | Stock/lot after receive checked; ledger reconciles per product (49/49); expiry and reservation screens, lot expiry report not done |
 | F26 | Inventory | Adjustments, internal transfer, cycle count | 🔄 | Adjustments (D-030) and internal transfer (13 cases) done; cycle count not done |
@@ -39,8 +39,8 @@ A flow counts as ✅ only when it was run in the real UI or against the real car
 | F29 | Master data | Warehouses and locations hierarchy (zones, racks, shelves, packing and dock) | 🔄 | Loads; D-003 dirty data |
 | F30 | Master data | Shipping companies, fee groups and fee rates per governorate | ⬜ | D-012 |
 | F31 | Finance | Accounts, transactions (append-only), policies, carrier costs, payouts, statements | ⬜ | |
-| F32 | Finance | Optional "Fulfillment Services" billing, invoices, plans (legacy billing) | ⬜ | Client request |
-| F33 | Reports | The ~25 admin reports (filters, totals vs source data, export) | ⬜ | |
+| F32 | Finance | Optional "Fulfillment Services" billing, invoices, plans (legacy billing) | 🔄 | On-demand invoice end to end by API on staging: rules, preview (numbers checked by hand), draft, issue, settle against balance (partial), no double billing, cancel returns the deduction; new pages load; the UI forms were not clicked; legacy cycle billing not re-tested |
+| F33 | Reports | The ~25 admin reports (filters, totals vs source data, export) | 🔄 | All 21 report endpoints run and export; one KPI bug fixed (D-038); totals vs source data and chart quality not done (D-039) |
 | F34 | Admin | Users and roles (create, deactivate, role change, password reset) | ⬜ | |
 | F35 | Admin | Audit logs, notifications | ⬜ | |
 | F36 | Admin | Backups: schedules, run now, Google Drive, restore, retention, factory reset guard | 🔄 | Earlier certification reports in `docs/evidence/backup-*`; not re-run in this QA |

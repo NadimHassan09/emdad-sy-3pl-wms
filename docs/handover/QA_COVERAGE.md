@@ -2,12 +2,12 @@
 
 Generated 2026-11-03 by `qa_progress.py` from `QA_TRACKER.md` and `QA_FLOWS.md`. Do not edit by hand.
 
-## Overall: 25.9% tested, 74.1% remaining
+## Overall: 26.9% tested, 73.1% remaining
 
 | Layer | Weight | Done | Items |
 |---|---|---|---|
 | Route checks (functional, validation, roles, consistency, mobile) | 40% | 8.0% | 660 checks on 132 routes |
-| Business flows | 40% | 38.1% | 42 flows |
+| Business flows | 40% | 40.5% | 42 flows |
 | Cross-cutting (security, errors, responsive, data, tests, release) | 20% | 37.5% | 16 checks |
 
 ## Routes by module
@@ -87,7 +87,7 @@ Generated 2026-11-03 by `qa_progress.py` from `QA_TRACKER.md` and `QA_FLOWS.md`.
 | F20 | Carriers | Delivery Joud | ⛔ |
 | F21 | Carriers | Webhooks in both directions (valid, invalid signature, duplicate, out-of-order) | ⬜ |
 | F22 | Carriers | Coverage per governorate and the carrier eligibility rules (weight, COD currency, zone) | 🔄 |
-| F23 | Currency | Per-carrier Syrian-pound unit and USD conversion (quotes, COD) | 🔄 |
+| F23 | Currency | Three currencies (USD, old SYP, new SYP): quotes, COD, finance, display | 🔄 |
 | F24 | Inbound | Inbound order: create, ASN, receive, quality, putaway, GRN | 🔄 |
 | F25 | Inventory | Stock views, lots, expiry, reservation, ledger | 🔄 |
 | F26 | Inventory | Adjustments, internal transfer, cycle count | 🔄 |
@@ -96,8 +96,8 @@ Generated 2026-11-03 by `qa_progress.py` from `QA_TRACKER.md` and `QA_FLOWS.md`.
 | F29 | Master data | Warehouses and locations hierarchy (zones, racks, shelves, packing and dock) | 🔄 |
 | F30 | Master data | Shipping companies, fee groups and fee rates per governorate | ⬜ |
 | F31 | Finance | Accounts, transactions (append-only), policies, carrier costs, payouts, statements | ⬜ |
-| F32 | Finance | Optional "Fulfillment Services" billing, invoices, plans (legacy billing) | ⬜ |
-| F33 | Reports | The ~25 admin reports (filters, totals vs source data, export) | ⬜ |
+| F32 | Finance | Optional "Fulfillment Services" billing, invoices, plans (legacy billing) | 🔄 |
+| F33 | Reports | The ~25 admin reports (filters, totals vs source data, export) | 🔄 |
 | F34 | Admin | Users and roles (create, deactivate, role change, password reset) | ⬜ |
 | F35 | Admin | Audit logs, notifications | ⬜ |
 | F36 | Admin | Backups: schedules, run now, Google Drive, restore, retention, factory reset guard | 🔄 |
@@ -126,7 +126,7 @@ Generated 2026-11-03 by `qa_progress.py` from `QA_TRACKER.md` and `QA_FLOWS.md`.
 
 ## Status counts (flows + cross-cutting)
 
-⛔ 2 · ✅ 7 · ❌ 1 · ⬜ 20 · 🔄 28
+⛔ 2 · ✅ 7 · ❌ 1 · ⬜ 18 · 🔄 30
 
 ## Definition of done (hand over to the client)
 

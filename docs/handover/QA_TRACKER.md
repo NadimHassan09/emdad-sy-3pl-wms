@@ -208,6 +208,9 @@ Aliases (`/cod-reports`, `/returns`, `/returns/new`, `/returns/:id`, `/billing/i
 | D-035 | S2 | Finance (pending) | Pending balance was decreased by original plus adjustments although only the original was added | Finance audit 3 Nov | Fixed in code | this commit |
 | D-036 | S2 | Finance (shipping fee) | Shipping fee debits and adjustments posted the order-currency amount as USD | Finance audit 3 Nov | Fixed in code | this commit |
 | D-037 | S3 | Test baseline | Two more client-portal unit suites fail on the base commit (external-oms lifecycle, public-order serialize) | Test run 3 Nov | Open (part of D-004) | |
+| D-038 | S3 | Reports KPI | "Storage capacity" card showed a percentage with "0 / 0 locations": the location counts were hard-coded to 0 | Reports pass 3 Nov | Fixed (uses the real counts) | this commit |
+| D-039 | S3 | Report charts | Charts are hand-drawn SVG lines without axes, labels or legend; mandatory filters (warehouse, group by) surface as raw API errors | Reports pass 3 Nov | Open | |
+| D-040 | S3 | Sila webhooks | No webhook is registered on the Sila account, so Sila status changes reach EMDAD only by polling | Carrier check 3 Nov | Open (register `cargo.status_changed`, `cargo.delivered`, `cargo.returned`, `cargo.cancelled`) | |
 | D-004 | S3 | Backend tests | Jest run OOM after 23/144 suites; 9 suites failing (stale specs/drift) | jest-baseline | Open | |
 
 ## Smoke pass log
