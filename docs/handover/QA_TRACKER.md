@@ -116,41 +116,38 @@ Aliases (redirect-only routes such as `/dashboard`, `/outbound`, `/inventory`, `
 
 | Route | Functional | Validation/edge | Roles/tenant | Consistency vs Admin | Mobile | Notes |
 |---|---|---|---|---|---|---|
-| `/account-inactive` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
-| `/login` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
-| `apis` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
-| `billing` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
-| `billing/invoices/:id` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
-| `cod-reports` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
-| `dashboard` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
-| `ecommerce-orders` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
-| `ecommerce-orders/:id` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
-| `ecommerce-orders/new` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
-| `ecommerce-orders/returns` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
-| `ecommerce-orders/returns/:id` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
-| `ecommerce-orders/returns/new` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
-| `finances` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
-| `inbound-orders` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
-| `inbound-orders/:id` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
-| `inbound-orders/new` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
-| `invoices` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
-| `invoices/:id` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
-| `my-profits` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
-| `notifications` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
-| `outbound-orders` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
-| `outbound-orders/:id` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
-| `outbound-orders/new` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
-| `outbound-orders/returns` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
-| `outbound-orders/returns/:id` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
-| `outbound-orders/returns/new` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
-| `products` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
-| `products/:id` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
-| `products/:id/edit` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
-| `products/new` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
-| `profile` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
-| `returns` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
-| `returns/:id` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
-| `returns/new` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
+| `/login` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |  |
+| `/account-inactive` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |  |
+| `/dashboard` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load sweep 3 Nov (Acme client_admin): no API error, no console error |
+| `/products` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load sweep 3 Nov (Acme client_admin): no API error, no console error |
+| `/products/new` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load sweep 3 Nov (Acme client_admin): no API error, no console error |
+| `/products/:id/edit` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |  |
+| `/products/:id` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |  |
+| `/inbound-orders` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load sweep 3 Nov (Acme client_admin): no API error, no console error |
+| `/inbound-orders/new` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load sweep 3 Nov (Acme client_admin): no API error, no console error |
+| `/inbound-orders/:id` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |  |
+| `/outbound-orders` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load sweep 3 Nov (Acme client_admin): no API error, no console error |
+| `/outbound-orders/new` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load sweep 3 Nov (Acme client_admin): no API error, no console error |
+| `/outbound-orders/returns` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load sweep 3 Nov (Acme client_admin): no API error, no console error |
+| `/outbound-orders/returns/new` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load sweep 3 Nov (Acme client_admin): no API error, no console error |
+| `/outbound-orders/returns/:id` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |  |
+| `/outbound-orders/:id` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |  |
+| `/ecommerce-orders` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load sweep 3 Nov (Acme client_admin): no API error, no console error |
+| `/ecommerce-orders/new` | 🔄 | 🔄 | 🔄 | ⬜ | ⬜ | Load sweep 3 Nov (Acme client_admin): no API error, no console error |
+| `/ecommerce-orders/returns` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load sweep 3 Nov (Acme client_admin): no API error, no console error |
+| `/ecommerce-orders/returns/new` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load sweep 3 Nov (Acme client_admin): no API error, no console error |
+| `/ecommerce-orders/returns/:id` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |  |
+| `/ecommerce-orders/:id` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |  |
+| `/my-profits` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load sweep 3 Nov (Acme client_admin): no API error, no console error |
+| `/finances` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load sweep 3 Nov (Acme client_admin): no API error, no console error |
+| `/billing` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load sweep 3 Nov (Acme client_admin): no API error, no console error |
+| `/invoices` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load sweep 3 Nov (Acme client_admin): no API error, no console error |
+| `/invoices/:id` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |  |
+| `/apis` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load sweep 3 Nov (Acme client_admin): no API error, no console error |
+| `/notifications` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load sweep 3 Nov (Acme client_admin): no API error, no console error |
+| `/profile` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load sweep 3 Nov (Acme client_admin): no API error, no console error |
+
+Aliases (`/cod-reports`, `/returns`, `/returns/new`, `/returns/:id`, `/billing/invoices/:id`) redirect and are covered by X16.
 
 ## Carrier end-to-end matrix
 
@@ -197,6 +194,10 @@ Aliases (redirect-only routes such as `/dashboard`, `/outbound`, `/inventory`, `
 | D-021 | S3 | Cancel shipment (Babel) | Dialog promises an electronic cancel request, but Babel has no cancel API; after local unlink the banner reads "Carrier send failed - Cancelled by super_admin (uuid)" in red | Babel live E2E 3 Nov | Open (copy and wording) | |
 | D-022 | S2 | Rates (Sena) | Sena listed a zero price with BEST PRICE for an Aleppo address (single sandbox zone) | Shipping details 3 Nov | Fixed: zero-priced quotes are never recommended and sort last | this commit |
 | D-023 | S3 | Rates (Sila) | Fatih price moved 2.60 to 2.80 and back within minutes for the same shipment | Shipping details 3 Nov | Open (quote freshness) | |
+| D-024 | S2 | Waybill label | Client-controlled text (address, notes, delivery instructions, product name/SKU, city) was placed into the label HTML unescaped, and the PDF is rendered by a headless browser: HTML/script injection into the label | Client API validation sweep 3 Nov | Fixed: every user value goes through `esc`; unit test added | this commit |
+| D-025 | S3 | Order notes | Notes had no maximum (5,000 characters accepted; the admin plan form limits notes to 500) | Client API validation sweep 3 Nov | Fixed: notes limited to 500 on create and update | this commit |
+| D-026 | S3 | Other PDFs | Other server-rendered PDFs (GRN, DN, final contract, invoices, instruction sheets, return slips) were not yet checked for the same unescaped-HTML pattern | Follow-up of D-024 | Open | |
+| D-027 | S3 | Test baseline | 5 OMS unit suites fail on the base commit (waybill-layout page count, line-numeric decimals, csv service, same-workflow-path, return rollback) | OMS jest run 3 Nov | Open (triage, part of D-004) | |
 | D-004 | S3 | Backend tests | Jest run OOM after 23/144 suites; 9 suites failing (stale specs/drift) | jest-baseline | Open | |
 
 ## Smoke pass log

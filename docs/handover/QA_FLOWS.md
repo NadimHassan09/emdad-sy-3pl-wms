@@ -9,7 +9,7 @@ A flow counts as ✅ only when it was run in the real UI or against the real car
 | ID | Area | Flow | Status | Evidence / what is missing |
 |---|---|---|---|---|
 | F01 | Orders | Create an OMS order in the admin UI (all fields, validation, Arabic and English, duplicates) | 🔄 | Orders created through the API for E2E; the form itself is not exercised field by field |
-| F02 | Orders | Create an order in the client portal (e-commerce order) | ⬜ | |
+| F02 | Orders | Create an order in the client portal (e-commerce order) | 🔄 | API validation sweep done (D-024, D-025); UI form not run |
 | F03 | Orders | Import orders (validate, import, tolerant phone/Arabic letters/dates, row errors) | ⬜ | |
 | F04 | Orders | Confirm then approve (shipping-fee group coverage, stock gate, reservation) | ❌ | Works for Aleppo; other governorates blocked by missing fee groups (D-012) |
 | F05 | Outbound | Execution by admin: plan, approve, pick, pack, shipping method, send, details complete, dispatch | ✅ | OUT-2026-04463 (Sena) and OUT-2026-04464 (Babel, Sila up to send) |
@@ -46,8 +46,8 @@ A flow counts as ✅ only when it was run in the real UI or against the real car
 | F36 | Admin | Backups: schedules, run now, Google Drive, restore, retention, factory reset guard | 🔄 | Earlier certification reports in `docs/evidence/backup-*`; not re-run in this QA |
 | F37 | Admin | Forms and contracts | ⬜ | |
 | F38 | Auth | Login, logout, refresh, session expiry, account inactive, wrong password, lockout | 🔄 | Sessions and refresh used daily; negative paths not run |
-| F39 | Client portal | Dashboard, products, inbound requests, outbound requests | ⬜ | |
-| F40 | Client portal | E-commerce orders (create, import, returns, status), COD reports, my profits | ⬜ | |
+| F39 | Client portal | Dashboard, products, inbound requests, outbound requests | 🔄 | All pages load clean; no create/edit pass yet |
+| F40 | Client portal | E-commerce orders (create, import, returns, status), COD reports, my profits | 🔄 | Order create validated by API (19 cases) and cancel/confirm tried; UI form, import, returns, COD pages not exercised |
 | F41 | Client portal | Finances, invoices, API keys (external API), notifications, profile | ⬜ | |
 | F42 | External API | Client API keys: create order, status, rate limits, signature | ⬜ | |
 
@@ -56,8 +56,8 @@ A flow counts as ✅ only when it was run in the real UI or against the real car
 | ID | Area | Check | Status | Evidence / what is missing |
 |---|---|---|---|---|
 | X01 | Security | RBAC matrix: every route and action for super_admin, wh_manager, wh_operator, client_admin, client_staff | ⬜ | |
-| X02 | Security | Tenant isolation: a client never reads or writes another client's data (UI, direct URL, API) | ⬜ | |
-| X03 | Security | Input handling: injection, XSS, CSV/Excel formula injection, file upload limits | ⬜ | |
+| X02 | Security | Tenant isolation: a client never reads or writes another client's data (UI, direct URL, API) | 🔄 | Acme session vs Test company: orders, products, inbound, outbound read 404; companyId override rejected or ignored; bulk confirm/cancel refuse foreign ids; foreign product in an order rejected; admin API refuses a client session. Not yet: finances, invoices, returns, media, client_staff role |
+| X03 | Security | Input handling: injection, XSS, CSV/Excel formula injection, file upload limits | 🔄 | Found and fixed waybill HTML injection (D-024); other PDFs, exports and uploads still to check (D-026) |
 | X04 | Security | Secrets and configuration (committed `.env` history, key rotation, webhook signatures) | ⛔ | Owner decision on rotation |
 | X05 | Validation | Field sweep on every form: empty, boundary, long, whitespace, Arabic/English, special characters, paste, duplicate submit | 🔄 | One form so far |
 | X06 | Errors | Functional errors: any path that blocks work, wrong totals, wrong state transitions, buttons shown for impossible actions | 🔄 | Found and fixed D-001..D-023 on the order and shipping path |

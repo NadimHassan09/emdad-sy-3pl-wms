@@ -68,6 +68,25 @@ describe('OmsWaybillService', () => {
     service = new OmsWaybillService(prisma, pdf as never);
   });
 
+  it('escapes user-controlled text so it cannot inject HTML into the label', async () => {
+    const evil = '<img src=x onerror=alert(1)><script>alert(2)</script>';
+    prisma.omsOrder.findFirst.mockResolvedValueOnce({
+      ...order,
+      addressLine1: evil,
+      destinationAddress: evil,
+      deliveryInstructions: evil,
+      city: evil,
+      district: evil,
+      lines: [{ requestedQuantity: 1, product: { name: evil, sku: evil } }],
+    });
+    prisma.carrierShipment.findFirst.mockResolvedValueOnce(null);
+    const data = await service.getWaybillData('oms-1', user);
+    const html = await service.labelHtml(data);
+    expect(html).not.toContain('<script>alert(2)');
+    expect(html).not.toContain('<img src=x');
+    expect(html).toContain('&lt;script&gt;alert(2)&lt;/script&gt;');
+  });
+
   it('11. waybill reflects a carrier change immediately on a new request', async () => {
     prisma.carrierShipment.findFirst.mockResolvedValueOnce({
       status: 'created',

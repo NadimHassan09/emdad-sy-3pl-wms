@@ -2,13 +2,13 @@
 
 Generated 2026-11-03 by `qa_progress.py` from `QA_TRACKER.md` and `QA_FLOWS.md`. Do not edit by hand.
 
-## Overall: 20.8% tested, 79.2% remaining
+## Overall: 24.2% tested, 75.8% remaining
 
 | Layer | Weight | Done | Items |
 |---|---|---|---|
-| Route checks (functional, validation, roles, consistency, mobile) | 40% | 5.5% | 685 checks on 137 routes |
-| Business flows | 40% | 31.0% | 42 flows |
-| Cross-cutting (security, errors, responsive, data, tests, release) | 20% | 31.2% | 16 checks |
+| Route checks (functional, validation, roles, consistency, mobile) | 40% | 7.3% | 660 checks on 132 routes |
+| Business flows | 40% | 34.5% | 42 flows |
+| Cross-cutting (security, errors, responsive, data, tests, release) | 20% | 37.5% | 16 checks |
 
 ## Routes by module
 
@@ -45,30 +45,28 @@ Generated 2026-11-03 by `qa_progress.py` from `QA_TRACKER.md` and `QA_FLOWS.md`.
 
 | Module | Routes | Done | Remaining |
 |---|---|---|---|
+| apis | 1 | 10% | 90% |
+| billing | 1 | 10% | 90% |
+| dashboard | 1 | 10% | 90% |
+| ecommerce-orders | 6 | 10% | 90% |
+| finances | 1 | 10% | 90% |
+| my-profits | 1 | 10% | 90% |
+| notifications | 1 | 10% | 90% |
+| profile | 1 | 10% | 90% |
+| inbound-orders | 3 | 7% | 93% |
+| outbound-orders | 6 | 7% | 93% |
+| invoices | 2 | 5% | 95% |
+| products | 4 | 5% | 95% |
 | account-inactive | 1 | 0% | 100% |
-| apis | 1 | 0% | 100% |
-| billing | 2 | 0% | 100% |
-| cod-reports | 1 | 0% | 100% |
-| dashboard | 1 | 0% | 100% |
-| ecommerce-orders | 6 | 0% | 100% |
-| finances | 1 | 0% | 100% |
-| inbound-orders | 3 | 0% | 100% |
-| invoices | 2 | 0% | 100% |
 | login | 1 | 0% | 100% |
-| my-profits | 1 | 0% | 100% |
-| notifications | 1 | 0% | 100% |
-| outbound-orders | 6 | 0% | 100% |
-| products | 4 | 0% | 100% |
-| profile | 1 | 0% | 100% |
-| returns | 3 | 0% | 100% |
-| **Total** | 35 | **0.0%** | **100.0%** |
+| **Total** | 30 | **7.3%** | **92.7%** |
 
 ## Flows and cross-cutting checks
 
 | ID | Area | Item | Status |
 |---|---|---|---|
 | F01 | Orders | Create an OMS order in the admin UI (all fields, validation, Arabic and English, duplicates) | 🔄 |
-| F02 | Orders | Create an order in the client portal (e-commerce order) | ⬜ |
+| F02 | Orders | Create an order in the client portal (e-commerce order) | 🔄 |
 | F03 | Orders | Import orders (validate, import, tolerant phone/Arabic letters/dates, row errors) | ⬜ |
 | F04 | Orders | Confirm then approve (shipping-fee group coverage, stock gate, reservation) | ❌ |
 | F05 | Outbound | Execution by admin: plan, approve, pick, pack, shipping method, send, details complete, dispatch | ✅ |
@@ -105,13 +103,13 @@ Generated 2026-11-03 by `qa_progress.py` from `QA_TRACKER.md` and `QA_FLOWS.md`.
 | F36 | Admin | Backups: schedules, run now, Google Drive, restore, retention, factory reset guard | 🔄 |
 | F37 | Admin | Forms and contracts | ⬜ |
 | F38 | Auth | Login, logout, refresh, session expiry, account inactive, wrong password, lockout | 🔄 |
-| F39 | Client portal | Dashboard, products, inbound requests, outbound requests | ⬜ |
-| F40 | Client portal | E-commerce orders (create, import, returns, status), COD reports, my profits | ⬜ |
+| F39 | Client portal | Dashboard, products, inbound requests, outbound requests | 🔄 |
+| F40 | Client portal | E-commerce orders (create, import, returns, status), COD reports, my profits | 🔄 |
 | F41 | Client portal | Finances, invoices, API keys (external API), notifications, profile | ⬜ |
 | F42 | External API | Client API keys: create order, status, rate limits, signature | ⬜ |
 | X01 | Security | RBAC matrix: every route and action for super_admin, wh_manager, wh_operator, client_admin, client_staff | ⬜ |
-| X02 | Security | Tenant isolation: a client never reads or writes another client's data (UI, direct URL, API) | ⬜ |
-| X03 | Security | Input handling: injection, XSS, CSV/Excel formula injection, file upload limits | ⬜ |
+| X02 | Security | Tenant isolation: a client never reads or writes another client's data (UI, direct URL, API) | 🔄 |
+| X03 | Security | Input handling: injection, XSS, CSV/Excel formula injection, file upload limits | 🔄 |
 | X04 | Security | Secrets and configuration (committed `.env` history, key rotation, webhook signatures) | ⛔ |
 | X05 | Validation | Field sweep on every form: empty, boundary, long, whitespace, Arabic/English, special characters, paste, duplicate submit | 🔄 |
 | X06 | Errors | Functional errors: any path that blocks work, wrong totals, wrong state transitions, buttons shown for impossible actions | 🔄 |
@@ -128,7 +126,7 @@ Generated 2026-11-03 by `qa_progress.py` from `QA_TRACKER.md` and `QA_FLOWS.md`.
 
 ## Status counts (flows + cross-cutting)
 
-⛔ 2 · ✅ 7 · ❌ 1 · ⬜ 28 · 🔄 20
+⛔ 2 · ✅ 7 · ❌ 1 · ⬜ 23 · 🔄 25
 
 ## Definition of done (hand over to the client)
 

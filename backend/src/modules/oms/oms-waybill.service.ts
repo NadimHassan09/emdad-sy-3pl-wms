@@ -7,7 +7,10 @@ import { PDFDocument } from 'pdf-lib';
 import * as XLSX from 'xlsx';
 
 import { shippingLabelReadiness } from './oms-label-ready';
-import { fontFace as cairoFontFace } from './oms-instruction-sheet';
+import { esc, fontFace as cairoFontFace } from './oms-instruction-sheet';
+
+/** Every user-controlled value placed into the waybill HTML goes through this. */
+const h = (value: unknown): string => esc(String(value ?? ''));
 import { BABEL_EXPRESS_CODE, SENA_EXPRESS_CODE, SILA_SY_CODE } from '../shipping/shipping.constants';
 import { resolveShippingCarrierName } from '../shipping/shipping-carrier-resolver';
 import {
@@ -381,8 +384,8 @@ export class OmsWaybillService {
     };
 
     const carrierLogoHtml = data.carrierLogoUrl
-      ? `<img src="${data.carrierLogoUrl}" style="max-height: 22px; max-width: 70px; object-fit: contain; display: block;" />`
-      : `<span style="font-weight: 800; font-size: 8.5px; color: #14532d;">${data.carrier}</span>`;
+      ? `<img src="${h(data.carrierLogoUrl)}" style="max-height: 22px; max-width: 70px; object-fit: contain; display: block;" />`
+      : `<span style="font-weight: 800; font-size: 8.5px; color: #14532d;">${h(data.carrier)}</span>`;
 
     const hasCarrierQr = Boolean(carrierQrPayload && carrierQrUri);
     const items = Array.isArray(data.items) ? data.items : [];
@@ -391,7 +394,7 @@ export class OmsWaybillService {
       <div class="qr-card">
         <div class="qr-head">
           <div class="qr-title">رقم بوليصة إمداد الداخلي</div>
-          <div class="qr-number">${data.internalWaybillNumber}</div>
+          <div class="qr-number">${h(data.internalWaybillNumber)}</div>
         </div>
         <div class="qr-slot">${internalQrUri ? `<img src="${internalQrUri}" alt="QR" />` : ''}</div>
       </div>
@@ -402,11 +405,11 @@ export class OmsWaybillService {
         <div class="qr-card">
           <div class="qr-head">
             <div class="qr-title">باركود الطرد لدى الناقل</div>
-            <div class="qr-number">${data.partBarcode}</div>
+            <div class="qr-number">${h(data.partBarcode)}</div>
           </div>
           <div class="qr-slot"><img src="${carrierQrUri}" alt="Part QR" style="width: 20mm; height: 20mm;" /></div>
           <div class="qr-awb-line">
-            <span>AWB:</span> <span class="qr-awb-num">${data.mainAwb || data.carrierTrackingNumber}</span>
+            <span>AWB:</span> <span class="qr-awb-num">${h(data.mainAwb || data.carrierTrackingNumber)}</span>
           </div>
         </div>
       `
@@ -414,7 +417,7 @@ export class OmsWaybillService {
         <div class="qr-card">
           <div class="qr-head">
             <div class="qr-title">رقم التتبع لدى الناقل (AWB)</div>
-            <div class="qr-number">${data.carrierTrackingNumber}</div>
+            <div class="qr-number">${h(data.carrierTrackingNumber)}</div>
           </div>
           <div class="qr-slot"><img src="${carrierQrUri}" alt="QR" /></div>
         </div>
@@ -442,7 +445,7 @@ export class OmsWaybillService {
       <html dir="rtl" lang="ar">
         <head>
           <meta charset="utf-8" />
-          <title>بوليصة شحن - ${data.orderNumber}</title>
+          <title>بوليصة شحن - ${h(data.orderNumber)}</title>
           <style>
             ${cairoFontFace}
             @page { size: 100mm 150mm; margin: 0; }
@@ -545,7 +548,7 @@ export class OmsWaybillService {
               </div>
               <div style="flex: 1.3; padding: 0.8mm; border-left: 1px solid #14532d; text-align: center; display: flex; flex-direction: column; align-items: center; justify-content: center;">
                 <div style="display: flex; align-items: center; gap: 1mm; font-size: 8px; color: #166534; font-weight: 700; margin-bottom: 0.4mm;">${svg.file}<span>رقم الطلب</span></div>
-                <div style="font-size: 10px; font-weight: 900; color: #0f172a; font-family: monospace;">${data.orderNumber}</div>
+                <div style="font-size: 10px; font-weight: 900; color: #0f172a; font-family: monospace;">${h(data.orderNumber)}</div>
               </div>
               <div style="flex: 1; padding: 0.8mm; ${data.partIndex && data.partTotal ? 'border-left: 1px solid #14532d;' : ''} text-align: center; display: flex; flex-direction: column; align-items: center; justify-content: center;">
                 <div style="display: flex; align-items: center; gap: 1mm; font-size: 8px; color: #166534; font-weight: 700; margin-bottom: 0.4mm;">${svg.calendar}<span>تاريخ الإصدار</span></div>
@@ -571,10 +574,10 @@ export class OmsWaybillService {
               <div class="section-hdr">${svg.boxOpen}<span>المرسل (FROM)</span></div>
               <div class="section-body">
                 <div class="name-row">
-                  <span style="font-size: 11px; font-weight: 900; color: #0f172a;">${data.sender.name}</span>
-                  ${data.sender.phone ? `<span style="display:inline-flex;align-items:center;gap:1mm;font-size:10px;color:#0f172a;">${svg.phone}<span class="phone">${data.sender.phone}</span></span>` : ''}
+                  <span style="font-size: 11px; font-weight: 900; color: #0f172a;">${h(data.sender.name)}</span>
+                  ${data.sender.phone ? `<span style="display:inline-flex;align-items:center;gap:1mm;font-size:10px;color:#0f172a;">${svg.phone}<span class="phone">${h(data.sender.phone)}</span></span>` : ''}
                 </div>
-                <div style="display: flex; align-items: flex-start; gap: 1.2mm; margin-top: 0.5mm; font-size: 9.5px; color: #334155;">${svg.pin}<span>${data.sender.hub}</span></div>
+                <div style="display: flex; align-items: flex-start; gap: 1.2mm; margin-top: 0.5mm; font-size: 9.5px; color: #334155;">${svg.pin}<span>${h(data.sender.hub)}</span></div>
               </div>
             </div>
 
@@ -583,13 +586,13 @@ export class OmsWaybillService {
               <div class="section-hdr">${svg.user}<span>المستلم (TO)</span></div>
               <div class="section-body">
                 <div class="name-row">
-                  <span style="font-size: 11.5px; font-weight: 900; color: #0f172a;">${data.recipient.name}</span>
-                  <span style="display:inline-flex;align-items:center;gap:1mm;font-size:10px;color:#0f172a;">${svg.phone}<span class="phone">${data.recipient.phone}</span></span>
+                  <span style="font-size: 11.5px; font-weight: 900; color: #0f172a;">${h(data.recipient.name)}</span>
+                  <span style="display:inline-flex;align-items:center;gap:1mm;font-size:10px;color:#0f172a;">${svg.phone}<span class="phone">${h(data.recipient.phone)}</span></span>
                 </div>
                 <div style="display: flex; align-items: center; gap: 1.2mm; margin-top: 0.5mm; font-size: 9.5px; color: #334155;">
-                  ${svg.pin}<span><strong>${data.recipient.city}</strong>${data.recipient.district ? ` - ${data.recipient.district}` : ''}</span>
+                  ${svg.pin}<span><strong>${h(data.recipient.city)}</strong>${data.recipient.district ? ` - ${h(data.recipient.district)}` : ''}</span>
                 </div>
-                ${data.recipient.address ? `<div style="font-size: 9px; color: #475569; margin-top: 0.4mm; padding-right: 4mm;">${data.recipient.address}</div>` : ''}
+                ${data.recipient.address ? `<div style="font-size: 9px; color: #475569; margin-top: 0.4mm; padding-right: 4mm;">${h(data.recipient.address)}</div>` : ''}
               </div>
             </div>
 
@@ -598,7 +601,7 @@ export class OmsWaybillService {
               <div style="border: 1.5px solid #14532d; border-radius: 4px; overflow: hidden;">
                 <div class="section-hdr"><span>ملاحظات</span></div>
                 <div class="section-body">
-                  <div style="font-size: 7.5px; color: #334155; line-height: 1.3;">${data.recipient.instructions}</div>
+                  <div style="font-size: 7.5px; color: #334155; line-height: 1.3;">${h(data.recipient.instructions)}</div>
                 </div>
               </div>
             ` : ''}
@@ -610,19 +613,19 @@ export class OmsWaybillService {
                   <div style="background: #14532d; color: #ffffff; padding: 1.1mm; font-size: 8.5px; font-weight: 700; display: flex; align-items: center; justify-content: center; gap: 1mm;">${svg.layers}<span>التحصيل عند الاستلام (COD)</span></div>
                   <div style="background: #f0fdf4; padding: 1.1mm; text-align: center;">
                     <span style="font-size: 15px; font-weight: 900; color: #14532d;">${data.financials.codAmount.toLocaleString('en-US')}</span>
-                    <span style="font-size: 10px; font-weight: 700; color: #166534; margin-right: 1mm;">${data.financials.currency}</span>
+                    <span style="font-size: 10px; font-weight: 700; color: #166534; margin-right: 1mm;">${h(data.financials.currency)}</span>
                   </div>
                 </div>
                 <div style="flex: 1; border-left: 1px solid #14532d;">
                   <div style="background: #14532d; color: #ffffff; padding: 1.1mm; font-size: 8.5px; font-weight: 700; display: flex; align-items: center; justify-content: center; gap: 1mm;">${svg.truckSm}<span>أجور الشحن</span></div>
                   <div style="background: #f0fdf4; padding: 1.1mm; text-align: center;">
-                    <div style="font-size: 11px; font-weight: 900; color: #14532d;">${data.financials.shippingFee > 0 ? `${data.financials.shippingFee} ${data.financials.currency}` : 'متضمنة'}</div>
+                    <div style="font-size: 11px; font-weight: 900; color: #14532d;">${data.financials.shippingFee > 0 ? `${data.financials.shippingFee} ${h(data.financials.currency)}` : 'متضمنة'}</div>
                   </div>
                 </div>
                 <div style="flex: 1;">
                   <div style="background: #14532d; color: #ffffff; padding: 1.1mm; font-size: 8.5px; font-weight: 700; display: flex; align-items: center; justify-content: center; gap: 1mm;">${svg.card}<span>طريقة الدفع</span></div>
                   <div style="background: #f0fdf4; padding: 1.1mm; text-align: center;">
-                    <div style="font-size: 11px; font-weight: 900; color: #14532d;">${data.financials.paymentMethod}</div>
+                    <div style="font-size: 11px; font-weight: 900; color: #14532d;">${h(data.financials.paymentMethod)}</div>
                   </div>
                 </div>
               </div>
@@ -647,8 +650,8 @@ export class OmsWaybillService {
                   ${items.map((item: any, idx: number) => `
                     <tr style="background: ${idx % 2 === 0 ? '#ffffff' : '#f0fdf4'};">
                       <td style="text-align: center; font-family: monospace;">${idx + 1}</td>
-                      <td><strong>${item.name}</strong></td>
-                      <td style="font-family: monospace; color: #475569; font-size: 9px;">${item.sku}</td>
+                      <td><strong>${h(item.name)}</strong></td>
+                      <td style="font-family: monospace; color: #475569; font-size: 9px;">${h(item.sku)}</td>
                       <td style="text-align: center; font-weight: 800;">${item.quantity}</td>
                     </tr>
                   `).join('')}

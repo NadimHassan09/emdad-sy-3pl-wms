@@ -11,6 +11,7 @@ import {
   IsPositive,
   IsString,
   Min,
+  MaxLength,
   MinLength,
   ValidateNested,
 } from 'class-validator';
@@ -69,6 +70,7 @@ export class CreateOmsOrderDto extends ShippingConfigDto {
 
   @IsOptional()
   @IsString()
+  @MaxLength(500, { message: 'Notes must be at most 500 characters.' })
   notes?: string;
 
   @IsOptional()
@@ -195,6 +197,7 @@ export class UpdateOmsOrderDto extends ShippingConfigDto {
 
   @IsOptional()
   @IsString()
+  @MaxLength(500, { message: 'Notes must be at most 500 characters.' })
   notes?: string;
 
   @IsOptional()
