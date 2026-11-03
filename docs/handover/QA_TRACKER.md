@@ -210,7 +210,7 @@ One row per route. Defects are logged below with ID, severity (S1 blocker, S2 ma
 | D-002 | S2 | Admin/Bulk shipping | Carrier with no quote selectable per order | Code review 2 Nov | Fixed, UI not yet verified | a7999e3d |
 | D-003 | S3 | Data | Hierarchy has CRLF in a city key and 13 neighbourhoods with trailing spaces | JSON scan | Open | |
 | D-005 | S3 | Products media | Two product images return 404 (`/api/client/media/products/f6fab62a…/a1cc3880…webp`, `…/3e2bbf4c…webp`): DB references files that are missing | Network log, staging admin Products page, 3 Nov | Open | |
-| D-006 | S3 | Shipping rates UX | Babel rate error shown to staff is a technical message ("calculatePrice was not sent: the request has no neighbourhood id and no coordinates") when the address has no neighbourhood | API response 3 Nov | Open | |
+| D-006 | S3 | Shipping rates UX | Babel rate error shown to staff is a technical message ("calculatePrice was not sent: the request has no neighbourhood id and no coordinates") when the address has no neighbourhood | API response 3 Nov | Fixed (message mapped), staging rebuilt | see git log |
 | D-007 | S3 | Test data | ~100 PICKBENCH benchmark orders and Sena test orders mixed in the OMS list (5,811 orders) | OMS list 3 Nov | Open (hygiene) | |
 | D-004 | S3 | Backend tests | Jest run OOM after 23/144 suites; 9 suites failing (stale specs/drift) | jest-baseline | Open | |
 

@@ -96,6 +96,9 @@ function safeErrorMessage(err: unknown): string {
         : 'Shipping provider request failed.';
   const msg = raw.slice(0, 500);
   // Babel returns this opaque string for several causes; weight is the most common local mistake.
+  if (/no neighbourhood id and no coordinates/i.test(msg)) {
+    return 'The address needs a neighbourhood so this carrier can price it. Complete the neighbourhood and try again.';
+  }
   if (/no shipping service available/i.test(msg)) {
     return `${msg} Usually the package weight is too high (use real kg, max ~200), or the pin is outside Babel coverage, or delivery/pickup type is wrong.`;
   }
