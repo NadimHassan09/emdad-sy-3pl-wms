@@ -1,3 +1,4 @@
+import { isSyrianPound } from '../../common/money/currency';
 import {
   BadRequestException,
   Injectable,
@@ -479,7 +480,7 @@ export class CodRecordsService {
             pendingBalance: {
               decrement:
                 existing.accountAmount ??
-                (existing.currency === 'SYP' ? new Prisma.Decimal(0) : existing.originalAmount),
+                (isSyrianPound(existing.currency) ? new Prisma.Decimal(0) : existing.originalAmount),
             },
           },
         });

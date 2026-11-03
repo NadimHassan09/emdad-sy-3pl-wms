@@ -1,3 +1,4 @@
+import { convertMoney, normalizeCurrency } from '../../common/money/currency';
 import { Prisma } from '@prisma/client';
 
 import { PrismaService } from '../../common/prisma/prisma.service';
@@ -34,12 +35,15 @@ export function toAccountAmount(
   rate: { rate: number; source: string } | null,
 ): AccountAmount | null {
   const value = new Prisma.Decimal(amount);
-  if ((currency ?? ACCOUNT_CURRENCY).toUpperCase() !== 'SYP') {
+  if (normalizeCurrency(currency ?? ACCOUNT_CURRENCY) === 'USD') {
     return { amount: value, fxRate: null, fxSource: null };
   }
   if (!rate) return null;
+  // Old (SYP) and new (SYP_NEW) pounds both convert with the platform rate; new = 100 old.
+  const usd = convertMoney(value, currency, 'USD', rate.rate);
+  if (!usd) return null;
   return {
-    amount: value.div(rate.rate).toDecimalPlaces(4, Prisma.Decimal.ROUND_HALF_UP),
+    amount: usd.toDecimalPlaces(4, Prisma.Decimal.ROUND_HALF_UP),
     fxRate: rate.rate,
     fxSource: rate.source,
   };

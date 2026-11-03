@@ -1,3 +1,4 @@
+import { wireCurrencyCode } from '../../../../common/money/currency';
 import type {
   NormalizedTrackingStatus,
   ShippingCreateShipmentInput,
@@ -82,7 +83,7 @@ export function mapCreateShipmentPayload(
   const city = (input.receiver.city || input.receiver.governorate || 'Damascus').trim();
   const address = input.receiver.address.trim();
   const codAmount = input.codAmount && Number.isFinite(Number(input.codAmount)) ? Number(input.codAmount) : 0;
-  const currency = codAmount > 0 ? (input.currency?.trim() || 'SYP') : undefined;
+  const currency = codAmount > 0 ? wireCurrencyCode(input.currency) : undefined;
 
   let items: SenaItem[];
   const rawItems = (input as { items?: Array<{ name?: string; sku?: string; quantity?: number; price?: number; weight?: number; barcode?: string; product_id?: number }> }).items;

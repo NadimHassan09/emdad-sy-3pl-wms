@@ -1,3 +1,4 @@
+import { isSyrianPound, normalizeCurrency } from '../../../../common/money/currency';
 import type {
   ShippingCreateShipmentInput,
   ShippingParty,
@@ -37,7 +38,9 @@ export function resolveBabelPayer(
  */
 export function resolveBabelCodCurrency(currency?: string | null): string {
   const normalized = currency?.trim().toUpperCase();
-  if (normalized === 'USD' || normalized === 'SYP') return normalized;
+  // The carrier only knows USD or SYP and applies its own pound unit.
+  if (normalized === 'USD') return 'USD';
+  if (normalized === 'SYP' || normalized === 'SYP_NEW' || normalized === 'SYP_OLD') return 'SYP';
   // Unknown / missing: Babel docs example defaults COD to USD; EMDAD business currency is USD.
   return 'USD';
 }
@@ -132,6 +135,8 @@ export function mapCreateShipmentPayload(input: ShippingCreateShipmentInput) {
       cod: {
         amount: input.codAmount,
         currency: resolveBabelCodCurrency(input.currency),
+        // Babel reads a SYP amount as old pounds unless told it is new ones.
+        ...(isSyrianPound(input.currency) ? { isNewSYP: normalizeCurrency(input.currency) === 'SYP_NEW' } : {}),
       },
       payer: resolveBabelPayer(input.payer),
       ...(input.reference ? { reference: input.reference } : {}),

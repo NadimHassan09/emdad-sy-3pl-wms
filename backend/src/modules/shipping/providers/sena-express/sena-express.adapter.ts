@@ -1,3 +1,4 @@
+import { wireCurrencyCode } from '../../../../common/money/currency';
 import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import type {
   NormalizedTrackingEvent,
@@ -203,7 +204,7 @@ export class SenaExpressAdapter implements ShippingProvider {
     input: ShippingQuoteInput,
   ): Promise<ShippingQuoteResult[]> {
     const zones = await this.getDeliveryZones(credentials);
-    const currency = input.currency?.trim() || 'SYP';
+    const currency = wireCurrencyCode(input.currency);
     if (zones.length === 0) {
       return [
         {

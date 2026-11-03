@@ -14,6 +14,7 @@ import { useOmsOrderRowActions } from '../components/oms/useOmsOrderRowActions';
 import { OmsStageBadge } from '../components/oms/OmsStageBadge';
 import { OmsStatusBadge } from '../components/oms/OmsStatusBadge';
 import { useToast } from '../components/ToastProvider';
+import { isSyrianPound } from '../lib/money';
 import { QK } from '../constants/query-keys';
 import { useManagedFxSnapshot } from '../hooks/useManagedFxSnapshot';
 import { runInChunks } from '../lib/chunk-ids';
@@ -299,7 +300,7 @@ export function OmsBatchDetailPage() {
       const bucket = byProvider.get(code) ?? { label, count: 0, syp: 0, usd: 0 };
       bucket.count += 1;
       if (Number.isFinite(price) && price >= 0) {
-        if (currency === 'SYP') {
+        if (isSyrianPound(currency)) {
           bucket.syp += price;
           sypTotal += price;
         } else {

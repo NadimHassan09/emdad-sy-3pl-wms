@@ -163,4 +163,32 @@ describe('babel-shipment.mapper', () => {
     });
     expect(payload.shipment.parts).toEqual([{ weight: 1 }, { weight: 1 }, { weight: 1 }]);
   });
+
+  it('tells Babel whether a SYP COD amount is in the new pound (isNewSYP)', () => {
+    const base = {
+      reference: 'OMS-1',
+      receiver: { name: 'Ali', phoneCountry: '963', phoneLocal: '999000111', address: 'Street 1', lat: 33.5, lng: 36.3, neighbourhoodId: 4278 },
+      packageType: 'box' as const,
+      weightKg: 2,
+      contents: 'Goods',
+      deliveryType: 'address' as const,
+      pickupType: 'address' as const,
+      payer: 'sender' as const,
+      codAmount: 2600,
+    };
+    expect(mapCreateShipmentPayload({ ...base, currency: 'SYP_NEW' }).shipment.cod).toEqual({
+      amount: 2600,
+      currency: 'SYP',
+      isNewSYP: true,
+    });
+    expect(mapCreateShipmentPayload({ ...base, currency: 'SYP' }).shipment.cod).toEqual({
+      amount: 2600,
+      currency: 'SYP',
+      isNewSYP: false,
+    });
+    expect(mapCreateShipmentPayload({ ...base, currency: 'USD' }).shipment.cod).toEqual({
+      amount: 2600,
+      currency: 'USD',
+    });
+  });
 });

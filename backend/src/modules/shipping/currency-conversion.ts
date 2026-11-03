@@ -7,6 +7,7 @@
  * call sites. Do not treat the fallback as a silent permanent product FX feed.
  */
 
+import { normalizeCurrency, OLD_SYP_PER_NEW_SYP } from '../../common/money/currency';
 import { carrierSypUnit, rateForCarrierUnit, type SypUnit } from './carrier-currency';
 
 export type ComparisonCurrency = 'USD';
@@ -61,9 +62,13 @@ export function toComparableUsd(
   sypUnit?: SypUnit | null,
 ): number {
   if (!Number.isFinite(amount)) return Infinity;
-  const curr = (currency ?? 'USD').toUpperCase().trim();
+  const curr = normalizeCurrency(currency);
+  const platformRate = snapshot.usdToSypRate > 0 ? snapshot.usdToSypRate : FX_FALLBACK_USD_TO_SYP;
+  if (curr === 'SYP_NEW') {
+    // Explicitly the new pound: 1 new = 100 old, whatever carrier it came from.
+    return amount / (platformRate / OLD_SYP_PER_NEW_SYP);
+  }
   if (curr === 'SYP') {
-    const platformRate = snapshot.usdToSypRate > 0 ? snapshot.usdToSypRate : FX_FALLBACK_USD_TO_SYP;
     return amount / rateForCarrierUnit(platformRate, sypUnit);
   }
   return amount;

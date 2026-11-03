@@ -6,27 +6,8 @@ import type {
 } from '../../api/shipping';
 import type { ShippingCurrency } from './carrier-shipping-form';
 import { annotateQuotesForUi } from '../../lib/shipping-compare';
+import { formatEquivalents, formatMoney } from '../../lib/money';
 import { useManagedFxSnapshot } from '../../hooks/useManagedFxSnapshot';
-
-function formatMoney(price: number, currency: string): string {
-  const cur = (currency.trim() || 'USD').toUpperCase();
-  if (cur === 'SYP') {
-    try {
-      return `${new Intl.NumberFormat('ar-SY', { maximumFractionDigits: 0 }).format(price)} ل.س`;
-    } catch {
-      return `${price} ل.س`;
-    }
-  }
-  try {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: cur,
-      maximumFractionDigits: 2,
-    }).format(price);
-  } catch {
-    return `$${Number(price).toFixed(2)}`;
-  }
-}
 
 function etaLabel(quote: ShippingRateQuote): string {
   const min = quote.estimatedDeliveryMin;
@@ -191,6 +172,10 @@ export function ShippingCarrierCards({
                       ) : null}
                       <div className="text-base sm:text-lg font-extrabold text-sky-600 dark:text-sky-400 tabular-nums">
                         {formatMoney(quote.price, quote.currency)}
+                      </div>
+                      {/* The same value in the other two currencies, for comparison only. */}
+                      <div className="text-[10px] text-text-muted tabular-nums">
+                        {formatEquivalents(quote.price, quote.currency, fx.usdToSypRate)}
                       </div>
                     </div>
                   </div>

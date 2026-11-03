@@ -1,3 +1,4 @@
+import { normalizeCurrency } from '../../common/money/currency';
 import {
   BadRequestException,
   Inject,
@@ -1589,7 +1590,7 @@ export class OutboundService {
           ...(body.currency !== undefined
             ? {
                 currency:
-                  body.currency?.trim().toUpperCase() === 'SYP' ? 'SYP' : 'USD',
+                  normalizeCurrency(body.currency),
               }
             : {}),
           ...(body.shippingPackages !== undefined
@@ -1620,7 +1621,7 @@ export class OutboundService {
           data: {
             ...(body.currency !== undefined
               ? {
-                  currency: body.currency?.trim().toUpperCase() === 'SYP' ? 'SYP' : 'USD',
+                  currency: normalizeCurrency(body.currency),
                 }
               : {}),
             ...(body.shippingPayer ? { shippingPayer: body.shippingPayer } : {}),
@@ -1806,7 +1807,7 @@ export class OutboundService {
             : {}),
           ...(dto.currency !== undefined
             ? {
-                currency: dto.currency?.trim().toUpperCase() === 'SYP' ? 'SYP' : 'USD',
+                currency: normalizeCurrency(dto.currency),
               }
             : {}),
           ...(dto.codAmount !== undefined && dto.codAmount != null
@@ -1857,7 +1858,7 @@ export class OutboundService {
           data: {
             ...(dto.currency !== undefined
               ? {
-                  currency: dto.currency?.trim().toUpperCase() === 'SYP' ? 'SYP' : 'USD',
+                  currency: normalizeCurrency(dto.currency),
                 }
               : {}),
             ...(dto.shippingPayer ? { shippingPayer: dto.shippingPayer } : {}),

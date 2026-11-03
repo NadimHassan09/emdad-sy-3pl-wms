@@ -1,3 +1,4 @@
+import { convertMoney, currencyFamily, normalizeCurrency, type Currency } from '../../common/money/currency';
 /** Whole Syrian pounds. 58 * 12345.67 = 716048.86, which rounds to 716049. */
 export function roundWholeSyp(amount: number): number {
   return Math.round(amount);
@@ -5,7 +6,7 @@ export function roundWholeSyp(amount: number): number {
 
 export type CodCollection = {
   amount: number;
-  currency: 'USD' | 'SYP';
+  currency: Currency;
   rate: number | null;
   source: string | null;
   rateAt: string | null;
@@ -14,8 +15,8 @@ export type CodCollection = {
 
 export type CodCollectionError = { error: 'missing_rate' | 'invalid_amount' };
 
-export function normalizeMoneyCurrency(value: string | null | undefined): 'USD' | 'SYP' {
-  return value?.trim().toUpperCase() === 'SYP' ? 'SYP' : 'USD';
+export function normalizeMoneyCurrency(value: string | null | undefined): Currency {
+  return normalizeCurrency(value);
 }
 
 /**
@@ -52,8 +53,11 @@ export function convertCodCollection(input: {
   if (rate == null || !Number.isFinite(rate) || rate <= 0) {
     return { error: 'missing_rate' };
   }
-  const raw = orderCurrency === 'USD' ? orderAmount * rate : orderAmount / rate;
-  const amount = collectionCurrency === 'SYP' ? roundWholeSyp(raw) : Math.round(raw * 100) / 100;
+  // Old SYP, new SYP and USD all convert through USD with the platform rate (new pound = 100 old).
+  const converted = convertMoney(orderAmount, orderCurrency, collectionCurrency, rate);
+  if (!converted) return { error: 'missing_rate' };
+  const raw = converted.toNumber();
+  const amount = collectionCurrency === 'USD' ? Math.round(raw * 100) / 100 : roundWholeSyp(raw);
   return {
     amount,
     currency: collectionCurrency,
@@ -73,7 +77,7 @@ export function codMinimumViolation(input: {
   collectionCurrency: string;
   confirmedMinimum?: Partial<Record<'USD' | 'SYP', number>> | null;
 }): { minimum: number; currency: 'USD' | 'SYP' } | null {
-  const currency = normalizeMoneyCurrency(input.collectionCurrency);
+  const currency = currencyFamily(input.collectionCurrency);
   const minimum = input.confirmedMinimum?.[currency];
   if (minimum == null || !Number.isFinite(minimum) || minimum <= 0) return null;
   if (input.collectionAmount > 0 && input.collectionAmount < minimum) {

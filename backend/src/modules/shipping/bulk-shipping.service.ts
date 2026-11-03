@@ -1,3 +1,7 @@
+import { isSyrianPound } from '../../common/money/currency';
+import { readManagedUsdToSypRate } from '../financial/account-currency';
+import { carrierPriceCurrency, carrierSypUnit } from './carrier-currency';
+import { toComparableUsd } from './currency-conversion';
 import { carrierConstraintViolation } from './carrier-constraints';
 import {
   BadRequestException,
@@ -237,12 +241,31 @@ export class BulkShippingService {
     }
 
     const priced = lines.filter((l) => l.recommendedPrice != null);
-    const currency =
-      priced.find((l) => l.recommendedCurrency)?.recommendedCurrency ?? null;
+    // Recommended prices come in different currencies (dollar, new or old pound): add them in USD.
+    const managedRate = await readManagedUsdToSypRate(this.prisma);
+    const fxSnapshot = { usdToSypRate: managedRate?.rate ?? 0, source: managedRate?.source ?? 'none', timestamp: new Date().toISOString() };
+    const canTotalInUsd = priced.every(
+      (l) => !isSyrianPound(l.recommendedCurrency) || fxSnapshot.usdToSypRate > 0,
+    );
+    const currency = canTotalInUsd ? 'USD' : (priced.find((l) => l.recommendedCurrency)?.recommendedCurrency ?? null);
     const estimatedTotalCost =
-      priced.length > 0
-        ? priced.reduce((sum, l) => sum + (l.recommendedPrice ?? 0), 0)
-        : null;
+      priced.length === 0
+        ? null
+        : canTotalInUsd
+          ? Math.round(
+              priced.reduce(
+                (sum, l) =>
+                  sum +
+                  toComparableUsd(
+                    l.recommendedPrice ?? 0,
+                    l.recommendedCurrency ?? 'USD',
+                    fxSnapshot,
+                    carrierSypUnit(l.recommendedProviderCode),
+                  ),
+                0,
+              ) * 100,
+            ) / 100
+          : priced.reduce((sum, l) => sum + (l.recommendedPrice ?? 0), 0);
 
     return {
       lines,
@@ -308,7 +331,7 @@ export class BulkShippingService {
           quotedCurrency: item.quotedCurrency ?? null,
         });
         const collection = item.codCollectionCurrency?.trim().toUpperCase();
-        if (collection === 'USD' || collection === 'SYP') {
+        if (collection === 'USD' || collection === 'SYP' || collection === 'SYP_NEW') {
           await this.shipping.saveCodCollection(item.outboundOrderId, collection);
         } else {
           await this.shipping.clearCodCollection(item.outboundOrderId);
@@ -1003,7 +1026,7 @@ export class BulkShippingService {
         providerCode,
         providerName: provider?.name ?? providerCode,
         price: result.price,
-        currency: result.currency || 'USD',
+        currency: carrierPriceCurrency(providerCode, result.currency),
         serviceId: result.serviceId ?? null,
         serviceName: result.serviceName ?? null,
         deliveryType,

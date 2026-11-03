@@ -44,3 +44,14 @@ export function rateForCarrierUnit(platformRate: number, carrierUnit: SypUnit | 
   if (!carrierUnit || !platformUnit || carrierUnit === platformUnit) return platformRate;
   return carrierUnit === 'new' ? platformRate / OLD_SYP_PER_NEW_SYP : platformRate * OLD_SYP_PER_NEW_SYP;
 }
+
+/**
+ * Labels a carrier's price with the pound unit it uses: a bare "SYP" from a carrier that works in the
+ * new pound becomes SYP_NEW. USD and prices that already name a unit are left alone.
+ */
+export function carrierPriceCurrency(providerCode: string | null | undefined, currency: string | null | undefined): string {
+  const raw = (currency || 'USD').trim().toUpperCase();
+  if (raw !== 'SYP') return raw;
+  const unit = carrierSypUnit(providerCode);
+  return unit === 'new' ? 'SYP_NEW' : 'SYP';
+}

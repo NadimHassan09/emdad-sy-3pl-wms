@@ -1,3 +1,4 @@
+import { isSyrianPound } from '../../../../common/money/currency';
 import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 
 import type {
@@ -618,7 +619,7 @@ export class SilaSyAdapter implements ShippingProvider {
       if (usdRes.areaId) resolvedAreaId = usdRes.areaId;
       if (defaultRes.areaId && !resolvedAreaId) resolvedAreaId = defaultRes.areaId;
 
-      const preferSyp = input.currency?.toUpperCase() === 'SYP';
+      const preferSyp = isSyrianPound(input.currency);
       const courierMap = new Map<string, SilaCourier>();
 
       // Populate secondary currency first, then overwrite with preferred currency

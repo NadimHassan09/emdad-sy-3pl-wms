@@ -1,8 +1,11 @@
-import { carrierSypUnit, rateForCarrierUnit } from './carrier-currency';
+import { currencyFamily, normalizeCurrency } from '../../common/money/currency';
+import { carrierSypUnit } from './carrier-currency';
 import { convertCodCollection, normalizeMoneyCurrency, type CodCollection } from './cod-collection';
 import { BABEL_EXPRESS_CODE, SILA_SY_CODE } from './shipping.constants';
 
 export type CodCurrency = 'USD' | 'SYP';
+/** Currency a collection can be expressed in: also the new pound. */
+export type CollectionCurrency = CodCurrency | 'SYP_NEW';
 
 /**
  * Capability is not a provider-wide list. An entry exists only when a recorded
@@ -76,8 +79,9 @@ export function providerSupportsCodCurrency(
   currency: string | null | undefined,
   identity?: ServiceCodIdentity,
 ): boolean {
-  const cur = currency?.trim().toUpperCase();
-  if (cur !== 'USD' && cur !== 'SYP') return false;
+  if (!currency?.trim()) return false;
+  // A carrier's SYP support covers whichever pound unit it uses itself.
+  const cur = currencyFamily(currency);
   return verifiedCodCurrencies({ ...identity, providerCode }).includes(cur);
 }
 
@@ -127,17 +131,17 @@ export function resolveCollectionForService(input: {
     : orderCurrency;
   // All keeps the order currency. Explicit uses the currency the user selected.
   // Fee currency is not an input and does not choose the target.
-  const target: CodCurrency = input.mode === 'explicit' ? requested : orderCurrency;
+  const target: CollectionCurrency = input.mode === 'explicit' ? requested : orderCurrency;
 
+  // A carrier collects pounds in its own unit: USD stays USD; pounds become that carrier's pound.
+  const unit = carrierSypUnit(input.providerCode);
+  const collectionCurrency =
+    currencyFamily(target) === 'SYP' && unit ? (unit === 'new' ? 'SYP_NEW' : 'SYP') : target;
   const converted = convertCodCollection({
     orderAmount,
     orderCurrency,
-    collectionCurrency: target,
-    // The carrier collects in its own pound unit, so the platform rate is rescaled to it.
-    usdToSypRate:
-      input.usdToSypRate == null
-        ? null
-        : rateForCarrierUnit(input.usdToSypRate, carrierSypUnit(input.providerCode)),
+    collectionCurrency,
+    usdToSypRate: input.usdToSypRate,
     rateSource: input.rateSource,
     rateAt: input.rateAt,
   });

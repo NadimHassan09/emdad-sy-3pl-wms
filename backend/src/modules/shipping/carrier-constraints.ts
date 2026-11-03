@@ -1,3 +1,4 @@
+import { currencyFamily } from '../../common/money/currency';
 /**
  * Published hard limits of couriers reachable through an aggregator (Sila SY courier
  * catalogue, https://sila-sy.com/couriers, recorded 3 Nov 2026). A quote that breaks one
@@ -45,12 +46,13 @@ export function carrierConstraintViolation(input: ConstraintInput): string | nul
   }
 
   const cod = Number(input.codAmount) || 0;
-  const cur = input.codCurrency?.trim().toUpperCase();
+  // Either pound counts as SYP here: the carrier collects in its own unit.
+  const cur = input.codCurrency?.trim() ? currencyFamily(input.codCurrency) : null;
   if (
     rule.codCurrencies &&
     cod > 0 &&
     input.collectionMode === 'explicit' &&
-    (cur === 'USD' || cur === 'SYP') &&
+    cur &&
     !rule.codCurrencies.includes(cur)
   ) {
     return `${rule.label} collects COD in ${rule.codCurrencies.join('/')} only`;

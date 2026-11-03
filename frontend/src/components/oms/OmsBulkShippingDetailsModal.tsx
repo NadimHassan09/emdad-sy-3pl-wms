@@ -1,3 +1,4 @@
+import { currencyFamily, formatMoney as formatMoneyLib } from '../../lib/money';
 import { useManagedFxSnapshot } from '../../hooks/useManagedFxSnapshot';
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -50,23 +51,7 @@ import {
 } from '../../lib/shipping-compare';
 
 function formatMoney(price: number, currency: string): string {
-  const cur = (currency.trim() || 'USD').toUpperCase();
-  if (cur === 'SYP') {
-    try {
-      return `${new Intl.NumberFormat('ar-SY', { maximumFractionDigits: 0 }).format(price)} ل.س`;
-    } catch {
-      return `${price} ل.س`;
-    }
-  }
-  try {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: cur,
-      maximumFractionDigits: 2,
-    }).format(price);
-  } catch {
-    return `$${Number(price).toFixed(2)}`;
-  }
+  return formatMoneyLib(price, currency);
 }
 
 type Props = {
@@ -1896,7 +1881,7 @@ export function OmsBulkShippingDetailsModal({
                                 row.selectedProviderCode === q.carrierId);
                             const dual =
                               (q.prices?.filter((p) =>
-                                ['USD', 'SYP'].includes(p.currency.toUpperCase()),
+                                ['USD', 'SYP'].includes(currencyFamily(p.currency)),
                               ).length ?? 0) >= 2;
                             return (
                               <div

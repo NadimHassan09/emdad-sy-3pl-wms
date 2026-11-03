@@ -3,6 +3,8 @@
  * Never compare raw cross-currency numbers.
  */
 
+import { currencyFamily, normalizeCurrency, OLD_SYP_PER_NEW_SYP } from './money';
+
 export type FxRateSnapshot = {
   usdToSypRate: number;
   source: string;
@@ -16,7 +18,7 @@ export const FX_FALLBACK_USD_TO_SYP = 14500;
  * is the source of truth; a carrier that is not listed keeps the platform unit.
  */
 export type SypUnit = 'new' | 'old';
-export const OLD_SYP_PER_NEW_SYP = 100;
+export { OLD_SYP_PER_NEW_SYP };
 const CARRIER_SYP_UNITS: Record<string, SypUnit> = {
   BABEL_EXPRESS: 'new',
   SENA_EXPRESS: 'new', // owner decision 3 Nov 2026, not yet confirmed by Sena
@@ -76,11 +78,11 @@ export function toComparableUsd(
   sypUnit?: SypUnit | null,
 ): number {
   if (!Number.isFinite(amount)) return Infinity;
-  const curr = (currency ?? 'USD').toUpperCase().trim();
-  if (curr === 'SYP') {
-    const platformRate = snapshot.usdToSypRate > 0 ? snapshot.usdToSypRate : FX_FALLBACK_USD_TO_SYP;
-    return amount / rateForCarrierUnit(platformRate, sypUnit);
-  }
+  const curr = normalizeCurrency(currency);
+  const platformRate = snapshot.usdToSypRate > 0 ? snapshot.usdToSypRate : FX_FALLBACK_USD_TO_SYP;
+  // The new pound is named explicitly: 1 new = 100 old, whatever carrier it came from.
+  if (curr === 'SYP_NEW') return amount / (platformRate / OLD_SYP_PER_NEW_SYP);
+  if (curr === 'SYP') return amount / rateForCarrierUnit(platformRate, sypUnit);
   return amount;
 }
 
@@ -131,7 +133,8 @@ export function quoteSupportsCollectionCurrency(
   quote: { supportedCodCurrencies?: string[] | null; currency?: string | null },
   currency: 'USD' | 'SYP',
 ): boolean {
-  const list = (quote.supportedCodCurrencies ?? []).map((item) => item.trim().toUpperCase());
+  // Either pound counts as SYP: the carrier collects in its own unit.
+  const list = (quote.supportedCodCurrencies ?? []).map((item) => currencyFamily(item));
   return list.includes(currency);
 }
 
@@ -147,18 +150,18 @@ export function applyQuoteCurrency<
   const next: T[] = [];
   for (const quote of quotes) {
     const match = quote.prices?.find(
-      (price) => price.currency?.toUpperCase() === filter && Number.isFinite(price.price),
+      (price) => currencyFamily(price.currency) === filter && Number.isFinite(price.price),
     );
     if (match) {
       next.push({
         ...quote,
         price: match.price,
-        currency: match.currency.toUpperCase(),
+        currency: normalizeCurrency(match.currency),
         preferredCurrency: filter,
       });
       continue;
     }
-    if ((quote.currency || '').toUpperCase() === filter) {
+    if (currencyFamily(quote.currency) === filter) {
       next.push({ ...quote, preferredCurrency: filter });
     }
   }

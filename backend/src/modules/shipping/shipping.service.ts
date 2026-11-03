@@ -19,7 +19,7 @@ import { RealtimeService } from '../realtime/realtime.service';
 import { composeDestinationAddress } from '../oms/oms-order.mapper';
 import { BabelAddressAdapter } from './providers/babel-express/babel-address.adapter';
 import { AddressResolveService } from './address-resolve.service';
-import { carrierSypUnit } from './carrier-currency';
+import { carrierPriceCurrency, carrierSypUnit } from './carrier-currency';
 import { convertCodCollection } from './cod-collection';
 import { ShippingFxService } from './shipping-fx.service';
 import { BabelApiError } from './providers/babel-express/babel-express.http-client';
@@ -663,12 +663,13 @@ export class ShippingService implements OnModuleInit {
               available: constraintReason == null,
               ...(constraintReason ? { unavailableReason: constraintReason } : {}),
               price: res.price,
-              currency: res.currency || 'USD',
+              // A carrier's pound prices are labelled with the unit the carrier uses (old or new).
+              currency: carrierPriceCurrency(row.code, res.currency),
               sypUnit: carrierSypUnit(row.code),
-              prices:
-                res.prices && res.prices.length > 0
-                  ? res.prices
-                  : [{ price: res.price, currency: res.currency || 'USD' }],
+              prices: (res.prices && res.prices.length > 0
+                ? res.prices
+                : [{ price: res.price, currency: res.currency || 'USD' }]
+              ).map((p) => ({ ...p, currency: carrierPriceCurrency(row.code, p.currency) })),
               estimatedDeliveryMin: res.estimatedDeliveryMin,
               estimatedDeliveryMax: res.estimatedDeliveryMax,
               deliveryType: quotedDeliveryType,

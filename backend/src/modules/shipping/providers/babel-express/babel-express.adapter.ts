@@ -168,7 +168,8 @@ export class BabelExpressAdapter implements ShippingProvider {
       ...input,
       deliveryType,
       pickupType: resolveBabelPickupType(input.pickupType),
-      currency: resolveBabelCodCurrency(input.currency),
+      // Keep the unit (old or new pound) so the COD payload can tell Babel with isNewSYP.
+      currency: input.currency,
       receiver: {
         ...input.receiver,
         neighbourhoodId,
@@ -222,6 +223,8 @@ export class BabelExpressAdapter implements ShippingProvider {
         status?: string;
         price?: number;
         currency?: string;
+        /** Babel says whether a SYP price is in the new Syrian pound. */
+        isNewSYP?: boolean;
         details?: unknown;
       }>('calculatePrice', credentials, payload);
     };
@@ -242,7 +245,14 @@ export class BabelExpressAdapter implements ShippingProvider {
     if (!Number.isFinite(price)) {
       throw new BabelApiError('Babel Express calculatePrice missing price.', undefined, raw);
     }
-    const currency = typeof raw?.currency === 'string' ? raw.currency : 'SYP';
+    const rawCurrency = typeof raw?.currency === 'string' ? raw.currency : 'SYP';
+    // Babel states the pound unit itself (isNewSYP); that answer beats any assumption we hold.
+    const currency =
+      rawCurrency.trim().toUpperCase() === 'SYP' && typeof raw?.isNewSYP === 'boolean'
+        ? raw.isNewSYP
+          ? 'SYP_NEW'
+          : 'SYP_OLD'
+        : rawCurrency;
     return {
       price,
       currency,
