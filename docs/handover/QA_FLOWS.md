@@ -70,3 +70,4 @@ A flow counts as ✅ only when it was run in the real UI or against the real car
 | X13 | Tests | Backend unit suite baseline (all suites, in batches) | 🔄 | Shipping area 46 suites / 362 tests pass; full run not done (D-004) |
 | X14 | Tests | Frontend unit suite and Playwright regression of fixed flows | 🔄 | Vitest lib 104 pass; Playwright not re-run |
 | X15 | Release | Handover pack: client documentation, decision log, known limitations, runbook | 🔄 | `DECISIONS_AND_EVIDENCE.md` and QA files exist; client-facing documents not written |
+| X16 | Routing | Redirect-only aliases (`/dashboard`, `/outbound`, `/inbound`, `/settings/*`, `/reports/cod-report`) land on the right page for every role | 🔄 | Several verified in the 3 Nov sweep; role matrix not done |

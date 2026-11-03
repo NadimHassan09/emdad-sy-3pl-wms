@@ -2,13 +2,13 @@
 
 Generated 2026-11-03 by `qa_progress.py` from `QA_TRACKER.md` and `QA_FLOWS.md`. Do not edit by hand.
 
-## Overall: 18.9% tested, 81.1% remaining
+## Overall: 20.8% tested, 79.2% remaining
 
 | Layer | Weight | Done | Items |
 |---|---|---|---|
-| Route checks (functional, validation, roles, consistency, mobile) | 40% | 1.2% | 850 checks on 170 routes |
+| Route checks (functional, validation, roles, consistency, mobile) | 40% | 5.5% | 685 checks on 137 routes |
 | Business flows | 40% | 31.0% | 42 flows |
-| Cross-cutting (security, errors, responsive, data, tests, release) | 20% | 30.0% | 15 checks |
+| Cross-cutting (security, errors, responsive, data, tests, release) | 20% | 31.2% | 16 checks |
 
 ## Routes by module
 
@@ -16,65 +16,30 @@ Generated 2026-11-03 by `qa_progress.py` from `QA_TRACKER.md` and `QA_FLOWS.md`.
 
 | Module | Routes | Done | Remaining |
 |---|---|---|---|
+| audit-logs | 1 | 10% | 90% |
+| backups | 4 | 10% | 90% |
 | clients | 2 | 10% | 90% |
+| contracts | 3 | 10% | 90% |
+| dashboard | 1 | 10% | 90% |
+| finance | 7 | 10% | 90% |
+| forms | 1 | 10% | 90% |
+| internal | 1 | 10% | 90% |
+| notifications | 1 | 10% | 90% |
+| orders | 12 | 10% | 90% |
+| profile | 1 | 10% | 90% |
+| shipping | 2 | 10% | 90% |
 | warehouses | 1 | 10% | 90% |
-| orders | 14 | 6% | 94% |
-| dashboard | 2 | 5% | 95% |
-| inbound | 2 | 5% | 95% |
+| reports | 23 | 8% | 92% |
+| billing | 8 | 6% | 94% |
+| cycle-count | 4 | 5% | 95% |
 | locations | 2 | 5% | 95% |
-| outbound | 2 | 5% | 95% |
+| products | 2 | 5% | 95% |
+| users | 4 | 5% | 95% |
+| oms | 10 | 4% | 96% |
+| inventory | 6 | 3% | 97% |
 | returns | 3 | 3% | 97% |
 | tasks | 3 | 3% | 97% |
-| cycle-count | 4 | 2% | 98% |
-| inventory | 8 | 2% | 98% |
-| adjustments | 1 | 0% | 100% |
-| allocation-report | 1 | 0% | 100% |
-| audit-logs | 1 | 0% | 100% |
-| backups | 9 | 0% | 100% |
-| billing | 9 | 0% | 100% |
-| capacity-utilization | 1 | 0% | 100% |
-| cod-report | 1 | 0% | 100% |
-| contracts | 4 | 0% | 100% |
-| delivery-report | 1 | 0% | 100% |
-| directed-outbound | 1 | 0% | 100% |
-| factory-reset | 1 | 0% | 100% |
-| finance | 8 | 0% | 100% |
-| forms | 1 | 0% | 100% |
-| google-drive | 1 | 0% | 100% |
-| health | 1 | 0% | 100% |
-| inbound-accuracy | 1 | 0% | 100% |
-| internal | 1 | 0% | 100% |
-| inventory-reserved | 1 | 0% | 100% |
-| login | 1 | 0% | 100% |
-| lot-expiry | 1 | 0% | 100% |
-| merchant-orders | 1 | 0% | 100% |
-| notifications | 1 | 0% | 100% |
-| oms | 11 | 0% | 100% |
-| order-cycle-time | 1 | 0% | 100% |
-| outbound-fill-rate | 1 | 0% | 100% |
-| product-moves | 1 | 0% | 100% |
-| products | 2 | 0% | 100% |
-| profile | 1 | 0% | 100% |
-| receivables-aging | 1 | 0% | 100% |
-| reports | 3 | 0% | 100% |
-| restore | 1 | 0% | 100% |
-| retention | 1 | 0% | 100% |
-| return-rate | 1 | 0% | 100% |
-| returns-report | 1 | 0% | 100% |
-| revenue-by-client | 1 | 0% | 100% |
-| root | 1 | 0% | 100% |
-| sales-report | 1 | 0% | 100% |
-| schedules | 1 | 0% | 100% |
-| settings | 1 | 0% | 100% |
-| shipping | 3 | 0% | 100% |
-| sla-compliance | 1 | 0% | 100% |
-| stock-aging | 1 | 0% | 100% |
-| storage-policy | 1 | 0% | 100% |
-| upload | 1 | 0% | 100% |
-| users | 5 | 0% | 100% |
-| warehouse-analysis | 1 | 0% | 100% |
-| worker-productivity | 1 | 0% | 100% |
-| **Total** | 135 | **1.5%** | **98.5%** |
+| **Total** | 102 | **7.4%** | **92.6%** |
 
 ### Client portal
 
@@ -159,10 +124,11 @@ Generated 2026-11-03 by `qa_progress.py` from `QA_TRACKER.md` and `QA_FLOWS.md`.
 | X13 | Tests | Backend unit suite baseline (all suites, in batches) | 🔄 |
 | X14 | Tests | Frontend unit suite and Playwright regression of fixed flows | 🔄 |
 | X15 | Release | Handover pack: client documentation, decision log, known limitations, runbook | 🔄 |
+| X16 | Routing | Redirect-only aliases (`/dashboard`, `/outbound`, `/inbound`, `/settings/*`, `/reports/cod-report`) land on the right page for every role | 🔄 |
 
 ## Status counts (flows + cross-cutting)
 
-⛔ 2 · ✅ 7 · ❌ 1 · ⬜ 28 · 🔄 19
+⛔ 2 · ✅ 7 · ❌ 1 · ⬜ 28 · 🔄 20
 
 ## Definition of done (hand over to the client)
 

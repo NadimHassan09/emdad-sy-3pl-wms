@@ -7,141 +7,110 @@ One row per route. Defects are logged below with ID, severity (S1 blocker, S2 ma
 
 | Route | Functional | Validation/edge | Roles | Consistency | Mobile | Notes |
 |---|---|---|---|---|---|---|
-| `//` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
-| `//login` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
-| `/adjustments` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
-| `/allocation-report` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
-| `/audit-logs` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
-| `/backups` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
-| `/backups/factory-reset` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
-| `/backups/google-drive` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
-| `/backups/health` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
-| `/backups/restore` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
-| `/backups/retention` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
-| `/backups/schedules` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
-| `/backups/storage-policy` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
-| `/backups/upload` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
-| `/billing` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
-| `/billing/dashboard` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
-| `/billing/invoices` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
+| `/audit-logs` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load sweep 3 Nov: no API error, no console error, no crash |
+| `/backups` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load sweep 3 Nov: no API error, no console error, no crash |
+| `/backups/health` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load sweep 3 Nov: no API error, no console error, no crash |
+| `/backups/retention` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load sweep 3 Nov: no API error, no console error, no crash |
+| `/backups/schedules` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load sweep 3 Nov: no API error, no console error, no crash |
+| `/billing/dashboard` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load sweep 3 Nov: no API error, no console error, no crash |
+| `/billing/invoices` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load sweep 3 Nov: no API error, no console error, no crash |
 | `/billing/invoices/:id` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
-| `/billing/plans` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
+| `/billing/plans` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load sweep 3 Nov: no API error, no console error, no crash |
 | `/billing/plans/:clientId` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
 | `/billing/plans/:clientId/edit` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
-| `/billing/plans/new` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
-| `/billing/templates` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
-| `/capacity-utilization` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
+| `/billing/plans/new` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load sweep 3 Nov: no API error, no console error, no crash |
+| `/billing/templates` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load sweep 3 Nov: no API error, no console error, no crash |
 | `/clients` | 🔄 | 🔄 | ⬜ | ⬜ | ⬜ | Load + New company required-field messages (3 Nov) |
 | `/clients/:id` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
-| `/cod-report` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
-| `/contracts` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
-| `/contracts/dn` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
-| `/contracts/final-contract` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
-| `/contracts/grn` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
+| `/contracts/dn` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load sweep 3 Nov: no API error, no console error, no crash |
+| `/contracts/final-contract` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load sweep 3 Nov: no API error, no console error, no crash |
+| `/contracts/grn` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load sweep 3 Nov: no API error, no console error, no crash |
 | `/cycle-count` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load check only (3 Nov smoke pass) |
 | `/cycle-count/:id` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
 | `/cycle-count/:id/execute` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
-| `/cycle-count/my-tasks` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
-| `/dashboard` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
+| `/cycle-count/my-tasks` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load sweep 3 Nov: no API error, no console error, no crash |
 | `/dashboard/overview` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load check only (3 Nov smoke pass) |
-| `/delivery-report` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
-| `/directed-outbound` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
-| `/factory-reset` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
-| `/finance` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
-| `/finance/accounts` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
-| `/finance/carrier-costs` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
-| `/finance/cod` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
-| `/finance/overview` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
-| `/finance/payouts` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
-| `/finance/policies` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
-| `/finance/transactions` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
-| `/forms` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
-| `/google-drive` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
-| `/health` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
-| `/inbound` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load check only (3 Nov smoke pass) |
-| `/inbound-accuracy` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
-| `/inbound/create` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
-| `/internal` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
-| `/inventory` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
-| `/inventory-reserved` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
+| `/finance/accounts` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load sweep 3 Nov: no API error, no console error, no crash |
+| `/finance/carrier-costs` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load sweep 3 Nov: no API error, no console error, no crash |
+| `/finance/cod` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load sweep 3 Nov: no API error, no console error, no crash |
+| `/finance/overview` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load sweep 3 Nov: no API error, no console error, no crash |
+| `/finance/payouts` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load sweep 3 Nov: no API error, no console error, no crash |
+| `/finance/policies` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load sweep 3 Nov: no API error, no console error, no crash |
+| `/finance/transactions` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load sweep 3 Nov: no API error, no console error, no crash |
+| `/forms` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load sweep 3 Nov: no API error, no console error, no crash |
+| `/internal` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load sweep 3 Nov: no API error, no console error, no crash |
 | `/inventory/adjustments` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load check only (3 Nov smoke pass) |
 | `/inventory/adjustments/:id` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
-| `/inventory/ledger` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
 | `/inventory/ledger/:referenceType/:referenceId` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
 | `/inventory/ledger/line/:ledgerId/:createdAt` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
 | `/inventory/product/:productId` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
 | `/inventory/stock` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load check only (3 Nov smoke pass) |
 | `/locations` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load check only (3 Nov smoke pass) |
 | `/locations/:warehouseId` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
-| `/lot-expiry` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
-| `/merchant-orders` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
-| `/notifications` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
-| `/oms` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
-| `/oms/batches` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
+| `/notifications` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load sweep 3 Nov: no API error, no console error, no crash |
+| `/oms/batches` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load sweep 3 Nov: no API error, no console error, no crash |
 | `/oms/batches/:id` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
-| `/oms/cod` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
+| `/oms/cod` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load sweep 3 Nov: no API error, no console error, no crash |
 | `/oms/cod/:id` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
-| `/oms/dashboard` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
+| `/oms/dashboard` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load sweep 3 Nov: no API error, no console error, no crash |
 | `/oms/orders/:id` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
 | `/oms/orders/:id/waybill` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
-| `/oms/returns` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
+| `/oms/returns` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load sweep 3 Nov: no API error, no console error, no crash |
 | `/oms/returns/:id` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
 | `/oms/returns/:id/edit` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
-| `/order-cycle-time` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
-| `/orders` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
-| `/orders/directed-outbound` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
-| `/orders/inbound` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
+| `/orders/inbound` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load sweep 3 Nov: no API error, no console error, no crash |
 | `/orders/inbound/:id` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
 | `/orders/inbound/:id/edit` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
-| `/orders/inbound/new` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
+| `/orders/inbound/new` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load sweep 3 Nov: no API error, no console error, no crash |
 | `/orders/oms` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load check only (3 Nov smoke pass) |
 | `/orders/oms/:id` | ✅ | ⬜ | ⬜ | ⬜ | ⬜ | Cancel order, Cancel shipment (API and manual), carrier switch |
 | `/orders/oms/:id/waybill` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
 | `/orders/oms/new` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Form opened; orders created through the API for E2E |
-| `/orders/outbound` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
+| `/orders/outbound` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load sweep 3 Nov: no API error, no console error, no crash |
 | `/orders/outbound/:id` | ✅ | ⬜ | ⬜ | ⬜ | ⬜ | Execution flow end to end (approve, pick, pack, shipping method, carrier send, cancel/unlink); D-019, D-021 |
 | `/orders/outbound/:id/edit` | ✅ | ⬜ | ⬜ | ⬜ | ⬜ | Plan saved (packing location + dock) |
-| `/orders/outbound/new` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
-| `/outbound` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load check only (3 Nov smoke pass) |
-| `/outbound-fill-rate` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
-| `/outbound/create` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
-| `/product-moves` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
-| `/products` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
+| `/orders/outbound/new` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load sweep 3 Nov: no API error, no console error, no crash |
+| `/products` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load sweep 3 Nov: no API error, no console error, no crash |
 | `/products/:sku` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
-| `/profile` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
-| `/receivables-aging` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
-| `/reports` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
+| `/profile` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load sweep 3 Nov: no API error, no console error, no crash |
+| `/reports/allocation-report` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load sweep 3 Nov: no API error, no console error, no crash |
+| `/reports/capacity-utilization` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load sweep 3 Nov: no API error, no console error, no crash |
+| `/reports/cod-report` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
+| `/reports/delivery-report` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load sweep 3 Nov: no API error, no console error, no crash |
+| `/reports/inbound-accuracy` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load sweep 3 Nov: no API error, no console error, no crash |
+| `/reports/inventory` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load sweep 3 Nov: no API error, no console error, no crash |
+| `/reports/inventory-reserved` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load sweep 3 Nov: no API error, no console error, no crash |
+| `/reports/lot-expiry` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load sweep 3 Nov: no API error, no console error, no crash |
+| `/reports/merchant-orders` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load sweep 3 Nov: no API error, no console error, no crash |
 | `/reports/oms/cod` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
 | `/reports/oms/returns` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
-| `/restore` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
-| `/retention` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
-| `/return-rate` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
+| `/reports/order-cycle-time` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load sweep 3 Nov: no API error, no console error, no crash |
+| `/reports/outbound-fill-rate` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load sweep 3 Nov: no API error, no console error, no crash |
+| `/reports/product-moves` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load sweep 3 Nov: no API error, no console error, no crash |
+| `/reports/receivables-aging` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load sweep 3 Nov: no API error, no console error, no crash |
+| `/reports/return-rate` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load sweep 3 Nov: no API error, no console error, no crash |
+| `/reports/returns-report` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
+| `/reports/revenue-by-client` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load sweep 3 Nov: no API error, no console error, no crash |
+| `/reports/sales-report` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load sweep 3 Nov: no API error, no console error, no crash |
+| `/reports/sla-compliance` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load sweep 3 Nov: no API error, no console error, no crash |
+| `/reports/stock-aging` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load sweep 3 Nov: no API error, no console error, no crash |
+| `/reports/warehouse-analysis` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load sweep 3 Nov: no API error, no console error, no crash |
+| `/reports/worker-productivity` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load sweep 3 Nov: no API error, no console error, no crash |
 | `/returns` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load check only (3 Nov smoke pass) |
-| `/returns-report` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
 | `/returns/:id` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
 | `/returns/:id/process` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
-| `/revenue-by-client` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
-| `/sales-report` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
-| `/schedules` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
-| `/settings` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
-| `/shipping` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
-| `/shipping/companies` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
-| `/shipping/fee-rates` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
-| `/sla-compliance` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
-| `/stock-aging` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
-| `/storage-policy` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
+| `/shipping/companies` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load sweep 3 Nov: no API error, no console error, no crash |
+| `/shipping/fee-rates` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load sweep 3 Nov: no API error, no console error, no crash |
 | `/tasks` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load check only (3 Nov smoke pass) |
 | `/tasks/:id` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
 | `/tasks/:id/execute` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
-| `/upload` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
-| `/users` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
-| `/users/client_users` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
+| `/users/client_users` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load sweep 3 Nov: no API error, no console error, no crash |
 | `/users/client_users/:id` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
-| `/users/warehouse_users` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
+| `/users/warehouse_users` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load sweep 3 Nov: no API error, no console error, no crash |
 | `/users/warehouse_users/:id` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
-| `/warehouse-analysis` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
 | `/warehouses` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load check only (3 Nov smoke pass) |
-| `/worker-productivity` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
+
+Aliases (redirect-only routes such as `/dashboard`, `/outbound`, `/inventory`, `/settings/*`) are not listed; they are covered once by X16 in `QA_FLOWS.md`.
 
 ## Client portal (staging-client.emdadsy.com) — roles: client_admin, client_staff
 
