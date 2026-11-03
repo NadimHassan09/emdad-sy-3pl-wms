@@ -83,6 +83,19 @@ Approved by the owner: one test order each, client Test company, recipient Nadim
 - Zero-priced quotes (Sena sandbox) no longer take the BEST PRICE badge (D-022).
 - The currency-unit risk (D-013) is still open: Babel 300 SYP now takes BEST PRICE against 2.50 USD for Sila.
 
+### 1.12 Currency rule: USD inside EMDAD, each carrier in its own currency and pound unit (3 Nov 2026)
+
+Owner rule: EMDAD keeps and compares money in USD; carrier prices stay in the currency and Syrian-pound unit the carrier itself uses; the carrier is the source of truth and EMDAD never imposes a unit. "Best price" compares the converted value, so 300 SYP can legitimately beat 2.5 USD when the conversion is right.
+
+Evidence per carrier (read from the carrier, 3 Nov):
+- **Babel = new Syrian pound.** Babel portal, Financial operations: "تحويل رصيد ليرة سورية جديدة الى دولار امريكي بسعر تصريف 136.00" (3 Oct 2026, 92,740 SYP = 681.91 USD), final totals labelled "ليرة سورية جديدة", shipping fees of 70 to 700 SYP, and the portal banner announcing the new pound. Babel's own rate (136 new SYP per USD) is within about 5% of the EMDAD managed rate (13,000 old = 130 new).
+- **Sila = USD** for all quotes and COD (its SYP support is listed but unverified); no unit issue.
+- **Sena = SYP store currency**, unit not stated anywhere in the portal (account statement says only "SYP", environment is DEV with no movements). Left unconfirmed: it keeps the platform unit until Sena states it. Question for Sena: are SYP amounts in the new pound?
+- **Delivery Joud**: not integrated yet.
+
+Implementation (commit c173d0c0): `carrier-currency.ts` records each carrier's unit with its evidence (Babel = new). The platform rate unit is read from the rate's size (about 13,000 old, 130 new; ambiguous values are not rescaled). Quote comparison and "best price" convert each carrier's SYP in that carrier's unit (Babel 300 SYP is about 2.31 USD, not 0.023). COD collected in SYP is computed in the carrier's unit (20 USD to Babel = 2,600 new SYP; to Sena unchanged at 260,000 until its unit is confirmed). Price comparison in the admin UI now uses the admin-managed USD/SYP rate (it used a fixed 14,500 fallback before), and the batch shipping analysis converts per carrier before summing.
+- Still open: stored `codFxRate` on the order is the platform rate (not the carrier-unit rate); the Babel SYP COD minimum (1,000 SYP) is documented but not applied; comparison still falls back to 14,500 when no managed rate is usable.
+
 ### 1.7 Test-suite baseline (incomplete)
 
 - Backend Jest run aborted with out-of-memory after 23 of 144 suites; of those, 14 passed and 9 failed (stale specs or drifted code, e.g. CSV template spec expecting `external_reference`). Full baseline still to be produced in batches.

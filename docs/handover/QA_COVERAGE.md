@@ -1,0 +1,174 @@
+# EMDAD QA Coverage (generated)
+
+Generated 2026-11-03 by `qa_progress.py` from `QA_TRACKER.md` and `QA_FLOWS.md`. Do not edit by hand.
+
+## Overall: 18.9% tested, 81.1% remaining
+
+| Layer | Weight | Done | Items |
+|---|---|---|---|
+| Route checks (functional, validation, roles, consistency, mobile) | 40% | 1.2% | 850 checks on 170 routes |
+| Business flows | 40% | 31.0% | 42 flows |
+| Cross-cutting (security, errors, responsive, data, tests, release) | 20% | 30.0% | 15 checks |
+
+## Routes by module
+
+### Admin portal
+
+| Module | Routes | Done | Remaining |
+|---|---|---|---|
+| clients | 2 | 10% | 90% |
+| warehouses | 1 | 10% | 90% |
+| orders | 14 | 6% | 94% |
+| dashboard | 2 | 5% | 95% |
+| inbound | 2 | 5% | 95% |
+| locations | 2 | 5% | 95% |
+| outbound | 2 | 5% | 95% |
+| returns | 3 | 3% | 97% |
+| tasks | 3 | 3% | 97% |
+| cycle-count | 4 | 2% | 98% |
+| inventory | 8 | 2% | 98% |
+| adjustments | 1 | 0% | 100% |
+| allocation-report | 1 | 0% | 100% |
+| audit-logs | 1 | 0% | 100% |
+| backups | 9 | 0% | 100% |
+| billing | 9 | 0% | 100% |
+| capacity-utilization | 1 | 0% | 100% |
+| cod-report | 1 | 0% | 100% |
+| contracts | 4 | 0% | 100% |
+| delivery-report | 1 | 0% | 100% |
+| directed-outbound | 1 | 0% | 100% |
+| factory-reset | 1 | 0% | 100% |
+| finance | 8 | 0% | 100% |
+| forms | 1 | 0% | 100% |
+| google-drive | 1 | 0% | 100% |
+| health | 1 | 0% | 100% |
+| inbound-accuracy | 1 | 0% | 100% |
+| internal | 1 | 0% | 100% |
+| inventory-reserved | 1 | 0% | 100% |
+| login | 1 | 0% | 100% |
+| lot-expiry | 1 | 0% | 100% |
+| merchant-orders | 1 | 0% | 100% |
+| notifications | 1 | 0% | 100% |
+| oms | 11 | 0% | 100% |
+| order-cycle-time | 1 | 0% | 100% |
+| outbound-fill-rate | 1 | 0% | 100% |
+| product-moves | 1 | 0% | 100% |
+| products | 2 | 0% | 100% |
+| profile | 1 | 0% | 100% |
+| receivables-aging | 1 | 0% | 100% |
+| reports | 3 | 0% | 100% |
+| restore | 1 | 0% | 100% |
+| retention | 1 | 0% | 100% |
+| return-rate | 1 | 0% | 100% |
+| returns-report | 1 | 0% | 100% |
+| revenue-by-client | 1 | 0% | 100% |
+| root | 1 | 0% | 100% |
+| sales-report | 1 | 0% | 100% |
+| schedules | 1 | 0% | 100% |
+| settings | 1 | 0% | 100% |
+| shipping | 3 | 0% | 100% |
+| sla-compliance | 1 | 0% | 100% |
+| stock-aging | 1 | 0% | 100% |
+| storage-policy | 1 | 0% | 100% |
+| upload | 1 | 0% | 100% |
+| users | 5 | 0% | 100% |
+| warehouse-analysis | 1 | 0% | 100% |
+| worker-productivity | 1 | 0% | 100% |
+| **Total** | 135 | **1.5%** | **98.5%** |
+
+### Client portal
+
+| Module | Routes | Done | Remaining |
+|---|---|---|---|
+| account-inactive | 1 | 0% | 100% |
+| apis | 1 | 0% | 100% |
+| billing | 2 | 0% | 100% |
+| cod-reports | 1 | 0% | 100% |
+| dashboard | 1 | 0% | 100% |
+| ecommerce-orders | 6 | 0% | 100% |
+| finances | 1 | 0% | 100% |
+| inbound-orders | 3 | 0% | 100% |
+| invoices | 2 | 0% | 100% |
+| login | 1 | 0% | 100% |
+| my-profits | 1 | 0% | 100% |
+| notifications | 1 | 0% | 100% |
+| outbound-orders | 6 | 0% | 100% |
+| products | 4 | 0% | 100% |
+| profile | 1 | 0% | 100% |
+| returns | 3 | 0% | 100% |
+| **Total** | 35 | **0.0%** | **100.0%** |
+
+## Flows and cross-cutting checks
+
+| ID | Area | Item | Status |
+|---|---|---|---|
+| F01 | Orders | Create an OMS order in the admin UI (all fields, validation, Arabic and English, duplicates) | 🔄 |
+| F02 | Orders | Create an order in the client portal (e-commerce order) | ⬜ |
+| F03 | Orders | Import orders (validate, import, tolerant phone/Arabic letters/dates, row errors) | ⬜ |
+| F04 | Orders | Confirm then approve (shipping-fee group coverage, stock gate, reservation) | ❌ |
+| F05 | Outbound | Execution by admin: plan, approve, pick, pack, shipping method, send, details complete, dispatch | ✅ |
+| F06 | Outbound | Execution by workers (tasks) | ⬜ |
+| F07 | Shipping | Bulk shipping modal on a batch of orders | 🔄 |
+| F08 | Orders | Batches (create, detail, instruction sheet, waybills PDF/Excel) | ⬜ |
+| F09 | Orders | Edit order data and edit shipping fee (before and after shipment) | ⬜ |
+| F10 | Orders | Cancel an order with no shipment, and with a live shipment | ✅ |
+| F11 | Shipping | Change carrier on the same order | ✅ |
+| F12 | Shipping | Delivered through carrier webhook | ✅ |
+| F13 | Shipping | Failed delivery and returned-to-sender through carrier updates | ⬜ |
+| F14 | Returns | OMS returns and WMS returns (plan, receive, restock, rollback rules) | ⬜ |
+| F15 | COD | COD record generated on delivery | ✅ |
+| F16 | COD | COD collection, remittance and reconciliation with the client balance | ⬜ |
+| F17 | Carriers | Sena sandbox: create, status simulation, cancel, return, label, edit | 🔄 |
+| F18 | Carriers | Babel live: create, price vs portal, cancel | ✅ |
+| F19 | Carriers | Sila live: create, price vs portal, cancel | ✅ |
+| F20 | Carriers | Delivery Joud | ⛔ |
+| F21 | Carriers | Webhooks in both directions (valid, invalid signature, duplicate, out-of-order) | ⬜ |
+| F22 | Carriers | Coverage per governorate and the carrier eligibility rules (weight, COD currency, zone) | 🔄 |
+| F23 | Currency | Per-carrier Syrian-pound unit and USD conversion (quotes, COD) | 🔄 |
+| F24 | Inbound | Inbound order: create, ASN, receive, quality, putaway, GRN | ⬜ |
+| F25 | Inventory | Stock views, lots, expiry, reservation, ledger | ⬜ |
+| F26 | Inventory | Adjustments, internal transfer, cycle count | ⬜ |
+| F27 | Master data | Products (create, edit, images, lot tracking, dimensions) | 🔄 |
+| F28 | Master data | Clients (create, edit, suspend, contract) and client users | 🔄 |
+| F29 | Master data | Warehouses and locations hierarchy (zones, racks, shelves, packing and dock) | 🔄 |
+| F30 | Master data | Shipping companies, fee groups and fee rates per governorate | ⬜ |
+| F31 | Finance | Accounts, transactions (append-only), policies, carrier costs, payouts, statements | ⬜ |
+| F32 | Finance | Optional "Fulfillment Services" billing, invoices, plans (legacy billing) | ⬜ |
+| F33 | Reports | The ~25 admin reports (filters, totals vs source data, export) | ⬜ |
+| F34 | Admin | Users and roles (create, deactivate, role change, password reset) | ⬜ |
+| F35 | Admin | Audit logs, notifications | ⬜ |
+| F36 | Admin | Backups: schedules, run now, Google Drive, restore, retention, factory reset guard | 🔄 |
+| F37 | Admin | Forms and contracts | ⬜ |
+| F38 | Auth | Login, logout, refresh, session expiry, account inactive, wrong password, lockout | 🔄 |
+| F39 | Client portal | Dashboard, products, inbound requests, outbound requests | ⬜ |
+| F40 | Client portal | E-commerce orders (create, import, returns, status), COD reports, my profits | ⬜ |
+| F41 | Client portal | Finances, invoices, API keys (external API), notifications, profile | ⬜ |
+| F42 | External API | Client API keys: create order, status, rate limits, signature | ⬜ |
+| X01 | Security | RBAC matrix: every route and action for super_admin, wh_manager, wh_operator, client_admin, client_staff | ⬜ |
+| X02 | Security | Tenant isolation: a client never reads or writes another client's data (UI, direct URL, API) | ⬜ |
+| X03 | Security | Input handling: injection, XSS, CSV/Excel formula injection, file upload limits | ⬜ |
+| X04 | Security | Secrets and configuration (committed `.env` history, key rotation, webhook signatures) | ⛔ |
+| X05 | Validation | Field sweep on every form: empty, boundary, long, whitespace, Arabic/English, special characters, paste, duplicate submit | 🔄 |
+| X06 | Errors | Functional errors: any path that blocks work, wrong totals, wrong state transitions, buttons shown for impossible actions | 🔄 |
+| X07 | Errors | Semantic errors: wrong units/currency, wrong labels or wording, misleading messages, Arabic/English parity | 🔄 |
+| X08 | Errors | Visual errors: colour meaning (red cancel/delete, green success), spacing, alignment, overflow, RTL, dark mode | 🔄 |
+| X09 | UX | Responsive and mobile on key flows (touch targets, tables) | ⬜ |
+| X10 | Quality | Performance: N+1 calls, slow pages, large lists | 🔄 |
+| X11 | Quality | Accessibility basics: focus order, labels, contrast, keyboard | ⬜ |
+| X12 | Data | Data integrity: stock never negative, ledgers append-only, reservations released on cancel, COD totals | 🔄 |
+| X13 | Tests | Backend unit suite baseline (all suites, in batches) | 🔄 |
+| X14 | Tests | Frontend unit suite and Playwright regression of fixed flows | 🔄 |
+| X15 | Release | Handover pack: client documentation, decision log, known limitations, runbook | 🔄 |
+
+## Status counts (flows + cross-cutting)
+
+⛔ 2 · ✅ 7 · ❌ 1 · ⬜ 28 · 🔄 19
+
+## Definition of done (hand over to the client)
+
+1. Every route, flow and cross-cutting check above is ✅ or ❌ with a triaged defect; no ⬜, 🔄 or ⛔ left.
+2. No open S1 or S2 defect; every open S3 or S4 is listed as an accepted known limitation.
+3. Regression pass after the last fix: backend unit suite (all, in batches), frontend unit suite, Playwright critical paths, and one live carrier smoke per integrated carrier.
+4. Owner decisions closed: pricing groups per governorate, FX source, carrier pound units, COD eligibility, edit/cancel rules, deletion policy, return rollback, secrets rotation.
+5. Handover pack written: client documentation, decision log, known limitations, runbook.
+Only when all five hold is the system reported as fully tested.

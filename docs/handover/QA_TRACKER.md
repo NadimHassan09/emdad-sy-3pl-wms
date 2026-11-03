@@ -31,19 +31,19 @@ One row per route. Defects are logged below with ID, severity (S1 blocker, S2 ma
 | `/billing/plans/new` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
 | `/billing/templates` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
 | `/capacity-utilization` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
-| `/clients` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
+| `/clients` | 🔄 | 🔄 | ⬜ | ⬜ | ⬜ | Load + New company required-field messages (3 Nov) |
 | `/clients/:id` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
 | `/cod-report` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
 | `/contracts` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
 | `/contracts/dn` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
 | `/contracts/final-contract` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
 | `/contracts/grn` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
-| `/cycle-count` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
+| `/cycle-count` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load check only (3 Nov smoke pass) |
 | `/cycle-count/:id` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
 | `/cycle-count/:id/execute` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
 | `/cycle-count/my-tasks` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
 | `/dashboard` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
-| `/dashboard/overview` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
+| `/dashboard/overview` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load check only (3 Nov smoke pass) |
 | `/delivery-report` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
 | `/directed-outbound` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
 | `/factory-reset` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
@@ -58,20 +58,20 @@ One row per route. Defects are logged below with ID, severity (S1 blocker, S2 ma
 | `/forms` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
 | `/google-drive` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
 | `/health` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
-| `/inbound` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
+| `/inbound` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load check only (3 Nov smoke pass) |
 | `/inbound-accuracy` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
 | `/inbound/create` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
 | `/internal` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
 | `/inventory` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
 | `/inventory-reserved` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
-| `/inventory/adjustments` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
+| `/inventory/adjustments` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load check only (3 Nov smoke pass) |
 | `/inventory/adjustments/:id` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
 | `/inventory/ledger` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
 | `/inventory/ledger/:referenceType/:referenceId` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
 | `/inventory/ledger/line/:ledgerId/:createdAt` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
 | `/inventory/product/:productId` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
-| `/inventory/stock` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
-| `/locations` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
+| `/inventory/stock` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load check only (3 Nov smoke pass) |
+| `/locations` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load check only (3 Nov smoke pass) |
 | `/locations/:warehouseId` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
 | `/lot-expiry` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
 | `/merchant-orders` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
@@ -94,15 +94,15 @@ One row per route. Defects are logged below with ID, severity (S1 blocker, S2 ma
 | `/orders/inbound/:id` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
 | `/orders/inbound/:id/edit` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
 | `/orders/inbound/new` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
-| `/orders/oms` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
-| `/orders/oms/:id` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
+| `/orders/oms` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load check only (3 Nov smoke pass) |
+| `/orders/oms/:id` | ✅ | ⬜ | ⬜ | ⬜ | ⬜ | Cancel order, Cancel shipment (API and manual), carrier switch |
 | `/orders/oms/:id/waybill` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
-| `/orders/oms/new` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
+| `/orders/oms/new` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Form opened; orders created through the API for E2E |
 | `/orders/outbound` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
-| `/orders/outbound/:id` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
-| `/orders/outbound/:id/edit` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
+| `/orders/outbound/:id` | ✅ | ⬜ | ⬜ | ⬜ | ⬜ | Execution flow end to end (approve, pick, pack, shipping method, carrier send, cancel/unlink); D-019, D-021 |
+| `/orders/outbound/:id/edit` | ✅ | ⬜ | ⬜ | ⬜ | ⬜ | Plan saved (packing location + dock) |
 | `/orders/outbound/new` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
-| `/outbound` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
+| `/outbound` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load check only (3 Nov smoke pass) |
 | `/outbound-fill-rate` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
 | `/outbound/create` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
 | `/product-moves` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
@@ -116,7 +116,7 @@ One row per route. Defects are logged below with ID, severity (S1 blocker, S2 ma
 | `/restore` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
 | `/retention` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
 | `/return-rate` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
-| `/returns` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
+| `/returns` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load check only (3 Nov smoke pass) |
 | `/returns-report` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
 | `/returns/:id` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
 | `/returns/:id/process` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
@@ -130,7 +130,7 @@ One row per route. Defects are logged below with ID, severity (S1 blocker, S2 ma
 | `/sla-compliance` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
 | `/stock-aging` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
 | `/storage-policy` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
-| `/tasks` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
+| `/tasks` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load check only (3 Nov smoke pass) |
 | `/tasks/:id` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
 | `/tasks/:id/execute` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
 | `/upload` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
@@ -140,7 +140,7 @@ One row per route. Defects are logged below with ID, severity (S1 blocker, S2 ma
 | `/users/warehouse_users` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
 | `/users/warehouse_users/:id` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
 | `/warehouse-analysis` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
-| `/warehouses` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
+| `/warehouses` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load check only (3 Nov smoke pass) |
 | `/worker-productivity` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
 
 ## Client portal (staging-client.emdadsy.com) — roles: client_admin, client_staff
@@ -217,7 +217,7 @@ One row per route. Defects are logged below with ID, severity (S1 blocker, S2 ma
 | D-010 | S4 | Admin/Clients | New company form: Country defaults to "SA" (Saudi) in a Syrian system and is free text | UI 3 Nov | Open (polish) | |
 | D-011 | S3 | Admin toasts | Error toasts (e.g. approve blocked) are small and vanish within seconds; message names no fix link | OMS approve 3 Nov | Open (polish) | |
 | D-012 | S2 | Client pricing | Only one active client shipping-fee group exists on staging (Aleppo). Approving any order to another governorate fails: "No active shipping fee rate covers this destination" (Damascus tested) | OMS approve 3 Nov, `shipping_fee_groups` | Needs business decision (rates per governorate) | |
-| D-013 | S1 | New vs old Syrian pound | Babel quotes show 400 SYP (140 SYP hub) beside $2.50 for Sila. The Babel portal banner states "the new Syrian pound has been adopted instead of the old one". If Babel prices are in new pounds (old / 100) while EMDAD FX (13,000 to 14,500 per USD) is in old pounds, Babel is compared and converted ~100x too cheap, always wins "BEST", and any SYP COD/fee conversion for it is wrong. Sena's SYP unit is also unconfirmed | Carrier cards + Babel portal banner 3 Nov | Needs business decision + carrier confirmation (which unit each carrier uses; one canonical unit in EMDAD) | |
+| D-013 | S1 | New vs old Syrian pound | Babel quotes show 400 SYP (140 SYP hub) beside $2.50 for Sila. The Babel portal banner states "the new Syrian pound has been adopted instead of the old one". If Babel prices are in new pounds (old / 100) while EMDAD FX (13,000 to 14,500 per USD) is in old pounds, Babel is compared and converted ~100x too cheap, always wins "BEST", and any SYP COD/fee conversion for it is wrong. Sena's SYP unit is also unconfirmed | Carrier cards + Babel portal banner 3 Nov | Fixed for Babel; Sena unit unconfirmed | commit c173d0c0; evidence in DECISIONS 1.12 |
 | D-014 | S3 | Outbound Shipping Details | Failed-send banner printed the packed `[[se:{...}]]` JSON | UI 3 Nov | Fixed | 4a92816c |
 | D-015 | S2 | FX source | COD conversion used rate 13000.418 from `fawazahmed0-currency-api` (free public API) | `carrier_shipments.raw_result_meta` | Needs business decision (official/admin-set rate) | |
 | D-016 | S4 | Timeline | Carrier webhook events are attributed to the logged-in admin name ("carrier order_delivered · Nadim Hassan") | OMS timeline 3 Nov | Open | |
