@@ -356,6 +356,25 @@ function statusScanCopy(
   }
 }
 
+/** Label a list row falls under for the "Group by" control. */
+function omsGroupLabel(
+  row: OmsOrderListItem,
+  key: 'city' | 'client' | 'product' | 'carrier' | 'status',
+): string {
+  switch (key) {
+    case 'city':
+      return row.city?.trim() || '—';
+    case 'client':
+      return row.company?.name?.trim() || '—';
+    case 'product':
+      return row.contents?.[0]?.name?.trim() || row.contents?.[0]?.sku?.trim() || '—';
+    case 'carrier':
+      return (row.shippingCarrierName || row.carrier || '').trim() || '—';
+    case 'status':
+      return String(orderMainStatus(row)).replace(/_/g, ' ');
+  }
+}
+
 export function OmsOrdersListPage() {
   const navigate = useNavigate();
   const qc = useQueryClient();
@@ -373,6 +392,9 @@ export function OmsOrdersListPage() {
   const [importOpen, setImportOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
   const [scanSearchOpen, setScanSearchOpen] = useState(false);
+  // Codes scanned for search accumulate so many orders can be listed together and worked on.
+  const [scannedCodes, setScannedCodes] = useState<string[]>([]);
+  const [groupByKey, setGroupByKey] = useState<'none' | 'city' | 'client' | 'product' | 'carrier' | 'status'>('none');
   const [statusScan, setStatusScan] = useState<null | OmsQrStatusAction>(null);
   const [exporting, setExporting] = useState(false);
   const [waybillOrderId, setWaybillOrderId] = useState<string | null>(null);
@@ -1467,6 +1489,35 @@ export function OmsOrdersListPage() {
         ]
       : []),
     {
+      header: isArabic ? 'محتوى الشحنة' : 'Contents',
+      accessor: (row) => {
+        const items = row.contents ?? [];
+        if (items.length === 0) return <span className="text-text-muted">—</span>;
+        const full = items.map((c) => `${c.quantity ?? ''}× ${c.name ?? c.sku ?? ''}`).join('\n');
+        const shown = items.slice(0, 2).map((c) => `${c.quantity ?? ''}× ${c.name ?? c.sku ?? ''}`);
+        return (
+          <span className="block max-w-[220px] text-sm" title={full}>
+            {shown.join(', ')}
+            {items.length > 2 ? ` +${items.length - 2}` : ''}
+          </span>
+        );
+      },
+    },
+    {
+      header: isArabic ? 'آخر حالة لدى الناقل' : 'Last carrier status',
+      accessor: (row) => {
+        const ev = row.lastCarrierEvent;
+        if (!ev?.text) return <span className="text-text-muted">—</span>;
+        const when = ev.at ? new Date(ev.at).toLocaleString() : '';
+        return (
+          <span className="block max-w-[240px] text-sm" title={`${ev.text}${ev.location ? ` · ${ev.location}` : ''}${when ? ` · ${when}` : ''}`}>
+            <span className="block truncate">{ev.text}</span>
+            {when ? <span className="block text-xs text-text-muted">{when}</span> : null}
+          </span>
+        );
+      },
+    },
+    {
       header: isArabic ? 'الإجراءات' : 'Actions',
       accessor: (row) => {
         const outboundId = row.outboundOrderId ?? row.linkedOutboundOrder?.id;
@@ -2337,9 +2388,73 @@ export function OmsOrdersListPage() {
         ) : null}
       </div>
 
+      <div className="flex flex-wrap items-center gap-2 text-sm">
+        <label className="font-medium text-text-strong" htmlFor="oms-group-by">
+          {isArabic ? 'تجميع حسب' : 'Group by'}
+        </label>
+        <select
+          id="oms-group-by"
+          className="rounded-lg border border-border bg-surface-panel px-2.5 py-1.5 text-sm"
+          value={groupByKey}
+          onChange={(e) => setGroupByKey(e.target.value as typeof groupByKey)}
+        >
+          <option value="none">{isArabic ? 'بدون' : 'None'}</option>
+          <option value="city">{isArabic ? 'المحافظة' : 'City'}</option>
+          <option value="client">{isArabic ? 'العميل' : 'Client'}</option>
+          <option value="product">{isArabic ? 'المنتج' : 'Product'}</option>
+          <option value="carrier">{isArabic ? 'شركة الشحن' : 'Carrier'}</option>
+          <option value="status">{isArabic ? 'الحالة' : 'Status'}</option>
+        </select>
+        {groupByKey !== 'none' ? (
+          <span className="text-xs text-text-muted">
+            {isArabic ? 'التجميع على الصفحة المعروضة حالياً' : 'Grouping applies to the rows on this page'}
+          </span>
+        ) : null}
+      </div>
+      {scannedCodes.length > 0 ? (
+        <div className="flex flex-wrap items-center gap-2 rounded-lg border border-border bg-surface-card px-3 py-2 text-sm">
+          <span className="font-medium text-text-strong">
+            {isArabic ? `الطلبات الممسوحة (${scannedCodes.length}):` : `Scanned (${scannedCodes.length}):`}
+          </span>
+          {scannedCodes.map((code) => (
+            <span key={code} className="inline-flex items-center gap-1 rounded-full bg-surface-sunken px-2 py-0.5 font-mono text-xs">
+              {code}
+              <button
+                type="button"
+                aria-label={isArabic ? `إزالة ${code}` : `Remove ${code}`}
+                className="text-text-muted hover:text-status-error-fg"
+                onClick={() => {
+                  const next = scannedCodes.filter((c) => c !== code);
+                  setScannedCodes(next);
+                  applyPatch({ orderSearch: next.join(', ') });
+                }}
+              >
+                ×
+              </button>
+            </span>
+          ))}
+          <button
+            type="button"
+            className="ms-auto text-xs font-medium text-status-error-fg hover:underline"
+            onClick={() => {
+              setScannedCodes([]);
+              applyPatch({ orderSearch: '' });
+            }}
+          >
+            {isArabic ? 'مسح القائمة' : 'Clear list'}
+          </button>
+        </div>
+      ) : null}
       <DataTable
         columns={columns}
-        rows={pagination.rows}
+        rows={
+          groupByKey === 'none'
+            ? pagination.rows
+            : [...pagination.rows].sort((a, b) =>
+                omsGroupLabel(a, groupByKey).localeCompare(omsGroupLabel(b, groupByKey)),
+              )
+        }
+        groupBy={groupByKey === 'none' ? undefined : (row) => omsGroupLabel(row, groupByKey)}
         rowKey={(row) => row.id}
         serverPagination={pagination.serverPagination}
         loading={pagination.isInitialLoading}
@@ -2598,13 +2713,15 @@ export function OmsOrdersListPage() {
         open={scanSearchOpen}
         onClose={() => setScanSearchOpen(false)}
         isArabic={isArabic}
+        keepOpen
         onScan={(code) => {
-          applyPatch({ orderSearch: code });
-          toast.success(
-            isArabic
-              ? `تم تطبيق البحث عن: ${code}`
-              : `Filtered orders for: ${code}`,
-          );
+          setScannedCodes((prev) => {
+            if (prev.some((c) => c.toLowerCase() === code.toLowerCase())) return prev;
+            const next = [...prev, code];
+            applyPatch({ orderSearch: next.join(', ') });
+            return next;
+          });
+          toast.success(isArabic ? `أُضيف إلى القائمة: ${code}` : `Added to the list: ${code}`);
         }}
       />
       <OmsOrderScanSearchModal

@@ -204,6 +204,10 @@ Aliases (`/cod-reports`, `/returns`, `/returns/new`, `/returns/:id`, `/billing/i
 | D-031 | S3 | Inbound fields | Inbound notes (5,000 characters), client reference (500), arrival date 2999, and an expected expiry date in the past were accepted | Inbound API sweep 3 Nov | Fixed: notes 500, reference 100, planning dates at most 2 years ahead (also OMS/outbound dates), expected expiry cannot be in the past | this commit |
 | D-032 | S4 | Master data | Receiving dock is named "منظقة استلام" (typo for منطقة) | Inbound form 3 Nov | Open (rename in Locations) | |
 | D-033 | S3 | Ledger | Putaway (dock to bin) is not written to the inventory ledger; location-level history cannot be rebuilt (product-level totals reconcile) | Ledger audit 3 Nov | Open (design question) | |
+| D-034 | S1 | Finance (COD) | COD in SYP was added to the USD client account without conversion (Madino: 170,000 SYP counted as 170,000 USD pending); credit used the same raw amount | Finance audit 3 Nov | Fixed in code (USD amount stored per record, refused without a rate); needs the migration and a reconcile run | this commit |
+| D-035 | S2 | Finance (pending) | Pending balance was decreased by original plus adjustments although only the original was added | Finance audit 3 Nov | Fixed in code | this commit |
+| D-036 | S2 | Finance (shipping fee) | Shipping fee debits and adjustments posted the order-currency amount as USD | Finance audit 3 Nov | Fixed in code | this commit |
+| D-037 | S3 | Test baseline | Two more client-portal unit suites fail on the base commit (external-oms lifecycle, public-order serialize) | Test run 3 Nov | Open (part of D-004) | |
 | D-004 | S3 | Backend tests | Jest run OOM after 23/144 suites; 9 suites failing (stale specs/drift) | jest-baseline | Open | |
 
 ## Smoke pass log

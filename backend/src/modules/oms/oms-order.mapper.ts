@@ -45,6 +45,13 @@ export type OmsOrderWithRelations = OmsOrder & {
       providerCode?: string | null;
       rawResultMeta?: any;
       supersededAt?: Date | string | null;
+      events?: Array<{
+        eventDescription?: string | null;
+        originalCarrierStatus?: string | null;
+        normalizedStatus?: string | null;
+        eventTimestamp?: Date | string | null;
+        locationText?: string | null;
+      }> | null;
     }> | null;
   }) | null;
   returns?: Array<{
@@ -184,6 +191,22 @@ export function serializeOmsOrderListItem(order: OmsOrderWithRelations) {
     importBatchId: order.importBatchId ?? null,
     externalReference: order.externalReference ?? null,
     clientReference: order.clientReference ?? null,
+    /** Short summary of what is in the order, for the quick contents column. */
+    contents: (order.lines ?? []).map((l) => ({
+      sku: l.product?.sku ?? null,
+      name: l.product?.name ?? null,
+      quantity: dec(l.requestedQuantity),
+    })),
+    /** The last event the carrier reported (admin list only; stripped for clients). */
+    lastCarrierEvent: (() => {
+      const ev = activeShipment?.events?.[0];
+      if (!ev) return null;
+      return {
+        text: ev.eventDescription || ev.originalCarrierStatus || ev.normalizedStatus || null,
+        at: ev.eventTimestamp ?? null,
+        location: ev.locationText ?? null,
+      };
+    })(),
     linkedOutboundOrder: order.outboundOrder
       ? {
           id: order.outboundOrder.id,

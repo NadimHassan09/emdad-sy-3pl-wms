@@ -12,6 +12,7 @@ import {
   Prisma,
 } from '@prisma/client';
 
+import { readManagedUsdToSypRate, toAccountAmount } from './account-currency';
 import { AuthPrincipal } from '../../common/auth/current-user.types';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { FinancialAccountsService } from './financial-accounts.service';
@@ -158,12 +159,26 @@ export class FinancialCodService {
         return record;
       }
 
-      // Calculate net amount (original + adjustments)
+      // The account is USD only. Use the amount stored when the record was created; adjustments are in
+      // the record currency and are converted with the same rate. A SYP record without a rate is refused.
       const adjSum = record.adjustments.reduce(
         (sum, a) => sum.add(a.amount),
         new Prisma.Decimal(0),
       );
-      const netAmount = record.originalAmount.add(adjSum);
+      const rateInfo = record.accountFxRate
+        ? { rate: Number(record.accountFxRate), source: record.accountFxSource ?? 'stored' }
+        : await readManagedUsdToSypRate(this.prisma);
+      const originalUsd =
+        record.accountAmount ?? toAccountAmount(record.originalAmount, record.currency, rateInfo)?.amount;
+      const adjUsd = toAccountAmount(adjSum, record.currency, rateInfo)?.amount;
+      if (!originalUsd || !adjUsd) {
+        throw new BadRequestException(
+          'No USD/SYP exchange rate is available, so this SYP COD cannot be credited to the client account.',
+        );
+      }
+      const netAmount = originalUsd.add(adjUsd);
+      // What was added to pending when the record was created (legacy rows added the raw amount).
+      const pendingAdded = record.accountAmount ?? record.originalAmount;
 
       if (netAmount.lte(0)) {
         this.logger.warn(`COD net amount is <= 0 for record ${codRecordId}, skipping account credit`);
@@ -180,7 +195,7 @@ export class FinancialCodService {
           type: FinancialTransactionType.credit,
           category: FinancialTransactionCategory.cod_credit,
           amount: netAmount,
-          currency: record.currency,
+          currency: 'USD',
           description: `COD Credit for Order ${record.omsOrder.orderNumber}`,
           referenceType: 'oms_order',
           referenceId: record.omsOrderId,
@@ -192,6 +207,8 @@ export class FinancialCodService {
             omsOrderId: record.omsOrderId,
             orderNumber: record.omsOrder.orderNumber,
             originalAmount: record.originalAmount.toString(),
+            originalCurrency: record.currency,
+            fxRate: record.accountFxRate?.toString() ?? null,
             adjustments: record.adjustments.length,
           },
         },
@@ -202,7 +219,7 @@ export class FinancialCodService {
       await this.accounts.updateBalances(
         record.companyId,
         {
-          pendingDelta: netAmount.negated(),
+          pendingDelta: pendingAdded.negated(),
         },
         tx,
       );

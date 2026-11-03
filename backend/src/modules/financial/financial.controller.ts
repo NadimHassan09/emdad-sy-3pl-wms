@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  ForbiddenException,
   Get,
   Param,
   Patch,
@@ -47,6 +48,15 @@ export class FinancialController {
   @Get('overview')
   getOverview() {
     return this.accounts.getFinancialOverview();
+  }
+
+  /** Audit (dryRun, default) or repair pending balances and COD USD amounts. Super admin only. */
+  @Post('accounts/reconcile')
+  reconcile(@CurrentUser() user: AuthPrincipal, @Body() body: { dryRun?: boolean }) {
+    if (user.role !== 'super_admin') {
+      throw new ForbiddenException('Only a super admin can reconcile finance accounts.');
+    }
+    return this.accounts.reconcileAccounts(body?.dryRun !== false);
   }
 
   @Get('accounts')

@@ -38,7 +38,7 @@ export function AdminListPageShell({
   navActions,
   isArabic = false,
   showSectionNav = true,
-  className = 'mx-auto w-full max-w-7xl space-y-5 animate-enter',
+  className = 'mx-auto w-full max-w-[1800px] space-y-4 animate-enter',
   children,
 }: Props) {
   useClaimSectionNav();

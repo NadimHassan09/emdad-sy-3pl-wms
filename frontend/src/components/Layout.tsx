@@ -131,6 +131,7 @@ function renderNavLink(
   search: string,
   navigate: (to: string) => void,
   onLinkClick?: () => void,
+  collapsed?: boolean,
 ) {
   const active = item.active(pathname, search);
   return (
@@ -138,6 +139,7 @@ function renderNavLink(
       key={item.to}
       href={item.to}
       isActive={active}
+      collapsed={collapsed}
       icon={renderSidebarNavIcon(item.iconKey)}
       onClick={(e) => {
         e.preventDefault();
@@ -157,6 +159,7 @@ function SidebarNavContent({
   navigate,
   onLinkClick,
   t,
+  collapsed,
 }: {
   items: FlatNavItem[];
   pathname: string;
@@ -164,6 +167,7 @@ function SidebarNavContent({
   navigate: (to: string) => void;
   onLinkClick?: () => void;
   t: (s: string) => string;
+  collapsed?: boolean;
 }) {
   const ungrouped = items.filter((i) => !i.group);
   const wmsItems = items.filter((i) => i.group === 'wms');
@@ -173,14 +177,15 @@ function SidebarNavContent({
 
   return (
     <SidebarNav>
-      {ungrouped.map((item) => renderNavLink(item, pathname, search, navigate, onLinkClick))}
+      {ungrouped.map((item) => renderNavLink(item, pathname, search, navigate, onLinkClick, collapsed))}
       {wmsItems.length > 0 ? (
         <SidebarSection
           label={t('WMS')}
           icon={renderSidebarNavIcon('Warehouses')}
           defaultOpen={wmsOpen || true}
+          collapsed={collapsed}
         >
-          {wmsItems.map((item) => renderNavLink(item, pathname, search, navigate, onLinkClick))}
+          {wmsItems.map((item) => renderNavLink(item, pathname, search, navigate, onLinkClick, collapsed))}
         </SidebarSection>
       ) : null}
       {omsItems.length > 0 ? (
@@ -188,8 +193,9 @@ function SidebarNavContent({
           label={t('OMS')}
           icon={renderSidebarNavIcon('Orders')}
           defaultOpen={omsOpen || true}
+          collapsed={collapsed}
         >
-          {omsItems.map((item) => renderNavLink(item, pathname, search, navigate, onLinkClick))}
+          {omsItems.map((item) => renderNavLink(item, pathname, search, navigate, onLinkClick, collapsed))}
         </SidebarSection>
       ) : null}
     </SidebarNav>
@@ -214,6 +220,21 @@ export function Layout() {
   const { pathname, search } = useLocation();
 
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  // Desktop sidebar can shrink to icons so tables get the room; the choice is remembered per browser.
+  const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(() => {
+    try {
+      return window.localStorage.getItem('wms.sidebar.collapsed') === '1';
+    } catch {
+      return false;
+    }
+  });
+  useEffect(() => {
+    try {
+      window.localStorage.setItem('wms.sidebar.collapsed', sidebarCollapsed ? '1' : '0');
+    } catch {
+      /* storage unavailable: the choice just is not remembered */
+    }
+  }, [sidebarCollapsed]);
   const [topbarPanel, setTopbarPanel] = useState<'notifications' | 'user' | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchOpen, setSearchOpen] = useState(false);
@@ -332,6 +353,18 @@ export function Layout() {
     />
   );
 
+  const navContentDesktop = (
+    <SidebarNavContent
+      items={navItems}
+      pathname={pathname}
+      search={search}
+      navigate={navigate}
+      onLinkClick={() => setMobileNavOpen(false)}
+      t={t}
+      collapsed={sidebarCollapsed}
+    />
+  );
+
   return (
     <>
       <UiSwitchOverlay
@@ -344,8 +377,9 @@ export function Layout() {
           <AppShell.SkipNav />
 
           <AppShell.Body>
-            <Sidebar>
+            <Sidebar collapsed={sidebarCollapsed}>
               <SidebarBrand
+                collapsed={sidebarCollapsed}
                 logo={
                   <Link
                     to={homePath}
@@ -360,7 +394,31 @@ export function Layout() {
                   </Link>
                 }
               />
-              {navContent}
+              {navContentDesktop}
+              <div className="mt-auto hidden border-t p-2 md:block" style={{ borderColor: 'var(--sidebar-border)' }}>
+                <button
+                  type="button"
+                  onClick={() => setSidebarCollapsed((v) => !v)}
+                  aria-label={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+                  title={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+                  className="flex h-9 w-full items-center justify-center rounded-lg text-white/70 hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-white/30"
+                >
+                  <svg
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    className={sidebarCollapsed ? 'rotate-180 rtl:rotate-0' : 'rtl:rotate-180'}
+                    aria-hidden="true"
+                  >
+                    <path d="m15 18-6-6 6-6" />
+                  </svg>
+                </button>
+              </div>
             </Sidebar>
 
             <MobileSidebarOverlay open={mobileNavOpen} onClose={() => setMobileNavOpen(false)}>
@@ -535,7 +593,7 @@ export function Layout() {
                 </Topbar.End>
               </Topbar>
 
-              <AppShell.Main>
+              <AppShell.Main className="!px-3 !py-3 sm:!px-4 sm:!py-4">
                 <WorkflowUxProvider>
                   <SectionNavOwnershipProvider>
                     <MainWithOptionalSectionNav isArabic={isArabic} />

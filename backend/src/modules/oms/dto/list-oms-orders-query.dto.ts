@@ -20,7 +20,7 @@ export class ListOmsOrdersQueryDto extends PaginationDto {
   @EmptyToUndefined()
   @IsOptional()
   @IsString()
-  @MaxLength(120)
+  @MaxLength(4000)
   orderSearch?: string;
 
   /** Dedicated order identifier / reference filter (advanced). */

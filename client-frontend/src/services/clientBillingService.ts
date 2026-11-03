@@ -44,7 +44,12 @@ export type ClientInvoiceLineType =
   | 'excess_volume'
   | 'excess_weight'
   | 'manual'
-  | 'order_charge';
+  | 'order_charge'
+  | 'fulfillment_inbound'
+  | 'fulfillment_outbound'
+  | 'fulfillment_oms'
+  | 'emdad_shipping'
+  | 'storage_fee';
 
 export type ClientInvoiceLine = {
   id: string;
@@ -148,5 +153,37 @@ export async function fetchClientInvoices(): Promise<ClientInvoice[]> {
 
 export async function fetchClientInvoice(id: string): Promise<ClientInvoice> {
   const { data } = await apiClient.get<ClientInvoice>(`/billing/invoices/${id}`);
+  return data;
+}
+
+export type ClientInvoiceBreakdown = {
+  invoiceId: string;
+  invoiceNumber: string;
+  status: string;
+  period: { from: string | null; to: string | null };
+  total: string;
+  sections: Array<{
+    kind: 'inbound' | 'outbound' | 'oms';
+    orderCount: number;
+    statusCounts: Record<string, number>;
+    billed: boolean;
+    fulfillmentTotal: string | null;
+    shippingTotal: string | null;
+    orders: Array<{
+      orderNumber: string;
+      status: string;
+      linesCount: number;
+      weightKg: string;
+      charged: boolean;
+      fulfillmentFee: string | null;
+      shippingFee: string | null;
+      shippingFeeAlreadySettled: boolean;
+    }>;
+  }>;
+  statement: { balanceBefore: string; deducted: string; balanceAfter: string | null; remainingDue: string } | null;
+};
+
+export async function fetchClientInvoiceBreakdown(id: string): Promise<ClientInvoiceBreakdown> {
+  const { data } = await apiClient.get<ClientInvoiceBreakdown>(`/billing/invoices/${id}/breakdown`);
   return data;
 }

@@ -84,8 +84,23 @@ enum BillingInvoiceLineType {
   excess_weight
   manual
   order_charge
+  fulfillment_inbound
+  fulfillment_outbound
+  fulfillment_oms
+  emdad_shipping
+  storage_fee
 
   @@map("billing_invoice_line_type")
+}
+
+enum BillingChargeKind {
+  inbound_order
+  outbound_order
+  oms_order
+  storage
+  shipping_fee
+
+  @@map("billing_charge_kind")
 }
 
 enum BillingCycleType {
@@ -775,6 +790,7 @@ model Company {
   shippingFeeGroups      ShippingFeeGroup[]
   shippingFeeGroupLocations ShippingFeeGroupLocation[]
   financialAccount      ClientFinancialAccount?
+  billingChargeRules    BillingChargeRule[]
   financialTransactions FinancialTransaction[]
   payoutRequests        ClientPayoutRequest[]
 
@@ -846,12 +862,23 @@ model Invoice {
   totalAmount    Decimal              @default(0) @map("total_amount") @db.Decimal(14, 2)
   issuedAt       DateTime?            @map("issued_at") @db.Timestamptz(6)
   dueDate        DateTime?            @map("due_date") @db.Date
+  /// On-demand invoices cover an arbitrary period (no fixed cycle).
+  periodStart    DateTime?            @map("period_start") @db.Date
+  periodEnd      DateTime?            @map("period_end") @db.Date
+  /// Amount already deducted from the client's COD/finance balance for this invoice.
+  settledAmount  Decimal              @default(0) @map("settled_amount") @db.Decimal(14, 2)
+  settledAt      DateTime?            @map("settled_at") @db.Timestamptz(6)
+  /// Client balance right before and after the deduction (statement: had X, owed Y, remaining Z).
+  settledBalanceBefore Decimal?       @map("settled_balance_before") @db.Decimal(15, 4)
+  settledBalanceAfter  Decimal?       @map("settled_balance_after") @db.Decimal(15, 4)
+  settlementTransactionId String?     @map("settlement_transaction_id") @db.Uuid
   createdAt      DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt      DateTime             @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   company      Company       @relation(fields: [companyId], references: [id])
   billingCycle BillingCycle? @relation(fields: [billingCycleId], references: [id])
   lines        InvoiceLine[]
+  orderItems   InvoiceOrderItem[]
 
   @@index([companyId], map: "idx_invoices_company")
   @@index([billingCycleId], map: "idx_invoices_cycle")
@@ -894,6 +921,56 @@ model OrderManualCharge {
   @@index([referenceType, referenceId], map: "idx_order_manual_charges_ref")
   @@index([companyId], map: "idx_order_manual_charges_company")
   @@map("order_manual_charges")
+}
+
+/// Per-client choice of what is charged and how the fee scales (flat base plus extra lines and extra weight).
+model BillingChargeRule {
+  id               String            @id @default(uuid()) @db.Uuid
+  companyId        String            @map("company_id") @db.Uuid
+  kind             BillingChargeKind
+  enabled          Boolean           @default(false)
+  baseFee          Decimal           @default(0) @map("base_fee") @db.Decimal(12, 4)
+  includedLines    Int               @default(1) @map("included_lines")
+  extraLineFee     Decimal           @default(0) @map("extra_line_fee") @db.Decimal(12, 4)
+  includedWeightKg Decimal           @default(0) @map("included_weight_kg") @db.Decimal(12, 4)
+  extraKgFee       Decimal           @default(0) @map("extra_kg_fee") @db.Decimal(12, 4)
+  createdAt        DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime          @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, kind], map: "uq_billing_charge_rules_company_kind")
+  @@map("billing_charge_rules")
+}
+
+/// One order on an on-demand invoice. An order can be on one active invoice only (no double billing).
+model InvoiceOrderItem {
+  id             String   @id @default(uuid()) @db.Uuid
+  invoiceId      String   @map("invoice_id") @db.Uuid
+  companyId      String   @map("company_id") @db.Uuid
+  orderKind      String   @map("order_kind") @db.VarChar(16)
+  orderId        String   @map("order_id") @db.Uuid
+  orderNumber    String   @map("order_number")
+  orderStatus    String   @map("order_status")
+  linesCount     Int      @default(0) @map("lines_count")
+  weightKg       Decimal  @default(0) @map("weight_kg") @db.Decimal(14, 4)
+  /// False when the order is listed for information only (for example cancelled) and not charged.
+  charged        Boolean  @default(true)
+  fulfillmentFee Decimal  @default(0) @map("fulfillment_fee") @db.Decimal(14, 2)
+  /// EMDAD tariff to the client. Zero when it was already debited from the balance at dispatch.
+  shippingFee    Decimal  @default(0) @map("shipping_fee") @db.Decimal(14, 2)
+  shippingFeeAlreadySettled Boolean @default(false) @map("shipping_fee_already_settled")
+  /// Admin only: external carrier cost converted to USD. Never shown to the client.
+  carrierCostUsd Decimal? @map("carrier_cost_usd") @db.Decimal(14, 4)
+  /// False once the invoice is cancelled, which frees the order to be billed again.
+  active         Boolean  @default(true)
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@index([invoiceId], map: "idx_invoice_order_items_invoice")
+  @@index([orderKind, orderId, active], map: "idx_invoice_order_items_order")
+  @@map("invoice_order_items")
 }
 
 enum DocumentType {
@@ -2031,6 +2108,10 @@ model CodRecord {
   remittanceReference   String?         @map("remittance_reference")
   creditedToAccountAt    DateTime?       @map("credited_to_account_at") @db.Timestamptz(6)
   financialTransactionId String?         @map("financial_transaction_id") @db.Uuid
+  /// Amount in the account currency (USD). The finance account is USD only; SYP is converted when the record is created.
+  accountAmount          Decimal?        @map("account_amount") @db.Decimal(15, 4)
+  accountFxRate          Decimal?        @map("account_fx_rate") @db.Decimal(18, 8)
+  accountFxSource        String?         @map("account_fx_source")
 
   company     Company         @relation(fields: [companyId], references: [id])
   omsOrder    OmsOrder        @relation(fields: [omsOrderId], references: [id], onDelete: Cascade)
@@ -2828,6 +2909,7 @@ enum FinancialTransactionCategory {
   payout_disbursement
   return_fee
   subscription_fee
+  fulfillment_fee
   other
 
   @@map("financial_transaction_category")

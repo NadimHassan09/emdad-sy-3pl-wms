@@ -6,6 +6,7 @@ import { ClientPrincipal } from '../../../common/auth/client-principal.types';
 import { ClientUser } from '../auth/client-user.decorator';
 import { JwtClientAuthGuard } from '../auth/jwt-client-auth.guard';
 import { ClientBillingService } from './client-billing.service';
+import { BillingOnDemandService } from '../../billing/on-demand/billing-on-demand.service';
 
 /**
  * Client portal billing — read-only, always scoped to the signed-in client's company.
@@ -15,7 +16,10 @@ import { ClientBillingService } from './client-billing.service';
 @UseGuards(JwtClientAuthGuard)
 @Controller('client/billing')
 export class ClientBillingController {
-  constructor(private readonly billing: ClientBillingService) {}
+  constructor(
+    private readonly billing: ClientBillingService,
+    private readonly onDemand: BillingOnDemandService,
+  ) {}
 
   @Get('access')
   access(@ClientUser() client: ClientPrincipal) {
@@ -62,6 +66,12 @@ export class ClientBillingController {
       'attachment; filename="invoices-report.xlsx"',
     );
     res.send(buffer);
+  }
+
+  /** Order counts, statuses and fees for the client's own invoice. External carrier costs are never included. */
+  @Get('invoices/:id/breakdown')
+  invoiceBreakdown(@ClientUser() client: ClientPrincipal, @Param('id') id: string) {
+    return this.onDemand.breakdown({ companyId: client.companyId }, id, 'client');
   }
 
   @Get('invoices/:id')

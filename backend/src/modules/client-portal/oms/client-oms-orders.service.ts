@@ -28,7 +28,9 @@ function stripClientCarrierCosts<T extends Record<string, unknown>>(order: T): T
     shippingProviderCode?: unknown;
     shippingServiceId?: unknown;
     shippingHubId?: unknown;
+    lastCarrierEvent?: unknown;
   };
+  delete next.lastCarrierEvent;
   delete next.clientShippingRateBreakdown;
   delete next.clientShippingRateGroupId;
   delete next.carrier;

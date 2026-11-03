@@ -143,6 +143,11 @@ export function lineLabel(line: BillingInvoiceLineRow): string {
     excess_weight: 'Excess weight',
     manual: 'Manual charge',
     order_charge: 'Order charge (VAS)',
+    fulfillment_inbound: 'Inbound order fulfillment',
+    fulfillment_outbound: 'Outbound order fulfillment',
+    fulfillment_oms: 'Online order fulfillment',
+    emdad_shipping: 'Shipping fees',
+    storage_fee: 'Storage',
   };
   return labels[line.type] ?? line.type;
 }

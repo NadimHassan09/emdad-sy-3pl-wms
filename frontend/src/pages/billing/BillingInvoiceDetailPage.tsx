@@ -9,6 +9,7 @@ import { SelectField } from '../../components/SelectField';
 import { TextField } from '../../components/TextField';
 import { useToast } from '../../components/ToastProvider';
 import { useAuth } from '../../auth/AuthContext';
+import { InvoiceBreakdownPanel } from '../../components/billing/InvoiceBreakdownPanel';
 import { QK } from '../../constants/query-keys';
 import {
   formatCycleLabel,
@@ -326,6 +327,12 @@ export function BillingInvoiceDetailPage() {
               ) : null}
             </dl>
           </section>
+
+          <InvoiceBreakdownPanel
+            invoiceId={invoice.id}
+            invoiceStatus={invoice.status}
+            canSettle={canMutate}
+          />
 
           <section className="rounded-xl border border-border bg-surface-card p-4 shadow-sm">
             <h3 className="text-sm font-semibold text-text-strong">Charges</h3>

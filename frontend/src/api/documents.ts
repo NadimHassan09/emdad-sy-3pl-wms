@@ -121,17 +121,12 @@ export const DocumentsApi = {
       .then((r) => r.data);
   },
 
-  /** Fetch the immutable PDF as a blob (carries auth) and open it in a new tab. */
+  /**
+   * Opens the PDF in a new tab through a short-lived link that carries the real file name
+   * ("GRN-2026-00025 - Client name.pdf"), so saving from the viewer never shows an internal id.
+   */
   async openInNewTab(id: string): Promise<void> {
-    const blob = await api
-      .get(`/documents/${id}/file`, {
-        params: { v: Date.now() },
-        responseType: 'blob',
-      })
-      .then((r) => r.data as Blob);
-    const url = URL.createObjectURL(blob);
+    const { url } = await api.post<{ url: string; fileName: string }>(`/documents/${id}/link`).then((r) => r.data);
     window.open(url, '_blank', 'noopener');
-    // Revoke after the tab has had time to load the resource.
-    setTimeout(() => URL.revokeObjectURL(url), 60_000);
   },
 };

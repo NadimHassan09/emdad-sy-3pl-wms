@@ -134,6 +134,8 @@ const BillingPlanEditPage       = lazyPage(() => import('./pages/billing/Billing
 const BillingPlanTemplatesPage  = lazyPage(() => import('./pages/billing/BillingPlanTemplatesPage'), 'BillingPlanTemplatesPage');
 const BillingInvoicesPage       = lazyPage(() => import('./pages/billing/BillingInvoicesPage'), 'BillingInvoicesPage');
 const BillingInvoiceDetailPage  = lazyPage(() => import('./pages/billing/BillingInvoiceDetailPage'), 'BillingInvoiceDetailPage');
+const BillingOnDemandInvoicePage = lazyPage(() => import('./pages/billing/BillingOnDemandInvoicePage'), 'BillingOnDemandInvoicePage');
+const BillingChargeRulesPage    = lazyPage(() => import('./pages/billing/BillingChargeRulesPage'), 'BillingChargeRulesPage');
 const BillingDashboardPage      = lazyPage(() => import('./pages/billing/BillingDashboardPage'), 'BillingDashboardPage');
 const FormsPage                 = lazyPage(() => import('./pages/forms/FormsPage'), 'FormsPage');
 const FinancialOverviewPage     = lazyPage(() => import('./pages/finance/FinancialOverviewPage'), 'FinancialOverviewPage');
@@ -266,6 +268,8 @@ export const router = createBrowserRouter([
       { path: 'billing/plans/:clientId', element: <BillingPlanDetailPage /> },
       { path: 'billing/templates', element: <BillingPlanTemplatesPage /> },
       { path: 'billing/invoices', element: <BillingInvoicesPage /> },
+      { path: 'billing/invoices/on-demand', element: <BillingOnDemandInvoicePage /> },
+      { path: 'billing/charge-rules', element: <BillingChargeRulesPage /> },
       { path: 'billing/invoices/:id', element: <BillingInvoiceDetailPage /> },
       { path: 'users', element: <Navigate to="/users/warehouse_users" replace /> },
       { path: 'users/warehouse_users', element: <WarehouseUsersPage /> },

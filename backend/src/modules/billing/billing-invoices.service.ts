@@ -14,6 +14,7 @@ import { PrismaService } from '../../common/prisma/prisma.service';
 import { RealtimeService } from '../realtime/realtime.service';
 import { BillingAuditService, BILLING_AUDIT_ACTIONS } from './billing-audit.service';
 import { BillingInvoiceCalculationService } from './billing-invoice-calculation.service';
+import { BillingOnDemandService } from './on-demand/billing-on-demand.service';
 import { CreateInvoiceLineDto } from './dto/create-invoice-line.dto';
 import {
   CreateAdHocInvoiceDto,
@@ -82,6 +83,7 @@ export class BillingInvoicesService {
     private readonly billingAudit: BillingAuditService,
     private readonly invoiceCalc: BillingInvoiceCalculationService,
     private readonly realtime: RealtimeService,
+    private readonly onDemand: BillingOnDemandService,
   ) {}
 
   private emitInvoice(
@@ -130,6 +132,9 @@ export class BillingInvoicesService {
       data,
       select: INVOICE_SELECT,
     });
+    if (status === 'cancelled') {
+      await this.onDemand.onInvoiceCancelled(user, id);
+    }
 
     const action =
       status === 'paid'

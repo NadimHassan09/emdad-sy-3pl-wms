@@ -1,3 +1,4 @@
+import { splitOrderSearchTerms } from './oms-search-terms.util';
 import { Prisma } from '@prisma/client';
 
 import type { ListOmsOrdersQueryDto } from './dto/list-oms-orders-query.dto';
@@ -54,31 +55,35 @@ export function appendOmsOrderFieldFilters(
     andParts.push(rangeCondition);
   }
 
-  if (query.orderSearch?.trim()) {
-    const t = query.orderSearch.trim();
-    const orParts: Prisma.OmsOrderWhereInput[] = [
-      { orderNumber: { contains: t, mode: 'insensitive' } },
-      { trackingNumber: { contains: t, mode: 'insensitive' } },
-      { recipientName: { contains: t, mode: 'insensitive' } },
-      { recipientPhone: { contains: t, mode: 'insensitive' } },
-      { carrier: { contains: t, mode: 'insensitive' } },
-      { externalReference: { contains: t, mode: 'insensitive' } },
-      { clientReference: { contains: t, mode: 'insensitive' } },
-      {
-        outboundOrder: {
-          carrierShipments: {
-            some: {
-              OR: [
-                { externalAwb: { contains: t, mode: 'insensitive' } },
-                { trackingNumber: { contains: t, mode: 'insensitive' } },
-              ],
+  const searchTerms = splitOrderSearchTerms(query.orderSearch);
+  if (searchTerms.length > 0) {
+    const termMatches: Prisma.OmsOrderWhereInput[] = [];
+    for (const t of searchTerms) {
+      const orParts: Prisma.OmsOrderWhereInput[] = [
+        { orderNumber: { contains: t, mode: 'insensitive' } },
+        { trackingNumber: { contains: t, mode: 'insensitive' } },
+        { recipientName: { contains: t, mode: 'insensitive' } },
+        { recipientPhone: { contains: t, mode: 'insensitive' } },
+        { carrier: { contains: t, mode: 'insensitive' } },
+        { externalReference: { contains: t, mode: 'insensitive' } },
+        { clientReference: { contains: t, mode: 'insensitive' } },
+        {
+          outboundOrder: {
+            carrierShipments: {
+              some: {
+                OR: [
+                  { externalAwb: { contains: t, mode: 'insensitive' } },
+                  { trackingNumber: { contains: t, mode: 'insensitive' } },
+                ],
+              },
             },
           },
         },
-      },
-    ];
-    if (FULL_UUID.test(t)) orParts.push({ id: t });
-    andParts.push({ OR: orParts });
+      ];
+      if (FULL_UUID.test(t)) orParts.push({ id: t });
+      termMatches.push(...orParts);
+    }
+    andParts.push({ OR: termMatches });
   }
 
   if (query.orderId?.trim()) {

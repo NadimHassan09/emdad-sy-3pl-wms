@@ -96,6 +96,16 @@ Evidence per carrier (read from the carrier, 3 Nov):
 Implementation (commit c173d0c0): `carrier-currency.ts` records each carrier's unit with its evidence (Babel = new). The platform rate unit is read from the rate's size (about 13,000 old, 130 new; ambiguous values are not rescaled). Quote comparison and "best price" convert each carrier's SYP in that carrier's unit (Babel 300 SYP is about 2.31 USD, not 0.023). COD collected in SYP is computed in the carrier's unit (20 USD to Babel = 2,600 new SYP; to Sena also 2,600 under the owner decision; the earlier Sena sandbox COD of 260,008 SYP was in the old scale). Price comparison in the admin UI now uses the admin-managed USD/SYP rate (it used a fixed 14,500 fallback before), and the batch shipping analysis converts per carrier before summing.
 - Still open: stored `codFxRate` on the order is the platform rate (not the carrier-unit rate); the Babel SYP COD minimum (1,000 SYP) is documented but not applied; comparison still falls back to 14,500 when no managed rate is usable.
 
+### 1.13 Billing and finance redesign (3 Nov 2026)
+
+Owner direction and the built design are in `CLIENT_CHANGE_REQUESTS.md`. Key decisions taken while building (open to the owner):
+- An order is charged once: fulfillment when it is completed (inbound), dispatched (outbound, OMS); cancelled or not yet dispatched orders are listed with their status but not charged.
+- The EMDAD shipping fee already debited from the balance at dispatch is shown on the invoice as "already deducted" and not charged twice.
+- Deduction from the COD balance is a separate, explicit action on an issued invoice; it takes only what the available balance covers.
+- Planning dates are limited to 2 years ahead (typo guard).
+- Open question: unit of SYP amounts typed by clients on their own orders (old or new pound). Today the platform rate (about 13,000, old scale) converts them, which matches the existing staging data; a new-pound order amount would be 100x too small in USD.
+- The database migration `20261229120000_billing_on_demand_and_cod_account_amount` is additive (new tables and columns, new enum values). Applying it to the staging database was blocked by the permission system and needs the owner's go-ahead; the new backend must not be restarted before it is applied.
+
 ### 1.7 Test-suite baseline (incomplete)
 
 - Backend Jest run aborted with out-of-memory after 23 of 144 suites; of those, 14 passed and 9 failed (stale specs or drifted code, e.g. CSV template spec expecting `external_reference`). Full baseline still to be produced in batches.

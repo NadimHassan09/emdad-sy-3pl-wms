@@ -22,9 +22,12 @@ import { BillingPlansService } from './billing-plans.service';
 import { BillingUsageProcessorService } from './billing-usage-processor.service';
 import { BillingUsageService } from './billing-usage.service';
 import { OrderManualChargesService } from './order-manual-charges.service';
+import { BillingOnDemandService } from './on-demand/billing-on-demand.service';
+import { FinancialModule } from '../financial/financial.module';
+import { CompanyAccessModule } from '../../common/company-access/company-access.module';
 
 @Module({
-  imports: [AuditModule, RealtimeModule, PdfModule],
+  imports: [AuditModule, RealtimeModule, PdfModule, FinancialModule, CompanyAccessModule],
   controllers: [BillingController],
   providers: [
     BillingAuditService,
@@ -43,6 +46,7 @@ import { OrderManualChargesService } from './order-manual-charges.service';
     BillingNotificationsService,
     BillingExpiryReminderService,
     OrderManualChargesService,
+    BillingOnDemandService,
   ],
   exports: [
     BillingAccessService,
@@ -53,6 +57,7 @@ import { OrderManualChargesService } from './order-manual-charges.service';
     BillingInvoicesService,
     BillingUsageService,
     OrderManualChargesService,
+    BillingOnDemandService,
   ],
 })
 export class BillingModule {}

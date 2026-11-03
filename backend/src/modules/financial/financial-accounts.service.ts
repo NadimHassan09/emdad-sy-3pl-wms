@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
+import { readManagedUsdToSypRate, toAccountAmount } from './account-currency';
 import { PrismaService } from '../../common/prisma/prisma.service';
 
 @Injectable()
@@ -126,6 +127,84 @@ export class FinancialAccountsService {
       limit,
       totalPages: Math.ceil(total / limit),
     };
+  }
+
+  /**
+   * Audits every client account against its records and, when dryRun is false, corrects what is safe:
+   * - fills the USD amount of each COD record (SYP is converted with the managed rate);
+   * - sets pending balance to the sum of the USD amounts of records still pending.
+   * Current and available balances are only reported (compared with the posted transactions), never changed here.
+   */
+  async reconcileAccounts(dryRun: boolean) {
+    const rate = await readManagedUsdToSypRate(this.prisma);
+    const accounts = await this.prisma.clientFinancialAccount.findMany({
+      include: { company: { select: { id: true, name: true } } },
+    });
+    const report: Array<Record<string, unknown>> = [];
+    for (const acc of accounts) {
+      const records = await this.prisma.codRecord.findMany({
+        where: { companyId: acc.companyId },
+        select: { id: true, originalAmount: true, currency: true, status: true, accountAmount: true },
+      });
+      let pendingUsd = new Prisma.Decimal(0);
+      let unconvertible = 0;
+      const backfill: Array<{ id: string; amount: Prisma.Decimal; fxRate: number | null; fxSource: string | null }> = [];
+      for (const r of records) {
+        let amount = r.accountAmount;
+        if (!amount) {
+          const conv = toAccountAmount(r.originalAmount, r.currency, rate);
+          if (!conv) {
+            unconvertible += 1;
+            continue;
+          }
+          amount = conv.amount;
+          backfill.push({ id: r.id, amount: conv.amount, fxRate: conv.fxRate, fxSource: conv.fxSource });
+        }
+        if (r.status === 'pending') pendingUsd = pendingUsd.add(amount);
+      }
+
+      const sums = await this.prisma.financialTransaction.groupBy({
+        by: ['type'],
+        where: { companyId: acc.companyId, status: 'posted' },
+        _sum: { amount: true },
+      });
+      const credits = sums.find((x) => x.type === 'credit')?._sum.amount ?? new Prisma.Decimal(0);
+      const debits = sums.find((x) => x.type === 'debit')?._sum.amount ?? new Prisma.Decimal(0);
+      const expectedCurrent = credits.sub(debits);
+      const pendingDiffers = !acc.pendingBalance.equals(pendingUsd);
+      const currentDiffers = !acc.currentBalance.equals(expectedCurrent);
+
+      if (pendingDiffers || backfill.length > 0 || currentDiffers || unconvertible > 0) {
+        report.push({
+          companyId: acc.companyId,
+          company: acc.company?.name,
+          pendingBefore: acc.pendingBalance.toFixed(4),
+          pendingAfter: pendingUsd.toFixed(4),
+          recordsToBackfill: backfill.length,
+          recordsWithoutRate: unconvertible,
+          currentBalance: acc.currentBalance.toFixed(4),
+          currentFromTransactions: expectedCurrent.toFixed(4),
+          currentNeedsReview: currentDiffers,
+        });
+      }
+      if (!dryRun && unconvertible === 0) {
+        await this.prisma.$transaction(async (tx) => {
+          for (const b of backfill) {
+            await tx.codRecord.update({
+              where: { id: b.id },
+              data: { accountAmount: b.amount, accountFxRate: b.fxRate, accountFxSource: b.fxSource },
+            });
+          }
+          if (pendingDiffers) {
+            await tx.clientFinancialAccount.update({
+              where: { companyId: acc.companyId },
+              data: { pendingBalance: pendingUsd, currency: 'USD' },
+            });
+          }
+        });
+      }
+    }
+    return { dryRun, rate: rate ? { rate: rate.rate, source: rate.source } : null, accounts: report };
   }
 
   async getFinancialOverview() {

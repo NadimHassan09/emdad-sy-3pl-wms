@@ -284,6 +284,10 @@ export interface LinkedOutboundSummary {
 }
 
 export interface OmsOrderListItem {
+  /** Quick summary of the order lines for the list. */
+  contents?: Array<{ sku: string | null; name: string | null; quantity: string | null }>;
+  /** Last event reported by the carrier (admin only). */
+  lastCarrierEvent?: { text: string | null; at: string | null; location: string | null } | null;
   id: string;
   orderNumber: string;
   status: OmsOrderStatus;

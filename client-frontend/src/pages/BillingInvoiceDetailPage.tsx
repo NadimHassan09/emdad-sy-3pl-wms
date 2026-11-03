@@ -19,7 +19,7 @@ import {
   lineTotalByType,
   parseRateSnapshot,
 } from '../lib/billing-display';
-import { fetchClientInvoice } from '../services/clientBillingService';
+import { fetchClientInvoice, fetchClientInvoiceBreakdown } from '../services/clientBillingService';
 
 const CURRENCY = 'USD';
 
@@ -106,6 +106,12 @@ export function BillingInvoiceDetailPage(): ReactElement {
   const { data, isLoading, error } = useQuery({
     queryKey: ['client', 'billing', 'invoices', id],
     queryFn: () => fetchClientInvoice(id),
+    enabled: !!id,
+  });
+
+  const breakdown = useQuery({
+    queryKey: ['client-invoice-breakdown', id],
+    queryFn: () => fetchClientInvoiceBreakdown(id),
     enabled: !!id,
   });
 
@@ -208,6 +214,70 @@ export function BillingInvoiceDetailPage(): ReactElement {
             )}
           </DetailSection>
 
+          {breakdown.data && breakdown.data.sections.some((sec) => sec.orderCount > 0) ? (
+            <DetailSection title={t('Orders on this invoice')}>
+              <div className="space-y-5">
+                {breakdown.data.sections
+                  .filter((sec) => sec.orderCount > 0)
+                  .map((sec) => (
+                    <div key={sec.kind} className="space-y-2">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <h4 className="text-sm font-semibold">
+                          {sec.kind === 'inbound' ? t('Inbound orders') : sec.kind === 'outbound' ? t('Outbound orders') : t('Online orders')} ({sec.orderCount})
+                        </h4>
+                        {Object.entries(sec.statusCounts).map(([status, n]) => (
+                          <span key={status} className="rounded-full bg-[var(--surface-raised)] px-2 py-0.5 text-xs text-[var(--text-muted)]">
+                            {status.replace(/_/g, ' ')}: {n}
+                          </span>
+                        ))}
+                      </div>
+                      <div className="overflow-x-auto">
+                        <table className="min-w-full text-sm">
+                          <thead>
+                            <tr className="border-b border-[var(--border-subtle)] text-left text-xs text-[var(--text-muted)]">
+                              <th className="px-2 py-2">{t('Order')}</th>
+                              <th className="px-2 py-2">{t('Status')}</th>
+                              {sec.billed ? <th className="px-2 py-2 text-right">{t('Fulfillment')}</th> : null}
+                              {sec.kind === 'oms' ? <th className="px-2 py-2 text-right">{t('Shipping fee')}</th> : null}
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {sec.orders.map((o) => (
+                              <tr key={`${sec.kind}-${o.orderNumber}`} className="border-b border-[var(--border-subtle)]/60">
+                                <td className="px-2 py-2 font-mono">{o.orderNumber}</td>
+                                <td className="px-2 py-2">{o.status.replace(/_/g, ' ')}</td>
+                                {sec.billed ? <td className="px-2 py-2 text-right">{o.charged && o.fulfillmentFee != null ? `$${o.fulfillmentFee}` : '—'}</td> : null}
+                                {sec.kind === 'oms' ? (
+                                  <td className="px-2 py-2 text-right">
+                                    {o.shippingFee == null ? '—' : `$${o.shippingFee}${o.shippingFeeAlreadySettled ? ` (${t('already deducted')})` : ''}`}
+                                  </td>
+                                ) : null}
+                              </tr>
+                            ))}
+                          </tbody>
+                          {sec.billed || sec.shippingTotal ? (
+                            <tfoot>
+                              <tr className="font-semibold">
+                                <td className="px-2 py-2" colSpan={2}>{t('Total')}</td>
+                                {sec.billed ? <td className="px-2 py-2 text-right">${sec.fulfillmentTotal}</td> : null}
+                                {sec.kind === 'oms' ? <td className="px-2 py-2 text-right">{sec.shippingTotal ? `$${sec.shippingTotal}` : '—'}</td> : null}
+                              </tr>
+                            </tfoot>
+                          ) : null}
+                        </table>
+                      </div>
+                    </div>
+                  ))}
+                {breakdown.data.statement ? (
+                  <p className="rounded-lg bg-[var(--surface-raised)] p-3 text-sm">
+                    {t('Balance before')} ${breakdown.data.statement.balanceBefore} · {t('deducted')} ${breakdown.data.statement.deducted} · {t('balance after')} ${breakdown.data.statement.balanceAfter}
+                    {Number(breakdown.data.statement.remainingDue) > 0 ? ` · ${t('still due')} $${breakdown.data.statement.remainingDue}` : ` · ${t('fully settled')}`}
+                  </p>
+                ) : null}
+              </div>
+            </DetailSection>
+          ) : null}
+
           <DetailSection title={t('Line items & charges')}>
             <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-raised)]/50 px-4 py-1">
               <ChargeRow label={t('Fixed subscription')} amount={lineTotalByType(lines, 'subscription')} />
@@ -217,7 +287,12 @@ export function BillingInvoiceDetailPage(): ReactElement {
                     l.lineSource === 'manual' ||
                     l.lineSource === 'order' ||
                     l.type === 'manual' ||
-                    l.type === 'order_charge',
+                    l.type === 'order_charge' ||
+                    l.type === 'fulfillment_inbound' ||
+                    l.type === 'fulfillment_outbound' ||
+                    l.type === 'fulfillment_oms' ||
+                    l.type === 'emdad_shipping' ||
+                    l.type === 'storage_fee',
                 )
                 .map((line) => (
                   <ChargeRow

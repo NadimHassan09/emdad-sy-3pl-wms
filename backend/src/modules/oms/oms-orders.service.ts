@@ -181,6 +181,19 @@ const ORDER_INCLUDE = {
           providerCode: true,
           rawResultMeta: true,
           supersededAt: true,
+          // Last thing the carrier reported, shown as a quick column in the orders list.
+          events: {
+            where: { isCarrierEvent: true },
+            orderBy: [{ eventTimestamp: 'desc' as const }, { createdAt: 'desc' as const }],
+            take: 1,
+            select: {
+              eventDescription: true,
+              originalCarrierStatus: true,
+              normalizedStatus: true,
+              eventTimestamp: true,
+              locationText: true,
+            },
+          },
         },
         orderBy: { createdAt: 'desc' },
         take: 1,

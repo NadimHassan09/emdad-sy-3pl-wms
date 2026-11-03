@@ -11,6 +11,7 @@ import {
   FinancialTransactionType,
   Prisma,
 } from '@prisma/client';
+import { readManagedUsdToSypRate, toAccountAmount } from './account-currency';
 import { randomBytes } from 'crypto';
 
 import { AuthPrincipal } from '../../common/auth/current-user.types';
@@ -274,13 +275,20 @@ export class FinancialTransactionsService {
     }
 
     const idempotencyKey = `shipping_fee_ord_${omsOrderId}`;
+    // The account is USD only: a fee priced in SYP is converted before it is debited.
+    const feeUsd = toAccountAmount(order.shippingFee, order.currency, await readManagedUsdToSypRate(this.prisma));
+    if (!feeUsd) {
+      throw new BadRequestException(
+        'No USD/SYP exchange rate is available, so the shipping fee in SYP cannot be debited from the client account.',
+      );
+    }
     return this.postTransaction(
       {
         companyId: order.companyId,
         type: FinancialTransactionType.debit,
         category: FinancialTransactionCategory.shipping_fee,
-        amount: order.shippingFee,
-        currency: order.currency ?? 'USD',
+        amount: feeUsd.amount,
+        currency: 'USD',
         description: `Shipping fee for order ${order.orderNumber}`,
         referenceType: 'oms_order',
         referenceId: omsOrderId,
@@ -289,6 +297,9 @@ export class FinancialTransactionsService {
         metadata: {
           omsOrderId,
           orderNumber: order.orderNumber,
+          originalAmount: order.shippingFee.toString(),
+          originalCurrency: order.currency ?? 'USD',
+          fxRate: feeUsd.fxRate,
         },
       },
       externalTx,
@@ -320,7 +331,13 @@ export class FinancialTransactionsService {
     if (!order) return null;
 
     const isIncrease = diff.gt(0);
-    const amount = diff.abs();
+    const diffUsd = toAccountAmount(diff.abs(), order.currency, await readManagedUsdToSypRate(this.prisma));
+    if (!diffUsd) {
+      throw new BadRequestException(
+        'No USD/SYP exchange rate is available, so the shipping fee change in SYP cannot be posted to the client account.',
+      );
+    }
+    const amount = diffUsd.amount;
 
     return this.postTransaction(
       {
@@ -328,7 +345,7 @@ export class FinancialTransactionsService {
         type: isIncrease ? FinancialTransactionType.debit : FinancialTransactionType.credit,
         category: FinancialTransactionCategory.shipping_fee,
         amount,
-        currency: order.currency ?? 'USD',
+        currency: 'USD',
         description: `Shipping fee adjustment for order ${order.orderNumber}: ${reason ?? (isIncrease ? 'Fee increased' : 'Fee reduced')}`,
         referenceType: 'oms_order',
         referenceId: omsOrderId,

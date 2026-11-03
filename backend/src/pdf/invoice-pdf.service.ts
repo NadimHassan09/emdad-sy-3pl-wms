@@ -17,6 +17,11 @@ const LINE_TYPE_LABELS: Record<string, string> = {
   excess_weight: 'Excess weight',
   manual: 'Manual charge',
   order_charge: 'Order charge (VAS)',
+  fulfillment_inbound: 'Inbound order fulfillment',
+  fulfillment_outbound: 'Outbound order fulfillment',
+  fulfillment_oms: 'Online order fulfillment',
+  emdad_shipping: 'Shipping fees',
+  storage_fee: 'Storage',
 };
 
 @Injectable()

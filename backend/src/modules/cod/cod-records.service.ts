@@ -3,6 +3,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { readManagedUsdToSypRate, toAccountAmount } from '../financial/account-currency';
 import { ConfigService } from '@nestjs/config';
 import {
   CodGenerationStatus,
@@ -356,6 +357,14 @@ export class CodRecordsService {
       throw new BadRequestException('COD amount is zero; cannot generate COD record.');
     }
 
+    // The finance account is USD only: convert the COD to USD before it counts as pending.
+    const accountAmount = toAccountAmount(amount, order.currency, await readManagedUsdToSypRate(this.prisma));
+    if (!accountAmount) {
+      throw new BadRequestException(
+        'No USD/SYP exchange rate is available, so this SYP COD cannot be added to the client account. Set the rate on Shipping Companies first.',
+      );
+    }
+
     try {
       const created = await withTenantRls(this.prisma, user, async (tx) => {
         const row = await tx.codRecord.create({
@@ -366,6 +375,9 @@ export class CodRecordsService {
             currency: order.currency ?? 'USD',
             status: CodRecordStatus.pending,
             createdBy: user.id,
+            accountAmount: accountAmount.amount,
+            accountFxRate: accountAmount.fxRate,
+            accountFxSource: accountAmount.fxSource,
           },
           include: INCLUDE,
         });
@@ -373,11 +385,11 @@ export class CodRecordsService {
           where: { companyId: order.companyId },
           create: {
             companyId: order.companyId,
-            pendingBalance: amount,
-            currency: order.currency ?? 'USD',
+            pendingBalance: accountAmount.amount,
+            currency: 'USD',
           },
           update: {
-            pendingBalance: { increment: amount },
+            pendingBalance: { increment: accountAmount.amount },
           },
         });
         await tx.omsOrder.update({
@@ -464,7 +476,11 @@ export class CodRecordsService {
         await tx.clientFinancialAccount.updateMany({
           where: { companyId: existing.companyId },
           data: {
-            pendingBalance: { decrement: existing.originalAmount },
+            pendingBalance: {
+              decrement:
+                existing.accountAmount ??
+                (existing.currency === 'SYP' ? new Prisma.Decimal(0) : existing.originalAmount),
+            },
           },
         });
       }

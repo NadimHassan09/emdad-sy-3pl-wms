@@ -1,7 +1,9 @@
+import { createHmac, timingSafeEqual } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 
 import {
   Controller,
+  ForbiddenException,
   Get,
   NotFoundException,
   Param,
@@ -13,7 +15,9 @@ import {
 } from '@nestjs/common';
 import type { Response } from 'express';
 
+import { ConfigService } from '@nestjs/config';
 import { CurrentUser } from '../common/auth/current-user.decorator';
+import { Public } from '../common/auth/public.decorator';
 import { AuthPrincipal } from '../common/auth/current-user.types';
 import { CompanyAccessService } from '../common/company-access/company-access.service';
 import { ParseUuidLoosePipe } from '../common/pipes/parse-uuid-loose.pipe';
@@ -38,6 +42,7 @@ export class DocumentsController {
     private readonly slotOverrides: DocumentSlotOverridesService,
     private readonly prisma: PrismaService,
     private readonly companyAccess: CompanyAccessService,
+    private readonly config: ConfigService,
   ) {}
 
   /** Paginated GRN / Delivery Note catalog (tenant scoped). */
@@ -72,6 +77,72 @@ export class DocumentsController {
   ) {
     await this.assertTaskTenant(user, taskId);
     return this.slotOverrides.upsert(taskId, dto);
+  }
+
+  /** Name shown when the PDF is saved: "GRN-2026-00025 - Client name.pdf" (never an internal id). */
+  private async downloadName(doc: {
+    companyId: string;
+    documentNumber: string;
+    language: string;
+    fileName: string;
+  }): Promise<string> {
+    const company = await this.prisma.company.findUnique({
+      where: { id: doc.companyId },
+      select: { name: true, tradeName: true },
+    });
+    const client = (company?.tradeName || company?.name || '').trim();
+    const raw = `${doc.documentNumber}${client ? ` - ${client}` : ''}${doc.language === 'ar' ? ' (AR)' : ''}`;
+    const safe = raw.replace(/[\\/:*?"<>|\r\n]+/g, ' ').replace(/\s+/g, ' ').trim();
+    return `${safe || doc.fileName.replace(/\.pdf$/i, '')}.pdf`;
+  }
+
+  private signLink(id: string, exp: number): string {
+    const secret = this.config.get<string>('JWT_SECRET') ?? 'dev-only-change-in-production';
+    return createHmac('sha256', secret).update(`${id}.${exp}`).digest('hex');
+  }
+
+  /**
+   * Short-lived link (5 minutes) whose last path segment is the real file name, so the browser's
+   * PDF viewer saves it as "GRN-2026-00025 - Client name.pdf" instead of a blob id.
+   */
+  @Post(':id/link')
+  async link(@CurrentUser() user: AuthPrincipal, @Param('id', ParseUuidLoosePipe) id: string) {
+    const doc = await this.documents.getForDownload(user, id);
+    const name = await this.downloadName(doc);
+    const exp = Date.now() + 5 * 60_000;
+    return {
+      url: `/api/documents/public/${id}/${encodeURIComponent(name)}?exp=${exp}&sig=${this.signLink(id, exp)}`,
+      fileName: name,
+    };
+  }
+
+  @Public()
+  @Get('public/:id/:filename')
+  async publicFile(
+    @Param('id', ParseUuidLoosePipe) id: string,
+    @Query('exp') exp: string,
+    @Query('sig') sig: string,
+    @Res() res: Response,
+  ): Promise<void> {
+    const expNum = Number(exp);
+    const expected = this.signLink(id, expNum);
+    const ok =
+      Number.isFinite(expNum) &&
+      expNum > Date.now() &&
+      typeof sig === 'string' &&
+      sig.length === expected.length &&
+      timingSafeEqual(Buffer.from(sig), Buffer.from(expected));
+    if (!ok) throw new ForbiddenException('This link has expired. Open the document again.');
+    const doc = await this.prisma.document.findUnique({ where: { id } });
+    if (!doc) throw new NotFoundException('Document not found.');
+    const buffer = await readFile(doc.filePath).catch(() => null);
+    if (!buffer) throw new NotFoundException('Document file is no longer available on disk.');
+    const name = await this.downloadName(doc);
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(name)}"; filename*=UTF-8''${encodeURIComponent(name)}`);
+    res.setHeader('Content-Length', buffer.byteLength.toString());
+    res.setHeader('Cache-Control', 'private, no-store');
+    res.end(buffer);
   }
 
   /** Stream a stored PDF (immutable) inline. */

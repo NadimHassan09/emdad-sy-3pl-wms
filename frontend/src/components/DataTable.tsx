@@ -1,6 +1,6 @@
 import { EmptyState, Skeleton, TableCardHeader } from '@ds';
 import type { ReactNode } from 'react';
-import { useEffect, useMemo, useState } from 'react';
+import { Fragment, useEffect, useMemo, useState } from 'react';
 
 export interface Column<T> {
   header: ReactNode;
@@ -22,6 +22,8 @@ interface DataTableProps<T> {
   loading?: boolean;
   onRowClick?: (row: T) => void;
   getRowClassName?: (row: T) => string | undefined;
+  /** When set, a header row is shown each time the group changes. Pass rows already ordered by group. */
+  groupBy?: (row: T) => string;
   /** When set, rows are treated as the current server page (no client slice). */
   serverPagination?: {
     total: number;
@@ -53,6 +55,7 @@ export function DataTable<T>({
   loading,
   onRowClick,
   getRowClassName,
+  groupBy,
   serverPagination,
   labels,
 }: DataTableProps<T>) {
@@ -91,7 +94,7 @@ export function DataTable<T>({
                 <th
                   key={colIdx}
                   scope="col"
-                  className={`whitespace-nowrap bg-surface-card-muted px-4 py-2.5 text-xs font-semibold uppercase tracking-wide text-text-muted ${isRtl ? 'text-right' : 'text-left'} ${c.className ?? ''}`}
+                  className={`whitespace-nowrap bg-surface-card-muted px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-text-muted ${isRtl ? 'text-right' : 'text-left'} ${c.className ?? ''}`}
                   style={c.width ? { width: c.width } : undefined}
                 >
                   {c.header}
@@ -104,7 +107,7 @@ export function DataTable<T>({
               Array.from({ length: 6 }).map((_, rowIdx) => (
                 <tr key={`skeleton-${rowIdx}`} className="border-t border-border-subtle">
                   {columns.map((c, colIdx) => (
-                    <td key={colIdx} className={`px-4 py-3 align-middle ${c.className ?? ''}`}>
+                    <td key={colIdx} className={`px-3 py-3 align-middle ${c.className ?? ''}`}>
                       <Skeleton height={14} width={colIdx === 0 ? '70%' : '55%'} />
                     </td>
                   ))}
@@ -121,9 +124,20 @@ export function DataTable<T>({
                 </td>
               </tr>
             ) : (
-              pagedRows.map((row) => (
+              pagedRows.map((row, rowIdx) => {
+                const group = groupBy?.(row);
+                const showGroup = groupBy != null && (rowIdx === 0 || groupBy(pagedRows[rowIdx - 1]) !== group);
+                const groupCount = showGroup ? pagedRows.filter((r) => groupBy!(r) === group).length : 0;
+                return (
+                  <Fragment key={rowKey(row)}>
+                {showGroup ? (
+                  <tr className="bg-surface-sunken">
+                    <td colSpan={columns.length} className="px-3 py-1.5 text-xs font-semibold text-text-strong">
+                      {group || '—'} <span className="font-normal text-text-muted">({groupCount})</span>
+                    </td>
+                  </tr>
+                ) : null}
                 <tr
-                  key={rowKey(row)}
                   onClick={onRowClick ? () => onRowClick(row) : undefined}
                   className={[
                     onRowClick
@@ -135,12 +149,14 @@ export function DataTable<T>({
                     .join(' ')}
                 >
                   {columns.map((c, colIdx) => (
-                    <td key={colIdx} className={`px-4 py-3 align-middle text-sm text-text-body ${c.className ?? ''}`}>
+                    <td key={colIdx} className={`px-3 py-3 align-middle text-sm text-text-body ${c.className ?? ''}`}>
                       {c.accessor(row)}
                     </td>
                   ))}
                 </tr>
-              ))
+                  </Fragment>
+                );
+              })
             )}
           </tbody>
         </table>

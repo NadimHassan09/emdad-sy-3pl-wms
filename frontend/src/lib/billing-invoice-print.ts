@@ -24,6 +24,11 @@ const LINE_TYPE_LABELS: Record<BillingInvoiceLineType, string> = {
   excess_weight: 'Weight charges',
   manual: 'Manual charges',
   order_charge: 'Order charges (VAS)',
+  fulfillment_inbound: 'Inbound order fulfillment',
+  fulfillment_outbound: 'Outbound order fulfillment',
+  fulfillment_oms: 'Online order fulfillment',
+  emdad_shipping: 'Shipping fees',
+  storage_fee: 'Storage',
 };
 
 export type BillingInvoicePrintInput = {

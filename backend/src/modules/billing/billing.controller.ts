@@ -6,6 +6,7 @@ import {
   Param,
   Patch,
   Post,
+  Put,
   Query,
   Res,
   UseGuards,
@@ -23,6 +24,8 @@ import { BillingInvoicesService } from './billing-invoices.service';
 import { BillingPlansService } from './billing-plans.service';
 import { BillingPreviewService } from './billing-preview.service';
 import { OrderManualChargesService } from './order-manual-charges.service';
+import { BillingOnDemandService } from './on-demand/billing-on-demand.service';
+import { OnDemandInvoiceDto, SaveChargeRulesDto } from './dto/on-demand-invoice.dto';
 import { UpdateInvoiceStatusDto } from './dto/update-invoice-status.dto';
 import { CreateBillingPlanDto } from './dto/create-billing-plan.dto';
 import { CreateInvoiceLineDto } from './dto/create-invoice-line.dto';
@@ -49,6 +52,7 @@ export class BillingController {
     private readonly preview: BillingPreviewService,
     private readonly orderCharges: OrderManualChargesService,
     private readonly invoicePdf: InvoicePdfService,
+    private readonly onDemand: BillingOnDemandService,
   ) {}
 
   @Get('capacity')
@@ -141,6 +145,45 @@ export class BillingController {
     @Body() dto: CreateAdHocInvoiceDto,
   ) {
     return this.invoices.createAdHoc(user, dto);
+  }
+
+  @Get('charge-rules/:companyId')
+  @UseGuards(InternalAdminGuard)
+  getChargeRules(@CurrentUser() user: AuthPrincipal, @Param('companyId', ParseUuidLoosePipe) companyId: string) {
+    return this.onDemand.getRules(user, companyId);
+  }
+
+  @Put('charge-rules/:companyId')
+  @UseGuards(InternalAdminGuard)
+  saveChargeRules(
+    @CurrentUser() user: AuthPrincipal,
+    @Param('companyId', ParseUuidLoosePipe) companyId: string,
+    @Body() dto: SaveChargeRulesDto,
+  ) {
+    return this.onDemand.saveRules(user, companyId, dto.rules);
+  }
+
+  @Post('invoices/on-demand/preview')
+  @UseGuards(InternalAdminGuard)
+  previewOnDemand(@CurrentUser() user: AuthPrincipal, @Body() dto: OnDemandInvoiceDto) {
+    return this.onDemand.preview(user, dto);
+  }
+
+  @Post('invoices/on-demand')
+  @UseGuards(InternalAdminGuard)
+  createOnDemand(@CurrentUser() user: AuthPrincipal, @Body() dto: OnDemandInvoiceDto) {
+    return this.onDemand.createOnDemand(user, dto);
+  }
+
+  @Post('invoices/:id/settle')
+  @UseGuards(InternalAdminGuard)
+  settleInvoice(@CurrentUser() user: AuthPrincipal, @Param('id', ParseUuidLoosePipe) id: string) {
+    return this.onDemand.settleFromBalance(user, id);
+  }
+
+  @Get('invoices/:id/breakdown')
+  invoiceBreakdown(@CurrentUser() user: AuthPrincipal, @Param('id', ParseUuidLoosePipe) id: string) {
+    return this.onDemand.breakdown(user, id, 'admin');
   }
 
   @Get('dashboard/summary')

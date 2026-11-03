@@ -6,6 +6,7 @@ import { BillingApi, type BillingInvoiceRow } from '../../api/billing';
 import { CompaniesApi } from '../../api/companies';
 import { AdminListPageShell } from '../../components/AdminListPageShell';
 import { AnchoredDropdown } from '../../components/AnchoredDropdown';
+import { Button } from '../../components/Button';
 import { Combobox } from '../../components/Combobox';
 import { DataTable, type Column } from '../../components/DataTable';
 import { FilterPanel } from '../../components/FilterPanel';
@@ -235,6 +236,18 @@ export function BillingInvoicesPage() {
       icon="fa-file-invoice"
       title="Invoices"
       subtitle="Client billing invoices across all sources."
+      actions={
+        canMutate ? (
+          <div className="flex flex-wrap gap-2">
+            <Button type="button" variant="secondary" onClick={() => navigate('/billing/charge-rules')}>
+              Charge rules
+            </Button>
+            <Button type="button" onClick={() => navigate('/billing/invoices/on-demand')}>
+              New on-demand invoice
+            </Button>
+          </div>
+        ) : undefined
+      }
     >
       <FilterPanel
         title="Invoice filters"

@@ -575,7 +575,32 @@ export function OmsOrderDetailPage() {
         <div className="space-y-5 lg:col-span-2">
           <Card padding="none">
             <Card.Header>
-              <Card.Title>Recipient & shipping</Card.Title>
+              <div className="flex w-full items-center justify-between gap-2">
+                <Card.Title>Recipient & shipping</Card.Title>
+                <button
+                  type="button"
+                  className="rounded-lg border border-border bg-surface-card px-2.5 py-1 text-xs font-medium text-text-strong hover:bg-surface-sunken"
+                  onClick={() => {
+                    // One quick block: order, recipient, address, carrier and tracking number.
+                    const text = [
+                      `Order: ${order.orderNumber}`,
+                      `Recipient: ${order.recipientName ?? '—'}`,
+                      `Phone: ${order.recipientPhone ?? '—'}`,
+                      `Address: ${[order.city, order.district, order.addressLine1, order.addressLine2 || order.destinationAddress]
+                        .filter(Boolean)
+                        .join(', ') || '—'}`,
+                      `Carrier: ${order.shippingCarrierName || order.carrier || '—'}`,
+                      `Tracking: ${order.awbPending ? 'Carrier AWB pending' : order.trackingNumber ?? '—'}`,
+                    ].join('\n');
+                    void navigator.clipboard
+                      .writeText(text)
+                      .then(() => toast.success('Shipment info copied.'))
+                      .catch(() => toast.error('Could not copy. Allow clipboard access and try again.'));
+                  }}
+                >
+                  Copy shipment info
+                </button>
+              </div>
             </Card.Header>
             <Card.Body className="px-4 py-4 sm:px-5">
               <div className="grid grid-cols-1 gap-x-6 gap-y-3 sm:grid-cols-2">

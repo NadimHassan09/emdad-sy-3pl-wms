@@ -183,7 +183,12 @@ export type BillingInvoiceLineType =
   | 'excess_volume'
   | 'excess_weight'
   | 'manual'
-  | 'order_charge';
+  | 'order_charge'
+  | 'fulfillment_inbound'
+  | 'fulfillment_outbound'
+  | 'fulfillment_oms'
+  | 'emdad_shipping'
+  | 'storage_fee';
 
 export type BillingInvoiceLineRow = {
   id: string;
@@ -387,7 +392,129 @@ export type BillingExpiringCycleRow = {
   company: { id: string; name: string };
 };
 
+export type BillingChargeKind = 'inbound_order' | 'outbound_order' | 'oms_order' | 'storage' | 'shipping_fee';
+
+export type BillingChargeRule = {
+  kind: BillingChargeKind;
+  enabled: boolean;
+  baseFee: number;
+  includedLines: number;
+  extraLineFee: number;
+  includedWeightKg: number;
+  extraKgFee: number;
+};
+
+export type OnDemandInclude = {
+  inbound: boolean;
+  outbound: boolean;
+  oms: boolean;
+  storage: boolean;
+  shipping: boolean;
+};
+
+export type OnDemandInvoiceInput = {
+  companyId: string;
+  from: string;
+  to: string;
+  include: OnDemandInclude;
+};
+
+export type OnDemandPreviewItem = {
+  orderKind: 'inbound' | 'outbound' | 'oms';
+  orderId: string;
+  orderNumber: string;
+  orderStatus: string;
+  linesCount: number;
+  weightKg: string;
+  charged: boolean;
+  fulfillmentFee: string;
+  shippingFee: string;
+  shippingFeeAlreadySettled: boolean;
+  carrierCostUsd: string | null;
+};
+
+export type OnDemandPreview = {
+  company: { id: string; name: string };
+  period: { from: string; to: string; days: number };
+  items: OnDemandPreviewItem[];
+  statusCounts: Record<'inbound' | 'outbound' | 'oms', Record<string, number>>;
+  totals: {
+    inboundFulfillment: string;
+    outboundFulfillment: string;
+    omsFulfillment: string;
+    emdadShipping: string;
+    storage: string;
+    total: string;
+  };
+  warnings: string[];
+};
+
+export type InvoiceBreakdownSection = {
+  kind: 'inbound' | 'outbound' | 'oms';
+  orderCount: number;
+  statusCounts: Record<string, number>;
+  billed: boolean;
+  fulfillmentTotal: string | null;
+  shippingTotal: string | null;
+  orders: Array<{
+    orderNumber: string;
+    status: string;
+    linesCount: number;
+    weightKg: string;
+    charged: boolean;
+    fulfillmentFee: string | null;
+    shippingFee: string | null;
+    shippingFeeAlreadySettled: boolean;
+    carrierCostUsd?: string | null;
+    marginUsd?: string | null;
+  }>;
+};
+
+export type InvoiceBreakdown = {
+  invoiceId: string;
+  invoiceNumber: string;
+  status: string;
+  period: { from: string | null; to: string | null };
+  total: string;
+  sections: InvoiceBreakdownSection[];
+  statement: { balanceBefore: string; deducted: string; balanceAfter: string | null; remainingDue: string } | null;
+};
+
+export type SettleResult = {
+  invoiceId: string;
+  balanceBefore: string;
+  owed: string;
+  deducted: string;
+  balanceAfter: string;
+  remainingDue: string;
+  status: 'paid' | 'unpaid';
+};
+
 export const BillingApi = {
+  async getChargeRules(companyId: string): Promise<BillingChargeRule[]> {
+    const { data } = await api.get<BillingChargeRule[]>(`/billing/charge-rules/${companyId}`);
+    return data;
+  },
+  async saveChargeRules(companyId: string, rules: BillingChargeRule[]): Promise<BillingChargeRule[]> {
+    const { data } = await api.put<BillingChargeRule[]>(`/billing/charge-rules/${companyId}`, { rules });
+    return data;
+  },
+  async previewOnDemand(input: OnDemandInvoiceInput): Promise<OnDemandPreview> {
+    const { data } = await api.post<OnDemandPreview>('/billing/invoices/on-demand/preview', input);
+    return data;
+  },
+  async createOnDemand(input: OnDemandInvoiceInput): Promise<{ invoice: { id: string } }> {
+    const { data } = await api.post<{ invoice: { id: string } }>('/billing/invoices/on-demand', input);
+    return data;
+  },
+  async getInvoiceBreakdown(id: string): Promise<InvoiceBreakdown> {
+    const { data } = await api.get<InvoiceBreakdown>(`/billing/invoices/${id}/breakdown`);
+    return data;
+  },
+  async settleInvoice(id: string): Promise<SettleResult> {
+    const { data } = await api.post<SettleResult>(`/billing/invoices/${id}/settle`, {});
+    return data;
+  },
   async listPlansPage(
     params: ListBillingPlansParams = {},
   ): Promise<PageResult<BillingPlanOverviewItem>> {
