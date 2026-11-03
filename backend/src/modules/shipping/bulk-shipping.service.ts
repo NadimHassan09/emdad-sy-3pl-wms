@@ -1,3 +1,4 @@
+import { carrierConstraintViolation } from './carrier-constraints';
 import {
   BadRequestException,
   Injectable,
@@ -989,6 +990,8 @@ export class BulkShippingService {
       });
 
       if (!Number.isFinite(result.price)) return null;
+      // A documented courier limit (e.g. weight) means this option would fail on send.
+      if (carrierConstraintViolation({ serviceName: result.serviceName, weightKg })) return null;
 
       const provider = await this.prisma.shippingProvider.findUnique({
         where: { code: providerCode },

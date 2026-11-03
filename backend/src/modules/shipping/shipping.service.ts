@@ -1,3 +1,4 @@
+import { carrierConstraintViolation } from './carrier-constraints';
 import {
   BadRequestException,
   Injectable,
@@ -639,12 +640,24 @@ export class ShippingService implements OnModuleInit {
           for (const res of rawResults) {
             if (res.shippable === false) continue;
             const quotedDeliveryType = res.effectiveDeliveryType ?? dto.deliveryType;
+            const constraintReason = carrierConstraintViolation({
+              serviceName: res.serviceName,
+              carrierName: res.providerName ?? row.name,
+              weightKg: dto.weightKg,
+              maxPartWeightKg: dto.parts?.length
+                ? Math.max(...dto.parts.map((p) => Number(p.weight) || 0))
+                : null,
+              codAmount: dto.codAmount,
+              codCurrency: dto.currency,
+              collectionMode: dto.collectionMode ?? 'explicit',
+            });
             quotes.push({
               carrierId: row.code,
               carrierName: row.name,
               serviceId: res.serviceId ?? `${row.code}:${quotedDeliveryType}`,
               serviceName: res.serviceName ?? deliveryTypeLabel(quotedDeliveryType),
-              available: true,
+              available: constraintReason == null,
+              ...(constraintReason ? { unavailableReason: constraintReason } : {}),
               price: res.price,
               currency: res.currency || 'USD',
               prices:

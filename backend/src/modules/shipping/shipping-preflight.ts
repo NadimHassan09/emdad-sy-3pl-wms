@@ -1,3 +1,4 @@
+import { carrierConstraintViolation } from './carrier-constraints';
 import { mapCreateShipmentPayload } from './providers/babel-express/babel-shipment.mapper';
 import type { ShippingCreateShipmentInput } from './shipping-provider.interface';
 import { BABEL_EXPRESS_CODE, SENA_EXPRESS_CODE, SILA_SY_CODE } from './shipping.constants';
@@ -72,6 +73,14 @@ function stop(raw: string, input: PreflightInput): PreflightStop {
 
 export function preflightCarrierShipment(input: PreflightInput): PreflightResult {
   const code = input.providerCode.trim().toUpperCase();
+  const constraint = carrierConstraintViolation({
+    serviceName: input.serviceName,
+    weightKg: input.weightKg,
+    codAmount: input.codAmount,
+    codCurrency: input.codCurrency,
+    collectionMode: 'explicit',
+  });
+  if (constraint) return stop(constraint, input);
   if (code === BABEL_EXPRESS_CODE) return preflightBabel(input);
   if (code === SILA_SY_CODE) return preflightSila(input);
   if (code === SENA_EXPRESS_CODE) return preflightSena(input);
