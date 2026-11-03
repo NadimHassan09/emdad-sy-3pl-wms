@@ -62,6 +62,12 @@ All: target delivery 72 h, up to 3 attempts, proof-of-delivery photo. A courier 
 
 *Not yet visible:* Sila merchant portal (not logged in on this browser); per-courier minimum COD values; per-zone coverage.
 
+### 1.9 Couriers are offered only if their documented limits are met (3 Nov 2026)
+
+- Rule (module `carrier-constraints.ts`): a Sila courier whose published limit the shipment breaks is marked unavailable with a reason, dropped from bulk review, and refused at send-time preflight. Documented limits only; unknown limits are never guessed. Current rules: Karam max 10 kg per shipment; Mersal collects COD in USD only (applies when the COD currency is chosen explicitly).
+- Evidence (staging, read-only price quotes, nothing created at any carrier): 3 kg Aleppo → Sena, Fatih, Karam (hub), TARABUT, Mersal returned; 12 kg → Sila itself returns only Fatih (Karam, TARABUT, Mersal have no price tier), so the weight rule is a safety net behind the carrier's own tiers. COD 500,000 SYP explicit → Mersal returned as unavailable "Mersal collects COD in USD only"; in `all` mode (conversion allowed) it stays available.
+- Still open: COD minimums per courier (no published values yet; need Sena sandbox probe / carrier answer), Sena and Joud limits, TARABUT SYP COD (Sila lists SYP as a currency but only USD is verified).
+
 ### 1.7 Test-suite baseline (incomplete)
 
 - Backend Jest run aborted with out-of-memory after 23 of 144 suites; of those, 14 passed and 9 failed (stale specs or drifted code, e.g. CSV template spec expecting `external_reference`). Full baseline still to be produced in batches.
