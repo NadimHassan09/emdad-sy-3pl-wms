@@ -73,6 +73,16 @@ All: target delivery 72 h, up to 3 attempts, proof-of-delivery photo. A courier 
 - Sena's merchant store currency is **SYP** (portal). A create with USD COD was rejected: "Currency is not supported for this merchant account". Rule added: Sena is offered only when the collection currency is SYP; the shipping form now sends the COD collection currency with every rate request. With SYP the same shipment was accepted (COD 20 USD converted to 260,008 SYP) and moved through shipped, out for delivery and delivered by webhook.
 - Open business decisions raised by this run: (a) FX rate source for COD conversion (currently a free public currency API), (b) client shipping-fee groups exist only for Aleppo on staging, (c) Syrian pound unit: Babel portal announces the new pound replacing the old one; Babel quotes (400 SYP) look ~100x smaller than other carriers in USD terms (D-013). EMDAD must state which unit it stores and convert each carrier's unit explicitly before any SYP comparison or COD.
 
+### 1.11 Live Babel and Sila end-to-end (3 Nov 2026)
+
+Approved by the owner: one test order each, client Test company, recipient Nadim Hassan, notes "TEST ORDER", Aleppo, no COD, cancelled right after. Order OMS-2026-03721 was used for both (Babel first, then the carrier was changed to Sila on the same order), then cancelled.
+
+- **Babel** (AWB 260303960704): portal showed the right sender (Imdad warehouse, Aleppo), recipient, address, contents, 10 kg, total cost 300 SYP (equal to the EMDAD quote) and no COD. Dimensions arrived as 0x0x0 (D-020). Babel has no cancel API: EMDAD says so, offers "local cancel in EMDAD" and the shipment was deleted by hand in the Babel portal ("تم حذف الشحنة بنجاح", then 0 results for the AWB). EMDAD detects a deleted shipment as "not found, cancellation unconfirmed" and keeps the assignment until an admin confirms (D-021).
+- **Sila** (TARABUT, tracking 100549416970): created asynchronously (pending, then created in under 15 s). Portal showed the same recipient, phone, address, COD 0 and shipping 2.5 USD (equal to the quote). Cancel from EMDAD went through the API ("Sila cancellation confirmed") and the portal shows the order as cancelled (ملغي).
+- Change of carrier works: after the Babel unlink the same order was saved with Sila and sent.
+- Zero-priced quotes (Sena sandbox) no longer take the BEST PRICE badge (D-022).
+- The currency-unit risk (D-013) is still open: Babel 300 SYP now takes BEST PRICE against 2.50 USD for Sila.
+
 ### 1.7 Test-suite baseline (incomplete)
 
 - Backend Jest run aborted with out-of-memory after 23 of 144 suites; of those, 14 passed and 9 failed (stale specs or drifted code, e.g. CSV template spec expecting `external_reference`). Full baseline still to be produced in batches.

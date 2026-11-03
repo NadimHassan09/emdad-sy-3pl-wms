@@ -81,6 +81,19 @@ describe('shipping-compare assignment + filters', () => {
     expect(recommended[0].serviceId).toBe('babel-hub');
   });
 
+  it('never recommends a zero-priced quote and lists it last', () => {
+    const annotated = annotateQuotesForUi(
+      [
+        { serviceId: 'sandbox', price: 0, currency: 'SYP' },
+        { serviceId: 'tarabut', price: 2.5, currency: 'USD' },
+      ] as any[],
+      { usdToSypRate: 14500, source: 'test', timestamp: new Date().toISOString() },
+    );
+    expect(annotated.map((q) => q.serviceId)).toEqual(['tarabut', 'sandbox']);
+    expect(annotated.find((q) => q.serviceId === 'sandbox')?.isRecommended).toBe(false);
+    expect(annotated.find((q) => q.serviceId === 'tarabut')?.isRecommended).toBe(true);
+  });
+
   it('currency filter keeps only quotes in that currency', () => {
     const filtered = applyQuoteCurrency(
       [

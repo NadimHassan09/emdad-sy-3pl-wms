@@ -187,16 +187,16 @@ One row per route. Defects are logged below with ID, severity (S1 blocker, S2 ma
 
 | Scenario | Sena (sandbox) | Babel (live) | Sila (live) | Delivery Joud |
 |---|---|---|---|---|
-| Quote vs create price | ⬜ | ⬜ | ⬜ | ⬜ |
-| Create payload accepted (name, phone, address, COD, weight) | ⬜ | ⬜ | ⬜ | ⬜ |
+| Quote vs create price | ⚠ quote 0 (sandbox, now never BEST) | ✅ 300 SYP = portal 300 SYP | ✅ $2.50 = portal 2.5 $ | ⬜ |
+| Create payload accepted (name, phone, address, COD, weight) | ✅ SYP COD only | ⚠ accepted; portal shows dimensions 0x0x0 (D-020) | ✅ name, phone, address, 0 COD, weight | ⬜ |
 | Coverage: offered only if address supported | ⬜ | ⬜ | ⬜ | ⬜ |
-| Currency / COD min-max rules | ⬜ | ⬜ | ⬜ | ⬜ |
-| Tracking updates reach EMDAD (poll) | ⬜ | ⬜ | ⬜ | ⬜ |
-| Webhook update (valid / invalid signature / duplicate) | ⬜ | ⬜ | ⬜ | ⬜ |
+| Currency / COD min-max rules | ✅ SYP only | ⬜ min 1000 SYP not applied | ⬜ | ⬜ |
+| Tracking updates reach EMDAD (poll) | ✅ | ⬜ | ⬜ | ⬜ |
+| Webhook update (valid / invalid signature / duplicate) | ✅ valid (~8 s) | ⬜ | ⬜ | ⬜ |
 | Client sees same tracking | ⬜ | ⬜ | ⬜ | ⬜ |
-| Cancel from EMDAD reflected at carrier | ⬜ | ⬜ | ⬜ | ⬜ |
-| Cancel at carrier reflected in EMDAD | ⬜ | ⬜ | ⬜ | ⬜ |
-| Change carrier (supersede) and replacement shipment | ⬜ | ⬜ | ⬜ | ⬜ |
+| Cancel from EMDAD reflected at carrier | ⬜ | ⚠ API cancel unsupported; EMDAD says so and offers local unlink; portal delete done by hand | ✅ API cancel; portal shows ملغي | ⬜ |
+| Cancel at carrier reflected in EMDAD | ⬜ | ⚠ detected as "not found, cancellation unconfirmed"; admin confirms locally (D-021) | ⬜ | ⬜ |
+| Change carrier (supersede) and replacement shipment | ⬜ | ✅ Babel to Sila on the same order (3 Nov) | ✅ | ⬜ |
 | Edit order info / price after shipment | ⬜ | ⬜ | ⬜ | ⬜ |
 | Waybill / barcode print | ⬜ | ⬜ | ⬜ | ⬜ |
 | Failure and timeout handling | ⬜ | ⬜ | ⬜ | ⬜ |
@@ -224,6 +224,10 @@ One row per route. Defects are logged below with ID, severity (S1 blocker, S2 ma
 | D-017 | S1 | Outbound single-order carrier form | Rate request omitted the COD currency chip, so Sena (SYP-only) was offered for USD COD and failed at send ("Currency is not supported for this merchant account") | E2E 3 Nov | Fixed (sends COD amount + collection currency; Sena/Mersal rules) | see git log |
 | D-018 | S4 | New order form | Mouse wheel over the map zooms the map and traps page scroll | UI 3 Nov | Open (polish) | |
 | D-019 | S3 | Shipping form | Package dimensions default to 10x10x10 instead of the product's 100x50x50 | Shipping details 3 Nov | To confirm intent | |
+| D-020 | S3 | Babel create | Babel portal shows package dimensions 0x0x0 although the form sent 10x10x10 | Babel live E2E 3 Nov | Open (check payload) | |
+| D-021 | S3 | Cancel shipment (Babel) | Dialog promises an electronic cancel request, but Babel has no cancel API; after local unlink the banner reads "Carrier send failed - Cancelled by super_admin (uuid)" in red | Babel live E2E 3 Nov | Open (copy and wording) | |
+| D-022 | S2 | Rates (Sena) | Sena listed a zero price with BEST PRICE for an Aleppo address (single sandbox zone) | Shipping details 3 Nov | Fixed: zero-priced quotes are never recommended and sort last | this commit |
+| D-023 | S3 | Rates (Sila) | Fatih price moved 2.60 to 2.80 and back within minutes for the same shipment | Shipping details 3 Nov | Open (quote freshness) | |
 | D-004 | S3 | Backend tests | Jest run OOM after 23/144 suites; 9 suites failing (stale specs/drift) | jest-baseline | Open | |
 
 ## Smoke pass log

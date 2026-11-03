@@ -223,19 +223,29 @@ export function annotateQuotesForUi<
       effectiveCostCurrency: cost.currency,
     };
   });
-  const available = enriched.filter(
-    (q) => (q.available !== false) && Number.isFinite(q.comparableValueUsd),
-  );
+  // A zero price means the carrier returned no real price (e.g. sandbox), not free shipping:
+  // it must never win "cheapest" nor be recommended.
+  const hasRealPrice = (q: { comparableValueUsd: number }) =>
+    Number.isFinite(q.comparableValueUsd) && q.comparableValueUsd > 0;
+  const available = enriched.filter((q) => (q.available !== false) && hasRealPrice(q));
   const min = available.length
     ? Math.min(...available.map((q) => q.comparableValueUsd))
     : null;
   return enriched
     .map((q) => {
       const isCheapest =
-        min != null && (q.available !== false) && Math.abs(q.comparableValueUsd - min) < 1e-6;
+        min != null &&
+        (q.available !== false) &&
+        hasRealPrice(q) &&
+        Math.abs(q.comparableValueUsd - min) < 1e-6;
       return { ...q, isCheapest, isRecommended: isCheapest };
     })
-    .sort((a, b) => a.comparableValueUsd - b.comparableValueUsd);
+    .sort((a, b) => {
+      const aReal = hasRealPrice(a);
+      const bReal = hasRealPrice(b);
+      if (aReal !== bReal) return aReal ? -1 : 1;
+      return a.comparableValueUsd - b.comparableValueUsd;
+    });
 }
 
 /** Bulk Shipping Details rate-fetch concurrency (per modal open). */
