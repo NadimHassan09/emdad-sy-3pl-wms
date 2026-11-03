@@ -57,7 +57,7 @@ A flow counts as ✅ only when it was run in the real UI or against the real car
 |---|---|---|---|---|
 | X01 | Security | RBAC matrix: every route and action for super_admin, wh_manager, wh_operator, client_admin, client_staff | ⬜ | |
 | X02 | Security | Tenant isolation: a client never reads or writes another client's data (UI, direct URL, API) | 🔄 | Acme session vs Test company: orders, products, inbound, outbound read 404; companyId override rejected or ignored; bulk confirm/cancel refuse foreign ids; foreign product in an order rejected; admin API refuses a client session. Not yet: finances, invoices, returns, media, client_staff role |
-| X03 | Security | Input handling: injection, XSS, CSV/Excel formula injection, file upload limits | 🔄 | Found and fixed waybill HTML injection (D-024); other PDFs, exports and uploads still to check (D-026) |
+| X03 | Security | Input handling: injection, XSS, CSV/Excel formula injection, file upload limits | 🔄 | Found and fixed waybill HTML injection (D-024); other server PDFs checked and safe (D-026); CSV/Excel formula injection and uploads still to check |
 | X04 | Security | Secrets and configuration (committed `.env` history, key rotation, webhook signatures) | ⛔ | Owner decision on rotation |
 | X05 | Validation | Field sweep on every form: empty, boundary, long, whitespace, Arabic/English, special characters, paste, duplicate submit | 🔄 | One form so far |
 | X06 | Errors | Functional errors: any path that blocks work, wrong totals, wrong state transitions, buttons shown for impossible actions | 🔄 | Found and fixed D-001..D-023 on the order and shipping path |
