@@ -44,3 +44,4 @@ ui-audit/
 *.png
 .vscode/
 
+qa-scripts/out/
