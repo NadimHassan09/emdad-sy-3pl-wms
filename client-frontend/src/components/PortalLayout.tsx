@@ -50,6 +50,7 @@ const NAV_ICONS: Record<string, string> = {
   '/ecommerce-orders/returns': 'fa-rotate-left',
   '/outbound-orders/returns': 'fa-rotate-left',
   '/apis': 'fa-key',
+  '/sheets': 'fa-table',
   '/profile': 'fa-user',
 };
 
@@ -207,6 +208,7 @@ export function PortalLayout(): ReactElement {
   const billingItem = byPath('/billing');
   const invoicesItem = byPath('/invoices');
   const apisItem = byPath('/apis');
+  const sheetsItem = byPath('/sheets');
   const notificationsItem = byPath('/notifications');
   const wmsItems = navItems.filter((n) => n.group === 'wms');
   const omsItems = navItems.filter((n) => n.group === 'oms');
@@ -352,6 +354,7 @@ export function PortalLayout(): ReactElement {
     (billingItem ? isActive(billingItem) : false) ||
     (invoicesItem ? isActive(invoicesItem) : false) ||
     (apisItem ? isActive(apisItem) : false) ||
+    (sheetsItem ? isActive(sheetsItem) : false) ||
     (notificationsItem ? isActive(notificationsItem) : false);
 
   const navContent = (
@@ -390,7 +393,7 @@ export function PortalLayout(): ReactElement {
           ))}
         </SidebarSection>
       ) : null}
-      {financesItem || billingItem || invoicesItem || notificationsItem || apisItem ? (
+      {financesItem || billingItem || invoicesItem || notificationsItem || apisItem || sheetsItem ? (
         <SidebarSection label={isArabic ? 'المالية والحساب' : 'Finances & Account'} defaultOpen={accountOpen || true}>
           {financesItem ? (
             <PortalSidebarLink
@@ -422,6 +425,14 @@ export function PortalLayout(): ReactElement {
               active={isActive(notificationsItem)}
               isArabic={isArabic}
               badge={notifications.unreadCount || undefined}
+              onNavigate={go}
+            />
+          ) : null}
+          {sheetsItem ? (
+            <PortalSidebarLink
+              item={sheetsItem}
+              active={isActive(sheetsItem)}
+              isArabic={isArabic}
               onNavigate={go}
             />
           ) : null}

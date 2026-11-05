@@ -70,6 +70,13 @@ const NAV_CATALOG: Array<ClientNavItem & { roles: ClientPortalRole[] }> = [
     roles: ['client_admin', 'client_staff'],
   },
   {
+    label: 'Sheets',
+    labelAr: 'الشيتات',
+    iconKey: 'Apis',
+    to: '/sheets',
+    roles: ['client_admin', 'client_staff'],
+  },
+  {
     label: 'APIs',
     labelAr: 'واجهات البرمجة',
     iconKey: 'Apis',
@@ -115,7 +122,8 @@ function routeGroup(pathname: string): string {
     pathname.startsWith('/ecommerce-orders') ||
     pathname.startsWith('/my-profits') ||
     pathname.startsWith('/cod-reports') ||
-    pathname.startsWith('/returns')
+    pathname.startsWith('/returns') ||
+    pathname.startsWith('/sheets')
   ) {
     return 'orders';
   }

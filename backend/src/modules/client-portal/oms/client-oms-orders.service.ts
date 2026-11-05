@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 
 import { clientAuthPrincipal } from '../../../common/auth/client-auth-principal';
@@ -12,6 +12,12 @@ import { OmsOrdersService } from '../../oms/oms-orders.service';
 import { buildOmsOrderStatusDateFilter } from '../../oms/oms-order-status-filter.util';
 import { buildExcelBuffer, ExcelExportColumn } from '../../../common/utils/excel-export.util';
 import { CreateClientOmsOrderDto } from './dto/create-client-oms-order.dto';
+import { UpdateClientOmsOrderDto } from './dto/update-client-oms-order.dto';
+import {
+  CLIENT_DELETABLE_OMS_STATUSES,
+  CLIENT_EDITABLE_OMS_STATUSES,
+  clientLockMessage,
+} from './client-oms-order-lock';
 import { ClientCodReportQueryDto } from './dto/client-cod-report-query.dto';
 import { ClientOmsStatusSummaryQueryDto } from './dto/client-oms-status-summary-query.dto';
 import { ListClientOmsOrdersQueryDto } from './dto/list-client-oms-orders-query.dto';
@@ -315,6 +321,26 @@ export class ClientOmsOrdersService {
       });
     }
     return map;
+  }
+
+  async updateEditable(client: ClientPrincipal, id: string, dto: UpdateClientOmsOrderDto) {
+    const user = clientAuthPrincipal(client);
+    const existing = await this.omsOrders.findById(id, user);
+    if (!CLIENT_EDITABLE_OMS_STATUSES.has(String(existing.status))) {
+      throw new ForbiddenException(clientLockMessage(String(existing.status)));
+    }
+    return this.omsOrders.update(id, user, dto);
+  }
+
+  async removeUnconfirmed(client: ClientPrincipal, id: string) {
+    const user = clientAuthPrincipal(client);
+    const existing = await this.omsOrders.findById(id, user);
+    if (!CLIENT_DELETABLE_OMS_STATUSES.has(String(existing.status))) {
+      throw new ForbiddenException(
+        'Only orders that are not confirmed yet can be deleted. Use Cancel for a confirmed order.',
+      );
+    }
+    return this.omsOrders.delete(id, user);
   }
 
   async confirm(client: ClientPrincipal, id: string) {

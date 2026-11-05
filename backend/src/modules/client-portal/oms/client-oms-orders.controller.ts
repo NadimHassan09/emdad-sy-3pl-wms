@@ -2,9 +2,11 @@ import {
   BadRequestException,
   Body,
   Controller,
+  Delete,
   Get,
   Header,
   Param,
+  Patch,
   Post,
   Query,
   Res,
@@ -31,6 +33,7 @@ import {
   ClientOmsOrdersExportDto,
 } from './dto/bulk-confirm-client-oms-orders.dto';
 import { CreateClientOmsOrderDto } from './dto/create-client-oms-order.dto';
+import { UpdateClientOmsOrderDto } from './dto/update-client-oms-order.dto';
 import { ClientCodReportQueryDto } from './dto/client-cod-report-query.dto';
 import { ClientOmsStatusSummaryQueryDto } from './dto/client-oms-status-summary-query.dto';
 import { ListClientOmsOrdersQueryDto } from './dto/list-client-oms-orders-query.dto';
@@ -137,6 +140,20 @@ export class ClientOmsOrdersController {
     res.setHeader('X-Export-Row-Count', String(result.rowCount));
     res.setHeader('X-Export-Truncated', result.truncated ? 'true' : 'false');
     return result.body;
+  }
+
+  @Patch('orders/:id')
+  update(
+    @ClientUser() client: ClientPrincipal,
+    @Param('id', ParseUuidLoosePipe) id: string,
+    @Body() dto: UpdateClientOmsOrderDto,
+  ) {
+    return this.oms.updateEditable(client, id, dto);
+  }
+
+  @Delete('orders/:id')
+  remove(@ClientUser() client: ClientPrincipal, @Param('id', ParseUuidLoosePipe) id: string) {
+    return this.oms.removeUnconfirmed(client, id);
   }
 
   @Post('orders/:id/confirm')

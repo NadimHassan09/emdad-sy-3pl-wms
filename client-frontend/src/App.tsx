@@ -90,6 +90,7 @@ const InvoicesPage          = lazyPage(() => import('./pages/InvoicesPage'),    
 const BillingInvoiceDetailPage = lazyPage(() => import('./pages/BillingInvoiceDetailPage'), 'BillingInvoiceDetailPage');
 const NotificationsPage       = lazyPage(() => import('./pages/NotificationsPage'),       'NotificationsPage');
 const ProfilePage             = lazyPage(() => import('./pages/ProfilePage'),             'ProfilePage');
+const SheetsPage              = lazyPage(() => import('./pages/SheetsPage'),              'SheetsPage');
 const ApisPage                = lazyPage(() => import('./pages/ApisPage'),                'ApisPage');
 const NotFoundPage            = lazyPage(() => import('./pages/NotFoundPage'),            'NotFoundPage');
 
@@ -327,6 +328,14 @@ function AppRoutes(): ReactElement {
               element={
                 <RequireRouteAccess>
                   <BillingInvoiceDetailPage />
+                </RequireRouteAccess>
+              }
+            />
+            <Route
+              path="sheets"
+              element={
+                <RequireRouteAccess>
+                  <SheetsPage />
                 </RequireRouteAccess>
               }
             />

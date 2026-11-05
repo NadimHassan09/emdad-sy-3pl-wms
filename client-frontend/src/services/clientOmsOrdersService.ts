@@ -399,3 +399,29 @@ export async function downloadClientCodReportExcel(params: {
   a.click();
   URL.revokeObjectURL(url);
 }
+
+export interface UpdateClientOmsOrderInput {
+  requiredShipDate?: string;
+  recipientName?: string;
+  recipientPhone?: string;
+  city?: string;
+  district?: string;
+  addressLine1?: string;
+  addressLine2?: string;
+  notes?: string;
+  paymentMethod?: ClientOmsPaymentMethod;
+}
+
+/** Allowed only before the warehouse approves the order. */
+export async function updateClientOmsOrder(
+  id: string,
+  input: UpdateClientOmsOrderInput,
+): Promise<ClientOmsOrderDetail> {
+  const { data } = await apiClient.patch<ClientOmsOrderDetail>(`/oms/orders/${id}`, input);
+  return data;
+}
+
+/** Allowed only for orders the client has not confirmed yet. */
+export async function deleteClientOmsOrder(id: string): Promise<void> {
+  await apiClient.delete(`/oms/orders/${id}`);
+}
