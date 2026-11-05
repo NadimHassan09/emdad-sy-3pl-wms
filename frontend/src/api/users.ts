@@ -7,6 +7,8 @@ export type UserRole =
   | 'wh_manager'
   | 'wh_operator'
   | 'finance'
+  | 'viewer'
+  | 'inventory_controller'
   | 'client_admin'
   | 'client_staff';
 
@@ -58,7 +60,7 @@ export type CreateSystemUserPayload = {
   fullName: string;
   phone?: string;
   password: string;
-  systemRole: 'super_admin' | 'admin' | 'worker';
+  systemRole: 'super_admin' | 'admin' | 'worker' | 'accountant' | 'viewer' | 'inventory';
   workerWarehouseId?: string;
 };
 

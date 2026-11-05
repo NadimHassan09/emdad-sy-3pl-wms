@@ -20,7 +20,9 @@ function roleLabel(role: UserListRow['role']): string {
     super_admin: 'Super admin',
     wh_manager: 'Admin',
     wh_operator: 'Worker',
-    finance: 'Finance',
+    finance: 'Accountant (finance)',
+    viewer: 'Viewer (read only)',
+    inventory_controller: 'Inventory controller',
     client_admin: 'Client admin',
     client_staff: 'Client staff',
   };

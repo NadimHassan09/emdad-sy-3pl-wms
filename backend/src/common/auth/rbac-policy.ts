@@ -25,6 +25,8 @@ export const ROLE_RANK: Record<UserRole, number> = {
   [UserRole.super_admin]: 100,
   [UserRole.wh_manager]: 80,
   [UserRole.finance]: 60,
+  [UserRole.viewer]: 55,
+  [UserRole.inventory_controller]: 50,
   [UserRole.wh_operator]: 40,
   [UserRole.client_admin]: 30,
   [UserRole.client_staff]: 20,

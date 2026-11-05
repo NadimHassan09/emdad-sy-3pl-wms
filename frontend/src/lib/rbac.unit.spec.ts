@@ -105,8 +105,30 @@ describe('user hierarchy helpers', () => {
   });
 
   it('limits creatable system roles by actor rank', () => {
-    expect(creatableSystemRoles('super_admin')).toEqual(['super_admin', 'admin', 'worker']);
-    expect(creatableSystemRoles('wh_manager')).toEqual(['worker']);
+    expect(creatableSystemRoles('super_admin')).toEqual([
+      'super_admin',
+      'admin',
+      'worker',
+      'accountant',
+      'inventory',
+      'viewer',
+    ]);
+    expect(creatableSystemRoles('wh_manager')).toEqual(['worker', 'accountant', 'inventory', 'viewer']);
     expect(creatableSystemRoles('wh_operator')).toEqual([]);
+  });
+
+  it('gives a viewer the read pages but not user, backup or shipping settings', () => {
+    expect(canAccessPath('viewer', '/finance/overview')).toBe(true);
+    expect(canAccessPath('viewer', '/orders/outbound')).toBe(true);
+    expect(canAccessPath('viewer', '/users')).toBe(false);
+    expect(canAccessPath('viewer', '/backups')).toBe(false);
+    expect(canAccessPath('viewer', '/shipping/companies')).toBe(false);
+  });
+
+  it('keeps an inventory controller out of finance and billing', () => {
+    expect(canAccessPath('inventory_controller', '/inventory/stock')).toBe(true);
+    expect(canAccessPath('inventory_controller', '/cycle-count')).toBe(true);
+    expect(canAccessPath('inventory_controller', '/billing/invoices')).toBe(false);
+    expect(canAccessPath('inventory_controller', '/users')).toBe(false);
   });
 });

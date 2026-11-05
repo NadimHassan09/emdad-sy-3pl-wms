@@ -55,13 +55,18 @@ const SYSTEM_ROLE_OPTION_ALL: Array<{ value: SystemRoleUi; label: string }> = [
   { value: 'super_admin', label: 'Super admin' },
   { value: 'admin', label: 'Admin' },
   { value: 'worker', label: 'Worker' },
+  { value: 'accountant', label: 'Accountant (finance)' },
+  { value: 'inventory', label: 'Inventory controller' },
+  { value: 'viewer', label: 'Viewer (read only)' },
 ];
 
 const SYSTEM_ROLE_EDIT_ALL = [
   { value: 'super_admin', label: 'Super admin' },
   { value: 'wh_manager', label: 'Admin' },
   { value: 'wh_operator', label: 'Worker' },
-  { value: 'finance', label: 'Finance' },
+  { value: 'finance', label: 'Accountant (finance)' },
+  { value: 'inventory_controller', label: 'Inventory controller' },
+  { value: 'viewer', label: 'Viewer (read only)' },
 ];
 
 const CLIENT_ROLE_OPTIONS = [
@@ -135,7 +140,9 @@ function roleLabel(role: UserRole): string {
     super_admin: 'Super admin',
     wh_manager: 'Admin',
     wh_operator: 'Worker',
-    finance: 'Finance',
+    finance: 'Accountant (finance)',
+    viewer: 'Viewer (read only)',
+    inventory_controller: 'Inventory controller',
     client_admin: 'Client admin',
     client_staff: 'Client staff',
   };

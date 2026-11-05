@@ -11,7 +11,13 @@ import {
 } from 'class-validator';
 
 /** Logical system roles in the admin UI — mapped to `UserRole` in the service. */
-export type CreateSystemRoleUi = 'super_admin' | 'admin' | 'worker';
+export type CreateSystemRoleUi =
+  | 'super_admin'
+  | 'admin'
+  | 'worker'
+  | 'accountant'
+  | 'viewer'
+  | 'inventory';
 
 export class CreateUserDto {
   @IsIn(['system', 'client'])
@@ -45,7 +51,7 @@ export class CreateUserDto {
   clientRole!: 'client_admin' | 'client_staff';
 
   @ValidateIf((o: CreateUserDto) => o.kind === 'system')
-  @IsIn(['super_admin', 'admin', 'worker'])
+  @IsIn(['super_admin', 'admin', 'worker', 'accountant', 'viewer', 'inventory'])
   systemRole!: CreateSystemRoleUi;
 
   /**

@@ -8,6 +8,8 @@ const INTERNAL_ROLES = new Set<AuthPrincipal['role']>([
   'wh_manager',
   'wh_operator',
   'finance',
+  'viewer',
+  'inventory_controller',
 ]);
 
 /**

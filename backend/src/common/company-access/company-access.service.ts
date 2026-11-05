@@ -19,6 +19,8 @@ const GLOBAL_TENANT_ROLES = new Set<UserRole>([
   UserRole.super_admin,
   UserRole.wh_manager,
   UserRole.finance,
+  UserRole.viewer,
+  UserRole.inventory_controller,
 ]);
 
 @Injectable()

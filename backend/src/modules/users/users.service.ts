@@ -82,6 +82,12 @@ function mapSystemRoleToUserRole(ui: CreateSystemRoleUi): UserRole {
       return UserRole.wh_manager;
     case 'worker':
       return UserRole.wh_operator;
+    case 'accountant':
+      return UserRole.finance;
+    case 'viewer':
+      return UserRole.viewer;
+    case 'inventory':
+      return UserRole.inventory_controller;
     default:
       return UserRole.wh_operator;
   }
@@ -92,6 +98,8 @@ const SYSTEM_ROLES: UserRole[] = [
   UserRole.wh_manager,
   UserRole.wh_operator,
   UserRole.finance,
+  UserRole.viewer,
+  UserRole.inventory_controller,
 ];
 const CLIENT_ROLES: UserRole[] = [UserRole.client_admin, UserRole.client_staff];
 

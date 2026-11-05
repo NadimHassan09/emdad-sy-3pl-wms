@@ -1,7 +1,13 @@
 import { isOmsCodReturnsPath, isOmsCodReturnsUiEnabled } from './oms-cod-returns-ui';
 
 /** Internal WMS roles (matches Prisma `UserRole` for warehouse staff). */
-export type InternalRole = 'super_admin' | 'wh_manager' | 'wh_operator' | 'finance';
+export type InternalRole =
+  | 'super_admin'
+  | 'wh_manager'
+  | 'wh_operator'
+  | 'finance'
+  | 'viewer'
+  | 'inventory_controller';
 
 export type NavGroup = 'wms' | 'oms' | null;
 
@@ -13,14 +19,28 @@ export type NavItemDef = {
   group?: NavGroup;
 };
 
-const ALL_ROLES: InternalRole[] = ['super_admin', 'wh_manager', 'wh_operator', 'finance'];
+const ALL_ROLES: InternalRole[] = [
+  'super_admin',
+  'wh_manager',
+  'wh_operator',
+  'finance',
+  'viewer',
+  'inventory_controller',
+];
 
 /** Matches backend `InternalAdminGuard` — inventory internal-transfer, management mutations. */
 export const INTERNAL_TRANSFER_ROLES: InternalRole[] = ['super_admin', 'wh_manager'];
 
 /** Operational floor access — Worker + managers (+ finance where already granted). */
-const OPS_ROLES: InternalRole[] = ['super_admin', 'wh_manager', 'wh_operator', 'finance'];
-const OPS_NO_FINANCE: InternalRole[] = ['super_admin', 'wh_manager', 'wh_operator'];
+const OPS_ROLES: InternalRole[] = [
+  'super_admin',
+  'wh_manager',
+  'wh_operator',
+  'finance',
+  'viewer',
+  'inventory_controller',
+];
+const OPS_NO_FINANCE: InternalRole[] = ['super_admin', 'wh_manager', 'wh_operator', 'viewer', 'inventory_controller'];
 /** High-privilege admin surfaces — not for workers. */
 const ADMIN_ROLES: InternalRole[] = ['super_admin', 'wh_manager'];
 
@@ -179,14 +199,14 @@ const NAV_CATALOG: Array<NavItemDef & { roles: InternalRole[] }> = [
     iconKey: 'Reports',
     to: '/finance/overview',
     match: (p) => p.startsWith('/finance'),
-    roles: ['super_admin', 'wh_manager', 'finance'],
+    roles: ['super_admin', 'wh_manager', 'finance', 'viewer'],
   },
   {
     labelKey: 'Billing',
     iconKey: 'Reports',
     to: '/billing/plans',
     match: (p) => p.startsWith('/billing'),
-    roles: ['super_admin', 'wh_manager', 'finance'],
+    roles: ['super_admin', 'wh_manager', 'finance', 'viewer'],
   },
   {
     labelKey: 'Users',
@@ -200,7 +220,7 @@ const NAV_CATALOG: Array<NavItemDef & { roles: InternalRole[] }> = [
     iconKey: 'AuditLogs',
     to: '/audit-logs',
     match: (p) => p.startsWith('/audit-logs'),
-    roles: ['super_admin', 'wh_manager', 'finance'],
+    roles: ['super_admin', 'wh_manager', 'finance', 'viewer'],
   },
   {
     labelKey: 'Notifications',
@@ -269,9 +289,9 @@ const ROUTE_GROUP_ROLES: Record<string, InternalRole[]> = {
   warehouses: OPS_NO_FINANCE,
   clients: ADMIN_ROLES,
   forms: ADMIN_ROLES,
-  billing: ['super_admin', 'wh_manager', 'finance'],
+  billing: ['super_admin', 'wh_manager', 'finance', 'viewer'],
   users: ADMIN_ROLES,
-  'audit-logs': ['super_admin', 'wh_manager', 'finance'],
+  'audit-logs': ['super_admin', 'wh_manager', 'finance', 'viewer'],
   notifications: ALL_ROLES,
   settings: ADMIN_ROLES,
   backups: ADMIN_ROLES,
@@ -282,7 +302,14 @@ const ROUTE_GROUP_ROLES: Record<string, InternalRole[]> = {
 
 export function normalizeInternalRole(role: string | undefined): InternalRole | null {
   if (!role) return null;
-  if (role === 'super_admin' || role === 'wh_manager' || role === 'wh_operator' || role === 'finance') {
+  if (
+    role === 'super_admin' ||
+    role === 'wh_manager' ||
+    role === 'wh_operator' ||
+    role === 'finance' ||
+    role === 'viewer' ||
+    role === 'inventory_controller'
+  ) {
     return role;
   }
   return null;
@@ -352,6 +379,8 @@ const ROLE_RANK: Record<string, number> = {
   super_admin: 100,
   wh_manager: 80,
   finance: 60,
+  viewer: 55,
+  inventory_controller: 50,
   wh_operator: 40,
   client_admin: 30,
   client_staff: 20,
@@ -389,7 +418,7 @@ export function canSetOtherUserPassword(role: string | undefined): boolean {
   return normalizeInternalRole(role) === 'super_admin';
 }
 
-export type SystemRoleUi = 'super_admin' | 'admin' | 'worker';
+export type SystemRoleUi = 'super_admin' | 'admin' | 'worker' | 'accountant' | 'viewer' | 'inventory';
 
 /** System roles the actor is allowed to create. */
 export function creatableSystemRoles(actorRole: string | undefined): SystemRoleUi[] {
@@ -397,6 +426,9 @@ export function creatableSystemRoles(actorRole: string | undefined): SystemRoleU
     { ui: 'super_admin', role: 'super_admin' },
     { ui: 'admin', role: 'wh_manager' },
     { ui: 'worker', role: 'wh_operator' },
+    { ui: 'accountant', role: 'finance' },
+    { ui: 'inventory', role: 'inventory_controller' },
+    { ui: 'viewer', role: 'viewer' },
   ];
   return mapped.filter((m) => canCreateTargetRole(actorRole, m.role)).map((m) => m.ui);
 }

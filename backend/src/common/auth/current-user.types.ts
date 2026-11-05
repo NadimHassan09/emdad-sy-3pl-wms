@@ -9,7 +9,7 @@ import type { TenantScopeMode } from '../company-access/company-access.types';
 export interface AuthPrincipal {
   id: string;
   companyId: string | null;
-  role: 'super_admin' | 'wh_manager' | 'wh_operator' | 'finance' | 'client_admin' | 'client_staff';
+  role: 'super_admin' | 'wh_manager' | 'wh_operator' | 'finance' | 'viewer' | 'inventory_controller' | 'client_admin' | 'client_staff';
   /** Present when resolved from JWT / DB. */
   email?: string;
   tenantScope: TenantScopeMode;
