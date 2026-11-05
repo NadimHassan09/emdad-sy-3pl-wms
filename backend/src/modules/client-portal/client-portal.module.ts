@@ -16,6 +16,8 @@ import { OmsReturnsModule } from '../oms-returns/oms-returns.module';
 import { ReturnsModule } from '../returns/returns.module';
 import { ShippingModule } from '../shipping/shipping.module';
 import { PdfModule } from '../../pdf/pdf.module';
+import { ClientWebhooksController } from './webhooks/client-webhooks.controller';
+import { ClientWebhooksService } from './webhooks/client-webhooks.service';
 import { ApiCredentialsController } from './api-credentials/api-credentials.controller';
 import { ApiCredentialsService } from './api-credentials/api-credentials.service';
 import { ApiDocsService } from './external-api/api-docs.service';
@@ -89,6 +91,7 @@ import { ClientShippingController } from './shipping/client-shipping.controller'
     PdfModule,
   ],
   controllers: [
+    ClientWebhooksController,
     ClientAuthController,
     ClientStockController,
     ClientProductsController,
@@ -108,6 +111,7 @@ import { ClientShippingController } from './shipping/client-shipping.controller'
     ClientShippingController,
   ],
   providers: [
+    ClientWebhooksService,
     ClientAuthService,
     ClientStockService,
     ClientProductsService,

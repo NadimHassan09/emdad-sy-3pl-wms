@@ -46,8 +46,8 @@ enum BillingInvoiceStatus {
   unpaid
   paid
   cancelled
-  open     @map("open") // deprecated — migrated to unpaid
-  overdue  @map("overdue") // deprecated — migrated to unpaid
+  open      @map("open") // deprecated — migrated to unpaid
+  overdue   @map("overdue") // deprecated — migrated to unpaid
 
   @@map("billing_invoice_status")
 }
@@ -733,93 +733,94 @@ enum WarehouseTaskType {
 // ---------------------------------------------------------------------------
 
 model Company {
-  id               String           @id @default(uuid()) @db.Uuid
-  name             String
-  tradeName        String?          @map("trade_name")
-  contactEmail     String           @map("contact_email")
-  contactPhone     String?          @map("contact_phone")
-  address          String?
-  city             String?
-  country          String           @default("SA")
-  vatNumber        String?          @map("vat_number")
-  billingCycle     BillingCycleType @default(monthly) @map("billing_cycle")
-  paymentTermsDays Int              @default(30) @map("payment_terms_days")
-  status           CompanyStatus    @default(active)
-  notes            String?
-  logoPath         String?          @map("logo_path")
+  id                 String           @id @default(uuid()) @db.Uuid
+  name               String
+  tradeName          String?          @map("trade_name")
+  contactEmail       String           @map("contact_email")
+  contactPhone       String?          @map("contact_phone")
+  address            String?
+  city               String?
+  country            String           @default("SA")
+  vatNumber          String?          @map("vat_number")
+  billingCycle       BillingCycleType @default(monthly) @map("billing_cycle")
+  paymentTermsDays   Int              @default(30) @map("payment_terms_days")
+  status             CompanyStatus    @default(active)
+  notes              String?
+  logoPath           String?          @map("logo_path")
   workflowUxSettings Json?            @map("workflow_ux_settings") @db.JsonB
-  suspendedAt       DateTime?        @map("suspended_at") @db.Timestamptz(6)
-  suspendedBy       String?          @map("suspended_by") @db.Uuid
-  suspensionReason  String?          @map("suspension_reason")
-  archivedAt        DateTime?        @map("archived_at") @db.Timestamptz(6)
-  archivedBy        String?          @map("archived_by") @db.Uuid
-  archiveReason     String?          @map("archive_reason")
-  purgedAt          DateTime?        @map("purged_at") @db.Timestamptz(6)
-  createdAt        DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt        DateTime         @default(now()) @map("updated_at") @db.Timestamptz(6)
+  suspendedAt        DateTime?        @map("suspended_at") @db.Timestamptz(6)
+  suspendedBy        String?          @map("suspended_by") @db.Uuid
+  suspensionReason   String?          @map("suspension_reason")
+  archivedAt         DateTime?        @map("archived_at") @db.Timestamptz(6)
+  archivedBy         String?          @map("archived_by") @db.Uuid
+  archiveReason      String?          @map("archive_reason")
+  purgedAt           DateTime?        @map("purged_at") @db.Timestamptz(6)
+  createdAt          DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime         @default(now()) @map("updated_at") @db.Timestamptz(6)
 
-  users          User[]
-  products       Product[]
-  inboundOrders  InboundOrder[]
-  outboundOrders OutboundOrder[]
-  returnOrders   ReturnOrder[]
-  currentStock   CurrentStock[]
-  ledgerEntries     InventoryLedger[]
-  stockAdjustments       StockAdjustment[]
-  cycleCountSchedules    CycleCountSchedule[]
-  cycleCounts            CycleCount[]
-  cycleCountVariances    CycleCountVariance[]
-  cycleCountProductHistory CycleCountProductHistory[]
-  workers                Worker[]
-  workflowInstances      WorkflowInstance[]
-  notifications          Notification[]
-  userCompanyAccess      UserCompanyAccess[]
-  billingPlans           BillingPlan[]
-  billingCycles          BillingCycle[]
-  invoices               Invoice[]
-  orderManualCharges     OrderManualCharge[]
-  documents              Document[]
-  finalContracts         FinalContract[]
-  stockReservations      StockReservation[]
-  omsOrderEvents         OmsOrderEvent[]
-  omsOrders              OmsOrder[]
-  omsSalesChannels       OmsSalesChannel[]
-  omsIntegrationEvents   OmsIntegrationEvent[]
-  codRecords             CodRecord[]
-  omsReturns             OmsReturn[]
-  apiCredentials         ApiCredential[]
-  inboundSourceAllocations InboundSourceAllocation[]
-  shippingFeeGroups      ShippingFeeGroup[]
+  users                     User[]
+  products                  Product[]
+  inboundOrders             InboundOrder[]
+  outboundOrders            OutboundOrder[]
+  returnOrders              ReturnOrder[]
+  currentStock              CurrentStock[]
+  ledgerEntries             InventoryLedger[]
+  stockAdjustments          StockAdjustment[]
+  cycleCountSchedules       CycleCountSchedule[]
+  cycleCounts               CycleCount[]
+  cycleCountVariances       CycleCountVariance[]
+  cycleCountProductHistory  CycleCountProductHistory[]
+  workers                   Worker[]
+  workflowInstances         WorkflowInstance[]
+  notifications             Notification[]
+  userCompanyAccess         UserCompanyAccess[]
+  billingPlans              BillingPlan[]
+  billingCycles             BillingCycle[]
+  invoices                  Invoice[]
+  orderManualCharges        OrderManualCharge[]
+  documents                 Document[]
+  finalContracts            FinalContract[]
+  stockReservations         StockReservation[]
+  omsOrderEvents            OmsOrderEvent[]
+  omsOrders                 OmsOrder[]
+  omsSalesChannels          OmsSalesChannel[]
+  omsIntegrationEvents      OmsIntegrationEvent[]
+  codRecords                CodRecord[]
+  omsReturns                OmsReturn[]
+  apiCredentials            ApiCredential[]
+  clientWebhookEndpoints    ClientWebhookEndpoint[]
+  inboundSourceAllocations  InboundSourceAllocation[]
+  shippingFeeGroups         ShippingFeeGroup[]
   shippingFeeGroupLocations ShippingFeeGroupLocation[]
-  financialAccount      ClientFinancialAccount?
-  billingChargeRules    BillingChargeRule[]
-  financialTransactions FinancialTransaction[]
-  payoutRequests        ClientPayoutRequest[]
+  financialAccount          ClientFinancialAccount?
+  billingChargeRules        BillingChargeRule[]
+  financialTransactions     FinancialTransaction[]
+  payoutRequests            ClientPayoutRequest[]
 
   @@map("companies")
 }
 
 model BillingPlan {
-  id                      String   @id @default(uuid()) @db.Uuid
-  companyId               String   @map("company_id") @db.Uuid
-  active                  Boolean  @default(true)
+  id                        String   @id @default(uuid()) @db.Uuid
+  companyId                 String   @map("company_id") @db.Uuid
+  active                    Boolean  @default(true)
   /// When true, expired active cycles automatically start the next cycle.
-  autoRenew               Boolean  @default(true) @map("auto_renew")
-  cycleLengthDays         Int      @map("cycle_length_days")
-  fixedSubscriptionFee    Decimal  @default(0) @map("fixed_subscription_fee") @db.Decimal(12, 2)
-  inboundOrderFee         Decimal  @default(0) @map("inbound_order_fee") @db.Decimal(10, 4)
-  outboundOrderFee        Decimal  @default(0) @map("outbound_order_fee") @db.Decimal(10, 4)
-  outboundBaseFee         Decimal  @default(0) @map("outbound_base_fee") @db.Decimal(12, 2)
-  outboundIncludedItems   Int      @default(0) @map("outbound_included_items")
-  outboundAdditionalItemFee Decimal @default(0) @map("outbound_additional_item_fee") @db.Decimal(12, 2)
-  packagingFee            Decimal  @default(0) @map("packaging_fee") @db.Decimal(10, 4)
-  qualityCheckFee         Decimal  @default(0) @map("quality_check_fee") @db.Decimal(10, 4)
-  excessVolumeFeePerDay   Decimal  @default(0) @map("excess_volume_fee_per_day") @db.Decimal(10, 4)
-  excessWeightFeePerDay   Decimal  @default(0) @map("excess_weight_fee_per_day") @db.Decimal(10, 4)
-  reservedVolume          Decimal  @default(0) @map("reserved_volume") @db.Decimal(14, 4)
-  reservedWeight          Decimal  @default(0) @map("reserved_weight") @db.Decimal(14, 4)
-  createdAt               DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt               DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+  autoRenew                 Boolean  @default(true) @map("auto_renew")
+  cycleLengthDays           Int      @map("cycle_length_days")
+  fixedSubscriptionFee      Decimal  @default(0) @map("fixed_subscription_fee") @db.Decimal(12, 2)
+  inboundOrderFee           Decimal  @default(0) @map("inbound_order_fee") @db.Decimal(10, 4)
+  outboundOrderFee          Decimal  @default(0) @map("outbound_order_fee") @db.Decimal(10, 4)
+  outboundBaseFee           Decimal  @default(0) @map("outbound_base_fee") @db.Decimal(12, 2)
+  outboundIncludedItems     Int      @default(0) @map("outbound_included_items")
+  outboundAdditionalItemFee Decimal  @default(0) @map("outbound_additional_item_fee") @db.Decimal(12, 2)
+  packagingFee              Decimal  @default(0) @map("packaging_fee") @db.Decimal(10, 4)
+  qualityCheckFee           Decimal  @default(0) @map("quality_check_fee") @db.Decimal(10, 4)
+  excessVolumeFeePerDay     Decimal  @default(0) @map("excess_volume_fee_per_day") @db.Decimal(10, 4)
+  excessWeightFeePerDay     Decimal  @default(0) @map("excess_weight_fee_per_day") @db.Decimal(10, 4)
+  reservedVolume            Decimal  @default(0) @map("reserved_volume") @db.Decimal(14, 4)
+  reservedWeight            Decimal  @default(0) @map("reserved_weight") @db.Decimal(14, 4)
+  createdAt                 DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt                 DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
 
   company       Company        @relation(fields: [companyId], references: [id])
   billingCycles BillingCycle[]
@@ -848,37 +849,37 @@ model BillingCycle {
 }
 
 model Invoice {
-  id             String               @id @default(uuid()) @db.Uuid
-  companyId      String               @map("company_id") @db.Uuid
-  billingCycleId String?              @map("billing_cycle_id") @db.Uuid
-  invoiceSource  BillingInvoiceSource @default(cycle) @map("invoice_source")
-  invoiceNumber  String               @unique @default("") @map("invoice_number")
-  status         BillingInvoiceStatus @default(draft)
-  subtotalAmount Decimal              @default(0) @map("subtotal_amount") @db.Decimal(14, 2)
-  discountType   BillingDiscountType? @map("discount_type")
-  discountValue  Decimal?             @map("discount_value") @db.Decimal(14, 4)
-  discountAmount Decimal              @default(0) @map("discount_amount") @db.Decimal(14, 2)
-  vatPercentage  Decimal              @default(0) @map("vat_percentage") @db.Decimal(8, 4)
-  vatAmount      Decimal              @default(0) @map("vat_amount") @db.Decimal(14, 2)
-  grandTotal     Decimal              @default(0) @map("grand_total") @db.Decimal(14, 2)
-  totalAmount    Decimal              @default(0) @map("total_amount") @db.Decimal(14, 2)
-  issuedAt       DateTime?            @map("issued_at") @db.Timestamptz(6)
-  dueDate        DateTime?            @map("due_date") @db.Date
+  id                      String               @id @default(uuid()) @db.Uuid
+  companyId               String               @map("company_id") @db.Uuid
+  billingCycleId          String?              @map("billing_cycle_id") @db.Uuid
+  invoiceSource           BillingInvoiceSource @default(cycle) @map("invoice_source")
+  invoiceNumber           String               @unique @default("") @map("invoice_number")
+  status                  BillingInvoiceStatus @default(draft)
+  subtotalAmount          Decimal              @default(0) @map("subtotal_amount") @db.Decimal(14, 2)
+  discountType            BillingDiscountType? @map("discount_type")
+  discountValue           Decimal?             @map("discount_value") @db.Decimal(14, 4)
+  discountAmount          Decimal              @default(0) @map("discount_amount") @db.Decimal(14, 2)
+  vatPercentage           Decimal              @default(0) @map("vat_percentage") @db.Decimal(8, 4)
+  vatAmount               Decimal              @default(0) @map("vat_amount") @db.Decimal(14, 2)
+  grandTotal              Decimal              @default(0) @map("grand_total") @db.Decimal(14, 2)
+  totalAmount             Decimal              @default(0) @map("total_amount") @db.Decimal(14, 2)
+  issuedAt                DateTime?            @map("issued_at") @db.Timestamptz(6)
+  dueDate                 DateTime?            @map("due_date") @db.Date
   /// On-demand invoices cover an arbitrary period (no fixed cycle).
-  periodStart    DateTime?            @map("period_start") @db.Date
-  periodEnd      DateTime?            @map("period_end") @db.Date
+  periodStart             DateTime?            @map("period_start") @db.Date
+  periodEnd               DateTime?            @map("period_end") @db.Date
   /// Amount already deducted from the client's COD/finance balance for this invoice.
-  settledAmount  Decimal              @default(0) @map("settled_amount") @db.Decimal(14, 2)
-  settledAt      DateTime?            @map("settled_at") @db.Timestamptz(6)
+  settledAmount           Decimal              @default(0) @map("settled_amount") @db.Decimal(14, 2)
+  settledAt               DateTime?            @map("settled_at") @db.Timestamptz(6)
   /// Client balance right before and after the deduction (statement: had X, owed Y, remaining Z).
-  settledBalanceBefore Decimal?       @map("settled_balance_before") @db.Decimal(15, 4)
-  settledBalanceAfter  Decimal?       @map("settled_balance_after") @db.Decimal(15, 4)
-  settlementTransactionId String?     @map("settlement_transaction_id") @db.Uuid
-  createdAt      DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt      DateTime             @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  settledBalanceBefore    Decimal?             @map("settled_balance_before") @db.Decimal(15, 4)
+  settledBalanceAfter     Decimal?             @map("settled_balance_after") @db.Decimal(15, 4)
+  settlementTransactionId String?              @map("settlement_transaction_id") @db.Uuid
+  createdAt               DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt               DateTime             @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  company      Company       @relation(fields: [companyId], references: [id])
-  billingCycle BillingCycle? @relation(fields: [billingCycleId], references: [id])
+  company      Company            @relation(fields: [companyId], references: [id])
+  billingCycle BillingCycle?      @relation(fields: [billingCycleId], references: [id])
   lines        InvoiceLine[]
   orderItems   InvoiceOrderItem[]
 
@@ -947,26 +948,26 @@ model BillingChargeRule {
 
 /// One order on an on-demand invoice. An order can be on one active invoice only (no double billing).
 model InvoiceOrderItem {
-  id             String   @id @default(uuid()) @db.Uuid
-  invoiceId      String   @map("invoice_id") @db.Uuid
-  companyId      String   @map("company_id") @db.Uuid
-  orderKind      String   @map("order_kind") @db.VarChar(16)
-  orderId        String   @map("order_id") @db.Uuid
-  orderNumber    String   @map("order_number")
-  orderStatus    String   @map("order_status")
-  linesCount     Int      @default(0) @map("lines_count")
-  weightKg       Decimal  @default(0) @map("weight_kg") @db.Decimal(14, 4)
+  id                        String   @id @default(uuid()) @db.Uuid
+  invoiceId                 String   @map("invoice_id") @db.Uuid
+  companyId                 String   @map("company_id") @db.Uuid
+  orderKind                 String   @map("order_kind") @db.VarChar(16)
+  orderId                   String   @map("order_id") @db.Uuid
+  orderNumber               String   @map("order_number")
+  orderStatus               String   @map("order_status")
+  linesCount                Int      @default(0) @map("lines_count")
+  weightKg                  Decimal  @default(0) @map("weight_kg") @db.Decimal(14, 4)
   /// False when the order is listed for information only (for example cancelled) and not charged.
-  charged        Boolean  @default(true)
-  fulfillmentFee Decimal  @default(0) @map("fulfillment_fee") @db.Decimal(14, 2)
+  charged                   Boolean  @default(true)
+  fulfillmentFee            Decimal  @default(0) @map("fulfillment_fee") @db.Decimal(14, 2)
   /// EMDAD tariff to the client. Zero when it was already debited from the balance at dispatch.
-  shippingFee    Decimal  @default(0) @map("shipping_fee") @db.Decimal(14, 2)
-  shippingFeeAlreadySettled Boolean @default(false) @map("shipping_fee_already_settled")
+  shippingFee               Decimal  @default(0) @map("shipping_fee") @db.Decimal(14, 2)
+  shippingFeeAlreadySettled Boolean  @default(false) @map("shipping_fee_already_settled")
   /// Admin only: external carrier cost converted to USD. Never shown to the client.
-  carrierCostUsd Decimal? @map("carrier_cost_usd") @db.Decimal(14, 4)
+  carrierCostUsd            Decimal? @map("carrier_cost_usd") @db.Decimal(14, 4)
   /// False once the invoice is cancelled, which frees the order to be billed again.
-  active         Boolean  @default(true)
-  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  active                    Boolean  @default(true)
+  createdAt                 DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
 
   invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
 
@@ -1028,7 +1029,7 @@ model FinalContract {
   rateStorage            Decimal  @map("rate_storage") @db.Decimal(12, 2)
   rateInboundHandling    Decimal  @map("rate_inbound_handling") @db.Decimal(12, 2)
   rateOutboundHandling   Decimal  @map("rate_outbound_handling") @db.Decimal(12, 2)
-  rateValueAddedServices  Decimal  @map("rate_value_added_services") @db.Decimal(12, 2)
+  rateValueAddedServices Decimal  @map("rate_value_added_services") @db.Decimal(12, 2)
   rateReturnProcessing   Decimal  @map("rate_return_processing") @db.Decimal(12, 2)
   createdBy              String?  @map("created_by") @db.Uuid
   createdAt              DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
@@ -1074,67 +1075,67 @@ model UserCompanyAccess {
 }
 
 model User {
-  id            String     @id @default(uuid()) @db.Uuid
-  companyId     String?    @map("company_id") @db.Uuid
-  email         String     @unique
-  passwordHash  String     @map("password_hash")
-  fullName      String     @map("full_name")
-  phone         String?
-  role          UserRole
-  status        UserStatus @default(active)
-  avatarPath    String?    @map("avatar_path")
+  id             String     @id @default(uuid()) @db.Uuid
+  companyId      String?    @map("company_id") @db.Uuid
+  email          String     @unique
+  passwordHash   String     @map("password_hash")
+  fullName       String     @map("full_name")
+  phone          String?
+  role           UserRole
+  status         UserStatus @default(active)
+  avatarPath     String?    @map("avatar_path")
   /// Stable Google account id (`sub`). Null until the user links Google Sign-In.
   googleSub      String?    @unique @map("google_sub")
   googleEmail    String?    @map("google_email")
   googleLinkedAt DateTime?  @map("google_linked_at") @db.Timestamptz(6)
-  tokenVersion  Int        @default(0) @map("token_version")
+  tokenVersion   Int        @default(0) @map("token_version")
   lastLoginAt    DateTime?  @map("last_login_at") @db.Timestamptz(6)
-  lastActivityAt DateTime? @map("last_activity_at") @db.Timestamptz(6)
-  createdAt     DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt     DateTime   @default(now()) @map("updated_at") @db.Timestamptz(6)
+  lastActivityAt DateTime?  @map("last_activity_at") @db.Timestamptz(6)
+  createdAt      DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime   @default(now()) @map("updated_at") @db.Timestamptz(6)
 
-  company             Company?         @relation(fields: [companyId], references: [id])
-  inboundOrdersOwned           InboundOrder[]           @relation("InboundCreatedBy")
-  outboundOrdersOwned          OutboundOrder[]          @relation("OutboundCreatedBy")
-  returnOrdersOwned            ReturnOrder[]            @relation("ReturnCreatedBy")
-  returnOrdersCancelled        ReturnOrder[]            @relation("ReturnCancelledBy")
+  company                      Company?                     @relation(fields: [companyId], references: [id])
+  inboundOrdersOwned           InboundOrder[]               @relation("InboundCreatedBy")
+  outboundOrdersOwned          OutboundOrder[]              @relation("OutboundCreatedBy")
+  returnOrdersOwned            ReturnOrder[]                @relation("ReturnCreatedBy")
+  returnOrdersCancelled        ReturnOrder[]                @relation("ReturnCancelledBy")
   ledgerEntries                InventoryLedger[]
-  stockAdjustmentsCreated      StockAdjustment[]        @relation("AdjustmentCreatedBy")
-  stockAdjustmentsApproved     StockAdjustment[]        @relation("AdjustmentApprovedBy")
-  worker                  Worker?
-  taskAssignmentsAssigned TaskAssignment[]           @relation("TaskAssignedBy")
-  taskEvents              TaskEvent[]                @relation("TaskEventActor")
-  warehouseTasksCompleted WarehouseTask[]            @relation("WarehouseTaskCompleter")
-  notifications           Notification[]
-  companyAccess           UserCompanyAccess[]
-  authRefreshSessions     AuthRefreshSession[]
-  cycleCountSchedulesCreated CycleCountSchedule[] @relation("CycleCountScheduleCreator")
-  cycleCountsCreated         CycleCount[]         @relation("CycleCountCreator")
-  cycleCountLinesCounted     CycleCountLine[]     @relation("CycleCountLineCounter")
-  cycleCountVariancesReviewed CycleCountVariance[] @relation("CycleCountVarianceReviewer")
-  returnLinesInspected        ReturnOrderLine[]    @relation("ReturnLineInspector")
-  backupJobsTriggered         BackupJob[]          @relation("BackupTriggeredBy")
-  backupSchedulesCreated      BackupSchedule[]     @relation("BackupScheduleCreatedBy")
-  backupSchedulesUpdated      BackupSchedule[]     @relation("BackupScheduleUpdatedBy")
-  backupDriveIntegrations     BackupDriveIntegration[] @relation("BackupDriveConnectedBy")
-  backupStorageSettingsUpdated BackupStorageSettings[] @relation("BackupStorageSettingsUpdatedBy")
-  omsOrderEventsCreated      OmsOrderEvent[]          @relation("OmsOrderEventCreatedBy")
-  omsOrdersOwned             OmsOrder[]               @relation("OmsOrderCreatedBy")
-  omsOrdersCancelled         OmsOrder[]               @relation("OmsOrderCancelledBy")
-  omsOrdersApproved          OmsOrder[]               @relation("OmsOrderApprovedBy")
-  omsOrdersRejected          OmsOrder[]               @relation("OmsOrderRejectedBy")
-  omsBatchesCreated          OmsBatch[]               @relation("OmsBatchCreatedBy")
-  codRecordsCreated          CodRecord[]              @relation("CodRecordCreatedBy")
-  codAdjustmentsCreated      CodAdjustment[]          @relation("CodAdjustmentCreatedBy")
-  omsReturnsOwned            OmsReturn[]              @relation("OmsReturnCreatedBy")
-  omsReturnsApproved         OmsReturn[]              @relation("OmsReturnApprovedBy")
-  omsReturnsRejected         OmsReturn[]              @relation("OmsReturnRejectedBy")
-  shippingProviderConnections ShippingProviderConnection[] @relation("ShippingProviderConnectedBy")
-  shippingOriginAddressUpdated ShippingOriginAddress[] @relation("ShippingOriginAddressUpdatedBy")
-  shippingFxSettingsUpdated    ShippingFxSettings[]    @relation("ShippingFxSettingsUpdatedBy")
-  bulkShippingJobsTriggered   BulkShippingJob[]            @relation("BulkShippingTriggeredBy")
-  apiCredentialsCreated       ApiCredential[]              @relation("ApiCredentialCreatedBy")
-  apiCredentialsRevoked       ApiCredential[]              @relation("ApiCredentialRevokedBy")
+  stockAdjustmentsCreated      StockAdjustment[]            @relation("AdjustmentCreatedBy")
+  stockAdjustmentsApproved     StockAdjustment[]            @relation("AdjustmentApprovedBy")
+  worker                       Worker?
+  taskAssignmentsAssigned      TaskAssignment[]             @relation("TaskAssignedBy")
+  taskEvents                   TaskEvent[]                  @relation("TaskEventActor")
+  warehouseTasksCompleted      WarehouseTask[]              @relation("WarehouseTaskCompleter")
+  notifications                Notification[]
+  companyAccess                UserCompanyAccess[]
+  authRefreshSessions          AuthRefreshSession[]
+  cycleCountSchedulesCreated   CycleCountSchedule[]         @relation("CycleCountScheduleCreator")
+  cycleCountsCreated           CycleCount[]                 @relation("CycleCountCreator")
+  cycleCountLinesCounted       CycleCountLine[]             @relation("CycleCountLineCounter")
+  cycleCountVariancesReviewed  CycleCountVariance[]         @relation("CycleCountVarianceReviewer")
+  returnLinesInspected         ReturnOrderLine[]            @relation("ReturnLineInspector")
+  backupJobsTriggered          BackupJob[]                  @relation("BackupTriggeredBy")
+  backupSchedulesCreated       BackupSchedule[]             @relation("BackupScheduleCreatedBy")
+  backupSchedulesUpdated       BackupSchedule[]             @relation("BackupScheduleUpdatedBy")
+  backupDriveIntegrations      BackupDriveIntegration[]     @relation("BackupDriveConnectedBy")
+  backupStorageSettingsUpdated BackupStorageSettings[]      @relation("BackupStorageSettingsUpdatedBy")
+  omsOrderEventsCreated        OmsOrderEvent[]              @relation("OmsOrderEventCreatedBy")
+  omsOrdersOwned               OmsOrder[]                   @relation("OmsOrderCreatedBy")
+  omsOrdersCancelled           OmsOrder[]                   @relation("OmsOrderCancelledBy")
+  omsOrdersApproved            OmsOrder[]                   @relation("OmsOrderApprovedBy")
+  omsOrdersRejected            OmsOrder[]                   @relation("OmsOrderRejectedBy")
+  omsBatchesCreated            OmsBatch[]                   @relation("OmsBatchCreatedBy")
+  codRecordsCreated            CodRecord[]                  @relation("CodRecordCreatedBy")
+  codAdjustmentsCreated        CodAdjustment[]              @relation("CodAdjustmentCreatedBy")
+  omsReturnsOwned              OmsReturn[]                  @relation("OmsReturnCreatedBy")
+  omsReturnsApproved           OmsReturn[]                  @relation("OmsReturnApprovedBy")
+  omsReturnsRejected           OmsReturn[]                  @relation("OmsReturnRejectedBy")
+  shippingProviderConnections  ShippingProviderConnection[] @relation("ShippingProviderConnectedBy")
+  shippingOriginAddressUpdated ShippingOriginAddress[]      @relation("ShippingOriginAddressUpdatedBy")
+  shippingFxSettingsUpdated    ShippingFxSettings[]         @relation("ShippingFxSettingsUpdatedBy")
+  bulkShippingJobsTriggered    BulkShippingJob[]            @relation("BulkShippingTriggeredBy")
+  apiCredentialsCreated        ApiCredential[]              @relation("ApiCredentialCreatedBy")
+  apiCredentialsRevoked        ApiCredential[]              @relation("ApiCredentialRevokedBy")
 
   @@map("users")
 }
@@ -1164,12 +1165,12 @@ model ApiCredential {
 }
 
 model BackupStorageSettings {
-  id                 String              @id @default("00000000-0000-4000-8000-0000000000d1") @db.Uuid
-  defaultPolicy      BackupStoragePolicy @default(local_and_drive) @map("default_policy")
+  id                String              @id @default("00000000-0000-4000-8000-0000000000d1") @db.Uuid
+  defaultPolicy     BackupStoragePolicy @default(local_and_drive) @map("default_policy")
   /// Seconds between manual backup *starts*. Default 15 minutes.
-  manualCooldownSec  Int                 @default(900) @map("manual_cooldown_sec")
-  updatedByUserId    String?             @map("updated_by_user_id") @db.Uuid
-  updatedAt          DateTime            @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  manualCooldownSec Int                 @default(900) @map("manual_cooldown_sec")
+  updatedByUserId   String?             @map("updated_by_user_id") @db.Uuid
+  updatedAt         DateTime            @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   updatedBy User? @relation("BackupStorageSettingsUpdatedBy", fields: [updatedByUserId], references: [id])
 
@@ -1177,22 +1178,22 @@ model BackupStorageSettings {
 }
 
 model BackupSchedule {
-  id             String                  @id @default(uuid()) @db.Uuid
-  enabled        Boolean                 @default(true)
-  frequency      BackupScheduleFrequency
-  hour           Int                     @db.SmallInt
-  minute         Int                     @db.SmallInt
-  retentionDays  Int                     @default(7) @map("retention_days")
-  storagePolicy  BackupStoragePolicy?    @map("storage_policy")
-  lastRunAt      DateTime?               @map("last_run_at") @db.Timestamptz(6)
-  createdByUserId String                 @map("created_by_user_id") @db.Uuid
-  updatedByUserId String                 @map("updated_by_user_id") @db.Uuid
-  createdAt      DateTime                @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt      DateTime                @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  id              String                  @id @default(uuid()) @db.Uuid
+  enabled         Boolean                 @default(true)
+  frequency       BackupScheduleFrequency
+  hour            Int                     @db.SmallInt
+  minute          Int                     @db.SmallInt
+  retentionDays   Int                     @default(7) @map("retention_days")
+  storagePolicy   BackupStoragePolicy?    @map("storage_policy")
+  lastRunAt       DateTime?               @map("last_run_at") @db.Timestamptz(6)
+  createdByUserId String                  @map("created_by_user_id") @db.Uuid
+  updatedByUserId String                  @map("updated_by_user_id") @db.Uuid
+  createdAt       DateTime                @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime                @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  createdBy User        @relation("BackupScheduleCreatedBy", fields: [createdByUserId], references: [id])
-  updatedBy User        @relation("BackupScheduleUpdatedBy", fields: [updatedByUserId], references: [id])
-  backupJobs  BackupJob[]
+  createdBy  User        @relation("BackupScheduleCreatedBy", fields: [createdByUserId], references: [id])
+  updatedBy  User        @relation("BackupScheduleUpdatedBy", fields: [updatedByUserId], references: [id])
+  backupJobs BackupJob[]
 
   @@index([enabled], map: "idx_backup_schedules_enabled")
   @@map("backup_schedules")
@@ -1213,36 +1214,36 @@ model BackupDriveIntegration {
 }
 
 model BackupJob {
-  id                String          @id @default(uuid()) @db.Uuid
-  type              BackupJobType
-  status            BackupJobStatus @default(pending)
-  label             String?
-  triggeredByUserId String          @map("triggered_by_user_id") @db.Uuid
-  artifactPath      String?         @map("artifact_path")
-  dumpFilename      String?         @map("dump_filename")
-  manifest          Json?           @db.JsonB
-  progressPercent   Int             @default(0) @map("progress_percent") @db.SmallInt
-  bytesWritten      BigInt          @default(0) @map("bytes_written")
-  errorMessage      String?         @map("error_message")
-  parentJobId       String?         @map("parent_job_id") @db.Uuid
-  backupScheduleId  String?         @map("backup_schedule_id") @db.Uuid
-  storagePolicy      BackupStoragePolicy @default(local_and_drive) @map("storage_policy")
-  storageDestination BackupStorageDestination @default(local) @map("storage_destination")
-  localArtifactPurged Boolean        @default(false) @map("local_artifact_purged")
-  gdriveFileId       String?         @map("gdrive_file_id")
-  gdriveSyncedAt     DateTime?       @map("gdrive_synced_at") @db.Timestamptz(6)
-  gdriveSyncStatus   BackupDriveSyncStatus? @map("gdrive_sync_status")
-  gdriveSyncError    String?         @map("gdrive_sync_error")
-  gdriveSyncAttempts Int             @default(0) @map("gdrive_sync_attempts")
-  gdriveNextRetryAt  DateTime?       @map("gdrive_next_retry_at") @db.Timestamptz(6)
-  startedAt         DateTime?       @map("started_at") @db.Timestamptz(6)
-  completedAt       DateTime?       @map("completed_at") @db.Timestamptz(6)
-  createdAt         DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt         DateTime        @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  id                  String                   @id @default(uuid()) @db.Uuid
+  type                BackupJobType
+  status              BackupJobStatus          @default(pending)
+  label               String?
+  triggeredByUserId   String                   @map("triggered_by_user_id") @db.Uuid
+  artifactPath        String?                  @map("artifact_path")
+  dumpFilename        String?                  @map("dump_filename")
+  manifest            Json?                    @db.JsonB
+  progressPercent     Int                      @default(0) @map("progress_percent") @db.SmallInt
+  bytesWritten        BigInt                   @default(0) @map("bytes_written")
+  errorMessage        String?                  @map("error_message")
+  parentJobId         String?                  @map("parent_job_id") @db.Uuid
+  backupScheduleId    String?                  @map("backup_schedule_id") @db.Uuid
+  storagePolicy       BackupStoragePolicy      @default(local_and_drive) @map("storage_policy")
+  storageDestination  BackupStorageDestination @default(local) @map("storage_destination")
+  localArtifactPurged Boolean                  @default(false) @map("local_artifact_purged")
+  gdriveFileId        String?                  @map("gdrive_file_id")
+  gdriveSyncedAt      DateTime?                @map("gdrive_synced_at") @db.Timestamptz(6)
+  gdriveSyncStatus    BackupDriveSyncStatus?   @map("gdrive_sync_status")
+  gdriveSyncError     String?                  @map("gdrive_sync_error")
+  gdriveSyncAttempts  Int                      @default(0) @map("gdrive_sync_attempts")
+  gdriveNextRetryAt   DateTime?                @map("gdrive_next_retry_at") @db.Timestamptz(6)
+  startedAt           DateTime?                @map("started_at") @db.Timestamptz(6)
+  completedAt         DateTime?                @map("completed_at") @db.Timestamptz(6)
+  createdAt           DateTime                 @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt           DateTime                 @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  triggeredBy User      @relation("BackupTriggeredBy", fields: [triggeredByUserId], references: [id])
-  parentJob      BackupJob?     @relation("BackupJobParent", fields: [parentJobId], references: [id], onDelete: SetNull)
-  childJobs      BackupJob[]    @relation("BackupJobParent")
+  triggeredBy    User            @relation("BackupTriggeredBy", fields: [triggeredByUserId], references: [id])
+  parentJob      BackupJob?      @relation("BackupJobParent", fields: [parentJobId], references: [id], onDelete: SetNull)
+  childJobs      BackupJob[]     @relation("BackupJobParent")
   backupSchedule BackupSchedule? @relation(fields: [backupScheduleId], references: [id], onDelete: SetNull)
 
   @@index([status, createdAt(sort: Desc)], map: "idx_backup_jobs_status_created")
@@ -1263,8 +1264,8 @@ model AuthRefreshSession {
   createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
   rotatedAt    DateTime  @default(now()) @map("rotated_at") @db.Timestamptz(6)
 
-  user       User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
-  rotations  AuthRefreshRotation[]
+  user      User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  rotations AuthRefreshRotation[]
 
   @@index([userId])
   @@index([userId, revokedAt])
@@ -1285,27 +1286,27 @@ model AuthRefreshRotation {
 }
 
 model Warehouse {
-  id        String          @id @default(uuid()) @db.Uuid
-  name      String
-  code      String          @unique
-  address   String?
-  city      String?
-  country   String          @default("SA")
-  status    WarehouseStatus @default(active)
-  workflowUxSettings Json?            @map("workflow_ux_settings") @db.JsonB
-  createdAt DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt DateTime        @default(now()) @map("updated_at") @db.Timestamptz(6)
+  id                 String          @id @default(uuid()) @db.Uuid
+  name               String
+  code               String          @unique
+  address            String?
+  city               String?
+  country            String          @default("SA")
+  status             WarehouseStatus @default(active)
+  workflowUxSettings Json?           @map("workflow_ux_settings") @db.JsonB
+  createdAt          DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime        @default(now()) @map("updated_at") @db.Timestamptz(6)
 
-  locations           Location[]
-  currentStock        CurrentStock[]
-  stockAdjustments      StockAdjustment[]
-  cycleCountSchedules   CycleCountSchedule[]
-  cycleCounts           CycleCount[]
-  cycleCountVariances   CycleCountVariance[]
+  locations                Location[]
+  currentStock             CurrentStock[]
+  stockAdjustments         StockAdjustment[]
+  cycleCountSchedules      CycleCountSchedule[]
+  cycleCounts              CycleCount[]
+  cycleCountVariances      CycleCountVariance[]
   cycleCountProductHistory CycleCountProductHistory[]
-  workers               Worker[]
-  workflowInstances     WorkflowInstance[]
-  returnOrders            ReturnOrder[]
+  workers                  Worker[]
+  workflowInstances        WorkflowInstance[]
+  returnOrders             ReturnOrder[]
 
   @@map("warehouses")
 }
@@ -1331,82 +1332,82 @@ model Location {
   createdAt          DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt          DateTime       @default(now()) @map("updated_at") @db.Timestamptz(6)
 
-  warehouse    Warehouse    @relation(fields: [warehouseId], references: [id])
-  parent       Location?    @relation("LocationParent", fields: [parentId], references: [id])
-  children     Location[]   @relation("LocationParent")
-  currentStock           CurrentStock[]
-  stockAdjustmentLines   StockAdjustmentLine[]
-  cycleCountLines        CycleCountLine[]
-  cycleCountVariances    CycleCountVariance[]
-  packages               Package[]
-  returnOrderLines       ReturnOrderLine[]
-  stockReservations      StockReservation[]
+  warehouse            Warehouse             @relation(fields: [warehouseId], references: [id])
+  parent               Location?             @relation("LocationParent", fields: [parentId], references: [id])
+  children             Location[]            @relation("LocationParent")
+  currentStock         CurrentStock[]
+  stockAdjustmentLines StockAdjustmentLine[]
+  cycleCountLines      CycleCountLine[]
+  cycleCountVariances  CycleCountVariance[]
+  packages             Package[]
+  returnOrderLines     ReturnOrderLine[]
+  stockReservations    StockReservation[]
 
   @@index([warehouseId, parentId, sortOrder], map: "idx_locations_wh_parent_sort")
   @@map("locations")
 }
 
 model Product {
-  id                 String              @id @default(uuid()) @db.Uuid
-  companyId          String              @map("company_id") @db.Uuid
-  categoryId         String?             @map("category_id") @db.Uuid
-  name               String
-  sku                String
-  barcode            String?
-  description        String?
-  trackingType       ProductTrackingType @default(none) @map("tracking_type")
-  uom                ProductUom          @default(piece)
-  weightKg           Decimal?            @map("weight_kg") @db.Decimal(10, 4)
-  volumeCbm          Decimal?            @map("volume_cbm") @db.Decimal(10, 6)
-  lengthCm           Decimal?            @map("length_cm") @db.Decimal(8, 2)
-  widthCm            Decimal?            @map("width_cm") @db.Decimal(8, 2)
-  heightCm           Decimal?            @map("height_cm") @db.Decimal(8, 2)
-  expiryTracking     Boolean             @default(false) @map("expiry_tracking")
-  minStockThreshold  Int                 @default(0) @map("min_stock_threshold")
-  status             ProductStatus       @default(active)
-  imagePath          String?             @map("image_path")
-  createdAt          DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt          DateTime            @default(now()) @map("updated_at") @db.Timestamptz(6)
+  id                String              @id @default(uuid()) @db.Uuid
+  companyId         String              @map("company_id") @db.Uuid
+  categoryId        String?             @map("category_id") @db.Uuid
+  name              String
+  sku               String
+  barcode           String?
+  description       String?
+  trackingType      ProductTrackingType @default(none) @map("tracking_type")
+  uom               ProductUom          @default(piece)
+  weightKg          Decimal?            @map("weight_kg") @db.Decimal(10, 4)
+  volumeCbm         Decimal?            @map("volume_cbm") @db.Decimal(10, 6)
+  lengthCm          Decimal?            @map("length_cm") @db.Decimal(8, 2)
+  widthCm           Decimal?            @map("width_cm") @db.Decimal(8, 2)
+  heightCm          Decimal?            @map("height_cm") @db.Decimal(8, 2)
+  expiryTracking    Boolean             @default(false) @map("expiry_tracking")
+  minStockThreshold Int                 @default(0) @map("min_stock_threshold")
+  status            ProductStatus       @default(active)
+  imagePath         String?             @map("image_path")
+  createdAt         DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime            @default(now()) @map("updated_at") @db.Timestamptz(6)
 
-  company           Company            @relation(fields: [companyId], references: [id])
-  lots              Lot[]
-  currentStock      CurrentStock[]
-  inboundLines         InboundOrderLine[]
-  outboundLines        OutboundOrderLine[]
-  returnOrderLines     ReturnOrderLine[]
-  packages             Package[]
-  ledgerEntries        InventoryLedger[]
-  stockAdjustmentLines       StockAdjustmentLine[]
-  cycleCountLines            CycleCountLine[]
-  cycleCountVariances        CycleCountVariance[]
-  cycleCountProductHistory   CycleCountProductHistory[]
-  stockReservations          StockReservation[]
-  omsOrderLines              OmsOrderLine[]
-  omsReturnLines             OmsReturnLine[]
-  inboundSourceAllocations   InboundSourceAllocation[]
+  company                  Company                    @relation(fields: [companyId], references: [id])
+  lots                     Lot[]
+  currentStock             CurrentStock[]
+  inboundLines             InboundOrderLine[]
+  outboundLines            OutboundOrderLine[]
+  returnOrderLines         ReturnOrderLine[]
+  packages                 Package[]
+  ledgerEntries            InventoryLedger[]
+  stockAdjustmentLines     StockAdjustmentLine[]
+  cycleCountLines          CycleCountLine[]
+  cycleCountVariances      CycleCountVariance[]
+  cycleCountProductHistory CycleCountProductHistory[]
+  stockReservations        StockReservation[]
+  omsOrderLines            OmsOrderLine[]
+  omsReturnLines           OmsReturnLine[]
+  inboundSourceAllocations InboundSourceAllocation[]
 
   @@unique([companyId, sku], map: "uq_product_sku_per_company")
   @@map("products")
 }
 
 model Lot {
-  id              String   @id @default(uuid()) @db.Uuid
-  productId       String   @map("product_id") @db.Uuid
-  lotNumber       String   @map("lot_number")
+  id              String    @id @default(uuid()) @db.Uuid
+  productId       String    @map("product_id") @db.Uuid
+  lotNumber       String    @map("lot_number")
   expiryDate      DateTime? @map("expiry_date") @db.Date
   manufactureDate DateTime? @map("manufacture_date") @db.Date
-  receivedAt      DateTime @default(now()) @map("received_at") @db.Timestamptz(6)
-  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  receivedAt      DateTime  @default(now()) @map("received_at") @db.Timestamptz(6)
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
 
-  product       Product        @relation(fields: [productId], references: [id])
-  currentStock  CurrentStock[]
-  ledgerEntries          InventoryLedger[]
-  stockAdjustmentLines   StockAdjustmentLine[]
-  cycleCountLines        CycleCountLine[]
-  cycleCountVariances    CycleCountVariance[]
-  returnOrderLines       ReturnOrderLine[]
-  packages               Package[]
-  stockReservations      StockReservation[]
+  product                  Product                   @relation(fields: [productId], references: [id])
+  currentStock             CurrentStock[]
+  ledgerEntries            InventoryLedger[]
+  stockAdjustmentLines     StockAdjustmentLine[]
+  cycleCountLines          CycleCountLine[]
+  cycleCountVariances      CycleCountVariance[]
+  returnOrderLines         ReturnOrderLine[]
+  packages                 Package[]
+  stockReservations        StockReservation[]
   inboundSourceAllocations InboundSourceAllocation[]
 
   @@unique([productId, lotNumber], map: "uq_lot_per_product")
@@ -1443,23 +1444,23 @@ model CurrentStock {
 /// (id, created_at) is required by Postgres for partitioning but Prisma still
 /// only needs `id` to address rows.
 model InventoryLedger {
-  id              String        @default(uuid()) @db.Uuid
-  companyId       String        @map("company_id") @db.Uuid
-  productId       String        @map("product_id") @db.Uuid
-  lotId           String?       @map("lot_id") @db.Uuid
-  packageId       String?       @map("package_id") @db.Uuid
-  fromLocationId  String?       @map("from_location_id") @db.Uuid
-  toLocationId    String?       @map("to_location_id") @db.Uuid
-  movementType    MovementType  @map("movement_type")
-  quantity        Decimal       @db.Decimal(15, 4)
-  quantityBefore  Decimal?      @map("quantity_before") @db.Decimal(15, 4)
-  quantityAfter   Decimal?      @map("quantity_after") @db.Decimal(15, 4)
-  referenceType   LedgerRefType @map("reference_type")
-  referenceId     String        @map("reference_id") @db.Uuid
-  operatorId      String        @map("operator_id") @db.Uuid
-  idempotencyKey  String?       @map("idempotency_key")
-  notes           String?
-  createdAt       DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+  id             String        @default(uuid()) @db.Uuid
+  companyId      String        @map("company_id") @db.Uuid
+  productId      String        @map("product_id") @db.Uuid
+  lotId          String?       @map("lot_id") @db.Uuid
+  packageId      String?       @map("package_id") @db.Uuid
+  fromLocationId String?       @map("from_location_id") @db.Uuid
+  toLocationId   String?       @map("to_location_id") @db.Uuid
+  movementType   MovementType  @map("movement_type")
+  quantity       Decimal       @db.Decimal(15, 4)
+  quantityBefore Decimal?      @map("quantity_before") @db.Decimal(15, 4)
+  quantityAfter  Decimal?      @map("quantity_after") @db.Decimal(15, 4)
+  referenceType  LedgerRefType @map("reference_type")
+  referenceId    String        @map("reference_id") @db.Uuid
+  operatorId     String        @map("operator_id") @db.Uuid
+  idempotencyKey String?       @map("idempotency_key")
+  notes          String?
+  createdAt      DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
 
   company  Company @relation(fields: [companyId], references: [id])
   product  Product @relation(fields: [productId], references: [id])
@@ -1471,23 +1472,23 @@ model InventoryLedger {
 }
 
 model StockAdjustment {
-  id            String           @id @default(uuid()) @db.Uuid
-  companyId     String           @map("company_id") @db.Uuid
-  warehouseId   String           @map("warehouse_id") @db.Uuid
-  cycleCountId  String?          @map("cycle_count_id") @db.Uuid
-  reason        String
-  status        AdjustmentStatus @default(draft)
-  approvedBy    String?          @map("approved_by") @db.Uuid
-  approvedAt    DateTime?        @map("approved_at") @db.Timestamptz(6)
-  createdBy     String           @map("created_by") @db.Uuid
-  createdAt     DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt     DateTime         @default(now()) @map("updated_at") @db.Timestamptz(6)
+  id           String           @id @default(uuid()) @db.Uuid
+  companyId    String           @map("company_id") @db.Uuid
+  warehouseId  String           @map("warehouse_id") @db.Uuid
+  cycleCountId String?          @map("cycle_count_id") @db.Uuid
+  reason       String
+  status       AdjustmentStatus @default(draft)
+  approvedBy   String?          @map("approved_by") @db.Uuid
+  approvedAt   DateTime?        @map("approved_at") @db.Timestamptz(6)
+  createdBy    String           @map("created_by") @db.Uuid
+  createdAt    DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime         @default(now()) @map("updated_at") @db.Timestamptz(6)
 
-  company    Company              @relation(fields: [companyId], references: [id])
-  warehouse  Warehouse            @relation(fields: [warehouseId], references: [id])
-  cycleCount CycleCount?          @relation(fields: [cycleCountId], references: [id])
-  creator    User                 @relation("AdjustmentCreatedBy", fields: [createdBy], references: [id])
-  approver   User?                @relation("AdjustmentApprovedBy", fields: [approvedBy], references: [id])
+  company    Company               @relation(fields: [companyId], references: [id])
+  warehouse  Warehouse             @relation(fields: [warehouseId], references: [id])
+  cycleCount CycleCount?           @relation(fields: [cycleCountId], references: [id])
+  creator    User                  @relation("AdjustmentCreatedBy", fields: [createdBy], references: [id])
+  approver   User?                 @relation("AdjustmentApprovedBy", fields: [approvedBy], references: [id])
   lines      StockAdjustmentLine[]
   variances  CycleCountVariance[]
 
@@ -1496,21 +1497,21 @@ model StockAdjustment {
 }
 
 model StockAdjustmentLine {
-  id                   String   @id @default(uuid()) @db.Uuid
-  adjustmentId         String   @map("adjustment_id") @db.Uuid
-  productId            String   @map("product_id") @db.Uuid
-  locationId           String   @map("location_id") @db.Uuid
-  lotId                String?  @map("lot_id") @db.Uuid
-  quantityBefore       Decimal  @map("quantity_before") @db.Decimal(15, 4)
-  quantityAfter        Decimal  @map("quantity_after") @db.Decimal(15, 4)
-  reasonNote           String?  @map("reason_note")
-  cycleCountVarianceId String?  @unique @map("cycle_count_variance_id") @db.Uuid
+  id                   String  @id @default(uuid()) @db.Uuid
+  adjustmentId         String  @map("adjustment_id") @db.Uuid
+  productId            String  @map("product_id") @db.Uuid
+  locationId           String  @map("location_id") @db.Uuid
+  lotId                String? @map("lot_id") @db.Uuid
+  quantityBefore       Decimal @map("quantity_before") @db.Decimal(15, 4)
+  quantityAfter        Decimal @map("quantity_after") @db.Decimal(15, 4)
+  reasonNote           String? @map("reason_note")
+  cycleCountVarianceId String? @unique @map("cycle_count_variance_id") @db.Uuid
 
-  adjustment         StockAdjustment      @relation(fields: [adjustmentId], references: [id], onDelete: Cascade)
-  product            Product              @relation(fields: [productId], references: [id])
-  location           Location             @relation(fields: [locationId], references: [id])
-  lot                Lot?                 @relation(fields: [lotId], references: [id])
-  cycleCountVariance CycleCountVariance?  @relation(fields: [cycleCountVarianceId], references: [id])
+  adjustment         StockAdjustment     @relation(fields: [adjustmentId], references: [id], onDelete: Cascade)
+  product            Product             @relation(fields: [productId], references: [id])
+  location           Location            @relation(fields: [locationId], references: [id])
+  lot                Lot?                @relation(fields: [lotId], references: [id])
+  cycleCountVariance CycleCountVariance? @relation(fields: [cycleCountVarianceId], references: [id])
 
   @@map("stock_adjustment_lines")
 }
@@ -1521,21 +1522,21 @@ model StockAdjustmentLine {
 
 /// Warehouse admin recurrence config — one row per company + warehouse.
 model CycleCountSchedule {
-  id                 String   @id @default(uuid()) @db.Uuid
-  companyId          String   @map("company_id") @db.Uuid
-  warehouseId        String   @map("warehouse_id") @db.Uuid
-  intervalDays       Int      @map("interval_days")
-  enabled            Boolean  @default(true)
-  includeZeroOnHand  Boolean  @default(false) @map("include_zero_on_hand")
-  lastRunAt          DateTime? @map("last_run_at") @db.Timestamptz(6)
-  nextRunAt          DateTime? @map("next_run_at") @db.Timestamptz(6)
-  createdBy          String   @map("created_by") @db.Uuid
-  createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt          DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+  id                String    @id @default(uuid()) @db.Uuid
+  companyId         String    @map("company_id") @db.Uuid
+  warehouseId       String    @map("warehouse_id") @db.Uuid
+  intervalDays      Int       @map("interval_days")
+  enabled           Boolean   @default(true)
+  includeZeroOnHand Boolean   @default(false) @map("include_zero_on_hand")
+  lastRunAt         DateTime? @map("last_run_at") @db.Timestamptz(6)
+  nextRunAt         DateTime? @map("next_run_at") @db.Timestamptz(6)
+  createdBy         String    @map("created_by") @db.Uuid
+  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime  @default(now()) @map("updated_at") @db.Timestamptz(6)
 
-  company   Company   @relation(fields: [companyId], references: [id])
-  warehouse Warehouse @relation(fields: [warehouseId], references: [id])
-  creator   User      @relation("CycleCountScheduleCreator", fields: [createdBy], references: [id])
+  company   Company      @relation(fields: [companyId], references: [id])
+  warehouse Warehouse    @relation(fields: [warehouseId], references: [id])
+  creator   User         @relation("CycleCountScheduleCreator", fields: [createdBy], references: [id])
   counts    CycleCount[]
 
   @@unique([companyId, warehouseId], map: "cycle_count_schedules_company_warehouse_uidx")
@@ -1545,31 +1546,31 @@ model CycleCountSchedule {
 
 /// Operational count session (header). Inventory is not mutated on complete in Phase 7.1.
 model CycleCount {
-  id               String           @id @default(uuid()) @db.Uuid
-  scheduleId       String?          @map("schedule_id") @db.Uuid
-  companyId        String           @map("company_id") @db.Uuid
-  warehouseId      String           @map("warehouse_id") @db.Uuid
-  status           CycleCountStatus @default(scheduled)
-  source           CycleCountSource
-  snapshotAt         DateTime?        @map("snapshot_at") @db.Timestamptz(6)
-  blindCount         Boolean          @default(true) @map("blind_count")
-  assignedWorkerId   String?          @map("assigned_worker_id") @db.Uuid
-  executingWorkerId  String?          @map("executing_worker_id") @db.Uuid
-  createdBy          String           @map("created_by") @db.Uuid
-  startedAt        DateTime?        @map("started_at") @db.Timestamptz(6)
-  completedAt      DateTime?        @map("completed_at") @db.Timestamptz(6)
-  notes            String?
-  createdAt        DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt        DateTime         @default(now()) @map("updated_at") @db.Timestamptz(6)
+  id                String           @id @default(uuid()) @db.Uuid
+  scheduleId        String?          @map("schedule_id") @db.Uuid
+  companyId         String           @map("company_id") @db.Uuid
+  warehouseId       String           @map("warehouse_id") @db.Uuid
+  status            CycleCountStatus @default(scheduled)
+  source            CycleCountSource
+  snapshotAt        DateTime?        @map("snapshot_at") @db.Timestamptz(6)
+  blindCount        Boolean          @default(true) @map("blind_count")
+  assignedWorkerId  String?          @map("assigned_worker_id") @db.Uuid
+  executingWorkerId String?          @map("executing_worker_id") @db.Uuid
+  createdBy         String           @map("created_by") @db.Uuid
+  startedAt         DateTime?        @map("started_at") @db.Timestamptz(6)
+  completedAt       DateTime?        @map("completed_at") @db.Timestamptz(6)
+  notes             String?
+  createdAt         DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime         @default(now()) @map("updated_at") @db.Timestamptz(6)
 
-  company        Company             @relation(fields: [companyId], references: [id])
-  warehouse      Warehouse           @relation(fields: [warehouseId], references: [id])
-  schedule       CycleCountSchedule? @relation(fields: [scheduleId], references: [id])
-  assignedWorker  Worker?             @relation("CycleCountSessionAssignee", fields: [assignedWorkerId], references: [id])
-  executingWorker Worker?             @relation("CycleCountExecutingWorker", fields: [executingWorkerId], references: [id])
-  creator         User                @relation("CycleCountCreator", fields: [createdBy], references: [id])
-  lines           CycleCountLine[]
-  variances       CycleCountVariance[]
+  company          Company              @relation(fields: [companyId], references: [id])
+  warehouse        Warehouse            @relation(fields: [warehouseId], references: [id])
+  schedule         CycleCountSchedule?  @relation(fields: [scheduleId], references: [id])
+  assignedWorker   Worker?              @relation("CycleCountSessionAssignee", fields: [assignedWorkerId], references: [id])
+  executingWorker  Worker?              @relation("CycleCountExecutingWorker", fields: [executingWorkerId], references: [id])
+  creator          User                 @relation("CycleCountCreator", fields: [createdBy], references: [id])
+  lines            CycleCountLine[]
+  variances        CycleCountVariance[]
   stockAdjustments StockAdjustment[]
 
   @@index([companyId, warehouseId, status], map: "idx_cycle_counts_company_wh_status")
@@ -1596,12 +1597,12 @@ model CycleCountLine {
   countNotes          String?              @map("count_notes")
   createdAt           DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
 
-  cycleCount     CycleCount @relation(fields: [cycleCountId], references: [id], onDelete: Cascade)
-  product        Product    @relation(fields: [productId], references: [id])
-  location       Location   @relation(fields: [locationId], references: [id])
-  lot            Lot?       @relation(fields: [lotId], references: [id])
-  assignedWorker Worker?    @relation("CycleCountLineAssignee", fields: [assignedWorkerId], references: [id])
-  counter        User?      @relation("CycleCountLineCounter", fields: [countedBy], references: [id])
+  cycleCount     CycleCount          @relation(fields: [cycleCountId], references: [id], onDelete: Cascade)
+  product        Product             @relation(fields: [productId], references: [id])
+  location       Location            @relation(fields: [locationId], references: [id])
+  lot            Lot?                @relation(fields: [lotId], references: [id])
+  assignedWorker Worker?             @relation("CycleCountLineAssignee", fields: [assignedWorkerId], references: [id])
+  counter        User?               @relation("CycleCountLineCounter", fields: [countedBy], references: [id])
   variance       CycleCountVariance?
 
   @@index([cycleCountId])
@@ -1612,37 +1613,37 @@ model CycleCountLine {
 
 /// Inventory discrepancy from a counted cycle count line — review before adjustment.
 model CycleCountVariance {
-  id                   String                   @id @default(uuid()) @db.Uuid
-  cycleCountId         String                   @map("cycle_count_id") @db.Uuid
-  cycleCountLineId     String                   @unique @map("cycle_count_line_id") @db.Uuid
-  companyId            String                   @map("company_id") @db.Uuid
-  warehouseId          String                   @map("warehouse_id") @db.Uuid
-  productId            String                   @map("product_id") @db.Uuid
-  locationId           String                   @map("location_id") @db.Uuid
-  lotId                String?                  @map("lot_id") @db.Uuid
-  expectedQuantity     Decimal                  @map("expected_quantity") @db.Decimal(15, 4)
-  actualQuantity       Decimal                  @map("actual_quantity") @db.Decimal(15, 4)
-  discrepancyQuantity  Decimal                  @map("discrepancy_quantity") @db.Decimal(15, 4)
-  reasonCode           VarianceReasonCode?      @map("reason_code")
-  status               CycleCountVarianceStatus @default(pending_review)
-  reviewNotes          String?                  @map("review_notes")
-  reviewedBy           String?                  @map("reviewed_by") @db.Uuid
-  reviewedAt           DateTime?                @map("reviewed_at") @db.Timestamptz(6)
-  stockAdjustmentId    String?                  @map("stock_adjustment_id") @db.Uuid
-  postedAt             DateTime?                @map("posted_at") @db.Timestamptz(6)
-  createdAt            DateTime                 @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt            DateTime                 @default(now()) @map("updated_at") @db.Timestamptz(6)
+  id                  String                   @id @default(uuid()) @db.Uuid
+  cycleCountId        String                   @map("cycle_count_id") @db.Uuid
+  cycleCountLineId    String                   @unique @map("cycle_count_line_id") @db.Uuid
+  companyId           String                   @map("company_id") @db.Uuid
+  warehouseId         String                   @map("warehouse_id") @db.Uuid
+  productId           String                   @map("product_id") @db.Uuid
+  locationId          String                   @map("location_id") @db.Uuid
+  lotId               String?                  @map("lot_id") @db.Uuid
+  expectedQuantity    Decimal                  @map("expected_quantity") @db.Decimal(15, 4)
+  actualQuantity      Decimal                  @map("actual_quantity") @db.Decimal(15, 4)
+  discrepancyQuantity Decimal                  @map("discrepancy_quantity") @db.Decimal(15, 4)
+  reasonCode          VarianceReasonCode?      @map("reason_code")
+  status              CycleCountVarianceStatus @default(pending_review)
+  reviewNotes         String?                  @map("review_notes")
+  reviewedBy          String?                  @map("reviewed_by") @db.Uuid
+  reviewedAt          DateTime?                @map("reviewed_at") @db.Timestamptz(6)
+  stockAdjustmentId   String?                  @map("stock_adjustment_id") @db.Uuid
+  postedAt            DateTime?                @map("posted_at") @db.Timestamptz(6)
+  createdAt           DateTime                 @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt           DateTime                 @default(now()) @map("updated_at") @db.Timestamptz(6)
 
-  cycleCount          CycleCount            @relation(fields: [cycleCountId], references: [id], onDelete: Cascade)
-  cycleCountLine      CycleCountLine        @relation(fields: [cycleCountLineId], references: [id], onDelete: Cascade)
-  company             Company               @relation(fields: [companyId], references: [id])
-  warehouse           Warehouse             @relation(fields: [warehouseId], references: [id])
-  product             Product               @relation(fields: [productId], references: [id])
-  location            Location              @relation(fields: [locationId], references: [id])
-  lot                 Lot?                  @relation(fields: [lotId], references: [id])
-  reviewer            User?                 @relation("CycleCountVarianceReviewer", fields: [reviewedBy], references: [id])
-  stockAdjustment     StockAdjustment?      @relation(fields: [stockAdjustmentId], references: [id])
-  adjustmentLine      StockAdjustmentLine?
+  cycleCount      CycleCount           @relation(fields: [cycleCountId], references: [id], onDelete: Cascade)
+  cycleCountLine  CycleCountLine       @relation(fields: [cycleCountLineId], references: [id], onDelete: Cascade)
+  company         Company              @relation(fields: [companyId], references: [id])
+  warehouse       Warehouse            @relation(fields: [warehouseId], references: [id])
+  product         Product              @relation(fields: [productId], references: [id])
+  location        Location             @relation(fields: [locationId], references: [id])
+  lot             Lot?                 @relation(fields: [lotId], references: [id])
+  reviewer        User?                @relation("CycleCountVarianceReviewer", fields: [reviewedBy], references: [id])
+  stockAdjustment StockAdjustment?     @relation(fields: [stockAdjustmentId], references: [id])
+  adjustmentLine  StockAdjustmentLine?
 
   @@index([cycleCountId, status], map: "idx_cycle_count_variances_count_status")
   @@index([companyId, status], map: "idx_cycle_count_variances_company_status")
@@ -1651,16 +1652,16 @@ model CycleCountVariance {
 
 /// Product-level last count + next due for recurrence (updated when a count completes).
 model CycleCountProductHistory {
-  id              String    @id @default(uuid()) @db.Uuid
-  companyId       String    @map("company_id") @db.Uuid
-  warehouseId     String    @map("warehouse_id") @db.Uuid
-  productId       String    @map("product_id") @db.Uuid
-  lastCountedAt   DateTime  @map("last_counted_at") @db.Timestamptz(6)
-  lastCycleCountId String?  @map("last_cycle_count_id") @db.Uuid
-  nextDueAt       DateTime? @map("next_due_at") @db.Timestamptz(6)
-  completionCount Int       @default(1) @map("completion_count")
-  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt       DateTime  @default(now()) @map("updated_at") @db.Timestamptz(6)
+  id               String    @id @default(uuid()) @db.Uuid
+  companyId        String    @map("company_id") @db.Uuid
+  warehouseId      String    @map("warehouse_id") @db.Uuid
+  productId        String    @map("product_id") @db.Uuid
+  lastCountedAt    DateTime  @map("last_counted_at") @db.Timestamptz(6)
+  lastCycleCountId String?   @map("last_cycle_count_id") @db.Uuid
+  nextDueAt        DateTime? @map("next_due_at") @db.Timestamptz(6)
+  completionCount  Int       @default(1) @map("completion_count")
+  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime  @default(now()) @map("updated_at") @db.Timestamptz(6)
 
   company   Company   @relation(fields: [companyId], references: [id])
   warehouse Warehouse @relation(fields: [warehouseId], references: [id])
@@ -1698,31 +1699,31 @@ model InboundOrder {
   createdAt           DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt           DateTime           @default(now()) @map("updated_at") @db.Timestamptz(6)
 
-  company Company            @relation(fields: [companyId], references: [id])
-  creator User               @relation("InboundCreatedBy", fields: [createdBy], references: [id])
-  lines   InboundOrderLine[]
+  company           Company                   @relation(fields: [companyId], references: [id])
+  creator           User                      @relation("InboundCreatedBy", fields: [createdBy], references: [id])
+  lines             InboundOrderLine[]
   sourceAllocations InboundSourceAllocation[]
 
   @@map("inbound_orders")
 }
 
 model InboundOrderLine {
-  id                  String          @id @default(uuid()) @db.Uuid
-  inboundOrderId      String          @map("inbound_order_id") @db.Uuid
-  productId           String          @map("product_id") @db.Uuid
-  expectedQuantity    Decimal         @map("expected_quantity") @db.Decimal(15, 4)
-  receivedQuantity    Decimal         @default(0) @map("received_quantity") @db.Decimal(15, 4)
-  expectedLotNumber   String?         @map("expected_lot_number")
-  expectedExpiryDate  DateTime?       @map("expected_expiry_date") @db.Date
-  discrepancyType     DiscrepancyType @default(none) @map("discrepancy_type")
-  discrepancyNotes    String?         @map("discrepancy_notes")
-  qcStatus            InboundQcStatus @default(not_required) @map("qc_status")
-  lineNumber          Int             @map("line_number")
-  createdAt           DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt           DateTime        @default(now()) @map("updated_at") @db.Timestamptz(6)
+  id                 String          @id @default(uuid()) @db.Uuid
+  inboundOrderId     String          @map("inbound_order_id") @db.Uuid
+  productId          String          @map("product_id") @db.Uuid
+  expectedQuantity   Decimal         @map("expected_quantity") @db.Decimal(15, 4)
+  receivedQuantity   Decimal         @default(0) @map("received_quantity") @db.Decimal(15, 4)
+  expectedLotNumber  String?         @map("expected_lot_number")
+  expectedExpiryDate DateTime?       @map("expected_expiry_date") @db.Date
+  discrepancyType    DiscrepancyType @default(none) @map("discrepancy_type")
+  discrepancyNotes   String?         @map("discrepancy_notes")
+  qcStatus           InboundQcStatus @default(not_required) @map("qc_status")
+  lineNumber         Int             @map("line_number")
+  createdAt          DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime        @default(now()) @map("updated_at") @db.Timestamptz(6)
 
-  order   InboundOrder @relation(fields: [inboundOrderId], references: [id], onDelete: Cascade)
-  product Product      @relation(fields: [productId], references: [id])
+  order             InboundOrder              @relation(fields: [inboundOrderId], references: [id], onDelete: Cascade)
+  product           Product                   @relation(fields: [productId], references: [id])
   sourceAllocations InboundSourceAllocation[]
 
   @@map("inbound_order_lines")
@@ -1733,221 +1734,221 @@ model InboundOrderLine {
 // ---------------------------------------------------------------------------
 
 model OutboundOrder {
-  id                   String              @id @default(uuid()) @db.Uuid
-  companyId            String              @map("company_id") @db.Uuid
+  id                     String                @id @default(uuid()) @db.Uuid
+  companyId              String                @map("company_id") @db.Uuid
   /// DEFAULT '' — populated by trigger fn_outbound_order_number on INSERT
-  orderNumber          String              @unique @default("") @map("order_number")
-  status               OutboundOrderStatus @default(draft)
-  destinationAddress   String              @map("destination_address")
-  requiredShipDate     DateTime            @map("required_ship_date") @db.Date
-  carrier              String?
-  trackingNumber       String?             @map("tracking_number")
-  clientReference      String?             @map("client_reference")
-  notes                String?
-  requiresPacking      Boolean             @default(true) @map("requires_packing")
-  recipientName        String?             @map("recipient_name")
-  recipientPhone       String?             @map("recipient_phone")
-  city                 String?
-  district             String?
-  addressLine1         String?             @map("address_line1")
-  addressLine2         String?             @map("address_line2")
-  deliveryInstructions String?             @map("delivery_instructions")
-  paymentMethod        OmsPaymentMethod?   @map("payment_method")
-  subtotal             Decimal?            @db.Decimal(15, 4)
-  shippingFee          Decimal?            @map("shipping_fee") @db.Decimal(15, 4)
-  codAmount            Decimal?            @map("cod_amount") @db.Decimal(15, 4)
-  currency             String?             @default("USD")
+  orderNumber            String                @unique @default("") @map("order_number")
+  status                 OutboundOrderStatus   @default(draft)
+  destinationAddress     String                @map("destination_address")
+  requiredShipDate       DateTime              @map("required_ship_date") @db.Date
+  carrier                String?
+  trackingNumber         String?               @map("tracking_number")
+  clientReference        String?               @map("client_reference")
+  notes                  String?
+  requiresPacking        Boolean               @default(true) @map("requires_packing")
+  recipientName          String?               @map("recipient_name")
+  recipientPhone         String?               @map("recipient_phone")
+  city                   String?
+  district               String?
+  addressLine1           String?               @map("address_line1")
+  addressLine2           String?               @map("address_line2")
+  deliveryInstructions   String?               @map("delivery_instructions")
+  paymentMethod          OmsPaymentMethod?     @map("payment_method")
+  subtotal               Decimal?              @db.Decimal(15, 4)
+  shippingFee            Decimal?              @map("shipping_fee") @db.Decimal(15, 4)
+  codAmount              Decimal?              @map("cod_amount") @db.Decimal(15, 4)
+  currency               String?               @default("USD")
   /// Collection currency sent to the carrier. Null means the order currency. Never overwrites codAmount.
-  codCollectionCurrency String?            @map("cod_collection_currency") @db.VarChar(8)
-  codCollectionAmount  Decimal?            @map("cod_collection_amount") @db.Decimal(15, 4)
-  codFxRate            Decimal?            @map("cod_fx_rate") @db.Decimal(18, 6)
-  codFxSource          String?             @map("cod_fx_source") @db.VarChar(64)
-  codFxAt              DateTime?           @map("cod_fx_at") @db.Timestamptz(6)
-  codCollectedAt       DateTime?           @map("cod_collected_at") @db.Timestamptz(6)
-  codRemittedAt        DateTime?           @map("cod_remitted_at") @db.Timestamptz(6)
-  codStatus            OmsCodStatus?       @map("cod_status")
-  allocationStatus     OmsAllocationStatus @default(none) @map("allocation_status")
-  allocatedAt          DateTime?           @map("allocated_at") @db.Timestamptz(6)
-  outForDeliveryAt     DateTime?           @map("out_for_delivery_at") @db.Timestamptz(6)
-  deliveredAt          DateTime?           @map("delivered_at") @db.Timestamptz(6)
-  returnedAt           DateTime?           @map("returned_at") @db.Timestamptz(6)
+  codCollectionCurrency  String?               @map("cod_collection_currency") @db.VarChar(8)
+  codCollectionAmount    Decimal?              @map("cod_collection_amount") @db.Decimal(15, 4)
+  codFxRate              Decimal?              @map("cod_fx_rate") @db.Decimal(18, 6)
+  codFxSource            String?               @map("cod_fx_source") @db.VarChar(64)
+  codFxAt                DateTime?             @map("cod_fx_at") @db.Timestamptz(6)
+  codCollectedAt         DateTime?             @map("cod_collected_at") @db.Timestamptz(6)
+  codRemittedAt          DateTime?             @map("cod_remitted_at") @db.Timestamptz(6)
+  codStatus              OmsCodStatus?         @map("cod_status")
+  allocationStatus       OmsAllocationStatus   @default(none) @map("allocation_status")
+  allocatedAt            DateTime?             @map("allocated_at") @db.Timestamptz(6)
+  outForDeliveryAt       DateTime?             @map("out_for_delivery_at") @db.Timestamptz(6)
+  deliveredAt            DateTime?             @map("delivered_at") @db.Timestamptz(6)
+  returnedAt             DateTime?             @map("returned_at") @db.Timestamptz(6)
   /// Sprint 1: retained internally (CSV history, dashboard grouping). Optional; hidden from create/edit UI.
-  storeChannel         String?             @map("store_channel")
-  externalReference    String?             @map("external_reference")
-  confirmedAt          DateTime?           @map("confirmed_at") @db.Timestamptz(6)
-  pickingStartedAt     DateTime?           @map("picking_started_at") @db.Timestamptz(6)
-  shippedAt            DateTime?           @map("shipped_at") @db.Timestamptz(6)
-  cancelledAt          DateTime?           @map("cancelled_at") @db.Timestamptz(6)
-  cancelledBy          String?             @map("cancelled_by") @db.Uuid
+  storeChannel           String?               @map("store_channel")
+  externalReference      String?               @map("external_reference")
+  confirmedAt            DateTime?             @map("confirmed_at") @db.Timestamptz(6)
+  pickingStartedAt       DateTime?             @map("picking_started_at") @db.Timestamptz(6)
+  shippedAt              DateTime?             @map("shipped_at") @db.Timestamptz(6)
+  cancelledAt            DateTime?             @map("cancelled_at") @db.Timestamptz(6)
+  cancelledBy            String?               @map("cancelled_by") @db.Uuid
   /// admin | workers — Admin Execution; Confirm runs full pick/pack/dispatch facade.
-  executionMode        String?             @map("execution_mode") @db.VarChar(16)
-  executionPlan        Json?               @map("execution_plan")
+  executionMode          String?               @map("execution_mode") @db.VarChar(16)
+  executionPlan          Json?                 @map("execution_plan")
   /// Unset until Waiting for Shipping Method. Never default to manual.
-  shippingMethod       ShippingMethod?     @map("shipping_method")
-  shippingProviderCode String?             @map("shipping_provider_code")
-  shippingReceiverLat  Decimal?            @map("shipping_receiver_lat") @db.Decimal(12, 8)
-  shippingReceiverLng  Decimal?            @map("shipping_receiver_lng") @db.Decimal(12, 8)
-  shippingPackageType  ShippingPackageType? @map("shipping_package_type")
-  shippingContents     String?             @map("shipping_contents")
-  shippingDeliveryType ShippingDeliveryType? @map("shipping_delivery_type")
-  shippingPickupType   ShippingPickupType? @map("shipping_pickup_type")
-  shippingPayer        ShippingPayer?      @map("shipping_payer")
-  shippingWeightKg     Decimal?            @map("shipping_weight_kg") @db.Decimal(12, 4)
-  shippingVolumeCbm    Decimal?            @map("shipping_volume_cbm") @db.Decimal(12, 6)
+  shippingMethod         ShippingMethod?       @map("shipping_method")
+  shippingProviderCode   String?               @map("shipping_provider_code")
+  shippingReceiverLat    Decimal?              @map("shipping_receiver_lat") @db.Decimal(12, 8)
+  shippingReceiverLng    Decimal?              @map("shipping_receiver_lng") @db.Decimal(12, 8)
+  shippingPackageType    ShippingPackageType?  @map("shipping_package_type")
+  shippingContents       String?               @map("shipping_contents")
+  shippingDeliveryType   ShippingDeliveryType? @map("shipping_delivery_type")
+  shippingPickupType     ShippingPickupType?   @map("shipping_pickup_type")
+  shippingPayer          ShippingPayer?        @map("shipping_payer")
+  shippingWeightKg       Decimal?              @map("shipping_weight_kg") @db.Decimal(12, 4)
+  shippingVolumeCbm      Decimal?              @map("shipping_volume_cbm") @db.Decimal(12, 6)
   /// Carton layout for carrier handoff: [{ lines: [{ productId, quantity }], lengthCm, widthCm, heightCm }]
-  shippingPackages     Json?               @map("shipping_packages")
-  shippingPhoneCountry String?             @map("shipping_phone_country")
+  shippingPackages       Json?                 @map("shipping_packages")
+  shippingPhoneCountry   String?               @map("shipping_phone_country")
   /// Opaque sub-carrier routing token from quote (e.g. "SILA_SY:{courier_id}"). Null for Babel orders.
-  shippingServiceId    String?             @map("shipping_service_id")
+  shippingServiceId      String?               @map("shipping_service_id")
   /// Provider hub/branch id for Hub Delivery. Null for home delivery and carriers without hubs.
-  shippingHubId        String?             @map("shipping_hub_id") @db.VarChar(64)
+  shippingHubId          String?               @map("shipping_hub_id") @db.VarChar(64)
   /// Soft-assigned quote amount from Shipping Details (not COD). Used for batch cost analysis.
-  shippingQuotedPrice  Decimal?            @map("shipping_quoted_price") @db.Decimal(15, 4)
-  shippingQuotedCurrency String?           @map("shipping_quoted_currency") @db.VarChar(8)
+  shippingQuotedPrice    Decimal?              @map("shipping_quoted_price") @db.Decimal(15, 4)
+  shippingQuotedCurrency String?               @map("shipping_quoted_currency") @db.VarChar(8)
   /// Babel Express neighbourhood id (source of truth for quote/create). Snapshot tables hold city/area.
-  babelNeighbourhoodId Int?                @map("babel_neighbourhood_id")
-  createdBy            String              @map("created_by") @db.Uuid
-  createdAt            DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt            DateTime            @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  babelNeighbourhoodId   Int?                  @map("babel_neighbourhood_id")
+  createdBy              String                @map("created_by") @db.Uuid
+  createdAt              DateTime              @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt              DateTime              @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  company           Company             @relation(fields: [companyId], references: [id])
-  creator           User                @relation("OutboundCreatedBy", fields: [createdBy], references: [id])
+  company           Company                   @relation(fields: [companyId], references: [id])
+  creator           User                      @relation("OutboundCreatedBy", fields: [createdBy], references: [id])
   lines             OutboundOrderLine[]
   returnOrders      ReturnOrder[]
   stockReservations StockReservation[]
   omsEvents         OmsOrderEvent[]
   integrationEvents OmsIntegrationEvent[]
-  omsOrder            OmsOrder?
-  carrierShipments    CarrierShipment[]
-  bulkShippingItems   BulkShippingJobItem[]
-  sourceAllocations   InboundSourceAllocation[]
+  omsOrder          OmsOrder?
+  carrierShipments  CarrierShipment[]
+  bulkShippingItems BulkShippingJobItem[]
+  sourceAllocations InboundSourceAllocation[]
 
   @@map("outbound_orders")
 }
 
 model OutboundOrderLine {
-  id                 String             @id @default(uuid()) @db.Uuid
-  outboundOrderId    String             @map("outbound_order_id") @db.Uuid
-  productId          String             @map("product_id") @db.Uuid
-  requestedQuantity  Decimal            @map("requested_quantity") @db.Decimal(15, 4)
-  pickedQuantity     Decimal            @default(0) @map("picked_quantity") @db.Decimal(15, 4)
-  specificLotId      String?            @map("specific_lot_id") @db.Uuid
-  status             OutboundLineStatus @default(pending)
-  lineNumber         Int                @map("line_number")
-  unitPrice          Decimal?           @map("unit_price") @db.Decimal(15, 4)
-  lineTotal          Decimal?           @map("line_total") @db.Decimal(15, 4)
-  discountAmount     Decimal?           @map("discount_amount") @db.Decimal(15, 4)
-  createdAt          DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt          DateTime           @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  id                String             @id @default(uuid()) @db.Uuid
+  outboundOrderId   String             @map("outbound_order_id") @db.Uuid
+  productId         String             @map("product_id") @db.Uuid
+  requestedQuantity Decimal            @map("requested_quantity") @db.Decimal(15, 4)
+  pickedQuantity    Decimal            @default(0) @map("picked_quantity") @db.Decimal(15, 4)
+  specificLotId     String?            @map("specific_lot_id") @db.Uuid
+  status            OutboundLineStatus @default(pending)
+  lineNumber        Int                @map("line_number")
+  unitPrice         Decimal?           @map("unit_price") @db.Decimal(15, 4)
+  lineTotal         Decimal?           @map("line_total") @db.Decimal(15, 4)
+  discountAmount    Decimal?           @map("discount_amount") @db.Decimal(15, 4)
+  createdAt         DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime           @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  order              OutboundOrder      @relation(fields: [outboundOrderId], references: [id], onDelete: Cascade)
-  product            Product            @relation(fields: [productId], references: [id])
-  returnOrderLines   ReturnOrderLine[]
-  stockReservations  StockReservation[]
-  sourceAllocations  InboundSourceAllocation[]
+  order             OutboundOrder             @relation(fields: [outboundOrderId], references: [id], onDelete: Cascade)
+  product           Product                   @relation(fields: [productId], references: [id])
+  returnOrderLines  ReturnOrderLine[]
+  stockReservations StockReservation[]
+  sourceAllocations InboundSourceAllocation[]
 
   @@map("outbound_order_lines")
 }
 
 model OmsOrder {
-  id                   String              @id @default(uuid()) @db.Uuid
-  companyId            String              @map("company_id") @db.Uuid
-  outboundOrderId      String?             @unique @map("outbound_order_id") @db.Uuid
+  id                          String                @id @default(uuid()) @db.Uuid
+  companyId                   String                @map("company_id") @db.Uuid
+  outboundOrderId             String?               @unique @map("outbound_order_id") @db.Uuid
   /// DEFAULT '' — populated by trigger fn_oms_order_number on INSERT
-  orderNumber          String              @unique @default("") @map("order_number")
-  status               OmsOrderStatus      @default(draft)
-  destinationAddress   String              @default("") @map("destination_address")
-  requiredShipDate     DateTime            @map("required_ship_date") @db.Date
-  carrier              String?
-  trackingNumber       String?             @map("tracking_number")
-  clientReference      String?             @map("client_reference")
-  notes                String?
-  requiresPacking      Boolean             @default(true) @map("requires_packing")
-  recipientName        String?             @map("recipient_name")
-  recipientPhone       String?             @map("recipient_phone")
-  city                 String?
-  district             String?
-  addressLine1         String?             @map("address_line1")
-  addressLine2         String?             @map("address_line2")
-  deliveryInstructions String?             @map("delivery_instructions")
-  paymentMethod        OmsPaymentMethod?   @map("payment_method")
-  subtotal             Decimal?            @db.Decimal(15, 4)
-  shippingFee          Decimal?            @map("shipping_fee") @db.Decimal(15, 4)
-  codAmount            Decimal?            @map("cod_amount") @db.Decimal(15, 4)
-  currency             String?             @default("USD")
+  orderNumber                 String                @unique @default("") @map("order_number")
+  status                      OmsOrderStatus        @default(draft)
+  destinationAddress          String                @default("") @map("destination_address")
+  requiredShipDate            DateTime              @map("required_ship_date") @db.Date
+  carrier                     String?
+  trackingNumber              String?               @map("tracking_number")
+  clientReference             String?               @map("client_reference")
+  notes                       String?
+  requiresPacking             Boolean               @default(true) @map("requires_packing")
+  recipientName               String?               @map("recipient_name")
+  recipientPhone              String?               @map("recipient_phone")
+  city                        String?
+  district                    String?
+  addressLine1                String?               @map("address_line1")
+  addressLine2                String?               @map("address_line2")
+  deliveryInstructions        String?               @map("delivery_instructions")
+  paymentMethod               OmsPaymentMethod?     @map("payment_method")
+  subtotal                    Decimal?              @db.Decimal(15, 4)
+  shippingFee                 Decimal?              @map("shipping_fee") @db.Decimal(15, 4)
+  codAmount                   Decimal?              @map("cod_amount") @db.Decimal(15, 4)
+  currency                    String?               @default("USD")
   /// Collection currency sent to the carrier. Null means the order currency. Never overwrites codAmount.
-  codCollectionCurrency String?            @map("cod_collection_currency") @db.VarChar(8)
-  codCollectionAmount  Decimal?            @map("cod_collection_amount") @db.Decimal(15, 4)
-  codFxRate            Decimal?            @map("cod_fx_rate") @db.Decimal(18, 6)
-  codFxSource          String?             @map("cod_fx_source") @db.VarChar(64)
-  codFxAt              DateTime?           @map("cod_fx_at") @db.Timestamptz(6)
-  codCollectedAt       DateTime?           @map("cod_collected_at") @db.Timestamptz(6)
-  codRemittedAt        DateTime?           @map("cod_remitted_at") @db.Timestamptz(6)
-  codStatus            OmsCodStatus?       @map("cod_status")
-  codGenerationStatus  CodGenerationStatus @default(none) @map("cod_generation_status")
-  allocationStatus     OmsAllocationStatus @default(none) @map("allocation_status")
-  allocatedAt          DateTime?           @map("allocated_at") @db.Timestamptz(6)
-  outForDeliveryAt     DateTime?           @map("out_for_delivery_at") @db.Timestamptz(6)
-  deliveryFailedAt     DateTime?           @map("delivery_failed_at") @db.Timestamptz(6)
-  deliveredAt          DateTime?           @map("delivered_at") @db.Timestamptz(6)
-  returnedAt           DateTime?           @map("returned_at") @db.Timestamptz(6)
+  codCollectionCurrency       String?               @map("cod_collection_currency") @db.VarChar(8)
+  codCollectionAmount         Decimal?              @map("cod_collection_amount") @db.Decimal(15, 4)
+  codFxRate                   Decimal?              @map("cod_fx_rate") @db.Decimal(18, 6)
+  codFxSource                 String?               @map("cod_fx_source") @db.VarChar(64)
+  codFxAt                     DateTime?             @map("cod_fx_at") @db.Timestamptz(6)
+  codCollectedAt              DateTime?             @map("cod_collected_at") @db.Timestamptz(6)
+  codRemittedAt               DateTime?             @map("cod_remitted_at") @db.Timestamptz(6)
+  codStatus                   OmsCodStatus?         @map("cod_status")
+  codGenerationStatus         CodGenerationStatus   @default(none) @map("cod_generation_status")
+  allocationStatus            OmsAllocationStatus   @default(none) @map("allocation_status")
+  allocatedAt                 DateTime?             @map("allocated_at") @db.Timestamptz(6)
+  outForDeliveryAt            DateTime?             @map("out_for_delivery_at") @db.Timestamptz(6)
+  deliveryFailedAt            DateTime?             @map("delivery_failed_at") @db.Timestamptz(6)
+  deliveredAt                 DateTime?             @map("delivered_at") @db.Timestamptz(6)
+  returnedAt                  DateTime?             @map("returned_at") @db.Timestamptz(6)
   /// Sprint 1: retained internally (CSV history, OmsSalesChannel integrations). Optional; not a workflow prerequisite; hidden from Admin/Client create/edit UI.
-  storeChannel         String?             @map("store_channel")
-  externalReference    String?             @map("external_reference")
+  storeChannel                String?               @map("store_channel")
+  externalReference           String?               @map("external_reference")
   /// Client/API import: order is traceable but not approvable until shipping/delivery info is completed.
-  needsInformation     Boolean             @default(false) @map("needs_information")
-  importBatchId        String?             @map("import_batch_id") @db.Uuid
-  confirmedAt          DateTime?           @map("confirmed_at") @db.Timestamptz(6)
-  cancelledAt          DateTime?           @map("cancelled_at") @db.Timestamptz(6)
-  cancelledBy          String?             @map("cancelled_by") @db.Uuid
+  needsInformation            Boolean               @default(false) @map("needs_information")
+  importBatchId               String?               @map("import_batch_id") @db.Uuid
+  confirmedAt                 DateTime?             @map("confirmed_at") @db.Timestamptz(6)
+  cancelledAt                 DateTime?             @map("cancelled_at") @db.Timestamptz(6)
+  cancelledBy                 String?               @map("cancelled_by") @db.Uuid
   /// Written only when entering cancelled. Cleared on undo. Never refreshed while already cancelled.
-  cancelledFromStatus  OmsOrderStatus?     @map("cancelled_from_status")
-  cancelledFromOutboundStatus OutboundOrderStatus? @map("cancelled_from_outbound_status")
-  submittedAt          DateTime?           @map("submitted_at") @db.Timestamptz(6)
-  approvedAt           DateTime?           @map("approved_at") @db.Timestamptz(6)
-  approvedBy           String?             @map("approved_by") @db.Uuid
-  rejectedAt           DateTime?           @map("rejected_at") @db.Timestamptz(6)
-  rejectedBy           String?             @map("rejected_by") @db.Uuid
-  rejectionReason      String?             @map("rejection_reason")
+  cancelledFromStatus         OmsOrderStatus?       @map("cancelled_from_status")
+  cancelledFromOutboundStatus OutboundOrderStatus?  @map("cancelled_from_outbound_status")
+  submittedAt                 DateTime?             @map("submitted_at") @db.Timestamptz(6)
+  approvedAt                  DateTime?             @map("approved_at") @db.Timestamptz(6)
+  approvedBy                  String?               @map("approved_by") @db.Uuid
+  rejectedAt                  DateTime?             @map("rejected_at") @db.Timestamptz(6)
+  rejectedBy                  String?               @map("rejected_by") @db.Uuid
+  rejectionReason             String?               @map("rejection_reason")
   /// Unset until Waiting for Shipping Method. Never default to manual.
-  shippingMethod       ShippingMethod?     @map("shipping_method")
-  shippingProviderCode String?             @map("shipping_provider_code")
-  shippingReceiverLat  Decimal?            @map("shipping_receiver_lat") @db.Decimal(12, 8)
-  shippingReceiverLng  Decimal?            @map("shipping_receiver_lng") @db.Decimal(12, 8)
-  shippingPackageType  ShippingPackageType? @map("shipping_package_type")
-  shippingContents     String?             @map("shipping_contents")
-  shippingDeliveryType ShippingDeliveryType? @map("shipping_delivery_type")
-  shippingPickupType   ShippingPickupType? @map("shipping_pickup_type")
-  shippingPayer        ShippingPayer?      @map("shipping_payer")
-  shippingWeightKg     Decimal?            @map("shipping_weight_kg") @db.Decimal(12, 4)
-  shippingVolumeCbm    Decimal?            @map("shipping_volume_cbm") @db.Decimal(12, 6)
-  shippingPhoneCountry String?             @map("shipping_phone_country")
+  shippingMethod              ShippingMethod?       @map("shipping_method")
+  shippingProviderCode        String?               @map("shipping_provider_code")
+  shippingReceiverLat         Decimal?              @map("shipping_receiver_lat") @db.Decimal(12, 8)
+  shippingReceiverLng         Decimal?              @map("shipping_receiver_lng") @db.Decimal(12, 8)
+  shippingPackageType         ShippingPackageType?  @map("shipping_package_type")
+  shippingContents            String?               @map("shipping_contents")
+  shippingDeliveryType        ShippingDeliveryType? @map("shipping_delivery_type")
+  shippingPickupType          ShippingPickupType?   @map("shipping_pickup_type")
+  shippingPayer               ShippingPayer?        @map("shipping_payer")
+  shippingWeightKg            Decimal?              @map("shipping_weight_kg") @db.Decimal(12, 4)
+  shippingVolumeCbm           Decimal?              @map("shipping_volume_cbm") @db.Decimal(12, 6)
+  shippingPhoneCountry        String?               @map("shipping_phone_country")
   /// Opaque sub-carrier routing token from quote (e.g. "SILA_SY:{courier_id}"). Null for Babel orders.
-  shippingServiceId    String?             @map("shipping_service_id")
+  shippingServiceId           String?               @map("shipping_service_id")
   /// Provider hub/branch id for Hub Delivery. Null for home delivery and carriers without hubs.
-  shippingHubId        String?             @map("shipping_hub_id") @db.VarChar(64)
+  shippingHubId               String?               @map("shipping_hub_id") @db.VarChar(64)
   /// Babel Express neighbourhood id — only Babel geo id required on OMS for quote/create.
-  babelNeighbourhoodId Int?                @map("babel_neighbourhood_id")
+  babelNeighbourhoodId        Int?                  @map("babel_neighbourhood_id")
   /// Set when the client shipping rate is locked. Later rate-config edits do not rewrite it.
-  clientShippingRateAppliedAt DateTime?    @map("client_shipping_rate_applied_at") @db.Timestamptz(6)
-  clientShippingRateGroupId   String?      @map("client_shipping_rate_group_id") @db.Uuid
-  clientShippingRateWeightKg  Decimal?     @map("client_shipping_rate_weight_kg") @db.Decimal(12, 4)
-  clientShippingRateBreakdown Json?        @map("client_shipping_rate_breakdown") @db.JsonB
-  createdBy            String              @map("created_by") @db.Uuid
-  createdAt            DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt            DateTime            @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  clientShippingRateAppliedAt DateTime?             @map("client_shipping_rate_applied_at") @db.Timestamptz(6)
+  clientShippingRateGroupId   String?               @map("client_shipping_rate_group_id") @db.Uuid
+  clientShippingRateWeightKg  Decimal?              @map("client_shipping_rate_weight_kg") @db.Decimal(12, 4)
+  clientShippingRateBreakdown Json?                 @map("client_shipping_rate_breakdown") @db.JsonB
+  createdBy                   String                @map("created_by") @db.Uuid
+  createdAt                   DateTime              @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt                   DateTime              @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  company       Company          @relation(fields: [companyId], references: [id])
-  outboundOrder OutboundOrder?   @relation(fields: [outboundOrderId], references: [id], onDelete: SetNull)
-  creator       User             @relation("OmsOrderCreatedBy", fields: [createdBy], references: [id])
-  canceller     User?            @relation("OmsOrderCancelledBy", fields: [cancelledBy], references: [id])
-  approver      User?            @relation("OmsOrderApprovedBy", fields: [approvedBy], references: [id])
-  rejector      User?            @relation("OmsOrderRejectedBy", fields: [rejectedBy], references: [id])
-  lines         OmsOrderLine[]
-  omsEvents     OmsOrderEvent[]
-  codRecord     CodRecord?
-  omsReturns    OmsReturn[]
-  batchMemberships OmsBatchOrder[]
+  company           Company                   @relation(fields: [companyId], references: [id])
+  outboundOrder     OutboundOrder?            @relation(fields: [outboundOrderId], references: [id], onDelete: SetNull)
+  creator           User                      @relation("OmsOrderCreatedBy", fields: [createdBy], references: [id])
+  canceller         User?                     @relation("OmsOrderCancelledBy", fields: [cancelledBy], references: [id])
+  approver          User?                     @relation("OmsOrderApprovedBy", fields: [approvedBy], references: [id])
+  rejector          User?                     @relation("OmsOrderRejectedBy", fields: [rejectedBy], references: [id])
+  lines             OmsOrderLine[]
+  omsEvents         OmsOrderEvent[]
+  codRecord         CodRecord?
+  omsReturns        OmsReturn[]
+  batchMemberships  OmsBatchOrder[]
   sourceAllocations InboundSourceAllocation[]
 
   @@index([companyId, createdAt(sort: Desc)], map: "idx_oms_orders_created")
@@ -2002,8 +2003,8 @@ model OmsOrderLine {
   createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt         DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  order   OmsOrder @relation(fields: [omsOrderId], references: [id], onDelete: Cascade)
-  product Product  @relation(fields: [productId], references: [id])
+  order             OmsOrder                  @relation(fields: [omsOrderId], references: [id], onDelete: Cascade)
+  product           Product                   @relation(fields: [productId], references: [id])
   sourceAllocations InboundSourceAllocation[]
 
   @@index([omsOrderId], map: "idx_oms_order_lines_order")
@@ -2011,20 +2012,20 @@ model OmsOrderLine {
 }
 
 model InboundSourceAllocation {
-  id                  String             @id @default(uuid()) @db.Uuid
-  companyId           String             @map("company_id") @db.Uuid
-  omsOrderId          String             @map("oms_order_id") @db.Uuid
-  omsOrderLineId      String?            @map("oms_order_line_id") @db.Uuid
-  outboundOrderId     String?            @map("outbound_order_id") @db.Uuid
-  outboundOrderLineId String?            @map("outbound_order_line_id") @db.Uuid
-  productId           String             @map("product_id") @db.Uuid
-  inboundOrderId      String             @map("inbound_order_id") @db.Uuid
-  inboundOrderLineId  String?            @map("inbound_order_line_id") @db.Uuid
-  lotId               String?            @map("lot_id") @db.Uuid
-  quantity            Decimal            @db.Decimal(15, 4)
-  status              String             @default("allocated") @db.VarChar(32)
-  createdAt           DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt           DateTime           @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  id                  String   @id @default(uuid()) @db.Uuid
+  companyId           String   @map("company_id") @db.Uuid
+  omsOrderId          String   @map("oms_order_id") @db.Uuid
+  omsOrderLineId      String?  @map("oms_order_line_id") @db.Uuid
+  outboundOrderId     String?  @map("outbound_order_id") @db.Uuid
+  outboundOrderLineId String?  @map("outbound_order_line_id") @db.Uuid
+  productId           String   @map("product_id") @db.Uuid
+  inboundOrderId      String   @map("inbound_order_id") @db.Uuid
+  inboundOrderLineId  String?  @map("inbound_order_line_id") @db.Uuid
+  lotId               String?  @map("lot_id") @db.Uuid
+  quantity            Decimal  @db.Decimal(15, 4)
+  status              String   @default("allocated") @db.VarChar(32)
+  createdAt           DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt           DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   company           Company            @relation(fields: [companyId], references: [id])
   omsOrder          OmsOrder           @relation(fields: [omsOrderId], references: [id], onDelete: Cascade)
@@ -2090,24 +2091,24 @@ model OmsOrderEvent {
 }
 
 model CodRecord {
-  id             String          @id @default(uuid()) @db.Uuid
-  companyId      String          @map("company_id") @db.Uuid
-  omsOrderId     String          @unique @map("oms_order_id") @db.Uuid
+  id                     String          @id @default(uuid()) @db.Uuid
+  companyId              String          @map("company_id") @db.Uuid
+  omsOrderId             String          @unique @map("oms_order_id") @db.Uuid
   /// Never mutated after create — Current Amount = original + sum(adjustments).
-  originalAmount Decimal         @map("original_amount") @db.Decimal(15, 4)
-  currency       String          @default("USD")
-  status         CodRecordStatus @default(pending)
-  notes          String?
-  createdBy      String          @map("created_by") @db.Uuid
-  createdAt      DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt      DateTime        @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
-  availableAt    DateTime?       @map("available_at") @db.Timestamptz(6)
-  paidOutAt      DateTime?       @map("paid_out_at") @db.Timestamptz(6)
+  originalAmount         Decimal         @map("original_amount") @db.Decimal(15, 4)
+  currency               String          @default("USD")
+  status                 CodRecordStatus @default(pending)
+  notes                  String?
+  createdBy              String          @map("created_by") @db.Uuid
+  createdAt              DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt              DateTime        @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  availableAt            DateTime?       @map("available_at") @db.Timestamptz(6)
+  paidOutAt              DateTime?       @map("paid_out_at") @db.Timestamptz(6)
   carrierCollectedAt     DateTime?       @map("carrier_collected_at") @db.Timestamptz(6)
   carrierRemittedAt      DateTime?       @map("carrier_remitted_at") @db.Timestamptz(6)
-  collectionConfirmedBy String?         @map("collection_confirmed_by") @db.Uuid
-  remittanceConfirmedBy String?         @map("remittance_confirmed_by") @db.Uuid
-  remittanceReference   String?         @map("remittance_reference")
+  collectionConfirmedBy  String?         @map("collection_confirmed_by") @db.Uuid
+  remittanceConfirmedBy  String?         @map("remittance_confirmed_by") @db.Uuid
+  remittanceReference    String?         @map("remittance_reference")
   creditedToAccountAt    DateTime?       @map("credited_to_account_at") @db.Timestamptz(6)
   financialTransactionId String?         @map("financial_transaction_id") @db.Uuid
   /// Amount in the account currency (USD). The finance account is USD only; SYP is converted when the record is created.
@@ -2143,44 +2144,44 @@ model CodAdjustment {
 }
 
 model OmsReturn {
-  id                String          @id @default(uuid()) @db.Uuid
-  companyId         String          @map("company_id") @db.Uuid
-  omsOrderId        String          @map("oms_order_id") @db.Uuid
-  warehouseReturnId String?         @unique @map("warehouse_return_id") @db.Uuid
+  id                     String          @id @default(uuid()) @db.Uuid
+  companyId              String          @map("company_id") @db.Uuid
+  omsOrderId             String          @map("oms_order_id") @db.Uuid
+  warehouseReturnId      String?         @unique @map("warehouse_return_id") @db.Uuid
   /// DEFAULT '' — populated by DB trigger fn_oms_return_number (next_seq_number('OR'))
-  returnNumber      String          @unique @default("") @map("return_number")
-  status            OmsReturnStatus @default(requested)
-  reason            String?
-  notes             String?
-  rejectionReason   String?         @map("rejection_reason")
+  returnNumber           String          @unique @default("") @map("return_number")
+  status                 OmsReturnStatus @default(requested)
+  reason                 String?
+  notes                  String?
+  rejectionReason        String?         @map("rejection_reason")
   /// Carrier return stages: 'return_created' | 'returning_to_sender' | 'returned_to_sender' | 'warehouse_confirmed'
-  carrierReturnStage    String?     @map("carrier_return_stage") @db.VarChar(32)
-  carrierOriginalStatus String?     @map("carrier_original_status")
-  carrierAwb            String?     @map("carrier_awb")
-  carrierReturnCreatedAt DateTime?  @map("carrier_return_created_at") @db.Timestamptz(6)
-  carrierReturningAt    DateTime?   @map("carrier_returning_at") @db.Timestamptz(6)
-  carrierReturnedAt     DateTime?   @map("carrier_returned_at") @db.Timestamptz(6)
-  warehouseConfirmedAt  DateTime?   @map("warehouse_confirmed_at") @db.Timestamptz(6)
-  warehouseConfirmedBy  String?     @map("warehouse_confirmed_by") @db.Uuid
+  carrierReturnStage     String?         @map("carrier_return_stage") @db.VarChar(32)
+  carrierOriginalStatus  String?         @map("carrier_original_status")
+  carrierAwb             String?         @map("carrier_awb")
+  carrierReturnCreatedAt DateTime?       @map("carrier_return_created_at") @db.Timestamptz(6)
+  carrierReturningAt     DateTime?       @map("carrier_returning_at") @db.Timestamptz(6)
+  carrierReturnedAt      DateTime?       @map("carrier_returned_at") @db.Timestamptz(6)
+  warehouseConfirmedAt   DateTime?       @map("warehouse_confirmed_at") @db.Timestamptz(6)
+  warehouseConfirmedBy   String?         @map("warehouse_confirmed_by") @db.Uuid
   /// Admin Mode: 'admin' | 'workers' (defaults to admin when null)
-  executionMode     String?         @map("execution_mode") @db.VarChar(16)
+  executionMode          String?         @map("execution_mode") @db.VarChar(16)
   /// Inbound-shaped plan: warehouseId, receivingDockId, putaway splits per line
-  executionPlan     Json?           @map("execution_plan")
-  createdBy         String          @map("created_by") @db.Uuid
-  approvedBy        String?         @map("approved_by") @db.Uuid
-  rejectedBy        String?         @map("rejected_by") @db.Uuid
-  approvedAt        DateTime?       @map("approved_at") @db.Timestamptz(6)
-  rejectedAt        DateTime?       @map("rejected_at") @db.Timestamptz(6)
-  completedAt       DateTime?       @map("completed_at") @db.Timestamptz(6)
-  createdAt         DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt         DateTime        @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  executionPlan          Json?           @map("execution_plan")
+  createdBy              String          @map("created_by") @db.Uuid
+  approvedBy             String?         @map("approved_by") @db.Uuid
+  rejectedBy             String?         @map("rejected_by") @db.Uuid
+  approvedAt             DateTime?       @map("approved_at") @db.Timestamptz(6)
+  rejectedAt             DateTime?       @map("rejected_at") @db.Timestamptz(6)
+  completedAt            DateTime?       @map("completed_at") @db.Timestamptz(6)
+  createdAt              DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt              DateTime        @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  company         Company      @relation(fields: [companyId], references: [id])
-  omsOrder        OmsOrder     @relation(fields: [omsOrderId], references: [id], onDelete: Cascade)
-  warehouseReturn ReturnOrder? @relation(fields: [warehouseReturnId], references: [id], onDelete: SetNull)
-  creator         User         @relation("OmsReturnCreatedBy", fields: [createdBy], references: [id])
-  approver        User?        @relation("OmsReturnApprovedBy", fields: [approvedBy], references: [id])
-  rejector        User?        @relation("OmsReturnRejectedBy", fields: [rejectedBy], references: [id])
+  company         Company         @relation(fields: [companyId], references: [id])
+  omsOrder        OmsOrder        @relation(fields: [omsOrderId], references: [id], onDelete: Cascade)
+  warehouseReturn ReturnOrder?    @relation(fields: [warehouseReturnId], references: [id], onDelete: SetNull)
+  creator         User            @relation("OmsReturnCreatedBy", fields: [createdBy], references: [id])
+  approver        User?           @relation("OmsReturnApprovedBy", fields: [approvedBy], references: [id])
+  rejector        User?           @relation("OmsReturnRejectedBy", fields: [rejectedBy], references: [id])
   lines           OmsReturnLine[]
   codAdjustment   CodAdjustment?
 
@@ -2190,16 +2191,16 @@ model OmsReturn {
 }
 
 model OmsReturnLine {
-  id             String   @id @default(uuid()) @db.Uuid
-  omsReturnId    String   @map("oms_return_id") @db.Uuid
-  productId      String   @map("product_id") @db.Uuid
-  quantity       Decimal  @db.Decimal(15, 4)
-  unitPrice      Decimal? @map("unit_price") @db.Decimal(15, 4)
-  lineTotal      Decimal? @map("line_total") @db.Decimal(15, 4)
-  lotId          String?  @map("lot_id") @db.Uuid
-  lineNumber     Int      @map("line_number")
-  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt      DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  id          String   @id @default(uuid()) @db.Uuid
+  omsReturnId String   @map("oms_return_id") @db.Uuid
+  productId   String   @map("product_id") @db.Uuid
+  quantity    Decimal  @db.Decimal(15, 4)
+  unitPrice   Decimal? @map("unit_price") @db.Decimal(15, 4)
+  lineTotal   Decimal? @map("line_total") @db.Decimal(15, 4)
+  lotId       String?  @map("lot_id") @db.Uuid
+  lineNumber  Int      @map("line_number")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   omsReturn OmsReturn @relation(fields: [omsReturnId], references: [id], onDelete: Cascade)
   product   Product   @relation(fields: [productId], references: [id])
@@ -2264,11 +2265,11 @@ model Package {
   createdAt   DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt   DateTime      @default(now()) @map("updated_at") @db.Timestamptz(6)
 
-  product            Product           @relation(fields: [productId], references: [id])
-  lot                Lot?              @relation(fields: [lotId], references: [id])
-  location           Location?         @relation(fields: [locationId], references: [id])
-  returnOrders       ReturnOrder[]
-  returnOrderLines   ReturnOrderLine[]
+  product          Product           @relation(fields: [productId], references: [id])
+  lot              Lot?              @relation(fields: [lotId], references: [id])
+  location         Location?         @relation(fields: [locationId], references: [id])
+  returnOrders     ReturnOrder[]
+  returnOrderLines ReturnOrderLine[]
 
   @@index([productId], map: "idx_packages_product")
   @@map("packages")
@@ -2296,12 +2297,12 @@ model ReturnOrder {
   createdAt               DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt               DateTime          @default(now()) @map("updated_at") @db.Timestamptz(6)
 
-  company          Company        @relation(fields: [companyId], references: [id])
-  warehouse        Warehouse?     @relation(fields: [warehouseId], references: [id])
-  creator          User           @relation("ReturnCreatedBy", fields: [createdBy], references: [id])
-  canceller        User?          @relation("ReturnCancelledBy", fields: [cancelledBy], references: [id])
-  originalOutbound OutboundOrder? @relation(fields: [originalOutboundOrderId], references: [id])
-  package          Package?       @relation(fields: [packageId], references: [id])
+  company          Company           @relation(fields: [companyId], references: [id])
+  warehouse        Warehouse?        @relation(fields: [warehouseId], references: [id])
+  creator          User              @relation("ReturnCreatedBy", fields: [createdBy], references: [id])
+  canceller        User?             @relation("ReturnCancelledBy", fields: [cancelledBy], references: [id])
+  originalOutbound OutboundOrder?    @relation(fields: [originalOutboundOrderId], references: [id])
+  package          Package?          @relation(fields: [packageId], references: [id])
   lines            ReturnOrderLine[]
   omsReturn        OmsReturn?
 
@@ -2310,26 +2311,26 @@ model ReturnOrder {
 }
 
 model ReturnOrderLine {
-  id                   String                 @id @default(uuid()) @db.Uuid
-  returnOrderId        String                 @map("return_order_id") @db.Uuid
-  productId            String                 @map("product_id") @db.Uuid
-  outboundOrderLineId  String?                @map("outbound_order_line_id") @db.Uuid
-  packageId            String?                @map("package_id") @db.Uuid
-  lotId                String?                @map("lot_id") @db.Uuid
-  expectedQuantity     Decimal                @map("expected_quantity") @db.Decimal(15, 4)
-  receivedQuantity     Decimal                @default(0) @map("received_quantity") @db.Decimal(15, 4)
-  postedQuantity       Decimal                @default(0) @map("posted_quantity") @db.Decimal(15, 4)
-  lineStatus           ReturnLineStatus       @default(pending) @map("line_status")
-  condition            ReturnItemCondition?
-  disposition          ReturnItemDisposition?
-  targetLocationId     String?                @map("target_location_id") @db.Uuid
-  inspectionNotes      String?                @map("inspection_notes")
-  inspectedAt          DateTime?              @map("inspected_at") @db.Timestamptz(6)
-  inspectedBy          String?                @map("inspected_by") @db.Uuid
-  postedAt             DateTime?              @map("posted_at") @db.Timestamptz(6)
-  lineNumber           Int                    @default(1) @map("line_number")
-  createdAt            DateTime               @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt            DateTime               @default(now()) @map("updated_at") @db.Timestamptz(6)
+  id                  String                 @id @default(uuid()) @db.Uuid
+  returnOrderId       String                 @map("return_order_id") @db.Uuid
+  productId           String                 @map("product_id") @db.Uuid
+  outboundOrderLineId String?                @map("outbound_order_line_id") @db.Uuid
+  packageId           String?                @map("package_id") @db.Uuid
+  lotId               String?                @map("lot_id") @db.Uuid
+  expectedQuantity    Decimal                @map("expected_quantity") @db.Decimal(15, 4)
+  receivedQuantity    Decimal                @default(0) @map("received_quantity") @db.Decimal(15, 4)
+  postedQuantity      Decimal                @default(0) @map("posted_quantity") @db.Decimal(15, 4)
+  lineStatus          ReturnLineStatus       @default(pending) @map("line_status")
+  condition           ReturnItemCondition?
+  disposition         ReturnItemDisposition?
+  targetLocationId    String?                @map("target_location_id") @db.Uuid
+  inspectionNotes     String?                @map("inspection_notes")
+  inspectedAt         DateTime?              @map("inspected_at") @db.Timestamptz(6)
+  inspectedBy         String?                @map("inspected_by") @db.Uuid
+  postedAt            DateTime?              @map("posted_at") @db.Timestamptz(6)
+  lineNumber          Int                    @default(1) @map("line_number")
+  createdAt           DateTime               @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt           DateTime               @default(now()) @map("updated_at") @db.Timestamptz(6)
 
   returnOrder       ReturnOrder        @relation(fields: [returnOrderId], references: [id], onDelete: Cascade)
   product           Product            @relation(fields: [productId], references: [id])
@@ -2352,31 +2353,31 @@ model LedgerIdempotency {
   /// Deterministic ledger write key; duplicate inserts short-circuit to prior row.
   idempotencyKey String   @id @map("idempotency_key") @db.VarChar(512)
   /// `inventory_ledger.id` UUID (composite PK `(id, created_at)` unchanged in DB).
-  ledgerId String @map("ledger_id") @db.Uuid
-  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  ledgerId       String   @map("ledger_id") @db.Uuid
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
 
   @@map("ledger_idempotency")
 }
 
 model Worker {
-  id          String                   @id @default(uuid()) @db.Uuid
-  companyId   String                   @map("company_id") @db.Uuid
-  warehouseId String?                  @map("warehouse_id") @db.Uuid
-  displayName String                   @map("display_name")
-  userId      String?                  @unique @map("user_id") @db.Uuid
-  status      WorkerOperationalStatus  @default(active)
-  createdAt   DateTime                 @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt   DateTime                 @default(now()) @map("updated_at") @db.Timestamptz(6)
+  id          String                  @id @default(uuid()) @db.Uuid
+  companyId   String                  @map("company_id") @db.Uuid
+  warehouseId String?                 @map("warehouse_id") @db.Uuid
+  displayName String                  @map("display_name")
+  userId      String?                 @unique @map("user_id") @db.Uuid
+  status      WorkerOperationalStatus @default(active)
+  createdAt   DateTime                @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime                @default(now()) @map("updated_at") @db.Timestamptz(6)
 
-  company         Company               @relation(fields: [companyId], references: [id])
-  warehouse       Warehouse?            @relation(fields: [warehouseId], references: [id])
-  user            User?                 @relation(fields: [userId], references: [id])
-  roles           WorkerRoleAssignment[]
-  taskAssignments          TaskAssignment[]
-  skills                   WorkerSkill[]
-  cycleCountsAssigned      CycleCount[]     @relation("CycleCountSessionAssignee")
-  cycleCountsExecuting     CycleCount[]     @relation("CycleCountExecutingWorker")
-  cycleCountLinesAssigned  CycleCountLine[] @relation("CycleCountLineAssignee")
+  company                 Company                @relation(fields: [companyId], references: [id])
+  warehouse               Warehouse?             @relation(fields: [warehouseId], references: [id])
+  user                    User?                  @relation(fields: [userId], references: [id])
+  roles                   WorkerRoleAssignment[]
+  taskAssignments         TaskAssignment[]
+  skills                  WorkerSkill[]
+  cycleCountsAssigned     CycleCount[]           @relation("CycleCountSessionAssignee")
+  cycleCountsExecuting    CycleCount[]           @relation("CycleCountExecutingWorker")
+  cycleCountLinesAssigned CycleCountLine[]       @relation("CycleCountLineAssignee")
 
   @@index([companyId])
   @@index([warehouseId])
@@ -2407,8 +2408,8 @@ model WorkerSkill {
 }
 
 model WarehouseTaskRequiredSkill {
-  taskId            String @map("task_id") @db.Uuid
-  skillCode         String @map("skill_code")
+  taskId             String @map("task_id") @db.Uuid
+  skillCode          String @map("skill_code")
   minimumProficiency Int    @default(1) @map("minimum_proficiency")
 
   task WarehouseTask @relation(fields: [taskId], references: [id], onDelete: Cascade)
@@ -2418,16 +2419,16 @@ model WarehouseTaskRequiredSkill {
 }
 
 model WorkflowInstance {
-  id             String                   @id @default(uuid()) @db.Uuid
-  companyId      String                   @map("company_id") @db.Uuid
-  warehouseId    String                   @map("warehouse_id") @db.Uuid
-  referenceType  WorkflowReferenceType    @map("reference_type")
-  referenceId    String                   @map("reference_id") @db.Uuid
-  definitionCode String                   @map("definition_code")
-  status         WorkflowInstanceStatus   @default(pending)
-  metadata       Json?                    @db.JsonB
-  createdAt      DateTime                 @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt      DateTime                 @default(now()) @map("updated_at") @db.Timestamptz(6)
+  id             String                 @id @default(uuid()) @db.Uuid
+  companyId      String                 @map("company_id") @db.Uuid
+  warehouseId    String                 @map("warehouse_id") @db.Uuid
+  referenceType  WorkflowReferenceType  @map("reference_type")
+  referenceId    String                 @map("reference_id") @db.Uuid
+  definitionCode String                 @map("definition_code")
+  status         WorkflowInstanceStatus @default(pending)
+  metadata       Json?                  @db.JsonB
+  createdAt      DateTime               @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime               @default(now()) @map("updated_at") @db.Timestamptz(6)
 
   company   Company         @relation(fields: [companyId], references: [id])
   warehouse Warehouse       @relation(fields: [warehouseId], references: [id])
@@ -2443,54 +2444,54 @@ model WorkflowInstance {
 }
 
 model WorkflowNode {
-  id          String               @id @default(uuid()) @db.Uuid
-  instanceId  String               @map("instance_id") @db.Uuid
-  stepKind    WorkflowStepKind     @map("step_kind")
-  status      WorkflowNodeStatus   @default(pending)
-  sequence    Int
-  parentNodeId String?             @map("parent_node_id") @db.Uuid
-  metadata    Json?                @db.JsonB
-  createdAt   DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt   DateTime             @default(now()) @map("updated_at") @db.Timestamptz(6)
+  id           String             @id @default(uuid()) @db.Uuid
+  instanceId   String             @map("instance_id") @db.Uuid
+  stepKind     WorkflowStepKind   @map("step_kind")
+  status       WorkflowNodeStatus @default(pending)
+  sequence     Int
+  parentNodeId String?            @map("parent_node_id") @db.Uuid
+  metadata     Json?              @db.JsonB
+  createdAt    DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime           @default(now()) @map("updated_at") @db.Timestamptz(6)
 
-  instance   WorkflowInstance  @relation(fields: [instanceId], references: [id], onDelete: Cascade)
-  parent     WorkflowNode?     @relation("WorkflowNodeHierarchy", fields: [parentNodeId], references: [id])
-  children   WorkflowNode[]    @relation("WorkflowNodeHierarchy")
-  tasks      WarehouseTask[]
+  instance WorkflowInstance @relation(fields: [instanceId], references: [id], onDelete: Cascade)
+  parent   WorkflowNode?    @relation("WorkflowNodeHierarchy", fields: [parentNodeId], references: [id])
+  children WorkflowNode[]   @relation("WorkflowNodeHierarchy")
+  tasks    WarehouseTask[]
 
   @@index([instanceId])
   @@map("workflow_nodes")
 }
 
 model WarehouseTask {
-  id                     String               @id @default(uuid()) @db.Uuid
-  workflowInstanceId     String               @map("workflow_instance_id") @db.Uuid
-  workflowNodeId        String?              @map("workflow_node_id") @db.Uuid
-  taskType              WarehouseTaskType    @map("task_type")
-  status                WarehouseTaskStatus  @default(pending)
-  priority              Int                  @default(0)
-  dueAt                 DateTime?            @map("due_at") @db.Timestamptz(6)
-  payload               Json                 @db.JsonB
-  payloadSchemaVersion  Int                  @default(1) @map("payload_schema_version")
-  lockVersion           Int                  @default(0) @map("lock_version")
-  correlationId        String?              @map("correlation_id")
-  leaseExpiresAt        DateTime?            @map("lease_expires_at") @db.Timestamptz(6)
-  slaMinutes            Int?                  @map("sla_minutes")
-  escalationLevel       Int                  @default(0) @map("escalation_level")
-  startedAt             DateTime?           @map("started_at") @db.Timestamptz(6)
-  completedAt           DateTime?            @map("completed_at") @db.Timestamptz(6)
-  completedById         String?              @map("completed_by") @db.Uuid
-  failureReason         String?             @map("failure_reason")
-  executionState       Json?                @map("execution_state") @db.JsonB
-  createdAt             DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt             DateTime            @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  id                   String              @id @default(uuid()) @db.Uuid
+  workflowInstanceId   String              @map("workflow_instance_id") @db.Uuid
+  workflowNodeId       String?             @map("workflow_node_id") @db.Uuid
+  taskType             WarehouseTaskType   @map("task_type")
+  status               WarehouseTaskStatus @default(pending)
+  priority             Int                 @default(0)
+  dueAt                DateTime?           @map("due_at") @db.Timestamptz(6)
+  payload              Json                @db.JsonB
+  payloadSchemaVersion Int                 @default(1) @map("payload_schema_version")
+  lockVersion          Int                 @default(0) @map("lock_version")
+  correlationId        String?             @map("correlation_id")
+  leaseExpiresAt       DateTime?           @map("lease_expires_at") @db.Timestamptz(6)
+  slaMinutes           Int?                @map("sla_minutes")
+  escalationLevel      Int                 @default(0) @map("escalation_level")
+  startedAt            DateTime?           @map("started_at") @db.Timestamptz(6)
+  completedAt          DateTime?           @map("completed_at") @db.Timestamptz(6)
+  completedById        String?             @map("completed_by") @db.Uuid
+  failureReason        String?             @map("failure_reason")
+  executionState       Json?               @map("execution_state") @db.JsonB
+  createdAt            DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt            DateTime            @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  workflowInstance WorkflowInstance @relation(fields: [workflowInstanceId], references: [id], onDelete: Cascade)
-  workflowNode    WorkflowNode?    @relation(fields: [workflowNodeId], references: [id])
-  assignments     TaskAssignment[]
+  workflowInstance WorkflowInstance             @relation(fields: [workflowInstanceId], references: [id], onDelete: Cascade)
+  workflowNode     WorkflowNode?                @relation(fields: [workflowNodeId], references: [id])
+  assignments      TaskAssignment[]
   events           TaskEvent[]
-  requiredSkills  WarehouseTaskRequiredSkill[]
-  completedBy     User?            @relation("WarehouseTaskCompleter", fields: [completedById], references: [id])
+  requiredSkills   WarehouseTaskRequiredSkill[]
+  completedBy      User?                        @relation("WarehouseTaskCompleter", fields: [completedById], references: [id])
 
   @@index([workflowInstanceId])
   @@index([status, taskType])
@@ -2508,8 +2509,8 @@ model TaskAssignment {
   unassignedAt DateTime? @map("unassigned_at") @db.Timestamptz(6)
 
   task       WarehouseTask @relation(fields: [taskId], references: [id], onDelete: Cascade)
-  worker     Worker       @relation(fields: [workerId], references: [id])
-  assignedBy User?        @relation("TaskAssignedBy", fields: [assignedById], references: [id])
+  worker     Worker        @relation(fields: [workerId], references: [id])
+  assignedBy User?         @relation("TaskAssignedBy", fields: [assignedById], references: [id])
 
   @@index([workerId])
   @@index([taskId])
@@ -2524,8 +2525,8 @@ model TaskEvent {
   payload   Json?    @db.JsonB
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
 
-  task WarehouseTask @relation(fields: [taskId], references: [id], onDelete: Cascade)
-  actor User?        @relation("TaskEventActor", fields: [actorId], references: [id])
+  task  WarehouseTask @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  actor User?         @relation("TaskEventActor", fields: [actorId], references: [id])
 
   @@index([taskId])
   @@map("task_events")
@@ -2573,20 +2574,20 @@ model LeadFormSubmission {
 
 /// Snapshot of Babel Express city list (refreshable via BabelGeoSyncService — not eternal truth).
 model BabelCity {
-  id         Int      @id
-  name       String
-  syncedAt   DateTime @default(now()) @map("synced_at") @db.Timestamptz(6)
-  areas      BabelArea[]
+  id       Int         @id
+  name     String
+  syncedAt DateTime    @default(now()) @map("synced_at") @db.Timestamptz(6)
+  areas    BabelArea[]
 
   @@map("babel_cities")
 }
 
 model BabelArea {
-  id       Int    @id
-  cityId   Int    @map("city_id")
-  name     String
-  syncedAt DateTime @default(now()) @map("synced_at") @db.Timestamptz(6)
-  city     BabelCity @relation(fields: [cityId], references: [id], onDelete: Cascade)
+  id             Int                  @id
+  cityId         Int                  @map("city_id")
+  name           String
+  syncedAt       DateTime             @default(now()) @map("synced_at") @db.Timestamptz(6)
+  city           BabelCity            @relation(fields: [cityId], references: [id], onDelete: Cascade)
   neighbourhoods BabelNeighbourhood[]
 
   @@index([cityId], map: "idx_babel_areas_city")
@@ -2594,10 +2595,10 @@ model BabelArea {
 }
 
 model BabelNeighbourhood {
-  id       Int    @id
-  areaId   Int    @map("area_id")
+  id       Int       @id
+  areaId   Int       @map("area_id")
   name     String
-  syncedAt DateTime @default(now()) @map("synced_at") @db.Timestamptz(6)
+  syncedAt DateTime  @default(now()) @map("synced_at") @db.Timestamptz(6)
   area     BabelArea @relation(fields: [areaId], references: [id], onDelete: Cascade)
 
   @@index([areaId], map: "idx_babel_neighbourhoods_area")
@@ -2663,22 +2664,22 @@ model ShippingOriginAddress {
 
 /// Single USD→SYP rate used for COD collection. Manual until an automatic source succeeds.
 model ShippingFxSettings {
-  id              String   @id @default("default")
-  mode            String   @default("manual") @db.VarChar(16)
-  manualRate      Decimal? @map("manual_rate") @db.Decimal(18, 6)
-  autoSource      String?  @map("auto_source") @db.VarChar(64)
-  lastAutoRate    Decimal? @map("last_auto_rate") @db.Decimal(18, 6)
-  lastAutoAt      DateTime? @map("last_auto_at") @db.Timestamptz(6)
-  lastError       String?  @map("last_error")
+  id               String    @id @default("default")
+  mode             String    @default("manual") @db.VarChar(16)
+  manualRate       Decimal?  @map("manual_rate") @db.Decimal(18, 6)
+  autoSource       String?   @map("auto_source") @db.VarChar(64)
+  lastAutoRate     Decimal?  @map("last_auto_rate") @db.Decimal(18, 6)
+  lastAutoAt       DateTime? @map("last_auto_at") @db.Timestamptz(6)
+  lastError        String?   @map("last_error")
   /// How often the automatic source is asked again.
-  refreshHours     Int     @default(6) @map("refresh_hours")
+  refreshHours     Int       @default(6) @map("refresh_hours")
   /// An automatic rate older than this is not used for conversion.
-  staleHours       Int     @default(24) @map("stale_hours")
+  staleHours       Int       @default(24) @map("stale_hours")
   /// A fetched rate replaces the active one only when it moved by at least this percent (keeps rates stable).
-  minChangePercent Decimal @default(0.5) @map("min_change_percent") @db.Decimal(6, 3)
-  updatedByUserId String?  @map("updated_by_user_id") @db.Uuid
-  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt       DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  minChangePercent Decimal   @default(0.5) @map("min_change_percent") @db.Decimal(6, 3)
+  updatedByUserId  String?   @map("updated_by_user_id") @db.Uuid
+  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   updatedBy User? @relation("ShippingFxSettingsUpdatedBy", fields: [updatedByUserId], references: [id], onDelete: SetNull)
 
@@ -2747,32 +2748,32 @@ model ShippingFeeGroupLocation {
 
 /// Idempotent carrier shipment records for outbound orders.
 model CarrierShipment {
-  id                 String                 @id @default(uuid()) @db.Uuid
-  outboundOrderId    String                 @map("outbound_order_id") @db.Uuid
-  providerId         String                 @map("provider_id") @db.Uuid
-  providerCode       String                 @map("provider_code")
-  externalAwb        String?                @map("external_awb")
-  trackingNumber     String?                @map("tracking_number")
-  status             CarrierShipmentStatus  @default(pending)
-  shippingCost       Decimal?               @map("shipping_cost") @db.Decimal(15, 4)
-  currency           String?
-  lastErrorSafe      String?                @map("last_error_safe")
-  rawResultMeta      Json?                  @map("raw_result_meta") @db.JsonB
-  lastTrackingStatus String?                @map("last_tracking_status")
-  originalCarrierStatus String?             @map("original_carrier_status")
-  originalCarrierDescription String?        @map("original_carrier_description")
-  lastTrackingAt     DateTime?              @map("last_tracking_at") @db.Timestamptz(6)
-  nextPollAt         DateTime?              @map("next_poll_at") @db.Timestamptz(6)
-  pollAttemptsCount  Int                    @default(0) @map("poll_attempts_count")
+  id                         String                @id @default(uuid()) @db.Uuid
+  outboundOrderId            String                @map("outbound_order_id") @db.Uuid
+  providerId                 String                @map("provider_id") @db.Uuid
+  providerCode               String                @map("provider_code")
+  externalAwb                String?               @map("external_awb")
+  trackingNumber             String?               @map("tracking_number")
+  status                     CarrierShipmentStatus @default(pending)
+  shippingCost               Decimal?              @map("shipping_cost") @db.Decimal(15, 4)
+  currency                   String?
+  lastErrorSafe              String?               @map("last_error_safe")
+  rawResultMeta              Json?                 @map("raw_result_meta") @db.JsonB
+  lastTrackingStatus         String?               @map("last_tracking_status")
+  originalCarrierStatus      String?               @map("original_carrier_status")
+  originalCarrierDescription String?               @map("original_carrier_description")
+  lastTrackingAt             DateTime?             @map("last_tracking_at") @db.Timestamptz(6)
+  nextPollAt                 DateTime?             @map("next_poll_at") @db.Timestamptz(6)
+  pollAttemptsCount          Int                   @default(0) @map("poll_attempts_count")
   /// Set when a pre-dispatch carrier cancel unlinks this shipment from the active order view.
-  supersededAt       DateTime?              @map("superseded_at") @db.Timestamptz(6)
+  supersededAt               DateTime?             @map("superseded_at") @db.Timestamptz(6)
   /// Provider event time of the cost currently stored in shippingCost. Older events must not overwrite it.
-  shippingCostEventAt DateTime?         @map("shipping_cost_event_at") @db.Timestamptz(6)
-  shippingCostSource  String?           @map("shipping_cost_source") @db.VarChar(16)
-  costPaidAt          DateTime?         @map("cost_paid_at") @db.Timestamptz(6)
-  costPaidReference   String?           @map("cost_paid_reference")
-  createdAt          DateTime               @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt          DateTime               @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  shippingCostEventAt        DateTime?             @map("shipping_cost_event_at") @db.Timestamptz(6)
+  shippingCostSource         String?               @map("shipping_cost_source") @db.VarChar(16)
+  costPaidAt                 DateTime?             @map("cost_paid_at") @db.Timestamptz(6)
+  costPaidReference          String?               @map("cost_paid_reference")
+  createdAt                  DateTime              @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt                  DateTime              @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   outboundOrder OutboundOrder          @relation(fields: [outboundOrderId], references: [id], onDelete: Cascade)
   provider      ShippingProvider       @relation(fields: [providerId], references: [id])
@@ -2787,28 +2788,28 @@ model CarrierShipment {
 
 /// Audit log and idempotency tracking for external carrier webhook and polling events.
 model CarrierShipmentEvent {
-  id                    String           @id @default(uuid()) @db.Uuid
-  carrierShipmentId     String?          @map("carrier_shipment_id") @db.Uuid
-  providerCode          String           @map("provider_code")
-  externalEventId       String?          @map("external_event_id")
+  id                    String    @id @default(uuid()) @db.Uuid
+  carrierShipmentId     String?   @map("carrier_shipment_id") @db.Uuid
+  providerCode          String    @map("provider_code")
+  externalEventId       String?   @map("external_event_id")
   awb                   String?
-  eventType             String           @map("event_type")
-  normalizedStatus      String?          @map("normalized_status")
-  originalCarrierStatus String?          @map("original_carrier_status")
-  eventDescription      String?          @map("event_description")
-  eventTimestamp        DateTime?        @map("event_timestamp") @db.Timestamptz(6)
-  sourceType            String?          @map("source_type") @db.VarChar(32)
-  isCarrierEvent        Boolean          @default(true) @map("is_carrier_event")
-  locationText          String?          @map("location_text")
+  eventType             String    @map("event_type")
+  normalizedStatus      String?   @map("normalized_status")
+  originalCarrierStatus String?   @map("original_carrier_status")
+  eventDescription      String?   @map("event_description")
+  eventTimestamp        DateTime? @map("event_timestamp") @db.Timestamptz(6)
+  sourceType            String?   @map("source_type") @db.VarChar(32)
+  isCarrierEvent        Boolean   @default(true) @map("is_carrier_event")
+  locationText          String?   @map("location_text")
   notes                 String?
-  status                String           @default("processed")
-  payloadHash           String           @map("payload_hash")
-  payload               Json             @db.JsonB
-  errorMessage          String?          @map("error_message")
-  processedAt           DateTime?        @map("processed_at") @db.Timestamptz(6)
-  createdAt             DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  status                String    @default("processed")
+  payloadHash           String    @map("payload_hash")
+  payload               Json      @db.JsonB
+  errorMessage          String?   @map("error_message")
+  processedAt           DateTime? @map("processed_at") @db.Timestamptz(6)
+  createdAt             DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
 
-  carrierShipment   CarrierShipment? @relation(fields: [carrierShipmentId], references: [id], onDelete: SetNull)
+  carrierShipment CarrierShipment? @relation(fields: [carrierShipmentId], references: [id], onDelete: SetNull)
 
   @@index([providerCode, externalEventId], map: "idx_carrier_events_provider_event_id")
   @@index([awb], map: "idx_carrier_events_awb")
@@ -2819,19 +2820,19 @@ model CarrierShipmentEvent {
 
 /// Auditable actual carrier cost changes. Does not touch the client shipping fee.
 model CarrierCostChange {
-  id                String   @id @default(uuid()) @db.Uuid
-  carrierShipmentId String   @map("carrier_shipment_id") @db.Uuid
-  previousAmount    Decimal? @map("previous_amount") @db.Decimal(15, 4)
-  previousCurrency  String?  @map("previous_currency") @db.VarChar(8)
-  amount            Decimal  @db.Decimal(15, 4)
-  currency          String?  @db.VarChar(8)
-  providerCode      String   @map("provider_code")
-  externalEventId   String?  @map("external_event_id")
+  id                String    @id @default(uuid()) @db.Uuid
+  carrierShipmentId String    @map("carrier_shipment_id") @db.Uuid
+  previousAmount    Decimal?  @map("previous_amount") @db.Decimal(15, 4)
+  previousCurrency  String?   @map("previous_currency") @db.VarChar(8)
+  amount            Decimal   @db.Decimal(15, 4)
+  currency          String?   @db.VarChar(8)
+  providerCode      String    @map("provider_code")
+  externalEventId   String?   @map("external_event_id")
   eventAt           DateTime? @map("event_at") @db.Timestamptz(6)
-  source            String   @db.VarChar(16)
-  applied           Boolean  @default(true)
-  skipReason        String?  @map("skip_reason")
-  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  source            String    @db.VarChar(16)
+  applied           Boolean   @default(true)
+  skipReason        String?   @map("skip_reason")
+  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
 
   carrierShipment CarrierShipment @relation(fields: [carrierShipmentId], references: [id], onDelete: Cascade)
 
@@ -2842,23 +2843,23 @@ model CarrierCostChange {
 
 /// Admin bulk shipping processing job (audit + progress).
 model BulkShippingJob {
-  id                String                @id @default(uuid()) @db.Uuid
-  status            BulkShippingJobStatus @default(pending)
-  triggeredByUserId String                @map("triggered_by_user_id") @db.Uuid
-  totalCount        Int                   @map("total_count")
-  successCount      Int                   @default(0) @map("success_count")
-  failedCount       Int                   @default(0) @map("failed_count")
-  skippedCount      Int                   @default(0) @map("skipped_count")
-  progressPercent   Int                   @default(0) @map("progress_percent") @db.SmallInt
-  estimatedTotalCost Decimal?             @map("estimated_total_cost") @db.Decimal(15, 4)
-  estimatedCurrency String?               @map("estimated_currency")
-  errorMessage      String?               @map("error_message")
-  startedAt         DateTime?             @map("started_at") @db.Timestamptz(6)
-  completedAt       DateTime?             @map("completed_at") @db.Timestamptz(6)
-  createdAt         DateTime              @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt         DateTime              @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  id                 String                @id @default(uuid()) @db.Uuid
+  status             BulkShippingJobStatus @default(pending)
+  triggeredByUserId  String                @map("triggered_by_user_id") @db.Uuid
+  totalCount         Int                   @map("total_count")
+  successCount       Int                   @default(0) @map("success_count")
+  failedCount        Int                   @default(0) @map("failed_count")
+  skippedCount       Int                   @default(0) @map("skipped_count")
+  progressPercent    Int                   @default(0) @map("progress_percent") @db.SmallInt
+  estimatedTotalCost Decimal?              @map("estimated_total_cost") @db.Decimal(15, 4)
+  estimatedCurrency  String?               @map("estimated_currency")
+  errorMessage       String?               @map("error_message")
+  startedAt          DateTime?             @map("started_at") @db.Timestamptz(6)
+  completedAt        DateTime?             @map("completed_at") @db.Timestamptz(6)
+  createdAt          DateTime              @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime              @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  triggeredBy User                 @relation("BulkShippingTriggeredBy", fields: [triggeredByUserId], references: [id])
+  triggeredBy User                  @relation("BulkShippingTriggeredBy", fields: [triggeredByUserId], references: [id])
   items       BulkShippingJobItem[]
 
   @@index([status, createdAt(sort: Desc)], map: "idx_bulk_shipping_jobs_status_created")
@@ -2867,20 +2868,20 @@ model BulkShippingJob {
 }
 
 model BulkShippingJobItem {
-  id                       String                 @id @default(uuid()) @db.Uuid
-  jobId                    String                 @map("job_id") @db.Uuid
-  outboundOrderId          String                 @map("outbound_order_id") @db.Uuid
-  status                   BulkShippingItemStatus @default(pending)
-  selectedProviderCode     String                 @map("selected_provider_code")
-  recommendedProviderCode  String?                @map("recommended_provider_code")
-  quotedPrice              Decimal?               @map("quoted_price") @db.Decimal(15, 4)
-  quotedCurrency           String?                @map("quoted_currency")
-  externalAwb              String?                @map("external_awb")
-  labelCapability          String?                @map("label_capability") @db.VarChar(32)
-  lastErrorSafe            String?                @map("last_error_safe")
-  processedAt              DateTime?              @map("processed_at") @db.Timestamptz(6)
-  createdAt                DateTime               @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt                DateTime               @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  id                      String                 @id @default(uuid()) @db.Uuid
+  jobId                   String                 @map("job_id") @db.Uuid
+  outboundOrderId         String                 @map("outbound_order_id") @db.Uuid
+  status                  BulkShippingItemStatus @default(pending)
+  selectedProviderCode    String                 @map("selected_provider_code")
+  recommendedProviderCode String?                @map("recommended_provider_code")
+  quotedPrice             Decimal?               @map("quoted_price") @db.Decimal(15, 4)
+  quotedCurrency          String?                @map("quoted_currency")
+  externalAwb             String?                @map("external_awb")
+  labelCapability         String?                @map("label_capability") @db.VarChar(32)
+  lastErrorSafe           String?                @map("last_error_safe")
+  processedAt             DateTime?              @map("processed_at") @db.Timestamptz(6)
+  createdAt               DateTime               @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt               DateTime               @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   job           BulkShippingJob @relation(fields: [jobId], references: [id], onDelete: Cascade)
   outboundOrder OutboundOrder   @relation(fields: [outboundOrderId], references: [id], onDelete: Cascade)
@@ -2941,21 +2942,21 @@ enum ClientPayoutStatus {
 }
 
 model ClientFinancialAccount {
-  id               String                 @id @default(uuid()) @db.Uuid
-  companyId        String                 @unique @map("company_id") @db.Uuid
-  currentBalance   Decimal                @default(0) @map("current_balance") @db.Decimal(15, 4)
-  availableBalance Decimal                @default(0) @map("available_balance") @db.Decimal(15, 4)
-  pendingBalance   Decimal                @default(0) @map("pending_balance") @db.Decimal(15, 4)
-  payoutLocked     Decimal                @default(0) @map("payout_locked") @db.Decimal(15, 4)
-  totalCredits     Decimal                @default(0) @map("total_credits") @db.Decimal(15, 4)
-  totalDebits      Decimal                @default(0) @map("total_debits") @db.Decimal(15, 4)
-  currency         String                 @default("USD")
-  status           FinancialAccountStatus @default(active)
-  lastTransactionAt DateTime?             @map("last_transaction_at") @db.Timestamptz(6)
-  createdAt        DateTime               @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt        DateTime               @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  id                String                 @id @default(uuid()) @db.Uuid
+  companyId         String                 @unique @map("company_id") @db.Uuid
+  currentBalance    Decimal                @default(0) @map("current_balance") @db.Decimal(15, 4)
+  availableBalance  Decimal                @default(0) @map("available_balance") @db.Decimal(15, 4)
+  pendingBalance    Decimal                @default(0) @map("pending_balance") @db.Decimal(15, 4)
+  payoutLocked      Decimal                @default(0) @map("payout_locked") @db.Decimal(15, 4)
+  totalCredits      Decimal                @default(0) @map("total_credits") @db.Decimal(15, 4)
+  totalDebits       Decimal                @default(0) @map("total_debits") @db.Decimal(15, 4)
+  currency          String                 @default("USD")
+  status            FinancialAccountStatus @default(active)
+  lastTransactionAt DateTime?              @map("last_transaction_at") @db.Timestamptz(6)
+  createdAt         DateTime               @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime               @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  company          Company                @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
 
   @@index([status], map: "idx_financial_accounts_status")
   @@map("client_financial_accounts")
@@ -2979,7 +2980,7 @@ model FinancialTransaction {
   createdAt         DateTime                     @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt         DateTime                     @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  company           Company                      @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
 
   @@index([companyId, createdAt(sort: Desc)], map: "idx_financial_txns_company_created")
   @@index([referenceType, referenceId], map: "idx_financial_txns_reference")
@@ -3008,7 +3009,7 @@ model ClientPayoutRequest {
   createdAt       DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt       DateTime           @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  company         Company            @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
 
   @@index([companyId, status], map: "idx_client_payouts_company_status")
   @@index([status, createdAt(sort: Desc)], map: "idx_client_payouts_status_created")
@@ -3024,4 +3025,64 @@ model FinancialPolicy {
   updatedAt   DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   @@map("financial_policies")
+}
+
+/// A URL a client registers to hear about order changes. The signing secret is stored encrypted.
+model ClientWebhookEndpoint {
+  id                  String    @id @default(uuid()) @db.Uuid
+  companyId           String    @map("company_id") @db.Uuid
+  url                 String
+  secretEnc           String    @map("secret_enc")
+  isActive            Boolean   @default(true) @map("is_active")
+  consecutiveFailures Int       @default(0) @map("consecutive_failures")
+  lastSuccessAt       DateTime? @map("last_success_at") @db.Timestamptz(6)
+  lastFailureAt       DateTime? @map("last_failure_at") @db.Timestamptz(6)
+  lastError           String?   @map("last_error")
+  /// Orders changed after this moment have not been looked at yet.
+  cursorAt            DateTime  @default(now()) @map("cursor_at") @db.Timestamptz(6)
+  createdByUserId     String?   @map("created_by_user_id") @db.Uuid
+  createdAt           DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt           DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  company    Company                   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  deliveries ClientWebhookDelivery[]
+  states     ClientWebhookOrderState[]
+
+  @@index([companyId], map: "idx_client_webhook_endpoints_company")
+  @@map("client_webhook_endpoints")
+}
+
+/// The last status already announced to an endpoint for an order, so only real changes are sent.
+model ClientWebhookOrderState {
+  endpointId String   @map("endpoint_id") @db.Uuid
+  orderId    String   @map("order_id") @db.Uuid
+  lastStatus String   @map("last_status") @db.VarChar(40)
+  updatedAt  DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  endpoint ClientWebhookEndpoint @relation(fields: [endpointId], references: [id], onDelete: Cascade)
+
+  @@id([endpointId, orderId])
+  @@map("client_webhook_order_state")
+}
+
+model ClientWebhookDelivery {
+  id             String    @id @default(uuid()) @db.Uuid
+  endpointId     String    @map("endpoint_id") @db.Uuid
+  event          String    @db.VarChar(40)
+  orderNumber    String?   @map("order_number")
+  payload        Json
+  /// pending | delivered | failed
+  status         String    @default("pending") @db.VarChar(16)
+  attempts       Int       @default(0)
+  nextAttemptAt  DateTime  @default(now()) @map("next_attempt_at") @db.Timestamptz(6)
+  lastHttpStatus Int?      @map("last_http_status")
+  lastError      String?   @map("last_error")
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  deliveredAt    DateTime? @map("delivered_at") @db.Timestamptz(6)
+
+  endpoint ClientWebhookEndpoint @relation(fields: [endpointId], references: [id], onDelete: Cascade)
+
+  @@index([status, nextAttemptAt], map: "idx_client_webhook_deliveries_due")
+  @@index([endpointId, createdAt(sort: Desc)], map: "idx_client_webhook_deliveries_endpoint")
+  @@map("client_webhook_deliveries")
 }

@@ -5,6 +5,7 @@ import { Alert, Badge, Button, EmptyState, Modal, Skeleton, TextField } from '@d
 
 import { Card } from '../design-v2/Card';
 import { ListPageHeader } from '../design-v2/ListPageHeader';
+import { WebhooksSection } from '../components/WebhooksSection';
 import { isClientArabic } from '../lib/client-ui-language';
 import {
   createClientApi,
@@ -176,6 +177,8 @@ export function ApisPage(): ReactElement {
           </table>
         </Card>
       )}
+
+      <WebhooksSection isArabic={isArabic} />
 
       <Modal
         open={createOpen}
