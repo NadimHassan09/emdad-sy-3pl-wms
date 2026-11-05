@@ -110,14 +110,24 @@ export class ShippingController {
   }
 
   @Put('fx')
-  saveFx(@Body() body: UpsertShippingFxDto, @CurrentUser() user: AuthPrincipal) {
+  async saveFx(@Body() body: UpsertShippingFxDto, @CurrentUser() user: AuthPrincipal) {
     if (user.role !== 'super_admin') {
       throw new ForbiddenException('Only a super admin can set the USD/SYP rate.');
     }
-    if (body.mode === 'automatic') return this.fx.saveAutomatic(user);
+    const thresholds = {
+      refreshHours: body.refreshHours,
+      staleHours: body.staleHours,
+      minChangePercent: body.minChangePercent,
+    };
+    if (body.mode === 'automatic') {
+      await this.fx.saveThresholds(thresholds, user);
+      return this.fx.saveAutomatic(user);
+    }
     if (body.manualRate == null) {
+      await this.fx.saveThresholds(thresholds, user);
       throw new BadRequestException('Enter the manual USD to SYP rate.');
     }
+    await this.fx.saveThresholds(thresholds, user);
     return this.fx.saveManual(body.manualRate, user);
   }
 

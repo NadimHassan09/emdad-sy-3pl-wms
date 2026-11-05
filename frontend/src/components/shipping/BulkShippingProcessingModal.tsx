@@ -391,7 +391,7 @@ function ReviewStep(props: {
                 : 'border-border-subtle text-text-muted'
             }`}
           >
-            {value === 'all' ? 'All' : value}
+            {value === 'all' ? 'All' : value === 'SYP' ? 'New SYP' : value}
           </button>
         ))}
       </div>

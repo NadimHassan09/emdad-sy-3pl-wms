@@ -682,7 +682,7 @@ export function CarrierShippingDetailsForm({
             onChange={(collectionCurrency) => onChange(patch(value, { collectionCurrency }))}
             options={[
               { value: 'USD', label: 'USD' },
-              { value: 'SYP', label: 'ل.س' },
+              { value: 'SYP', label: 'ليرة جديدة · New SYP' },
             ]}
           />
           <p className="mt-1 text-[11px] text-text-faint">
@@ -761,7 +761,7 @@ export function CarrierShippingDetailsForm({
               [
                 { value: 'all', label: 'All' },
                 { value: 'USD', label: 'USD' },
-                { value: 'SYP', label: 'ل.س' },
+                { value: 'SYP', label: 'ليرة جديدة · New SYP' },
               ] as const
             ).map((opt) => (
               <button

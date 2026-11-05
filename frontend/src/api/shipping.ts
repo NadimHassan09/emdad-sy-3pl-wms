@@ -460,6 +460,9 @@ export type ShippingFxSettings = {
   stale: boolean;
   usable: boolean;
   lastError: string | null;
+  refreshHours: number;
+  staleHours: number;
+  minChangePercent: number;
   updatedAt: string | null;
 };
 
@@ -468,7 +471,13 @@ export const ShippingApi = {
     return api.get<ShippingFxSettings>('/shipping/fx').then((r) => r.data);
   },
 
-  saveFx(body: { mode: 'manual' | 'automatic'; manualRate?: number }): Promise<ShippingFxSettings> {
+  saveFx(body: {
+    mode: 'manual' | 'automatic';
+    manualRate?: number;
+    refreshHours?: number;
+    staleHours?: number;
+    minChangePercent?: number;
+  }): Promise<ShippingFxSettings> {
     return api.put<ShippingFxSettings>('/shipping/fx', body).then((r) => r.data);
   },
 

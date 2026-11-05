@@ -9,6 +9,17 @@ export const FX_AUTO_SOURCE = 'fawazahmed0-currency-api';
 export const FX_AUTO_URL = 'https://latest.currency-api.pages.dev/v1/currencies/usd.min.json';
 export const FX_FRESH_MS = 6 * 60 * 60 * 1000;
 export const FX_STALE_MS = 24 * 60 * 60 * 1000;
+export const FX_MIN_CHANGE_PERCENT = 0.5;
+const HOUR_MS = 60 * 60 * 1000;
+
+export const hoursToMs = (hours: number | null | undefined, fallbackMs: number): number =>
+  hours != null && Number.isFinite(hours) && hours > 0 ? hours * HOUR_MS : fallbackMs;
+
+/** True when the fetched rate moved enough from the active one to replace it. */
+export function rateMovedEnough(active: number | null, fetched: number, minPercent: number): boolean {
+  if (active == null || !Number.isFinite(active) || active <= 0) return true;
+  return (Math.abs(fetched - active) / active) * 100 >= minPercent;
+}
 
 export type FxFetchResult =
   | { ok: true; rate: number; source: string; fetchedAt: string }

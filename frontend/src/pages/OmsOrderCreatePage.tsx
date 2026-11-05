@@ -113,7 +113,6 @@ export function OmsOrderCreatePage(): ReactElement {
   const [deliveryLat, setDeliveryLat] = useState(savedDraft?.deliveryLat ?? '');
   const [deliveryLng, setDeliveryLng] = useState(savedDraft?.deliveryLng ?? '');
   // The order's own currency: dollar, new Syrian pound or old Syrian pound. Carriers still get their own.
-  const [orderCurrency, setOrderCurrency] = useState<'USD' | 'SYP_NEW' | 'SYP'>('USD');
   const [paymentMethod, setPaymentMethod] = useState<OmsPaymentMethod | ''>(
     savedDraft?.paymentMethod ?? '',
   );
@@ -374,7 +373,7 @@ export function OmsOrderCreatePage(): ReactElement {
       shippingReceiverLng: deliveryLng.trim() ? Number(deliveryLng) : undefined,
       notes: notes.trim() || undefined,
       paymentMethod: paymentMethod || undefined,
-      currency: orderCurrency,
+      currency: 'USD',
       lines: payloadLines,
       shippingPhoneCountry: recipientPhone.countryIso || undefined,
     });
@@ -526,17 +525,6 @@ export function OmsOrderCreatePage(): ReactElement {
                 { value: 'COD', label: 'COD' },
                 { value: 'PREPAID', label: 'Prepaid' },
                 { value: 'CREDIT', label: 'Credit' },
-              ]}
-            />
-            <SelectField
-              label="Order currency"
-              value={orderCurrency}
-              onChange={(e) => setOrderCurrency(e.target.value as 'USD' | 'SYP_NEW' | 'SYP')}
-              disabled={loading}
-              options={[
-                { value: 'USD', label: 'US dollar (USD)' },
-                { value: 'SYP_NEW', label: 'New Syrian pound (ليرة جديدة)' },
-                { value: 'SYP', label: 'Old Syrian pound (ليرة قديمة)' },
               ]}
             />
           </div>

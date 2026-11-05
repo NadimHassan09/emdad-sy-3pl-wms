@@ -17,32 +17,48 @@ import { QK } from '../../constants/query-keys';
 import { defaultHomePath } from '../../lib/rbac';
 import { useWmsTranslation } from '../../lib/ui-i18n';
 
+/** The platform stores the rate in old pounds per USD; the screen shows and takes new pounds (1 new = 100 old). */
+const OLD_PER_NEW = 100;
+
 function FxRateCard({ canEdit }: { canEdit: boolean }) {
   const toast = useToast();
   const queryClient = useQueryClient();
   const { t } = useWmsTranslation();
   const [rate, setRate] = useState('');
+  const [refreshHours, setRefreshHours] = useState('6');
+  const [staleHours, setStaleHours] = useState('24');
+  const [minChange, setMinChange] = useState('0.5');
   const query = useQuery({
     queryKey: ['shipping', 'fx'],
     queryFn: () => ShippingApi.getFx(),
   });
   useEffect(() => {
-    if (query.data?.manualRate != null) setRate(String(query.data.manualRate));
+    if (query.data?.manualRate != null) setRate(String(query.data.manualRate / OLD_PER_NEW));
   }, [query.data?.manualRate]);
+  useEffect(() => {
+    if (!query.data) return;
+    setRefreshHours(String(query.data.refreshHours));
+    setStaleHours(String(query.data.staleHours));
+    setMinChange(String(query.data.minChangePercent));
+  }, [query.data?.refreshHours, query.data?.staleHours, query.data?.minChangePercent]);
+  const thresholds = () => ({
+    refreshHours: Number(refreshHours),
+    staleHours: Number(staleHours),
+    minChangePercent: Number(minChange),
+  });
+  const done = (message: string) => () => {
+    toast.success(message);
+    void queryClient.invalidateQueries({ queryKey: ['shipping', 'fx'] });
+  };
   const saveManual = useMutation({
-    mutationFn: () => ShippingApi.saveFx({ mode: 'manual', manualRate: Number(rate) }),
-    onSuccess: () => {
-      toast.success(t(['Exchange rate saved.', 'تم حفظ سعر الصرف.']));
-      void queryClient.invalidateQueries({ queryKey: ['shipping', 'fx'] });
-    },
+    mutationFn: () =>
+      ShippingApi.saveFx({ mode: 'manual', manualRate: Number(rate) * OLD_PER_NEW, ...thresholds() }),
+    onSuccess: done(t(['Manual rate saved. Automatic updates are off.', 'تم حفظ السعر اليدوي. التحديث التلقائي متوقف.'])),
     onError: (err: Error) => toast.error(err.message),
   });
   const saveAuto = useMutation({
-    mutationFn: () => ShippingApi.saveFx({ mode: 'automatic' }),
-    onSuccess: () => {
-      toast.success(t(['Automatic rate updated.', 'تم تحديث السعر التلقائي.']));
-      void queryClient.invalidateQueries({ queryKey: ['shipping', 'fx'] });
-    },
+    mutationFn: () => ShippingApi.saveFx({ mode: 'automatic', ...thresholds() }),
+    onSuccess: done(t(['Automatic updates are on.', 'تم تشغيل التحديث التلقائي.'])),
     onError: (err: Error) => toast.error(err.message),
   });
   const testSource = useMutation({
@@ -52,17 +68,18 @@ function FxRateCard({ canEdit }: { canEdit: boolean }) {
         toast.error(result.error || t(['Source check failed.', 'فشل فحص المصدر.']));
         return;
       }
-      toast.success(`${result.source}: 1 USD = ${result.rate} SYP`);
+      toast.success(`${result.source}: 1 USD = ${((result.rate ?? 0) / OLD_PER_NEW).toFixed(2)} new SYP`);
     },
     onError: (err: Error) => toast.error(err.message),
   });
   const fx = query.data;
+  const newRate = fx?.activeRate != null ? fx.activeRate / OLD_PER_NEW : null;
   return (
     <SectionContainer
-      title={t(['USD / SYP exchange rate', 'سعر صرف الدولار / الليرة'])}
+      title={t(['Exchange rates', 'أسعار الصرف'])}
       description={t([
-        'Direction is fixed: 1 USD = R SYP. This converts COD collection only. The order amount stays unchanged.',
-        'الاتجاه ثابت: 1 دولار = س ليرة. يحوّل مبلغ التحصيل فقط. مبلغ الطلب يبقى كما هو.',
+        'Clients and invoices use USD only. The pound is used with carriers. 1 new SYP = 100 old SYP is fixed. Choose a manual rate, or let the system follow an outside source with the stability limits below.',
+        'العملاء والفواتير بالدولار فقط. الليرة تُستخدم مع شركات الشحن. 1 ليرة جديدة = 100 قديمة ثابتة. اختر سعرًا يدويًا أو دع النظام يتبع مصدرًا خارجيًا بحدود الاستقرار أدناه.',
       ])}
     >
       {query.isLoading ? (
@@ -71,11 +88,13 @@ function FxRateCard({ canEdit }: { canEdit: boolean }) {
         <div className="space-y-3">
           <p className="text-sm text-text-body">
             {t(['Active rate', 'السعر الحالي'])}:{' '}
-            <strong>{fx?.activeRate != null ? `1 USD = ${fx.activeRate} SYP` : '—'}</strong>
+            <strong>
+              {newRate != null
+                ? `1 USD = ${newRate.toLocaleString(undefined, { maximumFractionDigits: 2 })} ${t(['new SYP', 'ليرة جديدة'])} = ${(fx?.activeRate ?? 0).toLocaleString(undefined, { maximumFractionDigits: 0 })} ${t(['old SYP', 'ليرة قديمة'])}`
+                : '—'}
+            </strong>
             {' · '}
-            {fx?.mode === 'automatic'
-              ? t(['Automatic', 'تلقائي'])
-              : t(['Manual', 'يدوي'])}
+            {fx?.mode === 'automatic' ? t(['Automatic', 'تلقائي']) : t(['Manual', 'يدوي'])}
             {fx?.stale ? ` · ${t(['Stale', 'قديم'])}` : ''}
             {fx?.usable ? '' : ` · ${t(['Not usable for conversion', 'غير صالح للتحويل'])}`}
           </p>
@@ -87,27 +106,49 @@ function FxRateCard({ canEdit }: { canEdit: boolean }) {
           {fx?.lastError ? <p className="text-sm text-status-danger-fg">{fx.lastError}</p> : null}
           {canEdit ? (
             <form
-              className="flex flex-wrap items-end gap-2"
+              className="space-y-3"
               onSubmit={(event: FormEvent) => {
                 event.preventDefault();
                 saveManual.mutate();
               }}
             >
-              <TextField
-                label={t(['Manual rate (SYP per 1 USD)', 'سعر يدوي (ليرة لكل دولار)'])}
-                value={rate}
-                onChange={(e) => setRate(e.target.value)}
-                inputMode="decimal"
-              />
-              <Button type="submit" disabled={saveManual.isPending}>
-                {t(['Save manual rate', 'حفظ السعر اليدوي'])}
-              </Button>
-              <Button type="button" disabled={saveAuto.isPending} onClick={() => saveAuto.mutate()}>
-                {t(['Use automatic source', 'استخدام المصدر التلقائي'])}
-              </Button>
-              <Button type="button" disabled={testSource.isPending} onClick={() => testSource.mutate()}>
-                {t(['Test source', 'فحص المصدر'])}
-              </Button>
+              <div className="flex flex-wrap items-end gap-2">
+                <TextField
+                  label={t(['Manual rate (new SYP per 1 USD)', 'سعر يدوي (ليرة جديدة لكل دولار)'])}
+                  value={rate}
+                  onChange={(e) => setRate(e.target.value)}
+                  inputMode="decimal"
+                />
+                <Button type="submit" disabled={saveManual.isPending}>
+                  {t(['Save manual rate', 'حفظ السعر اليدوي'])}
+                </Button>
+              </div>
+              <div className="flex flex-wrap items-end gap-2">
+                <TextField
+                  label={t(['Ask the source every (hours)', 'اسأل المصدر كل (ساعات)'])}
+                  value={refreshHours}
+                  onChange={(e) => setRefreshHours(e.target.value)}
+                  inputMode="numeric"
+                />
+                <TextField
+                  label={t(['Reject a rate older than (hours)', 'ارفض سعرًا أقدم من (ساعات)'])}
+                  value={staleHours}
+                  onChange={(e) => setStaleHours(e.target.value)}
+                  inputMode="numeric"
+                />
+                <TextField
+                  label={t(['Change only if it moves by (%)', 'غيّر فقط إذا تحرك بنسبة (%)'])}
+                  value={minChange}
+                  onChange={(e) => setMinChange(e.target.value)}
+                  inputMode="decimal"
+                />
+                <Button type="button" disabled={saveAuto.isPending} onClick={() => saveAuto.mutate()}>
+                  {t(['Use automatic source', 'استخدام المصدر التلقائي'])}
+                </Button>
+                <Button type="button" disabled={testSource.isPending} onClick={() => testSource.mutate()}>
+                  {t(['Test source', 'فحص المصدر'])}
+                </Button>
+              </div>
             </form>
           ) : null}
         </div>

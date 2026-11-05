@@ -5,8 +5,11 @@ import { PrismaService } from '../../common/prisma/prisma.service';
 import {
   FX_AUTO_SOURCE,
   FX_FRESH_MS,
+  FX_MIN_CHANGE_PERCENT,
   FX_STALE_MS,
   fetchUsdToSypRate,
+  hoursToMs,
+  rateMovedEnough,
   type FxFetchResult,
 } from './fx-source';
 
@@ -21,6 +24,9 @@ export type FxSettingsView = {
   stale: boolean;
   usable: boolean;
   lastError: string | null;
+  refreshHours: number;
+  staleHours: number;
+  minChangePercent: number;
   updatedAt: string | null;
 };
 
@@ -42,7 +48,7 @@ export class ShippingFxService {
     });
     if (row?.mode === 'automatic') {
       const age = row.lastAutoAt ? Date.now() - row.lastAutoAt.getTime() : Infinity;
-      if (age > FX_FRESH_MS) {
+      if (age > hoursToMs(row.refreshHours, FX_FRESH_MS)) {
         await this.refreshAutomatic(row.updatedByUserId);
         return this.toView(
           await this.prisma.shippingFxSettings.findUnique({
@@ -142,6 +148,36 @@ export class ShippingFxService {
     return this.toView(row);
   }
 
+  async saveThresholds(
+    input: { refreshHours?: number; staleHours?: number; minChangePercent?: number },
+    user: { id: string; email?: string | null; role?: string | null; fullName?: string | null },
+  ) {
+    const data: Record<string, number> = {};
+    if (input.refreshHours != null) data.refreshHours = input.refreshHours;
+    if (input.staleHours != null) data.staleHours = input.staleHours;
+    if (input.minChangePercent != null) data.minChangePercent = input.minChangePercent;
+    if (Object.keys(data).length === 0) return this.toView(await this.prisma.shippingFxSettings.findUnique({ where: { id: ShippingFxService.ROW_ID } }));
+    if (data.staleHours != null && data.refreshHours != null && data.staleHours < data.refreshHours) {
+      throw new BadRequestException('The stale limit must not be shorter than the refresh interval.');
+    }
+    const row = await this.prisma.shippingFxSettings.upsert({
+      where: { id: ShippingFxService.ROW_ID },
+      create: { id: ShippingFxService.ROW_ID, updatedByUserId: user.id, ...data },
+      update: { updatedByUserId: user.id, ...data },
+    });
+    await this.audit.logBestEffort({
+      actorId: user.id,
+      actorEmail: user.email || `user-${user.id}@unknown.local`,
+      actorName: user.fullName || user.email || user.id,
+      actorRole: user.role || 'admin',
+      action: 'shipping_fx_thresholds',
+      resourceType: 'shipping_fx_settings',
+      resourceId: ShippingFxService.ROW_ID,
+      newState: data,
+    });
+    return this.toView(row);
+  }
+
   async testSource(): Promise<FxFetchResult> {
     return fetchUsdToSypRate(this.fetchImpl);
   }
@@ -164,11 +200,19 @@ export class ShippingFxService {
       });
       return;
     }
+    const current = await this.prisma.shippingFxSettings.findUnique({
+      where: { id: ShippingFxService.ROW_ID },
+    });
+    const keepRate = !rateMovedEnough(
+      current?.lastAutoRate != null ? Number(current.lastAutoRate) : null,
+      fetched.rate,
+      current?.minChangePercent != null ? Number(current.minChangePercent) : FX_MIN_CHANGE_PERCENT,
+    );
     await this.prisma.shippingFxSettings.update({
       where: { id: ShippingFxService.ROW_ID },
       data: {
         autoSource: fetched.source,
-        lastAutoRate: fetched.rate,
+        ...(keepRate ? {} : { lastAutoRate: fetched.rate }),
         lastAutoAt: new Date(fetched.fetchedAt),
         lastError: null,
         ...(userId ? { updatedByUserId: userId } : {}),
@@ -183,13 +227,16 @@ export class ShippingFxService {
     lastAutoRate: { toString(): string } | null;
     lastAutoAt: Date | null;
     lastError: string | null;
+    refreshHours?: number | null;
+    staleHours?: number | null;
+    minChangePercent?: { toString(): string } | null;
     updatedAt: Date;
   } | null): FxSettingsView {
     const mode = row?.mode === 'automatic' ? 'automatic' : 'manual';
     const manual = row?.manualRate != null ? Number(row.manualRate) : null;
     const auto = row?.lastAutoRate != null ? Number(row.lastAutoRate) : null;
     const autoAt = row?.lastAutoAt ?? null;
-    const stale = mode === 'automatic' && (!autoAt || Date.now() - autoAt.getTime() > FX_STALE_MS);
+    const stale = mode === 'automatic' && (!autoAt || Date.now() - autoAt.getTime() > hoursToMs(row?.staleHours, FX_STALE_MS));
     const activeRate = mode === 'automatic' ? auto : manual;
     const finite = activeRate != null && Number.isFinite(activeRate) && activeRate > 0;
     const usable = finite && !stale;
@@ -205,6 +252,9 @@ export class ShippingFxService {
       stale,
       usable,
       lastError: row?.lastError ?? null,
+      refreshHours: row?.refreshHours ?? 6,
+      staleHours: row?.staleHours ?? 24,
+      minChangePercent: row?.minChangePercent != null ? Number(row.minChangePercent) : FX_MIN_CHANGE_PERCENT,
       updatedAt: row?.updatedAt?.toISOString() ?? null,
     };
   }

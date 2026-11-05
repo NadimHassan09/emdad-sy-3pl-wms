@@ -1574,7 +1574,7 @@ export function OmsBulkShippingDetailsModal({
               [
                 { value: 'all', labelAr: 'الكل', labelEn: 'All' },
                 { value: 'USD', labelAr: 'USD', labelEn: 'USD' },
-                { value: 'SYP', labelAr: 'ل.س', labelEn: 'SYP' },
+                { value: 'SYP', labelAr: 'ليرة جديدة', labelEn: 'New SYP' },
               ] as const
             ).map((opt) => (
               <button
@@ -1600,7 +1600,7 @@ export function OmsBulkShippingDetailsModal({
               [
                 { value: 'all', labelAr: 'الكل', labelEn: 'All' },
                 { value: 'USD', labelAr: 'USD', labelEn: 'USD' },
-                { value: 'SYP', labelAr: 'ل.س', labelEn: 'SYP' },
+                { value: 'SYP', labelAr: 'ليرة جديدة', labelEn: 'New SYP' },
               ] as const
             ).map((opt) => (
               <button
