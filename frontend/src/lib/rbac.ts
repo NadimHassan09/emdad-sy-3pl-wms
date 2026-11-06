@@ -240,7 +240,14 @@ const NAV_CATALOG: Array<NavItemDef & { roles: InternalRole[] }> = [
     labelKey: 'Shipping Companies',
     iconKey: 'Shipping',
     to: '/shipping/companies',
-    match: (p) => p.startsWith('/shipping'),
+    match: (p) => p.startsWith('/shipping/companies'),
+    roles: ADMIN_ROLES,
+  },
+  {
+    labelKey: 'Shipping Fee Rates',
+    iconKey: 'Shipping',
+    to: '/shipping/fee-rates',
+    match: (p) => p.startsWith('/shipping/fee-rates'),
     roles: ADMIN_ROLES,
   },
 ];

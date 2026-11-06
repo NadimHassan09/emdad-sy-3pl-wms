@@ -197,6 +197,21 @@ export function ShippingFeeRatePage() {
     };
   }, [displayedGroups]);
 
+  // Location tree helpers (placed early so uncoveredGovs can use it)
+  const allGovernorates = useMemo(() => listCities(), []);
+
+  // Which governorates are NOT covered by any active global rate group
+  const uncoveredGovs = useMemo(() => {
+    const coveredByActive = new Set<string>();
+    const activeGroups = allGroups.filter((g) => g.active && !g.companyId);
+    for (const group of activeGroups) {
+      for (const loc of group.locations) {
+        coveredByActive.add(loc.governorate);
+      }
+    }
+    return allGovernorates.filter((g) => !coveredByActive.has(g));
+  }, [allGroups, allGovernorates]);
+
   // Drawer / Wizard state
   const [editingId, setEditingId] = useState<string | 'new' | null>(null);
   const [currentStep, setCurrentStep] = useState<number>(1);
@@ -255,8 +270,79 @@ export function ShippingFeeRatePage() {
     setPolicyMode('default');
   }
 
-  // Location tree helpers
-  const allGovernorates = useMemo(() => listCities(), []);
+  // Quick-start templates: pre-fill the drawer with common Syrian rate structures
+  const RATE_TEMPLATES = useMemo<
+    Array<{
+      labelEn: string;
+      labelAr: string;
+      descriptionEn: string;
+      descriptionAr: string;
+      nameAr: string;
+      nameEn: string;
+      areaCategory: (typeof CATEGORIES)[number];
+      baseRate: string;
+      govs: string[];
+    }>
+  >(
+    () => [
+      {
+        labelEn: 'All Syria (Single Rate)',
+        labelAr: 'سوريا بأكملها (سعر موحد)',
+        descriptionEn: 'Covers all 14 governorates at one flat rate — good for starting out',
+        descriptionAr: 'يغطي جميع المحافظات الـ 14 بسعر موحد — نقطة انطلاق جيدة',
+        nameAr: 'جميع أنحاء سوريا',
+        nameEn: 'All Syria',
+        areaCategory: 'region',
+        baseRate: '5.00',
+        govs: allGovernorates,
+      },
+      {
+        labelEn: 'Major Cities',
+        labelAr: 'المدن الرئيسية',
+        descriptionEn: 'Damascus, Aleppo, Homs, Hama, Latakia, Tartous — urban flat rate',
+        descriptionAr: 'دمشق، حلب، حمص، حماة، اللاذقية، طرطوس — سعر المدن الرئيسية',
+        nameAr: 'المدن الرئيسية',
+        nameEn: 'Major Cities',
+        areaCategory: 'region',
+        baseRate: '4.00',
+        govs: ['دمشق', 'حلب', 'حمص', 'حماة', 'اللاذقية', 'طرطوس'],
+      },
+      {
+        labelEn: 'Rural & Remote',
+        labelAr: 'الريف والمناطق البعيدة',
+        descriptionEn: 'Deir ez-Zor, Raqqa, Hasakah, Idlib, Quneitra, Sweida, Daraa — remote rate',
+        descriptionAr: 'دير الزور، الرقة، الحسكة، إدلب، القنيطرة، السويداء، درعا — سعر الريف',
+        nameAr: 'الريف والمناطق البعيدة',
+        nameEn: 'Rural & Remote',
+        areaCategory: 'rural',
+        baseRate: '7.00',
+        govs: ['دير الزور', 'الرقة', 'الحسكة', 'إدلب', 'القنيطرة', 'السويداء', 'درعا'],
+      },
+    ],
+    [allGovernorates],
+  );
+
+  function openFromTemplate(tpl: (typeof RATE_TEMPLATES)[0]) {
+    setEditingId('new');
+    setCurrentStep(1);
+    setDrawerCompanyId('');
+    setNameAr(tpl.nameAr);
+    setNameEn(tpl.nameEn);
+    setAreaCategory(tpl.areaCategory);
+    setBaseRate(tpl.baseRate);
+    setActive(true);
+    setSelectedLocations(
+      tpl.govs.map((gov) => ({
+        key: `gov:${gov}`,
+        level: 'governorate',
+        governorate: gov,
+        cityRegion: null,
+        townNeighborhood: null,
+      })),
+    );
+    setLocationSearch('');
+    setPolicyMode('default');
+  }
 
   // Filtered tree based on search
   const isSearching = locationSearch.trim().length > 0;
@@ -655,6 +741,67 @@ export function ShippingFeeRatePage() {
           </div>
         </div>
       </div>
+
+      {/* Coverage Warning Banner */}
+      {uncoveredGovs.length > 0 && (filterScope === 'all' || filterScope === 'global') && (
+        <div className="rounded-xl border border-amber-300 bg-amber-50 p-4 flex flex-col sm:flex-row items-start sm:items-center gap-3">
+          <div className="shrink-0 w-9 h-9 rounded-xl bg-amber-100 flex items-center justify-center text-amber-700 font-bold text-base">
+            ⚠
+          </div>
+          <div className="flex-1">
+            <strong className="block text-sm font-bold text-amber-900">
+              {t([
+                `${uncoveredGovs.length} of 14 governorates have no active rate — customers from these areas cannot confirm orders.`,
+                `${uncoveredGovs.length} من أصل 14 محافظة ليس لها سعر شحن نشط — لا يمكن للعملاء من هذه المناطق تأكيد طلباتهم.`,
+              ])}
+            </strong>
+            <p className="text-xs text-amber-800 mt-0.5">
+              {uncoveredGovs.join('، ')}
+            </p>
+          </div>
+          <Button variant="secondary" size="sm" onClick={openNew}>
+            <span>＋</span>
+            <span>{t(['Add rate group', 'إضافة مجموعة'])}</span>
+          </Button>
+        </div>
+      )}
+
+      {/* Quick-Start Templates (shown when no global groups exist yet) */}
+      {allGroups.filter((g) => !g.companyId).length === 0 && (
+        <div className="bg-white border border-border-subtle rounded-xl shadow-xs overflow-hidden">
+          <div className="p-4 sm:px-5 border-b border-border-subtle">
+            <h2 className="text-base font-bold text-text-strong">
+              {t(['Quick-start templates', 'قوالب البدء السريع'])}
+            </h2>
+            <p className="text-xs text-text-muted mt-0.5">
+              {t([
+                'No rate groups yet. Pick a template to pre-fill the form — you can edit all values before saving.',
+                'لا توجد مجموعات أسعار بعد. اختر قالباً لملء النموذج تلقائياً — يمكنك تعديل جميع القيم قبل الحفظ.',
+              ])}
+            </p>
+          </div>
+          <div className="p-4 sm:p-5 grid grid-cols-1 sm:grid-cols-3 gap-3">
+            {RATE_TEMPLATES.map((tpl) => (
+              <button
+                key={tpl.labelEn}
+                type="button"
+                onClick={() => openFromTemplate(tpl)}
+                className="text-start border border-border-subtle rounded-xl p-3.5 hover:border-brand-400 hover:bg-brand-50/30 transition-all group"
+              >
+                <strong className="block text-sm font-bold text-text-strong group-hover:text-brand-700 mb-1">
+                  {t([tpl.labelEn, tpl.labelAr])}
+                </strong>
+                <span className="block text-xs text-text-muted">
+                  {t([tpl.descriptionEn, tpl.descriptionAr])}
+                </span>
+                <span className="inline-block mt-2 text-[11px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-full px-2 py-0.5">
+                  {t(['Base rate', 'السعر الأساسي'])}: ${tpl.baseRate}
+                </span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Rate Groups Table Card */}
       <div className="bg-white border border-border-subtle rounded-xl shadow-xs overflow-hidden">

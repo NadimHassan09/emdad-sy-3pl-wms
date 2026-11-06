@@ -83,6 +83,7 @@ function sidebarLabel(label: string, isArabic: boolean): string {
     Settings: 'الإعدادات',
     Backups: 'النسخ الاحتياطي',
     'Shipping Companies': 'شركات الشحن',
+    'Shipping Fee Rates': 'تسعيرات الشحن',
     Contracts: 'العقود',
     Billing: 'الفوترة',
     Profile: 'الملف الشخصي',
