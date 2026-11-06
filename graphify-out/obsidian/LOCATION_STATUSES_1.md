@@ -1,0 +1,17 @@
+---
+source_file: "backend/src/modules/locations/dto/list-locations-query.dto.ts"
+type: "code"
+community: "LocationsService"
+location: "L10"
+tags:
+  - graphify/code
+  - graphify/EXTRACTED
+  - community/LocationsService
+---
+
+# LOCATION_STATUSES
+
+## Connections
+- [[list-locations-query.dto.ts]] - `contains` [EXTRACTED]
+
+#graphify/code #graphify/EXTRACTED #community/LocationsService

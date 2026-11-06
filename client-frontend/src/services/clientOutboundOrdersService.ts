@@ -98,3 +98,23 @@ export async function createClientOutboundOrder(
   const { data } = await apiClient.post<ClientOutboundOrderRow>('/outbound-orders', input);
   return data;
 }
+
+export type UpdateClientOutboundOrderInput = {
+  destinationAddress?: string;
+  requiredShipDate?: string;
+  clientReference?: string;
+  notes?: string;
+};
+
+export async function updateClientOutboundOrder(
+  id: string,
+  input: UpdateClientOutboundOrderInput,
+): Promise<ClientOutboundOrderDetail> {
+  const { data } = await apiClient.patch<ClientOutboundOrderDetail>(`/outbound-orders/${id}`, input);
+  return data;
+}
+
+export async function deleteClientOutboundOrder(id: string): Promise<{ id: string; deleted: true }> {
+  const { data } = await apiClient.delete<{ id: string; deleted: true }>(`/outbound-orders/${id}`);
+  return data;
+}

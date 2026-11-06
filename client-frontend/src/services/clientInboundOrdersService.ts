@@ -91,3 +91,23 @@ export async function createClientInboundOrder(
   const { data } = await apiClient.post<ClientInboundOrderRow>('/inbound-orders', input);
   return data;
 }
+
+export type UpdateClientInboundOrderInput = {
+  expectedArrivalDate?: string;
+  clientReference?: string;
+  notes?: string;
+  lines?: CreateClientInboundOrderLine[];
+};
+
+export async function updateClientInboundOrder(
+  id: string,
+  input: UpdateClientInboundOrderInput,
+): Promise<ClientInboundOrderDetail> {
+  const { data } = await apiClient.patch<ClientInboundOrderDetail>(`/inbound-orders/${id}`, input);
+  return data;
+}
+
+export async function deleteClientInboundOrder(id: string): Promise<{ id: string; deleted: true }> {
+  const { data } = await apiClient.delete<{ id: string; deleted: true }>(`/inbound-orders/${id}`);
+  return data;
+}

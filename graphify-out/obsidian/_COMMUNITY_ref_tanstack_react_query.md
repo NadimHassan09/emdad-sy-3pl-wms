@@ -1,0 +1,298 @@
+---
+type: community
+cohesion: 0.03
+members: 209
+---
+
+# ref_tanstack_react_query
+
+**Cohesion:** 0.03 - loosely connected
+**Members:** 209 nodes
+
+## Members
+- [[Alert()_1]] - code - shared/design-system-next/ui/Alert.tsx
+- [[ApiRow()]] - code - client-frontend/src/pages/ApisPage.tsx
+- [[ApisPage()]] - code - client-frontend/src/pages/ApisPage.tsx
+- [[ApisPage.tsx]] - code - client-frontend/src/pages/ApisPage.tsx
+- [[AppPageHeader()]] - code - shared/design-system-next/ui/AppPageHeader.tsx
+- [[Badge_1]] - code - shared/design-system-next/ui/Badge.tsx
+- [[BillingApi]] - code - frontend/src/api/billing.ts
+- [[BillingApplyMode]] - code - frontend/src/api/billing.ts
+- [[BillingCapacitySummary]] - code - frontend/src/api/billing.ts
+- [[BillingCyclePreview]] - code - frontend/src/api/billing.ts
+- [[BillingCycleRow_1]] - code - frontend/src/api/billing.ts
+- [[BillingCycleStatus]] - code - frontend/src/api/billing.ts
+- [[BillingCycleStatusDisplay]] - code - frontend/src/lib/billing-plan-overview.ts
+- [[BillingDashboardPage()]] - code - frontend/src/pages/billing/BillingDashboardPage.tsx
+- [[BillingDashboardPage.tsx]] - code - frontend/src/pages/billing/BillingDashboardPage.tsx
+- [[BillingDashboardSummary]] - code - frontend/src/api/billing.ts
+- [[BillingExpiringBuckets]] - code - frontend/src/api/billing.ts
+- [[BillingExpiringClientsCard()]] - code - frontend/src/components/dashboard/BillingExpiringClientsCard.tsx
+- [[BillingExpiringClientsCard.tsx]] - code - frontend/src/components/dashboard/BillingExpiringClientsCard.tsx
+- [[BillingExpiringCycleRow]] - code - frontend/src/api/billing.ts
+- [[BillingInvoiceCycleSummary]] - code - frontend/src/api/billing.ts
+- [[BillingInvoiceDetailPage()]] - code - frontend/src/pages/billing/BillingInvoiceDetailPage.tsx
+- [[BillingInvoiceLineRow]] - code - frontend/src/api/billing.ts
+- [[BillingInvoiceLineSource]] - code - frontend/src/api/billing.ts
+- [[BillingInvoiceLineType]] - code - frontend/src/api/billing.ts
+- [[BillingInvoicePreviewCard()]] - code - frontend/src/components/billing/BillingInvoicePreviewCard.tsx
+- [[BillingInvoicePreviewCard.tsx]] - code - frontend/src/components/billing/BillingInvoicePreviewCard.tsx
+- [[BillingInvoiceRow]] - code - frontend/src/api/billing.ts
+- [[BillingInvoiceSource]] - code - frontend/src/api/billing.ts
+- [[BillingInvoiceStatus]] - code - frontend/src/api/billing.ts
+- [[BillingOverdueClientRow]] - code - frontend/src/api/billing.ts
+- [[BillingOverdueClientsCard()]] - code - frontend/src/components/dashboard/BillingOverdueClientsCard.tsx
+- [[BillingOverdueClientsCard.tsx]] - code - frontend/src/components/dashboard/BillingOverdueClientsCard.tsx
+- [[BillingPlanCreatePage()]] - code - frontend/src/pages/billing/BillingPlanCreatePage.tsx
+- [[BillingPlanCreatePage.tsx]] - code - frontend/src/pages/billing/BillingPlanCreatePage.tsx
+- [[BillingPlanDetailPage()]] - code - frontend/src/pages/billing/BillingPlanDetailPage.tsx
+- [[BillingPlanDetailPage.tsx]] - code - frontend/src/pages/billing/BillingPlanDetailPage.tsx
+- [[BillingPlanDetailResponse]] - code - frontend/src/api/billing.ts
+- [[BillingPlanEditPage()]] - code - frontend/src/pages/billing/BillingPlanEditPage.tsx
+- [[BillingPlanEditPage.tsx]] - code - frontend/src/pages/billing/BillingPlanEditPage.tsx
+- [[BillingPlanFormModal()]] - code - frontend/src/components/billing/BillingPlanFormModal.tsx
+- [[BillingPlanFormModal.tsx]] - code - frontend/src/components/billing/BillingPlanFormModal.tsx
+- [[BillingPlanOverviewItem]] - code - frontend/src/api/billing.ts
+- [[BillingPlanOverviewRow]] - code - frontend/src/lib/billing-plan-overview.ts
+- [[BillingPlanRow]] - code - frontend/src/api/billing.ts
+- [[BillingPlanTemplateRow]] - code - frontend/src/api/billing.ts
+- [[BillingPlanTemplatesPage]] - code - frontend/src/router.tsx
+- [[BillingPlanTemplatesPage()]] - code - frontend/src/pages/billing/BillingPlanTemplatesPage.tsx
+- [[BillingPlanTemplatesPage.tsx]] - code - frontend/src/pages/billing/BillingPlanTemplatesPage.tsx
+- [[BillingPlanType]] - code - frontend/src/api/billing.ts
+- [[BillingRateSnapshot_1]] - code - frontend/src/api/billing.ts
+- [[BillingRecentInvoiceRow]] - code - frontend/src/api/billing.ts
+- [[BillingRecentInvoicesCard()]] - code - frontend/src/components/dashboard/BillingRecentInvoicesCard.tsx
+- [[BillingRecentInvoicesCard.tsx]] - code - frontend/src/components/dashboard/BillingRecentInvoicesCard.tsx
+- [[BillingStatusDisplay]] - code - frontend/src/lib/billing-plan-overview.ts
+- [[BillingStatusFilter]] - code - frontend/src/lib/billing-plan-overview.ts
+- [[BillingSuspendedAccountRow]] - code - frontend/src/api/billing.ts
+- [[BillingSuspendedAccountsCard()]] - code - frontend/src/components/dashboard/BillingSuspendedAccountsCard.tsx
+- [[BillingSuspendedAccountsCard.tsx]] - code - frontend/src/components/dashboard/BillingSuspendedAccountsCard.tsx
+- [[Breadcrumb()]] - code - shared/design-system-next/ui/Breadcrumb.tsx
+- [[BucketList()]] - code - frontend/src/pages/billing/BillingDashboardPage.tsx
+- [[Button_1]] - code - frontend/src/components/Button.tsx
+- [[Button_2]] - code - shared/design-system-next/ui/Button.tsx
+- [[COD_RECORD_STATUS_OPTIONS_1]] - code - frontend/src/pages/OmsCodDetailPage.tsx
+- [[COD_STATUS_SELECT_CLASS_1]] - code - frontend/src/pages/OmsCodDetailPage.tsx
+- [[Card]] - code - shared/design-system-next/ui/Card.tsx
+- [[CarrierCostRow]] - code - frontend/src/api/finance.ts
+- [[CarrierCostsPage()]] - code - frontend/src/pages/finance/CarrierCostsPage.tsx
+- [[CarrierCostsPage.tsx]] - code - frontend/src/pages/finance/CarrierCostsPage.tsx
+- [[ClientAccountsPage()]] - code - frontend/src/pages/finance/ClientAccountsPage.tsx
+- [[ClientAccountsPage.tsx]] - code - frontend/src/pages/finance/ClientAccountsPage.tsx
+- [[ClientApiCredential]] - code - client-frontend/src/services/clientApisService.ts
+- [[ClientApiScope]] - code - client-frontend/src/services/clientApisService.ts
+- [[ClientApiSecretOnce]] - code - client-frontend/src/services/clientApisService.ts
+- [[ClientApiStatus]] - code - client-frontend/src/services/clientApisService.ts
+- [[ClientFinancesPage()]] - code - client-frontend/src/pages/ClientFinancesPage.tsx
+- [[ClientFinancesPage.tsx]] - code - client-frontend/src/pages/ClientFinancesPage.tsx
+- [[ClientFinancialAccountRow]] - code - frontend/src/api/finance.ts
+- [[ClientPayoutRow]] - code - frontend/src/api/finance.ts
+- [[CodApi]] - code - frontend/src/api/oms.ts
+- [[CodFinancialPage()]] - code - frontend/src/pages/finance/CodFinancialPage.tsx
+- [[CodFinancialPage.tsx]] - code - frontend/src/pages/finance/CodFinancialPage.tsx
+- [[CodFinancialRow]] - code - frontend/src/api/finance.ts
+- [[CompanyDetailPage()]] - code - frontend/src/pages/CompanyDetailPage.tsx
+- [[CompanyDetailPage.tsx]] - code - frontend/src/pages/CompanyDetailPage.tsx
+- [[CompanyStorageSummary]] - code - frontend/src/api/billing.ts
+- [[CreateAdHocInvoiceModal()]] - code - frontend/src/components/billing/CreateAdHocInvoiceModal.tsx
+- [[CreateAdHocInvoiceModal.tsx]] - code - frontend/src/components/billing/CreateAdHocInvoiceModal.tsx
+- [[CreateAdHocInvoicePayload]] - code - frontend/src/api/billing.ts
+- [[CreateBillingPlanPayload]] - code - frontend/src/api/billing.ts
+- [[CreateBillingPlanTemplatePayload]] - code - frontend/src/api/billing.ts
+- [[CreateManualInvoiceLinePayload]] - code - frontend/src/api/billing.ts
+- [[CycleStatusFilter]] - code - frontend/src/lib/billing-plan-overview.ts
+- [[DaysRemainingFilter]] - code - frontend/src/lib/billing-plan-overview.ts
+- [[DetailField()]] - code - frontend/src/pages/billing/BillingInvoiceDetailPage.tsx
+- [[DetailField()_1]] - code - frontend/src/pages/billing/BillingPlanDetailPage.tsx
+- [[EMPTY_FORM]] - code - frontend/src/pages/billing/BillingPlanTemplatesPage.tsx
+- [[FINANCE_TABS]] - code - frontend/src/components/finance/FinanceNav.tsx
+- [[Field()_4]] - code - frontend/src/pages/OmsCodDetailPage.tsx
+- [[FilterBarActions()_1]] - code - shared/design-system-next/ui/FilterBar.tsx
+- [[FinanceApi]] - code - frontend/src/api/finance.ts
+- [[FinanceNav()]] - code - frontend/src/components/finance/FinanceNav.tsx
+- [[FinanceNav.tsx]] - code - frontend/src/components/finance/FinanceNav.tsx
+- [[FinancialOverviewData]] - code - frontend/src/api/finance.ts
+- [[FinancialOverviewPage()]] - code - frontend/src/pages/finance/FinancialOverviewPage.tsx
+- [[FinancialOverviewPage.tsx]] - code - frontend/src/pages/finance/FinancialOverviewPage.tsx
+- [[FinancialPolicyRow]] - code - frontend/src/api/finance.ts
+- [[FinancialSettingsPage()]] - code - frontend/src/pages/finance/FinancialSettingsPage.tsx
+- [[FinancialSettingsPage.tsx]] - code - frontend/src/pages/finance/FinancialSettingsPage.tsx
+- [[FinancialTransactionRow]] - code - frontend/src/api/finance.ts
+- [[FinancialTransactionsPage()]] - code - frontend/src/pages/finance/FinancialTransactionsPage.tsx
+- [[FinancialTransactionsPage.tsx]] - code - frontend/src/pages/finance/FinancialTransactionsPage.tsx
+- [[FormSection()]] - code - frontend/src/pages/billing/BillingPlanCreatePage.tsx
+- [[FormSection()_1]] - code - frontend/src/pages/billing/BillingPlanEditPage.tsx
+- [[InboundDetailPage()]] - code - frontend/src/pages/InboundDetailPage.tsx
+- [[InboundDetailPage.tsx]] - code - frontend/src/pages/InboundDetailPage.tsx
+- [[Input_2]] - code - shared/design-system-next/ui/Input.tsx
+- [[InvoiceListFilters]] - code - frontend/src/lib/billing-invoice-display.ts
+- [[InvoiceStatusFilter]] - code - frontend/src/lib/billing-invoice-display.ts
+- [[KpiCard()_1]] - code - frontend/src/pages/billing/BillingDashboardPage.tsx
+- [[KpiCard()_2]] - code - frontend/src/pages/finance/FinancialOverviewPage.tsx
+- [[LineDraft_1]] - code - frontend/src/components/billing/CreateAdHocInvoiceModal.tsx
+- [[LineTable()]] - code - frontend/src/pages/billing/BillingInvoiceDetailPage.tsx
+- [[ListBillingInvoicesParams]] - code - frontend/src/api/billing.ts
+- [[ListBillingPlansParams]] - code - frontend/src/api/billing.ts
+- [[ListPageHeader()]] - code - shared/design-system-next/ui/ListPageHeader.tsx
+- [[MODAL_CANCEL_BUTTON_CLASS]] - code - frontend/src/lib/modal-button-styles.ts
+- [[MODAL_PRIMARY_BUTTON_CLASS]] - code - frontend/src/lib/modal-button-styles.ts
+- [[Modal()_2]] - code - shared/design-system-next/ui/Modal.tsx
+- [[Mode]] - code - frontend/src/components/billing/BillingPlanFormModal.tsx
+- [[OmsCodDetailPage]] - code - frontend/src/router.tsx
+- [[OmsCodDetailPage()]] - code - frontend/src/pages/OmsCodDetailPage.tsx
+- [[OmsCodDetailPage.tsx]] - code - frontend/src/pages/OmsCodDetailPage.tsx
+- [[OpenOrdersStageBarCard()]] - code - frontend/src/components/dashboard/OpenOrdersStageBarCard.tsx
+- [[OpenOrdersStageBarCard.tsx]] - code - frontend/src/components/dashboard/OpenOrdersStageBarCard.tsx
+- [[OpenOrdersStageBarCardSkeleton()]] - code - frontend/src/components/dashboard/OpenOrdersStageBarCard.tsx
+- [[OrderManualChargeRow]] - code - frontend/src/api/billing.ts
+- [[OrderManualChargesSection()]] - code - frontend/src/components/billing/OrderManualChargesSection.tsx
+- [[OrderManualChargesSection.tsx]] - code - frontend/src/components/billing/OrderManualChargesSection.tsx
+- [[PayoutManagementPage()]] - code - frontend/src/pages/finance/PayoutManagementPage.tsx
+- [[PayoutManagementPage.tsx]] - code - frontend/src/pages/finance/PayoutManagementPage.tsx
+- [[ProductDetailPage()_1]] - code - frontend/src/pages/ProductDetailPage.tsx
+- [[Props_59]] - code - frontend/src/components/billing/BillingPlanFormModal.tsx
+- [[Props_60]] - code - frontend/src/components/billing/CreateAdHocInvoiceModal.tsx
+- [[Props_61]] - code - frontend/src/components/billing/OrderManualChargesSection.tsx
+- [[Props_62]] - code - frontend/src/components/billing/VolumeAllocationPanel.tsx
+- [[Props_63]] - code - frontend/src/components/dashboard/BillingExpiringClientsCard.tsx
+- [[Props_64]] - code - frontend/src/components/dashboard/BillingOverdueClientsCard.tsx
+- [[Props_65]] - code - frontend/src/components/dashboard/BillingRecentInvoicesCard.tsx
+- [[Props_66]] - code - frontend/src/components/dashboard/BillingSuspendedAccountsCard.tsx
+- [[SCOPE_META]] - code - client-frontend/src/pages/ApisPage.tsx
+- [[Skeleton()_1]] - code - shared/design-system-next/ui/Skeleton.tsx
+- [[Stat()_3]] - code - frontend/src/components/billing/VolumeAllocationPanel.tsx
+- [[TemplateForm]] - code - frontend/src/pages/billing/BillingPlanTemplatesPage.tsx
+- [[UpdateBillingPlanPayload]] - code - frontend/src/api/billing.ts
+- [[UpdateBillingPlanTemplatePayload]] - code - frontend/src/api/billing.ts
+- [[UpdateInvoicePayload]] - code - frontend/src/api/billing.ts
+- [[VolumeAllocationPanel()]] - code - frontend/src/components/billing/VolumeAllocationPanel.tsx
+- [[VolumeAllocationPanel.tsx]] - code - frontend/src/components/billing/VolumeAllocationPanel.tsx
+- [[WidgetSkeleton()]] - code - frontend/src/components/dashboard/DashboardWidget.tsx
+- [[adjustment-button-styles.ts]] - code - frontend/src/components/adjustments/adjustment-button-styles.ts
+- [[billing-invoice-display.ts]] - code - frontend/src/lib/billing-invoice-display.ts
+- [[billing-plan-overview.ts]] - code - frontend/src/lib/billing-plan-overview.ts
+- [[billing.ts]] - code - frontend/src/api/billing.ts
+- [[billingBillingInvoiceDetailPage.tsx]] - code - frontend/src/pages/billing/BillingInvoiceDetailPage.tsx
+- [[buildBillingPlanOverviewRows()]] - code - frontend/src/lib/billing-plan-overview.ts
+- [[clientApisService.ts]] - code - client-frontend/src/services/clientApisService.ts
+- [[createClientApi()]] - code - client-frontend/src/services/clientApisService.ts
+- [[daysRemainingFromEnd()_1]] - code - frontend/src/lib/billing-plan-overview.ts
+- [[deriveBillingStatus()]] - code - frontend/src/lib/billing-plan-overview.ts
+- [[deriveCycleStatusDisplay()]] - code - frontend/src/lib/billing-plan-overview.ts
+- [[downloadClientApiDocs()]] - code - client-frontend/src/services/clientApisService.ts
+- [[emptyCreate()]] - code - frontend/src/components/billing/BillingPlanFormModal.tsx
+- [[emptyLine()_2]] - code - frontend/src/components/billing/CreateAdHocInvoiceModal.tsx
+- [[fetchClientApis()]] - code - client-frontend/src/services/clientApisService.ts
+- [[filterInvoiceRows()]] - code - frontend/src/lib/billing-invoice-display.ts
+- [[filterOverviewRows()]] - code - frontend/src/lib/billing-plan-overview.ts
+- [[finance.ts]] - code - frontend/src/api/finance.ts
+- [[fmtDate()_4]] - code - frontend/src/pages/OmsCodDetailPage.tsx
+- [[fmtMoney()_4]] - code - frontend/src/pages/OmsCodDetailPage.tsx
+- [[formatCycleLabel()]] - code - frontend/src/lib/billing-invoice-display.ts
+- [[formatDate()_3]] - code - frontend/src/lib/billing-plan-overview.ts
+- [[formatDecimal()]] - code - frontend/src/lib/billing-plan-overview.ts
+- [[formatWhen()_1]] - code - client-frontend/src/pages/ApisPage.tsx
+- [[frontendsrcpagesProductDetailPage.tsx]] - code - frontend/src/pages/ProductDetailPage.tsx
+- [[humanizeInvoiceStatus()]] - code - frontend/src/lib/billing-invoice-display.ts
+- [[invoiceStatusClass()]] - code - frontend/src/lib/billing-invoice-display.ts
+- [[lineLabel()]] - code - frontend/src/lib/billing-invoice-display.ts
+- [[manualLines()]] - code - frontend/src/lib/billing-invoice-display.ts
+- [[modal-button-styles.ts]] - code - frontend/src/lib/modal-button-styles.ts
+- [[numField()]] - code - frontend/src/components/billing/BillingPlanFormModal.tsx
+- [[numField()_1]] - code - frontend/src/pages/billing/BillingPlanCreatePage.tsx
+- [[numField()_2]] - code - frontend/src/pages/billing/BillingPlanEditPage.tsx
+- [[orderChargeLines()]] - code - frontend/src/lib/billing-invoice-display.ts
+- [[parseRateSnapshot()_1]] - code - frontend/src/lib/billing-invoice-display.ts
+- [[pendingSummary()]] - code - frontend/src/pages/billing/BillingPlanDetailPage.tsx
+- [[pickCurrentCycle()_1]] - code - frontend/src/lib/billing-plan-overview.ts
+- [[ref_react_router_dom]] - concept
+- [[ref_tanstack_react_query]] - concept
+- [[regenerateClientApiSecret()]] - code - client-frontend/src/services/clientApisService.ts
+- [[revokeClientApi()]] - code - client-frontend/src/services/clientApisService.ts
+- [[setClientApiEnabled()]] - code - client-frontend/src/services/clientApisService.ts
+- [[statusLabel()_3]] - code - frontend/src/pages/OmsCodDetailPage.tsx
+- [[systemLines()]] - code - frontend/src/lib/billing-invoice-display.ts
+- [[t()_4]] - code - client-frontend/src/pages/ClientFinancesPage.tsx
+- [[tLabel()_2]] - code - client-frontend/src/pages/ApisPage.tsx
+- [[toPayload()]] - code - frontend/src/pages/billing/BillingPlanTemplatesPage.tsx
+- [[useAuth()]] - code - frontend/src/auth/AuthContext.tsx
+- [[warehouseAllocationPercent()]] - code - frontend/src/lib/billing-plan-overview.ts
+
+## Live Query (requires Dataview plugin)
+
+```dataview
+TABLE source_file, type FROM #community/ref_tanstack_react_query
+SORT file.name ASC
+```
+
+## Connections to other communities
+- 321 edges to [[_COMMUNITY_TextField]]
+- 133 edges to [[_COMMUNITY_query-keys.ts]]
+- 126 edges to [[_COMMUNITY_router.tsx]]
+- 84 edges to [[_COMMUNITY_Modal]]
+- 79 edges to [[_COMMUNITY_useToast]]
+- 77 edges to [[_COMMUNITY_design-system-nextuiindex.ts]]
+- 66 edges to [[_COMMUNITY_OmsOrdersListPage.tsx]]
+- 42 edges to [[_COMMUNITY_useWmsTranslation]]
+- 40 edges to [[_COMMUNITY_UsersPage.tsx]]
+- 39 edges to [[_COMMUNITY_OmsOrderCreatePage.tsx]]
+- 36 edges to [[_COMMUNITY_EcommerceOrdersPage.tsx]]
+- 33 edges to [[_COMMUNITY_DashboardOverviewPage.tsx]]
+- 31 edges to [[_COMMUNITY_client-frontendsrcpagesProductsPage.tsx]]
+- 29 edges to [[_COMMUNITY_ReturnProcessPage.tsx]]
+- 21 edges to [[_COMMUNITY_cn]]
+- 19 edges to [[_COMMUNITY_DashboardPage.tsx]]
+- 19 edges to [[_COMMUNITY_InboundOrderDetailPage.tsx]]
+- 18 edges to [[_COMMUNITY_isClientArabic]]
+- 18 edges to [[_COMMUNITY_CreateReturnPage.tsx]]
+- 13 edges to [[_COMMUNITY_CreateEcommerceOrderPage.tsx]]
+- 12 edges to [[_COMMUNITY_BackupHistoryPage.tsx]]
+- 11 edges to [[_COMMUNITY_carrier-shipping-form.ts]]
+- 10 edges to [[_COMMUNITY_client-frontendsrcpagesProductDetailPage.tsx]]
+- 9 edges to [[_COMMUNITY_Layout.tsx]]
+- 8 edges to [[_COMMUNITY_OrderProgressGaugeCard.tsx]]
+- 8 edges to [[_COMMUNITY_InvoicesPage.tsx]]
+- 7 edges to [[_COMMUNITY_ClientOrderImportModal.tsx]]
+- 7 edges to [[_COMMUNITY_design-system-nextuiFilterBar.tsx]]
+- 7 edges to [[_COMMUNITY_App.tsx]]
+- 6 edges to [[_COMMUNITY_ReceivingExecutionPanel.tsx]]
+- 5 edges to [[_COMMUNITY_notificationsNotificationsPage.tsx]]
+- 5 edges to [[_COMMUNITY_KPICard.tsx]]
+- 4 edges to [[_COMMUNITY_AdjustmentDetailPage.tsx]]
+- 4 edges to [[_COMMUNITY_design-system-nextuiModal.tsx]]
+- 4 edges to [[_COMMUNITY_frontendsrcrealtimeRealtimeProvider.tsx]]
+- 4 edges to [[_COMMUNITY_client-frontendsrcpagesProfilePage.tsx]]
+- 4 edges to [[_COMMUNITY_apiClient.ts]]
+- 3 edges to [[_COMMUNITY_frontendsrcpagesLoginPage.tsx]]
+- 3 edges to [[_COMMUNITY_client-ui-language.ts]]
+- 3 edges to [[_COMMUNITY_frontendsrcmain.tsx]]
+- 2 edges to [[_COMMUNITY_outbound.ts]]
+- 2 edges to [[_COMMUNITY_ShippingFeeRatePage]]
+- 2 edges to [[_COMMUNITY_design-system-nextuiDataTable.tsx]]
+- 2 edges to [[_COMMUNITY_AuditLogDetailModal.tsx]]
+- 2 edges to [[_COMMUNITY_ClientOrderTrackingPanel.tsx]]
+- 2 edges to [[_COMMUNITY_design-system-nextuiAlert.tsx]]
+- 2 edges to [[_COMMUNITY_OmsBulkShippingDetailsModal.tsx]]
+- 2 edges to [[_COMMUNITY_backup-display.ts]]
+- 2 edges to [[_COMMUNITY_WorkflowOrderTimeline.tsx]]
+- 2 edges to [[_COMMUNITY_client.ts]]
+- 2 edges to [[_COMMUNITY_frontendsrcrealtimeuseSystemVersionSync.ts]]
+- 1 edge to [[_COMMUNITY_OmsBulkShippingDetailsModal]]
+- 1 edge to [[_COMMUNITY_ops-cache.ts]]
+- 1 edge to [[_COMMUNITY_audit-logs.ts]]
+- 1 edge to [[_COMMUNITY_master-data-cache.ts]]
+- 1 edge to [[_COMMUNITY_client-frontendsrclibsection-sub-nav.ts]]
+- 1 edge to [[_COMMUNITY_frontendsrcrealtimeorders-cache.ts]]
+- 1 edge to [[_COMMUNITY_design-systemhooksuseChunkedServerPagination.ts]]
+- 1 edge to [[_COMMUNITY_frontendsrcrealtimeconsistency-groups.ts]]
+- 1 edge to [[_COMMUNITY_client-frontendsrcrealtimeconsistency-groups.ts]]
+- 1 edge to [[_COMMUNITY_useReportFramework.ts]]
+
+## Top bridge nodes
+- [[ref_tanstack_react_query]] - degree 192, connects to 43 communities
+- [[ref_react_router_dom]] - degree 164, connects to 35 communities
+- [[Alert()_1]] - degree 165, connects to 25 communities
+- [[Button_1]] - degree 184, connects to 21 communities
+- [[Button_2]] - degree 120, connects to 21 communities

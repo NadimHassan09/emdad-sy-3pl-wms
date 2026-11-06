@@ -1,0 +1,254 @@
+---
+type: community
+cohesion: 0.03
+members: 151
+---
+
+# app.module.ts
+
+**Cohesion:** 0.03 - loosely connected
+**Members:** 151 nodes
+
+## Members
+- [[dot-canActivate()_1]] - code - backend/src/modules/auth/guards/jwt-auth.guard.ts
+- [[dot-constructor()_32]] - code - backend/src/modules/auth/guards/jwt-auth.guard.ts
+- [[dot-constructor()_33]] - code - backend/src/modules/realtime/realtime.service.ts
+- [[dot-constructor()_34]] - code - backend/src/modules/realtime/realtime-version.controller.ts
+- [[dot-constructor()_35]] - code - backend/src/modules/realtime/sync/mutation-bus.service.ts
+- [[dot-constructor()_36]] - code - backend/src/modules/realtime/sync/realtime-sync-mode.service.ts
+- [[@nestjsconfig]] - concept - backend/package.json
+- [[@nestjscore]] - concept - backend/package.json
+- [[AdjustmentsModule]] - code - backend/src/modules/adjustments/adjustments.module.ts
+- [[AppModule]] - code - backend/src/app.module.ts
+- [[AuditLogsModule]] - code - backend/src/modules/audit-logs/audit-logs.module.ts
+- [[AuditModule]] - code - backend/src/common/audit/audit.module.ts
+- [[AuthModule]] - code - backend/src/modules/auth/auth.module.ts
+- [[BillingModule]] - code - backend/src/modules/billing/billing.module.ts
+- [[CacheEntry]] - code - backend/src/modules/reports/reports-cache.service.ts
+- [[ClientPortalModule]] - code - backend/src/modules/client-portal/client-portal.module.ts
+- [[CodModule]] - code - backend/src/modules/cod/cod.module.ts
+- [[CompaniesModule]] - code - backend/src/modules/companies/companies.module.ts
+- [[CompanyAccessModule]] - code - backend/src/common/company-access/company-access.module.ts
+- [[Controller_5]] - code
+- [[Controller_6]] - code
+- [[CronLeaderModule]] - code - backend/src/common/cron/cron-leader.module.ts
+- [[CryptoModule]] - code - backend/src/common/crypto/crypto.module.ts
+- [[CycleCountModule]] - code - backend/src/modules/cycle-count/cycle-count.module.ts
+- [[CycleCountVarianceController]] - code - backend/src/modules/cycle-count/cycle-count-variance.controller.ts
+- [[DashboardModule]] - code - backend/src/modules/dashboard/dashboard.module.ts
+- [[FinalContractsModule]] - code - backend/src/modules/final-contracts/final-contracts.module.ts
+- [[FormsModule]] - code - backend/src/modules/forms/forms.module.ts
+- [[Global]] - code
+- [[Global_1]] - code
+- [[Global_2]] - code
+- [[Global_3]] - code
+- [[Global_4]] - code
+- [[Global_5]] - code
+- [[Global_6]] - code
+- [[Global_7]] - code
+- [[IS_PUBLIC_KEY]] - code - backend/src/common/auth/public.decorator.ts
+- [[InboundModule]] - code - backend/src/modules/inbound/inbound.module.ts
+- [[Injectable_13]] - code
+- [[Injectable_14]] - code
+- [[Injectable_15]] - code
+- [[InventoryModule]] - code - backend/src/modules/inventory/inventory.module.ts
+- [[JwtAuthGuard]] - code - backend/src/modules/auth/guards/jwt-auth.guard.ts
+- [[LocationsModule]] - code - backend/src/modules/locations/locations.module.ts
+- [[MediaModule]] - code - backend/src/modules/media/media.module.ts
+- [[Module]] - code
+- [[Module_1]] - code
+- [[Module_2]] - code
+- [[Module_3]] - code
+- [[Module_4]] - code
+- [[Module_5]] - code
+- [[Module_6]] - code
+- [[Module_7]] - code
+- [[Module_8]] - code
+- [[Module_9]] - code
+- [[Module_10]] - code
+- [[Module_11]] - code
+- [[Module_12]] - code
+- [[Module_13]] - code
+- [[Module_14]] - code
+- [[Module_15]] - code
+- [[Module_16]] - code
+- [[Module_17]] - code
+- [[Module_18]] - code
+- [[Module_19]] - code
+- [[Module_20]] - code
+- [[Module_21]] - code
+- [[Module_22]] - code
+- [[Module_23]] - code
+- [[Module_24]] - code
+- [[Module_25]] - code
+- [[Module_26]] - code
+- [[Module_27]] - code
+- [[Module_28]] - code
+- [[Module_29]] - code
+- [[Module_30]] - code
+- [[Module_31]] - code
+- [[Module_32]] - code
+- [[Module_33]] - code
+- [[Module_34]] - code
+- [[Module_35]] - code
+- [[Module_36]] - code
+- [[MutationBusService]] - code - backend/src/modules/realtime/sync/mutation-bus.service.ts
+- [[NotificationsModule]] - code - backend/src/modules/notifications/notifications.module.ts
+- [[OmsModule]] - code - backend/src/modules/oms/oms.module.ts
+- [[OmsReturnsModule]] - code - backend/src/modules/oms-returns/oms-returns.module.ts
+- [[OrdersModule]] - code - backend/src/modules/orders/orders.module.ts
+- [[OutboundModule]] - code - backend/src/modules/outbound/outbound.module.ts
+- [[PdfModule]] - code - backend/src/pdf/pdf.module.ts
+- [[PrismaModule]] - code - backend/src/common/prisma/prisma.module.ts
+- [[ProductsModule]] - code - backend/src/modules/products/products.module.ts
+- [[RealtimeModule]] - code - backend/src/modules/realtime/realtime.module.ts
+- [[RealtimeSyncMode]] - code - backend/src/modules/realtime/sync/realtime-sync-mode.service.ts
+- [[RealtimeSyncModeService]] - code - backend/src/modules/realtime/sync/realtime-sync-mode.service.ts
+- [[RealtimeVersionController]] - code - backend/src/modules/realtime/realtime-version.controller.ts
+- [[RedisModule]] - code - backend/src/common/redis/redis.module.ts
+- [[ReportsModule]] - code - backend/src/modules/reports/reports.module.ts
+- [[ReturnsModule]] - code - backend/src/modules/returns/returns.module.ts
+- [[SLA_AUDIT_ACTIONS]] - code - backend/src/modules/warehouse-workflow/sla-audit.service.ts
+- [[SecurityModule]] - code - backend/src/common/security/security.module.ts
+- [[ShippingModule]] - code - backend/src/modules/shipping/shipping.module.ts
+- [[UseGuards_3]] - code
+- [[UsersModule]] - code - backend/src/modules/users/users.module.ts
+- [[WarehouseWorkflowModule]] - code - backend/src/modules/warehouse-workflow/warehouse-workflow.module.ts
+- [[WarehousesModule]] - code - backend/src/modules/warehouses/warehouses.module.ts
+- [[adjustments.module.ts]] - code - backend/src/modules/adjustments/adjustments.module.ts
+- [[app.module.ts]] - code - backend/src/app.module.ts
+- [[audit-log-policy.config.ts]] - code - backend/src/modules/audit-logs/audit-log-policy.config.ts
+- [[audit-logs.module.ts]] - code - backend/src/modules/audit-logs/audit-logs.module.ts
+- [[audit.module.ts]] - code - backend/src/common/audit/audit.module.ts
+- [[auth.module.ts]] - code - backend/src/modules/auth/auth.module.ts
+- [[backend_src_modules_backups_backups_module]] - concept
+- [[backend_src_modules_backups_backups_module_backupsmodule]] - concept
+- [[buildService()]] - code - backend/src/common/cron/cron-leader.service.unit.spec.ts
+- [[cod.module.ts]] - code - backend/src/modules/cod/cod.module.ts
+- [[companies.module.ts]] - code - backend/src/modules/companies/companies.module.ts
+- [[company-access.module.ts]] - code - backend/src/common/company-access/company-access.module.ts
+- [[cron-leader.module.ts]] - code - backend/src/common/cron/cron-leader.module.ts
+- [[cron-leader.service.unit.spec.ts]] - code - backend/src/common/cron/cron-leader.service.unit.spec.ts
+- [[cycle-count.module.ts]] - code - backend/src/modules/cycle-count/cycle-count.module.ts
+- [[dashboard.module.ts]] - code - backend/src/modules/dashboard/dashboard.module.ts
+- [[inbound.module.ts]] - code - backend/src/modules/inbound/inbound.module.ts
+- [[inventory.module.ts]] - code - backend/src/modules/inventory/inventory.module.ts
+- [[ioredis]] - concept - backend/package.json
+- [[jwt-auth.guard.ts]] - code - backend/src/modules/auth/guards/jwt-auth.guard.ts
+- [[locations.module.ts]] - code - backend/src/modules/locations/locations.module.ts
+- [[media.module.ts]] - code - backend/src/modules/media/media.module.ts
+- [[mutation-bus.service.ts]] - code - backend/src/modules/realtime/sync/mutation-bus.service.ts
+- [[oms-returns.module.ts]] - code - backend/src/modules/oms-returns/oms-returns.module.ts
+- [[oms.module.ts]] - code - backend/src/modules/oms/oms.module.ts
+- [[orders.module.ts]] - code - backend/src/modules/orders/orders.module.ts
+- [[outbound.module.ts]] - code - backend/src/modules/outbound/outbound.module.ts
+- [[prisma.module.ts]] - code - backend/src/common/prisma/prisma.module.ts
+- [[products.module.ts]] - code - backend/src/modules/products/products.module.ts
+- [[realtime-sync-mode.service.ts]] - code - backend/src/modules/realtime/sync/realtime-sync-mode.service.ts
+- [[realtime-version.controller.ts]] - code - backend/src/modules/realtime/realtime-version.controller.ts
+- [[realtime.module.ts]] - code - backend/src/modules/realtime/realtime.module.ts
+- [[redis-io.adapter.ts]] - code - backend/src/common/redis/redis-io.adapter.ts
+- [[redis.module.ts]] - code - backend/src/common/redis/redis.module.ts
+- [[redis.service.ts]] - code - backend/src/common/redis/redis.service.ts
+- [[reports-cache.service.ts]] - code - backend/src/modules/reports/reports-cache.service.ts
+- [[reports-policy.config.ts]] - code - backend/src/modules/reports/reports-policy.config.ts
+- [[reports.module.ts]] - code - backend/src/modules/reports/reports.module.ts
+- [[returns.module.ts]] - code - backend/src/modules/returns/returns.module.ts
+- [[security.module.ts]] - code - backend/src/common/security/security.module.ts
+- [[shipping-handoff-hook.service.ts]] - code - backend/src/modules/outbound/shipping-handoff-hook.service.ts
+- [[sla-audit.service.ts]] - code - backend/src/modules/warehouse-workflow/sla-audit.service.ts
+- [[task-read-cache.service.ts]] - code - backend/src/common/redis/task-read-cache.service.ts
+- [[users.module.ts]] - code - backend/src/modules/users/users.module.ts
+- [[warehouse-workflow.module.ts]] - code - backend/src/modules/warehouse-workflow/warehouse-workflow.module.ts
+- [[warehouses.module.ts]] - code - backend/src/modules/warehouses/warehouses.module.ts
+
+## Live Query (requires Dataview plugin)
+
+```dataview
+TABLE source_file, type FROM #community/appmodulets
+SORT file.name ASC
+```
+
+## Connections to other communities
+- 109 edges to [[_COMMUNITY_@nestjscommon]]
+- 61 edges to [[_COMMUNITY_@prismaclient]]
+- 19 edges to [[_COMMUNITY_RealtimeService]]
+- 19 edges to [[_COMMUNITY_shipping.module.ts]]
+- 14 edges to [[_COMMUNITY_AuditLogService]]
+- 13 edges to [[_COMMUNITY_observability.service.ts]]
+- 12 edges to [[_COMMUNITY_task-inventory-effects.service.ts]]
+- 11 edges to [[_COMMUNITY_warehouse-tasks.service.ts]]
+- 11 edges to [[_COMMUNITY_grn-pdf.service.ts]]
+- 10 edges to [[_COMMUNITY_cycle-count.service.ts]]
+- 10 edges to [[_COMMUNITY_RunReportQueryDto]]
+- 9 edges to [[_COMMUNITY_mutation-queue.service.ts]]
+- 9 edges to [[_COMMUNITY_report-export.service.ts]]
+- 9 edges to [[_COMMUNITY_warehouse-tasks.controller.ts]]
+- 8 edges to [[_COMMUNITY_CycleCountService]]
+- 8 edges to [[_COMMUNITY_backendpackage.json]]
+- 7 edges to [[_COMMUNITY_CurrentUser]]
+- 7 edges to [[_COMMUNITY_MutationQueueService]]
+- 7 edges to [[_COMMUNITY_outbound.service.ts]]
+- 6 edges to [[_COMMUNITY_returns.service.ts]]
+- 6 edges to [[_COMMUNITY_NotificationsService]]
+- 6 edges to [[_COMMUNITY_main.ts]]
+- 5 edges to [[_COMMUNITY_AuditLogsService]]
+- 5 edges to [[_COMMUNITY_RedisService]]
+- 4 edges to [[_COMMUNITY_shipping.service.ts]]
+- 4 edges to [[_COMMUNITY_withTenantRls]]
+- 4 edges to [[_COMMUNITY_AuthPrincipal]]
+- 4 edges to [[_COMMUNITY_reliability-test-helpers.ts]]
+- 4 edges to [[_COMMUNITY_client-financial.controller.ts]]
+- 3 edges to [[_COMMUNITY_dot-assertCompanyAccess]]
+- 3 edges to [[_COMMUNITY_ReturnsService]]
+- 3 edges to [[_COMMUNITY_dot-validateResourceOwnership]]
+- 3 edges to [[_COMMUNITY_CodRecordsService]]
+- 3 edges to [[_COMMUNITY_LocationsService]]
+- 3 edges to [[_COMMUNITY_dashboard.service.ts]]
+- 3 edges to [[_COMMUNITY_CacheInvalidationService]]
+- 3 edges to [[_COMMUNITY_shipping-preflight.ts]]
+- 3 edges to [[_COMMUNITY_reports-framework.service.ts]]
+- 2 edges to [[_COMMUNITY_WarehouseTasksService]]
+- 2 edges to [[_COMMUNITY_inventory.service.ts]]
+- 2 edges to [[_COMMUNITY_WarehousesService]]
+- 2 edges to [[_COMMUNITY_OmsBatchMembershipDto]]
+- 2 edges to [[_COMMUNITY_CycleCountExecutionService]]
+- 2 edges to [[_COMMUNITY_inventory-consistency.service.ts]]
+- 2 edges to [[_COMMUNITY_oms-sales-channel.service.ts]]
+- 2 edges to [[_COMMUNITY_TaskReadCacheService]]
+- 2 edges to [[_COMMUNITY_inbound-orders-csv.service.ts]]
+- 2 edges to [[_COMMUNITY_oms-client-import.service.ts]]
+- 2 edges to [[_COMMUNITY_outbound-orders-csv.service.ts]]
+- 2 edges to [[_COMMUNITY_oms-instruction-pdf.service.ts]]
+- 2 edges to [[_COMMUNITY_oms-waybill.service.ts]]
+- 2 edges to [[_COMMUNITY_MediaStorageService]]
+- 2 edges to [[_COMMUNITY_report-registry.config.ts]]
+- 2 edges to [[_COMMUNITY_env.validation.ts]]
+- 2 edges to [[_COMMUNITY_class-validator]]
+- 1 edge to [[_COMMUNITY_AdjustmentsController]]
+- 1 edge to [[_COMMUNITY_GoogleOAuthService]]
+- 1 edge to [[_COMMUNITY_dot-fromPrincipal]]
+- 1 edge to [[_COMMUNITY_ProductsService]]
+- 1 edge to [[_COMMUNITY_AuthService]]
+- 1 edge to [[_COMMUNITY_AuthController]]
+- 1 edge to [[_COMMUNITY_CreateOmsSalesChannelDto]]
+- 1 edge to [[_COMMUNITY_InboundController]]
+- 1 edge to [[_COMMUNITY_CodController]]
+- 1 edge to [[_COMMUNITY_UsersService]]
+- 1 edge to [[_COMMUNITY_CycleCountSchedulerService]]
+- 1 edge to [[_COMMUNITY_OmsShippingScanService]]
+- 1 edge to [[_COMMUNITY_ProductsController]]
+- 1 edge to [[_COMMUNITY_UsersController]]
+- 1 edge to [[_COMMUNITY_returns.controller.ts]]
+- 1 edge to [[_COMMUNITY_oms-bulk.service.ts]]
+- 1 edge to [[_COMMUNITY_sila-webhook.util.ts]]
+- 1 edge to [[_COMMUNITY_shipping-tracking.service.ts]]
+- 1 edge to [[_COMMUNITY_PdfService]]
+- 1 edge to [[_COMMUNITY_final-contract-pdf.service.ts]]
+
+## Top bridge nodes
+- [[oms.module.ts]] - degree 56, connects to 16 communities
+- [[@nestjsconfig]] - degree 46, connects to 16 communities
+- [[warehouse-workflow.module.ts]] - degree 54, connects to 12 communities
+- [[inventory.module.ts]] - degree 26, connects to 10 communities
+- [[app.module.ts]] - degree 86, connects to 9 communities

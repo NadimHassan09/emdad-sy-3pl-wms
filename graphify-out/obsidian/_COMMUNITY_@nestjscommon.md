@@ -1,0 +1,320 @@
+---
+type: community
+cohesion: 0.04
+members: 167
+---
+
+# @nestjs/common
+
+**Cohesion:** 0.04 - loosely connected
+**Members:** 167 nodes
+
+## Members
+- [[dot-canActivate()_5]] - code - backend/src/common/auth/super-admin.guard.ts
+- [[dot-changePassword()_2]] - code - backend/src/modules/client-portal/auth/client-auth.controller.ts
+- [[dot-changePassword()_3]] - code - backend/src/modules/client-portal/auth/client-auth.service.ts
+- [[dot-constructor()_228]] - code - backend/src/modules/client-portal/auth/client-auth.controller.ts
+- [[dot-constructor()_229]] - code - backend/src/modules/client-portal/auth/strategies/jwt-client.strategy.ts
+- [[dot-deleteAvatar()_2]] - code - backend/src/modules/client-portal/auth/client-auth.controller.ts
+- [[dot-deleteAvatar()_3]] - code - backend/src/modules/client-portal/auth/client-auth.service.ts
+- [[dot-getMe()]] - code - backend/src/modules/client-portal/auth/client-auth.service.ts
+- [[dot-login()_3]] - code - backend/src/modules/client-portal/auth/client-auth.controller.ts
+- [[dot-logout()_2]] - code - backend/src/modules/client-portal/auth/client-auth.controller.ts
+- [[dot-me()_1]] - code - backend/src/modules/client-portal/auth/client-auth.controller.ts
+- [[dot-transform()]] - code - backend/src/common/pipes/parse-uuid-loose.pipe.ts
+- [[dot-updateProfile()_2]] - code - backend/src/modules/client-portal/auth/client-auth.controller.ts
+- [[dot-updateProfile()_3]] - code - backend/src/modules/client-portal/auth/client-auth.service.ts
+- [[dot-uploadAvatar()_3]] - code - backend/src/modules/client-portal/auth/client-auth.controller.ts
+- [[dot-validate()_1]] - code - backend/src/modules/client-portal/auth/strategies/jwt-client.strategy.ts
+- [[@nestjscommon]] - concept - backend/package.json
+- [[@nestjsjwt]] - concept - backend/package.json
+- [[@nestjspassport]] - concept - backend/package.json
+- [[@nestjsplatform-express]] - concept - backend/package.json
+- [[@nestjsthrottler]] - concept - backend/package.json
+- [[ALLOWED_MIME]] - code - backend/src/modules/media/image-processing.service.ts
+- [[API_SCOPE_KEY]] - code - backend/src/modules/client-portal/external-api/require-api-scope.decorator.ts
+- [[AuthedRequest]] - code - backend/src/modules/client-portal/external-api/api-key.guard.ts
+- [[Body_39]] - code
+- [[CLIENT_ROLES_5]] - code - backend/src/modules/client-portal/auth/client-auth.service.ts
+- [[CLIENT_ROLES_6]] - code - backend/src/modules/client-portal/auth/strategies/jwt-client.strategy.ts
+- [[ClientAuthController]] - code - backend/src/modules/client-portal/auth/client-auth.controller.ts
+- [[ClientAuthService]] - code - backend/src/modules/client-portal/auth/client-auth.service.ts
+- [[ClientChangePasswordDto]] - code - backend/src/modules/client-portal/auth/dto/client-change-password.dto.ts
+- [[ClientLoginDto]] - code - backend/src/modules/client-portal/auth/dto/client-login.dto.ts
+- [[ClientNotificationDto]] - code - backend/src/modules/client-portal/notifications/client-notifications.service.ts
+- [[ClientStockProductRow]] - code - backend/src/modules/client-portal/stock/client-stock.service.ts
+- [[ClientUpdateProfileDto]] - code - backend/src/modules/client-portal/auth/dto/client-update-profile.dto.ts
+- [[ConfirmInboundBodyDto]] - code - backend/src/modules/inbound/dto/confirm-inbound-body.dto.ts
+- [[ConfirmOutboundBodyDto]] - code - backend/src/modules/outbound/dto/confirm-outbound-body.dto.ts
+- [[Controller_50]] - code
+- [[Delete_12]] - code
+- [[Get_49]] - code
+- [[HttpCode_4]] - code
+- [[IN_APP_CHANNELS_1]] - code - backend/src/modules/client-portal/notifications/client-notifications.service.ts
+- [[ImageKind]] - code - backend/src/modules/media/image-processing.service.ts
+- [[Injectable_163]] - code
+- [[Injectable_164]] - code
+- [[Injectable_165]] - code
+- [[Injectable_166]] - code
+- [[Injectable_167]] - code
+- [[Injectable_168]] - code
+- [[InternalAdminGuard]] - code - backend/src/common/auth/internal-admin.guard.ts
+- [[IsBoolean_28]] - code
+- [[IsEmail_5]] - code
+- [[IsEnum_30]] - code
+- [[IsObject_10]] - code
+- [[IsOptional_112]] - code
+- [[IsOptional_113]] - code
+- [[IsOptional_114]] - code
+- [[IsString_93]] - code
+- [[IsString_94]] - code
+- [[IsString_95]] - code
+- [[IsUUID_11]] - code
+- [[IsUUID_12]] - code
+- [[JwtClientAccessPayload]] - code - backend/src/modules/client-portal/auth/strategies/jwt-client.strategy.ts
+- [[JwtClientAuthGuard]] - code - backend/src/modules/client-portal/auth/jwt-client-auth.guard.ts
+- [[JwtClientStrategy]] - code - backend/src/modules/client-portal/auth/strategies/jwt-client.strategy.ts
+- [[ListQueryWithStatusIn]] - code - backend/src/modules/client-portal/inbound/client-inbound-orders.service.ts
+- [[ListQueryWithStatusIn_1]] - code - backend/src/modules/client-portal/outbound/client-outbound-orders.service.ts
+- [[LoginAttemptContext]] - code - backend/src/common/security/login-brute-force.service.ts
+- [[LoginPortal]] - code - backend/src/common/security/login-brute-force.service.ts
+- [[MaxLength_53]] - code
+- [[MaxLength_54]] - code
+- [[MaxLength_55]] - code
+- [[MediaKind]] - code - backend/src/modules/media/media-storage.service.ts
+- [[MinLength_24]] - code
+- [[MinLength_25]] - code
+- [[MinLength_26]] - code
+- [[ParseUuidLoosePipe]] - code - backend/src/common/pipes/parse-uuid-loose.pipe.ts
+- [[Patch_22]] - code
+- [[Post_41]] - code
+- [[Public()]] - code - backend/src/common/auth/public.decorator.ts
+- [[Req_2]] - code
+- [[RequireApiScope()]] - code - backend/src/modules/client-portal/external-api/require-api-scope.decorator.ts
+- [[Res_16]] - code
+- [[SkipThrottle_1]] - code
+- [[SuperAdminGuard]] - code - backend/src/common/auth/super-admin.guard.ts
+- [[UpdateWarehouseStatusDto]] - code - backend/src/modules/warehouses/dto/update-warehouse-status.dto.ts
+- [[UploadedFile_9]] - code
+- [[UseGuards_40]] - code
+- [[UseInterceptors_9]] - code
+- [[adjustments.controller.ts]] - code - backend/src/modules/adjustments/adjustments.controller.ts
+- [[api-credentials.controller.ts]] - code - backend/src/modules/client-portal/api-credentials/api-credentials.controller.ts
+- [[api-key.guard.ts]] - code - backend/src/modules/client-portal/external-api/api-key.guard.ts
+- [[assertUploadedImage()_3]] - code - backend/src/modules/client-portal/auth/client-auth.controller.ts
+- [[audit-logs.controller.ts]] - code - backend/src/modules/audit-logs/audit-logs.controller.ts
+- [[auth.controller.ts]] - code - backend/src/modules/auth/auth.controller.ts
+- [[client-auth-principal.ts]] - code - backend/src/common/auth/client-auth-principal.ts
+- [[client-auth.controller.ts]] - code - backend/src/modules/client-portal/auth/client-auth.controller.ts
+- [[client-auth.service.ts]] - code - backend/src/modules/client-portal/auth/client-auth.service.ts
+- [[client-billing.controller.ts]] - code - backend/src/modules/client-portal/billing/client-billing.controller.ts
+- [[client-change-password.dto.ts]] - code - backend/src/modules/client-portal/auth/dto/client-change-password.dto.ts
+- [[client-dashboard.controller.ts]] - code - backend/src/modules/client-portal/dashboard/client-dashboard.controller.ts
+- [[client-inbound-orders.controller.ts]] - code - backend/src/modules/client-portal/inbound/client-inbound-orders.controller.ts
+- [[client-inbound-orders.service.ts]] - code - backend/src/modules/client-portal/inbound/client-inbound-orders.service.ts
+- [[client-login.dto.ts]] - code - backend/src/modules/client-portal/auth/dto/client-login.dto.ts
+- [[client-media.controller.ts]] - code - backend/src/modules/client-portal/media/client-media.controller.ts
+- [[client-notifications.controller.ts]] - code - backend/src/modules/client-portal/notifications/client-notifications.controller.ts
+- [[client-notifications.service.ts]] - code - backend/src/modules/client-portal/notifications/client-notifications.service.ts
+- [[client-oms-orders.controller.ts]] - code - backend/src/modules/client-portal/oms/client-oms-orders.controller.ts
+- [[client-oms-returns.controller.ts]] - code - backend/src/modules/client-portal/oms-returns/client-oms-returns.controller.ts
+- [[client-oms-returns.service.ts]] - code - backend/src/modules/client-portal/oms-returns/client-oms-returns.service.ts
+- [[client-outbound-orders.controller.ts]] - code - backend/src/modules/client-portal/outbound/client-outbound-orders.controller.ts
+- [[client-outbound-orders.service.ts]] - code - backend/src/modules/client-portal/outbound/client-outbound-orders.service.ts
+- [[client-portal.module.ts]] - code - backend/src/modules/client-portal/client-portal.module.ts
+- [[client-principal.types.ts]] - code - backend/src/common/auth/client-principal.types.ts
+- [[client-products.controller.ts]] - code - backend/src/modules/client-portal/products/client-products.controller.ts
+- [[client-products.service.ts]] - code - backend/src/modules/client-portal/products/client-products.service.ts
+- [[client-returns.controller.ts]] - code - backend/src/modules/client-portal/returns/client-returns.controller.ts
+- [[client-returns.service.ts]] - code - backend/src/modules/client-portal/returns/client-returns.service.ts
+- [[client-stock.controller.ts]] - code - backend/src/modules/client-portal/stock/client-stock.controller.ts
+- [[client-stock.service.ts]] - code - backend/src/modules/client-portal/stock/client-stock.service.ts
+- [[client-update-profile.dto.ts]] - code - backend/src/modules/client-portal/auth/dto/client-update-profile.dto.ts
+- [[client-user.decorator.ts]] - code - backend/src/modules/client-portal/auth/client-user.decorator.ts
+- [[cod.controller.ts]] - code - backend/src/modules/cod/cod.controller.ts
+- [[companies.controller.ts]] - code - backend/src/modules/companies/companies.controller.ts
+- [[confirm-inbound-body.dto.ts]] - code - backend/src/modules/inbound/dto/confirm-inbound-body.dto.ts
+- [[confirm-outbound-body.dto.ts]] - code - backend/src/modules/outbound/dto/confirm-outbound-body.dto.ts
+- [[contextFor()]] - code - backend/src/common/auth/internal-admin.guard.unit.spec.ts
+- [[crypto.module.ts]] - code - backend/src/common/crypto/crypto.module.ts
+- [[ctxFor()]] - code - backend/src/common/auth/super-admin.guard.unit.spec.ts
+- [[current-user.decorator.ts]] - code - backend/src/common/auth/current-user.decorator.ts
+- [[cycle-count-variance.controller.ts]] - code - backend/src/modules/cycle-count/cycle-count-variance.controller.ts
+- [[dashboard.controller.ts]] - code - backend/src/modules/dashboard/dashboard.controller.ts
+- [[external-inbound.controller.ts]] - code - backend/src/modules/client-portal/external-api/external-inbound.controller.ts
+- [[external-oms.controller.ts]] - code - backend/src/modules/client-portal/external-api/external-oms.controller.ts
+- [[external-outbound.controller.ts]] - code - backend/src/modules/client-portal/external-api/external-outbound.controller.ts
+- [[final-contracts.controller.ts]] - code - backend/src/modules/final-contracts/final-contracts.controller.ts
+- [[final-contracts.module.ts]] - code - backend/src/modules/final-contracts/final-contracts.module.ts
+- [[forms.controller.ts]] - code - backend/src/modules/forms/forms.controller.ts
+- [[forms.module.ts]] - code - backend/src/modules/forms/forms.module.ts
+- [[fromClientCookie()]] - code - backend/src/modules/client-portal/auth/strategies/jwt-client.strategy.ts
+- [[image-processing.service.ts]] - code - backend/src/modules/media/image-processing.service.ts
+- [[inbound.controller.ts]] - code - backend/src/modules/inbound/inbound.controller.ts
+- [[internal-admin.guard.ts]] - code - backend/src/common/auth/internal-admin.guard.ts
+- [[internal-admin.guard.unit.spec.ts]] - code - backend/src/common/auth/internal-admin.guard.unit.spec.ts
+- [[jwt-client-auth.guard.ts]] - code - backend/src/modules/client-portal/auth/jwt-client-auth.guard.ts
+- [[jwt-client.strategy.ts]] - code - backend/src/modules/client-portal/auth/strategies/jwt-client.strategy.ts
+- [[login-brute-force.service.ts]] - code - backend/src/common/security/login-brute-force.service.ts
+- [[media-storage.service.ts]] - code - backend/src/modules/media/media-storage.service.ts
+- [[mock-auth.middleware.ts]] - code - backend/src/common/auth/mock-auth.middleware.ts
+- [[notifications.controller.ts]] - code - backend/src/modules/notifications/notifications.controller.ts
+- [[notifications.module.ts]] - code - backend/src/modules/notifications/notifications.module.ts
+- [[oms-batch.controller.ts]] - code - backend/src/modules/oms/oms-batch.controller.ts
+- [[oms-webhooks.controller.ts]] - code - backend/src/modules/oms/sales-channels/oms-webhooks.controller.ts
+- [[oms.controller.ts]] - code - backend/src/modules/oms/oms.controller.ts
+- [[outbound.controller.ts]] - code - backend/src/modules/outbound/outbound.controller.ts
+- [[parse-uuid-loose.pipe.ts]] - code - backend/src/common/pipes/parse-uuid-loose.pipe.ts
+- [[products.controller.ts]] - code - backend/src/modules/products/products.controller.ts
+- [[public.decorator.ts]] - code - backend/src/common/auth/public.decorator.ts
+- [[ref_express]] - concept
+- [[ref_multer]] - concept
+- [[request-ip.util.ts]] - code - backend/src/common/security/request-ip.util.ts
+- [[require-api-scope.decorator.ts]] - code - backend/src/modules/client-portal/external-api/require-api-scope.decorator.ts
+- [[super-admin.guard.ts]] - code - backend/src/common/auth/super-admin.guard.ts
+- [[super-admin.guard.unit.spec.ts]] - code - backend/src/common/auth/super-admin.guard.unit.spec.ts
+- [[update-warehouse-status.dto.ts]] - code - backend/src/modules/warehouses/dto/update-warehouse-status.dto.ts
+- [[users.controller.ts]] - code - backend/src/modules/users/users.controller.ts
+- [[warehouses.controller.ts]] - code - backend/src/modules/warehouses/warehouses.controller.ts
+- [[workflow-workers.controller.ts]] - code - backend/src/modules/warehouse-workflow/workflow-workers.controller.ts
+
+## Live Query (requires Dataview plugin)
+
+```dataview
+TABLE source_file, type FROM #community/nestjs/common
+SORT file.name ASC
+```
+
+## Connections to other communities
+- 175 edges to [[_COMMUNITY_@prismaclient]]
+- 110 edges to [[_COMMUNITY_ClientPrincipal]]
+- 109 edges to [[_COMMUNITY_app.module.ts]]
+- 57 edges to [[_COMMUNITY_class-validator]]
+- 44 edges to [[_COMMUNITY_EmptyToUndefined]]
+- 36 edges to [[_COMMUNITY_client-oms-orders.service.ts]]
+- 33 edges to [[_COMMUNITY_AuthPrincipal]]
+- 33 edges to [[_COMMUNITY_oms-client-import.service.ts]]
+- 31 edges to [[_COMMUNITY_inbound-orders-csv.service.ts]]
+- 26 edges to [[_COMMUNITY_CurrentUser]]
+- 24 edges to [[_COMMUNITY_AuditLogService]]
+- 23 edges to [[_COMMUNITY_warehouse-tasks.controller.ts]]
+- 23 edges to [[_COMMUNITY_outbound.service.ts]]
+- 18 edges to [[_COMMUNITY_api-credentials.service.ts]]
+- 15 edges to [[_COMMUNITY_observability.service.ts]]
+- 14 edges to [[_COMMUNITY_MediaStorageService]]
+- 13 edges to [[_COMMUNITY_shipping.controller.ts]]
+- 13 edges to [[_COMMUNITY_cycle-count.service.ts]]
+- 13 edges to [[_COMMUNITY_client-financial.controller.ts]]
+- 12 edges to [[_COMMUNITY_CreateOmsOrderDto]]
+- 12 edges to [[_COMMUNITY_backendpackage.json]]
+- 11 edges to [[_COMMUNITY_withTenantRls]]
+- 11 edges to [[_COMMUNITY_shipping.module.ts]]
+- 10 edges to [[_COMMUNITY_ClientBillingService]]
+- 9 edges to [[_COMMUNITY_dot-validateResourceOwnership]]
+- 9 edges to [[_COMMUNITY_NotificationsService]]
+- 9 edges to [[_COMMUNITY_warehouse-tasks.service.ts]]
+- 8 edges to [[_COMMUNITY_WarehousesService]]
+- 8 edges to [[_COMMUNITY_AuthController]]
+- 8 edges to [[_COMMUNITY_dot-login]]
+- 8 edges to [[_COMMUNITY_CreateLeadFormDto]]
+- 8 edges to [[_COMMUNITY_returns.controller.ts]]
+- 8 edges to [[_COMMUNITY_returns.service.ts]]
+- 7 edges to [[_COMMUNITY_ClientNotificationsService]]
+- 7 edges to [[_COMMUNITY_grn-pdf.service.ts]]
+- 6 edges to [[_COMMUNITY_dot-assertCompanyAccess]]
+- 6 edges to [[_COMMUNITY_CreateFinalContractDto]]
+- 6 edges to [[_COMMUNITY_PdfService]]
+- 6 edges to [[_COMMUNITY_ClientStockService]]
+- 6 edges to [[_COMMUNITY_financial.controller.ts]]
+- 6 edges to [[_COMMUNITY_documents.controller.ts]]
+- 6 edges to [[_COMMUNITY_shipping-tracking.service.ts]]
+- 5 edges to [[_COMMUNITY_dot-fromPrincipal]]
+- 5 edges to [[_COMMUNITY_inventory.service.ts]]
+- 5 edges to [[_COMMUNITY_CreateOmsSalesChannelDto]]
+- 5 edges to [[_COMMUNITY_RealtimeService]]
+- 5 edges to [[_COMMUNITY_oms-instruction-pdf.service.ts]]
+- 5 edges to [[_COMMUNITY_oms-waybill.service.ts]]
+- 5 edges to [[_COMMUNITY_ListCodRecordsQueryDto]]
+- 5 edges to [[_COMMUNITY_LocationsService]]
+- 5 edges to [[_COMMUNITY_reports-framework.service.ts]]
+- 5 edges to [[_COMMUNITY_task-inventory-effects.service.ts]]
+- 4 edges to [[_COMMUNITY_ProductsService]]
+- 4 edges to [[_COMMUNITY_OmsBatchMembershipDto]]
+- 4 edges to [[_COMMUNITY_dashboard.service.ts]]
+- 4 edges to [[_COMMUNITY_UpdateCompanyDto]]
+- 4 edges to [[_COMMUNITY_rbac-policy.ts]]
+- 4 edges to [[_COMMUNITY_babel-express.adapter.ts]]
+- 3 edges to [[_COMMUNITY_AdjustmentsController]]
+- 3 edges to [[_COMMUNITY_CodRecordsService]]
+- 3 edges to [[_COMMUNITY_oms-sales-channel.service.ts]]
+- 3 edges to [[_COMMUNITY_ClientInboundOrdersController]]
+- 3 edges to [[_COMMUNITY_outbound-orders-csv.service.ts]]
+- 3 edges to [[_COMMUNITY_CreateInboundOrderDto]]
+- 3 edges to [[_COMMUNITY_variance.dto.ts]]
+- 3 edges to [[_COMMUNITY_ListInboundQueryDto]]
+- 3 edges to [[_COMMUNITY_ListOutboundQueryDto]]
+- 3 edges to [[_COMMUNITY_CreateOutboundOrderDto]]
+- 3 edges to [[_COMMUNITY_ListAuditLogsQueryDto]]
+- 3 edges to [[_COMMUNITY_main.ts]]
+- 3 edges to [[_COMMUNITY_sila-sy.adapter.ts]]
+- 3 edges to [[_COMMUNITY_ref_node_path]]
+- 2 edges to [[_COMMUNITY_AuditLogsService]]
+- 2 edges to [[_COMMUNITY_InboundController]]
+- 2 edges to [[_COMMUNITY_CodController]]
+- 2 edges to [[_COMMUNITY_UsersService]]
+- 2 edges to [[_COMMUNITY_EncryptionService]]
+- 2 edges to [[_COMMUNITY_MockAuthMiddleware]]
+- 2 edges to [[_COMMUNITY_CreateUserDto]]
+- 2 edges to [[_COMMUNITY_ListOmsReturnsQueryDto]]
+- 2 edges to [[_COMMUNITY_ClientCreateProductDto]]
+- 2 edges to [[_COMMUNITY_UsersController]]
+- 2 edges to [[_COMMUNITY_userRoleToAuthGroup]]
+- 2 edges to [[_COMMUNITY_AdjustShippingFeeBulkDto]]
+- 2 edges to [[_COMMUNITY_LoginDto]]
+- 2 edges to [[_COMMUNITY_ClientUpdateProductDto]]
+- 2 edges to [[_COMMUNITY_ChangePasswordDto]]
+- 2 edges to [[_COMMUNITY_RunReportQueryDto]]
+- 2 edges to [[_COMMUNITY_mutation-queue.service.ts]]
+- 2 edges to [[_COMMUNITY_oms-bulk.service.ts]]
+- 2 edges to [[_COMMUNITY_oms-line-numeric.ts]]
+- 1 edge to [[_COMMUNITY_ListFinancialTransactionsQueryDto]]
+- 1 edge to [[_COMMUNITY_CycleCountService]]
+- 1 edge to [[_COMMUNITY_GoogleOAuthService]]
+- 1 edge to [[_COMMUNITY_ReturnsService]]
+- 1 edge to [[_COMMUNITY_AuthService]]
+- 1 edge to [[_COMMUNITY_OmsShippingScanService]]
+- 1 edge to [[_COMMUNITY_ProductsController]]
+- 1 edge to [[_COMMUNITY_QuoteFingerprintDto]]
+- 1 edge to [[_COMMUNITY_UpdateShippingDetailsDto]]
+- 1 edge to [[_COMMUNITY_ListAdjustmentsQueryDto]]
+- 1 edge to [[_COMMUNITY_CreateProductDto]]
+- 1 edge to [[_COMMUNITY_UpdateProductDto]]
+- 1 edge to [[_COMMUNITY_ExternalCreateOutboundOrderDto]]
+- 1 edge to [[_COMMUNITY_ExternalCreateInboundOrderDto]]
+- 1 edge to [[_COMMUNITY_OmsOrdersExportDto]]
+- 1 edge to [[_COMMUNITY_ReceiveLineDto]]
+- 1 edge to [[_COMMUNITY_UpdateInboundPlanDto]]
+- 1 edge to [[_COMMUNITY_LogoutDto]]
+- 1 edge to [[_COMMUNITY_sila-webhook.util.ts]]
+- 1 edge to [[_COMMUNITY_WarehouseTasksService]]
+- 1 edge to [[_COMMUNITY_inventory-consistency.service.ts]]
+- 1 edge to [[_COMMUNITY_shipping-fx.service.ts]]
+- 1 edge to [[_COMMUNITY_report-export.service.ts]]
+- 1 edge to [[_COMMUNITY_final-contract-pdf.service.ts]]
+- 1 edge to [[_COMMUNITY_shipping.service.ts]]
+- 1 edge to [[_COMMUNITY_CacheInvalidationService]]
+- 1 edge to [[_COMMUNITY_oms-orders-list-filters.util.ts]]
+- 1 edge to [[_COMMUNITY_client-portal-account-access.ts]]
+- 1 edge to [[_COMMUNITY_FinancialCarrierCostsService]]
+- 1 edge to [[_COMMUNITY_BillingInvoiceCalculationService]]
+- 1 edge to [[_COMMUNITY_shipping-fee.service.ts]]
+- 1 edge to [[_COMMUNITY_cod-export.util.ts]]
+- 1 edge to [[_COMMUNITY_reliability-test-helpers.ts]]
+- 1 edge to [[_COMMUNITY_bulk-shipping.service.ts]]
+
+## Top bridge nodes
+- [[@nestjscommon]] - degree 333, connects to 61 communities
+- [[Public()]] - degree 59, connects to 17 communities
+- [[client-portal.module.ts]] - degree 116, connects to 16 communities
+- [[oms.controller.ts]] - degree 55, connects to 16 communities
+- [[outbound.controller.ts]] - degree 41, connects to 15 communities

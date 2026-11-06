@@ -1,0 +1,231 @@
+---
+type: community
+cohesion: 0.04
+members: 120
+---
+
+# class-validator
+
+**Cohesion:** 0.04 - loosely connected
+**Members:** 120 nodes
+
+## Members
+- [[ADJUSTMENT_REASON_PENDING_1]] - code - backend/src/modules/adjustments/dto/create-adjustment.dto.ts
+- [[AddAdjustmentLineDto]] - code - backend/src/modules/adjustments/dto/add-adjustment-line.dto.ts
+- [[AssignCycleCountDto]] - code - backend/src/modules/cycle-count/dto/assign-cycle-count.dto.ts
+- [[AssignCycleCountLineDto]] - code - backend/src/modules/cycle-count/dto/assign-cycle-count-line.dto.ts
+- [[AvailabilityQueryDto]] - code - backend/src/modules/inventory/dto/availability-query.dto.ts
+- [[BalanceHistoryQueryDto]] - code - backend/src/modules/inventory/dto/balance-history-query.dto.ts
+- [[BillingPlanApplyMode]] - code - backend/src/modules/billing/dto/update-billing-plan.dto.ts
+- [[BulkShippingDetailsItemDto]] - code - backend/src/modules/outbound/dto/bulk-outbound.dto.ts
+- [[ConsistencyQueryDto]] - code - backend/src/modules/inventory/dto/consistency-query.dto.ts
+- [[CreateCycleCountDto]] - code - backend/src/modules/cycle-count/dto/create-cycle-count.dto.ts
+- [[CreateSystemRoleUi]] - code - backend/src/modules/users/dto/create-user.dto.ts
+- [[InternalTransferDto]] - code - backend/src/modules/inventory/dto/internal-transfer.dto.ts
+- [[IsArray_5]] - code
+- [[IsBoolean_6]] - code
+- [[IsDateString]] - code
+- [[IsEnum_8]] - code
+- [[IsIn_12]] - code
+- [[IsInt_3]] - code
+- [[IsNumber_3]] - code
+- [[IsNumber_4]] - code
+- [[IsOptional_29]] - code
+- [[IsOptional_30]] - code
+- [[IsOptional_31]] - code
+- [[IsOptional_32]] - code
+- [[IsOptional_33]] - code
+- [[IsOptional_34]] - code
+- [[IsOptional_35]] - code
+- [[IsOptional_36]] - code
+- [[IsOptional_37]] - code
+- [[IsOptional_38]] - code
+- [[IsOptional_39]] - code
+- [[IsPositive_1]] - code
+- [[IsString_21]] - code
+- [[IsUUID_4]] - code
+- [[IsUuidLoose()]] - code - backend/src/common/validators/is-uuid-loose.ts
+- [[LedgerEntryQueryDto]] - code - backend/src/modules/inventory/dto/ledger-entry-query.dto.ts
+- [[Length_1]] - code
+- [[ListExecutionTasksQueryDto]] - code - backend/src/modules/cycle-count/dto/list-execution-tasks-query.dto.ts
+- [[Matches_11]] - code
+- [[Min_5]] - code
+- [[ORDER_STATUSES_3]] - code - backend/src/modules/inbound/dto/list-inbound-query.dto.ts
+- [[QUICK_DIRECTED_OUTBOUND_REASON_CODES]] - code - backend/src/modules/outbound/dto/quick-directed-outbound.dto.ts
+- [[QuickDirectedOutboundReasonCode_1]] - code - backend/src/modules/outbound/dto/quick-directed-outbound.dto.ts
+- [[TASK_LIST_DEFAULT_LIMIT]] - code - backend/src/modules/warehouse-workflow/dto/list-tasks-query.dto.ts
+- [[TASK_LIST_MAX_LIMIT]] - code - backend/src/modules/warehouse-workflow/dto/list-tasks-query.dto.ts
+- [[Type_7]] - code
+- [[UpsertCycleCountScheduleDto]] - code - backend/src/modules/cycle-count/dto/upsert-cycle-count-schedule.dto.ts
+- [[add-adjustment-line.dto.ts]] - code - backend/src/modules/adjustments/dto/add-adjustment-line.dto.ts
+- [[adjust-shipping-fee.dto.ts]] - code - backend/src/modules/oms/dto/adjust-shipping-fee.dto.ts
+- [[apply-return-disposition.dto.ts]] - code - backend/src/modules/returns/dto/apply-return-disposition.dto.ts
+- [[assign-cycle-count-line.dto.ts]] - code - backend/src/modules/cycle-count/dto/assign-cycle-count-line.dto.ts
+- [[assign-cycle-count.dto.ts]] - code - backend/src/modules/cycle-count/dto/assign-cycle-count.dto.ts
+- [[availability-query.dto.ts]] - code - backend/src/modules/inventory/dto/availability-query.dto.ts
+- [[balance-history-query.dto.ts]] - code - backend/src/modules/inventory/dto/balance-history-query.dto.ts
+- [[bulk-approve-oms-orders.dto.ts]] - code - backend/src/modules/oms/dto/bulk-approve-oms-orders.dto.ts
+- [[bulk-confirm-client-oms-orders.dto.ts]] - code - backend/src/modules/client-portal/oms/dto/bulk-confirm-client-oms-orders.dto.ts
+- [[bulk-outbound.dto.ts]] - code - backend/src/modules/outbound/dto/bulk-outbound.dto.ts
+- [[bulk-shipping.dto.ts]] - code - backend/src/modules/shipping/dto/bulk-shipping.dto.ts
+- [[class-transformer]] - concept - backend/package.json
+- [[class-validator]] - concept - backend/package.json
+- [[client-create-product.dto.ts]] - code - backend/src/modules/client-portal/products/dto/client-create-product.dto.ts
+- [[client-inbound-export.dto.ts]] - code - backend/src/modules/client-portal/inbound/dto/client-inbound-export.dto.ts
+- [[client-outbound-export.dto.ts]] - code - backend/src/modules/client-portal/outbound/dto/client-outbound-export.dto.ts
+- [[client-update-product.dto.ts]] - code - backend/src/modules/client-portal/products/dto/client-update-product.dto.ts
+- [[consistency-query.dto.ts]] - code - backend/src/modules/inventory/dto/consistency-query.dto.ts
+- [[create-adjustment.dto.ts]] - code - backend/src/modules/adjustments/dto/create-adjustment.dto.ts
+- [[create-api-credential.dto.ts]] - code - backend/src/modules/client-portal/api-credentials/dto/create-api-credential.dto.ts
+- [[create-billing-plan.dto.ts]] - code - backend/src/modules/billing/dto/create-billing-plan.dto.ts
+- [[create-client-oms-order.dto.unit.spec.ts]] - code - backend/src/modules/client-portal/oms/dto/create-client-oms-order.dto.unit.spec.ts
+- [[create-cycle-count.dto.ts]] - code - backend/src/modules/cycle-count/dto/create-cycle-count.dto.ts
+- [[create-final-contract.dto.ts]] - code - backend/src/modules/final-contracts/dto/create-final-contract.dto.ts
+- [[create-inbound.dto.ts]] - code - backend/src/modules/inbound/dto/create-inbound.dto.ts
+- [[create-oms-batch.dto.ts]] - code - backend/src/modules/oms/dto/create-oms-batch.dto.ts
+- [[create-order-manual-charge.dto.ts]] - code - backend/src/modules/billing/dto/create-order-manual-charge.dto.ts
+- [[create-outbound.dto.ts]] - code - backend/src/modules/outbound/dto/create-outbound.dto.ts
+- [[create-product.dto.ts]] - code - backend/src/modules/products/dto/create-product.dto.ts
+- [[create-return-order-line.dto.ts]] - code - backend/src/modules/returns/dto/create-return-order-line.dto.ts
+- [[create-return-order.dto.ts]] - code - backend/src/modules/returns/dto/create-return-order.dto.ts
+- [[create-user.dto.ts]] - code - backend/src/modules/users/dto/create-user.dto.ts
+- [[cycle-count.controller.ts]] - code - backend/src/modules/cycle-count/cycle-count.controller.ts
+- [[external-create-inbound-order.dto.ts]] - code - backend/src/modules/client-portal/external-api/dto/external-create-inbound-order.dto.ts
+- [[external-create-inbound-outbound.dto.unit.spec.ts]] - code - backend/src/modules/client-portal/external-api/dto/external-create-inbound-outbound.dto.unit.spec.ts
+- [[external-create-oms-order.dto.unit.spec.ts]] - code - backend/src/modules/client-portal/external-api/dto/external-create-oms-order.dto.unit.spec.ts
+- [[external-create-outbound-order.dto.ts]] - code - backend/src/modules/client-portal/external-api/dto/external-create-outbound-order.dto.ts
+- [[hasNonEmptyReasonString()]] - code - backend/src/modules/adjustments/dto/create-adjustment.dto.ts
+- [[inbound-orders-export.dto.ts]] - code - backend/src/modules/inbound/dto/inbound-orders-export.dto.ts
+- [[inspect-return-line.dto.ts]] - code - backend/src/modules/returns/dto/inspect-return-line.dto.ts
+- [[internal-transfer.dto.ts]] - code - backend/src/modules/inventory/dto/internal-transfer.dto.ts
+- [[inventory.controller.ts]] - code - backend/src/modules/inventory/inventory.controller.ts
+- [[invoice-mutations.dto.ts]] - code - backend/src/modules/billing/dto/invoice-mutations.dto.ts
+- [[is-uuid-loose.ts]] - code - backend/src/common/validators/is-uuid-loose.ts
+- [[lease-task.dto.ts]] - code - backend/src/modules/warehouse-workflow/dto/lease-task.dto.ts
+- [[ledger-entry-query.dto.ts]] - code - backend/src/modules/inventory/dto/ledger-entry-query.dto.ts
+- [[list-execution-tasks-query.dto.ts]] - code - backend/src/modules/cycle-count/dto/list-execution-tasks-query.dto.ts
+- [[list-inbound-query.dto.ts]] - code - backend/src/modules/inbound/dto/list-inbound-query.dto.ts
+- [[list-tasks-query.dto.ts]] - code - backend/src/modules/warehouse-workflow/dto/list-tasks-query.dto.ts
+- [[oms-order-line-numeric.unit.spec.ts]] - code - backend/src/modules/oms/dto/oms-order-line-numeric.unit.spec.ts
+- [[oms-order-recipient-contact.unit.spec.ts]] - code - backend/src/modules/oms/dto/oms-order-recipient-contact.unit.spec.ts
+- [[oms-orders-export.dto.ts]] - code - backend/src/modules/oms/dto/oms-orders-export.dto.ts
+- [[outbound-orders-export.dto.ts]] - code - backend/src/modules/outbound/dto/outbound-orders-export.dto.ts
+- [[quick-directed-outbound.dto.ts]] - code - backend/src/modules/outbound/dto/quick-directed-outbound.dto.ts
+- [[quote-shipping-rates.dto.ts]] - code - backend/src/modules/shipping/dto/quote-shipping-rates.dto.ts
+- [[receive-line.dto.ts]] - code - backend/src/modules/inbound/dto/receive-line.dto.ts
+- [[reflect-metadata]] - concept - backend/package.json
+- [[resolve-address-from-pin.dto.ts]] - code - backend/src/modules/shipping/dto/resolve-address-from-pin.dto.ts
+- [[skip-cycle-count-line.dto.ts]] - code - backend/src/modules/cycle-count/dto/skip-cycle-count-line.dto.ts
+- [[submit-line-count.dto.ts]] - code - backend/src/modules/cycle-count/dto/submit-line-count.dto.ts
+- [[update-billing-plan.dto.ts]] - code - backend/src/modules/billing/dto/update-billing-plan.dto.ts
+- [[update-final-contract.dto.ts]] - code - backend/src/modules/final-contracts/dto/update-final-contract.dto.ts
+- [[update-inbound-plan.dto.ts]] - code - backend/src/modules/inbound/dto/update-inbound-plan.dto.ts
+- [[update-location.dto.ts]] - code - backend/src/modules/locations/dto/update-location.dto.ts
+- [[update-order-manual-charge.dto.ts]] - code - backend/src/modules/billing/dto/update-order-manual-charge.dto.ts
+- [[update-product.dto.ts]] - code - backend/src/modules/products/dto/update-product.dto.ts
+- [[update-shipping-details.dto.ts]] - code - backend/src/modules/outbound/dto/update-shipping-details.dto.ts
+- [[upsert-cycle-count-schedule.dto.ts]] - code - backend/src/modules/cycle-count/dto/upsert-cycle-count-schedule.dto.ts
+- [[upsert-shipping-fx.dto.ts]] - code - backend/src/modules/shipping/dto/upsert-shipping-fx.dto.ts
+- [[upsert-shipping-origin-address.dto.ts]] - code - backend/src/modules/shipping/dto/upsert-shipping-origin-address.dto.ts
+- [[validPayload]] - code - backend/src/modules/client-portal/external-api/dto/external-create-oms-order.dto.unit.spec.ts
+- [[validateDto()]] - code - backend/src/modules/oms/dto/oms-order-recipient-contact.unit.spec.ts
+- [[validateLine()]] - code - backend/src/modules/oms/dto/oms-order-line-numeric.unit.spec.ts
+
+## Live Query (requires Dataview plugin)
+
+```dataview
+TABLE source_file, type FROM #community/class-validator
+SORT file.name ASC
+```
+
+## Connections to other communities
+- 95 edges to [[_COMMUNITY_EmptyToUndefined]]
+- 57 edges to [[_COMMUNITY_@nestjscommon]]
+- 41 edges to [[_COMMUNITY_@prismaclient]]
+- 28 edges to [[_COMMUNITY_CreateOmsOrderDto]]
+- 21 edges to [[_COMMUNITY_cycle-count.service.ts]]
+- 17 edges to [[_COMMUNITY_LocationsService]]
+- 17 edges to [[_COMMUNITY_inbound-orders-csv.service.ts]]
+- 16 edges to [[_COMMUNITY_shipping.controller.ts]]
+- 16 edges to [[_COMMUNITY_warehouse-tasks.controller.ts]]
+- 14 edges to [[_COMMUNITY_returns.controller.ts]]
+- 11 edges to [[_COMMUNITY_CycleCountService]]
+- 11 edges to [[_COMMUNITY_CurrentUser]]
+- 9 edges to [[_COMMUNITY_returns.service.ts]]
+- 8 edges to [[_COMMUNITY_inventory.service.ts]]
+- 7 edges to [[_COMMUNITY_AuthPrincipal]]
+- 7 edges to [[_COMMUNITY_dot-validateResourceOwnership]]
+- 7 edges to [[_COMMUNITY_outbound.service.ts]]
+- 6 edges to [[_COMMUNITY_withTenantRls]]
+- 6 edges to [[_COMMUNITY_shipping-fee.service.ts]]
+- 6 edges to [[_COMMUNITY_backendpackage.json]]
+- 5 edges to [[_COMMUNITY_UpdateShippingDetailsDto]]
+- 5 edges to [[_COMMUNITY_ListCodRecordsQueryDto]]
+- 5 edges to [[_COMMUNITY_ListInboundQueryDto]]
+- 5 edges to [[_COMMUNITY_CycleCountExecutionService]]
+- 5 edges to [[_COMMUNITY_CreateAdHocInvoiceDto]]
+- 5 edges to [[_COMMUNITY_AdjustShippingFeeBulkDto]]
+- 4 edges to [[_COMMUNITY_CreateOmsSalesChannelDto]]
+- 4 edges to [[_COMMUNITY_CreateInboundOrderDto]]
+- 4 edges to [[_COMMUNITY_variance.dto.ts]]
+- 4 edges to [[_COMMUNITY_ListOutboundQueryDto]]
+- 4 edges to [[_COMMUNITY_CreateOutboundOrderDto]]
+- 4 edges to [[_COMMUNITY_OmsBatchMembershipDto]]
+- 4 edges to [[_COMMUNITY_UpdateCompanyDto]]
+- 3 edges to [[_COMMUNITY_ExternalCreateOutboundOrderDto]]
+- 3 edges to [[_COMMUNITY_ExternalCreateInboundOrderDto]]
+- 3 edges to [[_COMMUNITY_CreateOrderManualChargeDto]]
+- 3 edges to [[_COMMUNITY_ShippingController]]
+- 3 edges to [[_COMMUNITY_outbound-orders-csv.service.ts]]
+- 2 edges to [[_COMMUNITY_UpdateBillingPlanDto]]
+- 2 edges to [[_COMMUNITY_inventory-consistency.service.ts]]
+- 2 edges to [[_COMMUNITY_BillingController]]
+- 2 edges to [[_COMMUNITY_QuickDirectedOutboundDto]]
+- 2 edges to [[_COMMUNITY_api-credentials.service.ts]]
+- 2 edges to [[_COMMUNITY_CreateProductDto]]
+- 2 edges to [[_COMMUNITY_AdjustmentsController]]
+- 2 edges to [[_COMMUNITY_ListAuditLogsQueryDto]]
+- 2 edges to [[_COMMUNITY_CreateBillingPlanDto]]
+- 2 edges to [[_COMMUNITY_OmsOrdersExportDto]]
+- 2 edges to [[_COMMUNITY_ReceiveLineDto]]
+- 2 edges to [[_COMMUNITY_BulkProcessOutboundItemDto]]
+- 2 edges to [[_COMMUNITY_CreateFinalContractDto]]
+- 2 edges to [[_COMMUNITY_WarehouseTasksService]]
+- 2 edges to [[_COMMUNITY_app.module.ts]]
+- 2 edges to [[_COMMUNITY_client-oms-orders.service.ts]]
+- 2 edges to [[_COMMUNITY_AuditLogService]]
+- 2 edges to [[_COMMUNITY_financial.controller.ts]]
+- 2 edges to [[_COMMUNITY_CreateLeadFormDto]]
+- 2 edges to [[_COMMUNITY_oms-client-import.service.ts]]
+- 2 edges to [[_COMMUNITY_WarehousesService]]
+- 2 edges to [[_COMMUNITY_documents.controller.ts]]
+- 1 edge to [[_COMMUNITY_UsersService]]
+- 1 edge to [[_COMMUNITY_ListAdjustmentsQueryDto]]
+- 1 edge to [[_COMMUNITY_ListOmsReturnsQueryDto]]
+- 1 edge to [[_COMMUNITY_CreateUserDto]]
+- 1 edge to [[_COMMUNITY_ClientCreateProductDto]]
+- 1 edge to [[_COMMUNITY_UpdateProductDto]]
+- 1 edge to [[_COMMUNITY_shipping-fx.service.ts]]
+- 1 edge to [[_COMMUNITY_RunReportQueryDto]]
+- 1 edge to [[_COMMUNITY_ClientStockService]]
+- 1 edge to [[_COMMUNITY_ListTasksQueryDto]]
+- 1 edge to [[_COMMUNITY_ClientUpdateProductDto]]
+- 1 edge to [[_COMMUNITY_UpdateInboundPlanDto]]
+- 1 edge to [[_COMMUNITY_LeaseTaskDto]]
+- 1 edge to [[_COMMUNITY_main.ts]]
+- 1 edge to [[_COMMUNITY_warehouse-tasks.service.ts]]
+- 1 edge to [[_COMMUNITY_oms-bulk.service.ts]]
+- 1 edge to [[_COMMUNITY_bulk-shipping.service.ts]]
+- 1 edge to [[_COMMUNITY_shipping.service.ts]]
+- 1 edge to [[_COMMUNITY_ChangePasswordDto]]
+- 1 edge to [[_COMMUNITY_LoginDto]]
+- 1 edge to [[_COMMUNITY_userRoleToAuthGroup]]
+- 1 edge to [[_COMMUNITY_dot-assertCompanyAccess]]
+- 1 edge to [[_COMMUNITY_ResolveTaskDto]]
+
+## Top bridge nodes
+- [[IsUuidLoose()]] - degree 140, connects to 36 communities
+- [[class-validator]] - degree 152, connects to 32 communities
+- [[class-transformer]] - degree 66, connects to 15 communities
+- [[inventory.controller.ts]] - degree 32, connects to 10 communities
+- [[is-uuid-loose.ts]] - degree 64, connects to 9 communities

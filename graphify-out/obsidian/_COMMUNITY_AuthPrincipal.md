@@ -1,0 +1,219 @@
+---
+type: community
+cohesion: 0.05
+members: 106
+---
+
+# AuthPrincipal
+
+**Cohesion:** 0.05 - loosely connected
+**Members:** 106 nodes
+
+## Members
+- [[dot-approve()_5]] - code - backend/src/modules/outbound/outbound.controller.ts
+- [[dot-assertNoDuplicateItems()]] - code - backend/src/modules/outbound/outbound-bulk.service.ts
+- [[dot-buildListWhere()_1]] - code - backend/src/modules/outbound/outbound.service.ts
+- [[dot-bulkCompleteDispatch()]] - code - backend/src/modules/outbound/outbound.controller.ts
+- [[dot-bulkCompletePacking()]] - code - backend/src/modules/outbound/outbound.controller.ts
+- [[dot-bulkCompletePicking()]] - code - backend/src/modules/outbound/outbound.controller.ts
+- [[dot-bulkCompleteShippingDetails()]] - code - backend/src/modules/outbound/outbound.controller.ts
+- [[dot-bulkProcess()]] - code - backend/src/modules/outbound/outbound.controller.ts
+- [[dot-bulkShippingDetails()]] - code - backend/src/modules/outbound/outbound.controller.ts
+- [[dot-bulkShippingDetailsPreview()]] - code - backend/src/modules/outbound/outbound.controller.ts
+- [[dot-cancel()_3]] - code - backend/src/modules/outbound/outbound.controller.ts
+- [[dot-columns()_4]] - code - backend/src/modules/outbound/outbound-orders-csv.service.ts
+- [[dot-completeDispatch()_1]] - code - backend/src/modules/outbound/outbound.controller.ts
+- [[dot-completeDispatchBulk()]] - code - backend/src/modules/outbound/outbound-bulk.service.ts
+- [[dot-completePacking()]] - code - backend/src/modules/outbound/outbound.controller.ts
+- [[dot-completePackingBulk()]] - code - backend/src/modules/outbound/outbound-bulk.service.ts
+- [[dot-completePicking()]] - code - backend/src/modules/outbound/outbound.controller.ts
+- [[dot-completePickingBulk()]] - code - backend/src/modules/outbound/outbound-bulk.service.ts
+- [[dot-completeShippingDetails()]] - code - backend/src/modules/outbound/outbound.controller.ts
+- [[dot-completeShippingDetailsBulk()]] - code - backend/src/modules/outbound/outbound-bulk.service.ts
+- [[dot-confirm()_3]] - code - backend/src/modules/outbound/outbound.controller.ts
+- [[dot-constructor()_109]] - code - backend/src/modules/notifications/notifications.controller.ts
+- [[dot-constructor()_110]] - code - backend/src/modules/outbound/outbound-bulk.service.ts
+- [[dot-constructor()_111]] - code - backend/src/modules/warehouse-workflow/workflow-workers.controller.ts
+- [[dot-create()_13]] - code - backend/src/modules/outbound/outbound.controller.ts
+- [[dot-create()_14]] - code - backend/src/modules/warehouse-workflow/workflow-workers.controller.ts
+- [[dot-create()_15]] - code - backend/src/modules/warehouse-workflow/workflow-workers.service.ts
+- [[dot-executeAdmin()_1]] - code - backend/src/modules/outbound/outbound.controller.ts
+- [[dot-exportColumns()_3]] - code - backend/src/modules/outbound/outbound.controller.ts
+- [[dot-exportOrders()_3]] - code - backend/src/modules/outbound/outbound.controller.ts
+- [[dot-exportOrdersPost()_2]] - code - backend/src/modules/outbound/outbound.controller.ts
+- [[dot-findOne()_7]] - code - backend/src/modules/outbound/outbound.controller.ts
+- [[dot-get()_2]] - code - backend/src/modules/warehouse-workflow/workflow-workers.controller.ts
+- [[dot-get()_3]] - code - backend/src/modules/warehouse-workflow/workflow-workers.service.ts
+- [[dot-importOrders()_3]] - code - backend/src/modules/outbound/outbound.controller.ts
+- [[dot-importTemplate()_3]] - code - backend/src/modules/outbound/outbound.controller.ts
+- [[dot-list()_20]] - code - backend/src/modules/notifications/notifications.controller.ts
+- [[dot-list()_21]] - code - backend/src/modules/notifications/notifications.service.ts
+- [[dot-list()_22]] - code - backend/src/modules/outbound/outbound.controller.ts
+- [[dot-list()_23]] - code - backend/src/modules/outbound/outbound.service.ts
+- [[dot-list()_24]] - code - backend/src/modules/warehouse-workflow/workflow-workers.controller.ts
+- [[dot-listUnlinked()]] - code - backend/src/modules/warehouse-workflow/workflow-workers.controller.ts
+- [[dot-loadByWarehouse()]] - code - backend/src/modules/warehouse-workflow/workflow-workers.controller.ts
+- [[dot-lookupOrderNumber()]] - code - backend/src/modules/outbound/outbound-bulk.service.ts
+- [[dot-markAllRead()_1]] - code - backend/src/modules/notifications/notifications.controller.ts
+- [[dot-markAllRead()_2]] - code - backend/src/modules/notifications/notifications.service.ts
+- [[dot-markRead()_2]] - code - backend/src/modules/notifications/notifications.controller.ts
+- [[dot-markRead()_3]] - code - backend/src/modules/notifications/notifications.service.ts
+- [[dot-overview()_1]] - code - backend/src/modules/warehouse-workflow/analytics-overview.controller.ts
+- [[dot-processBulk()]] - code - backend/src/modules/outbound/outbound-bulk.service.ts
+- [[dot-quickDirected()]] - code - backend/src/modules/outbound/outbound.controller.ts
+- [[dot-remove()_4]] - code - backend/src/modules/outbound/outbound.controller.ts
+- [[dot-requireActiveTenant()]] - code - backend/src/common/company-access/company-access.service.ts
+- [[dot-runIdsAction()]] - code - backend/src/modules/outbound/outbound-bulk.service.ts
+- [[dot-saveShippingDetails()]] - code - backend/src/modules/outbound/outbound.controller.ts
+- [[dot-scopeWhere()_1]] - code - backend/src/modules/notifications/notifications.service.ts
+- [[dot-selectShippingMethod()]] - code - backend/src/modules/outbound/outbound.controller.ts
+- [[dot-sendShippingDetails()_1]] - code - backend/src/modules/outbound/outbound.controller.ts
+- [[dot-shippingDetailsBulk()]] - code - backend/src/modules/outbound/outbound-bulk.service.ts
+- [[dot-shippingDetailsPreview()]] - code - backend/src/modules/outbound/outbound-bulk.service.ts
+- [[dot-updatePlan()_3]] - code - backend/src/modules/outbound/outbound.controller.ts
+- [[dot-validateImport()_5]] - code - backend/src/modules/outbound/outbound.controller.ts
+- [[ArrayMaxSize_9]] - code
+- [[ArrayMinSize_16]] - code
+- [[AuthPrincipal]] - code - backend/src/common/auth/current-user.types.ts
+- [[Body_14]] - code
+- [[Body_15]] - code
+- [[BulkOutboundIdsDto]] - code - backend/src/modules/outbound/dto/bulk-outbound.dto.ts
+- [[BulkProcessOutboundDto]] - code - backend/src/modules/outbound/dto/bulk-outbound.dto.ts
+- [[BulkShippingDetailsDto]] - code - backend/src/modules/outbound/dto/bulk-outbound.dto.ts
+- [[Controller_24]] - code
+- [[Controller_25]] - code
+- [[Controller_26]] - code
+- [[Delete_6]] - code
+- [[Get_20]] - code
+- [[Get_21]] - code
+- [[Get_22]] - code
+- [[Get_23]] - code
+- [[Header_5]] - code
+- [[Injectable_71]] - code
+- [[IsArray_19]] - code
+- [[NotificationsController]] - code - backend/src/modules/notifications/notifications.controller.ts
+- [[OutboundBulkService]] - code - backend/src/modules/outbound/outbound-bulk.service.ts
+- [[OutboundController]] - code - backend/src/modules/outbound/outbound.controller.ts
+- [[Param_15]] - code
+- [[Param_16]] - code
+- [[Param_17]] - code
+- [[Patch_10]] - code
+- [[Patch_11]] - code
+- [[Post_15]] - code
+- [[Post_16]] - code
+- [[Post_17]] - code
+- [[Query_17]] - code
+- [[Query_18]] - code
+- [[Query_19]] - code
+- [[Query_20]] - code
+- [[Res_9]] - code
+- [[Throttle_4]] - code
+- [[Type_25]] - code
+- [[UploadedFile_5]] - code
+- [[UseGuards_17]] - code
+- [[UseGuards_18]] - code
+- [[UseInterceptors_5]] - code
+- [[ValidateNested_10]] - code
+- [[WorkflowWorkersController]] - code - backend/src/modules/warehouse-workflow/workflow-workers.controller.ts
+- [[toDto()_1]] - code - backend/src/modules/notifications/notifications.service.ts
+
+## Live Query (requires Dataview plugin)
+
+```dataview
+TABLE source_file, type FROM #community/AuthPrincipal
+SORT file.name ASC
+```
+
+## Connections to other communities
+- 102 edges to [[_COMMUNITY_CurrentUser]]
+- 89 edges to [[_COMMUNITY_withTenantRls]]
+- 72 edges to [[_COMMUNITY_@prismaclient]]
+- 53 edges to [[_COMMUNITY_RunReportQueryDto]]
+- 52 edges to [[_COMMUNITY_BillingController]]
+- 47 edges to [[_COMMUNITY_dot-validateResourceOwnership]]
+- 46 edges to [[_COMMUNITY_WarehouseTasksService]]
+- 40 edges to [[_COMMUNITY_CycleCountService]]
+- 39 edges to [[_COMMUNITY_dot-fromPrincipal]]
+- 33 edges to [[_COMMUNITY_@nestjscommon]]
+- 29 edges to [[_COMMUNITY_dot-assertCompanyAccess]]
+- 22 edges to [[_COMMUNITY_warehouse-tasks.service.ts]]
+- 19 edges to [[_COMMUNITY_CodController]]
+- 19 edges to [[_COMMUNITY_OmsBatchMembershipDto]]
+- 18 edges to [[_COMMUNITY_inbound-orders-csv.service.ts]]
+- 17 edges to [[_COMMUNITY_ReturnsService]]
+- 15 edges to [[_COMMUNITY_CycleCountExecutionService]]
+- 15 edges to [[_COMMUNITY_InboundController]]
+- 12 edges to [[_COMMUNITY_documents.controller.ts]]
+- 12 edges to [[_COMMUNITY_AuditLogsService]]
+- 11 edges to [[_COMMUNITY_ProductsController]]
+- 11 edges to [[_COMMUNITY_UsersService]]
+- 10 edges to [[_COMMUNITY_AuditLogService]]
+- 10 edges to [[_COMMUNITY_oms-client-import.service.ts]]
+- 10 edges to [[_COMMUNITY_inventory.service.ts]]
+- 10 edges to [[_COMMUNITY_BillingInvoiceCalculationService]]
+- 9 edges to [[_COMMUNITY_outbound.service.ts]]
+- 9 edges to [[_COMMUNITY_AdjustmentsController]]
+- 9 edges to [[_COMMUNITY_ProductsService]]
+- 9 edges to [[_COMMUNITY_UsersController]]
+- 8 edges to [[_COMMUNITY_outbound-orders-csv.service.ts]]
+- 8 edges to [[_COMMUNITY_returns.service.ts]]
+- 8 edges to [[_COMMUNITY_CreateFinalContractDto]]
+- 8 edges to [[_COMMUNITY_WarehousesService]]
+- 7 edges to [[_COMMUNITY_NotificationsService]]
+- 7 edges to [[_COMMUNITY_class-validator]]
+- 7 edges to [[_COMMUNITY_oms-instruction-pdf.service.ts]]
+- 6 edges to [[_COMMUNITY_warehouse-tasks.controller.ts]]
+- 6 edges to [[_COMMUNITY_cycle-count.service.ts]]
+- 6 edges to [[_COMMUNITY_AuthController]]
+- 6 edges to [[_COMMUNITY_ListFinancialTransactionsQueryDto]]
+- 6 edges to [[_COMMUNITY_FinancialController]]
+- 5 edges to [[_COMMUNITY_ListOutboundQueryDto]]
+- 5 edges to [[_COMMUNITY_client-financial.controller.ts]]
+- 5 edges to [[_COMMUNITY_oms-waybill.service.ts]]
+- 5 edges to [[_COMMUNITY_OmsShippingScanService]]
+- 4 edges to [[_COMMUNITY_app.module.ts]]
+- 4 edges to [[_COMMUNITY_dashboard.service.ts]]
+- 4 edges to [[_COMMUNITY_runAcceptanceTests]]
+- 4 edges to [[_COMMUNITY_CreateLeadFormDto]]
+- 4 edges to [[_COMMUNITY_ShippingController]]
+- 3 edges to [[_COMMUNITY_oms-sales-channel.service.ts]]
+- 3 edges to [[_COMMUNITY_reports-framework.service.ts]]
+- 3 edges to [[_COMMUNITY_userRoleToAuthGroup]]
+- 3 edges to [[_COMMUNITY_ClientBillingService]]
+- 3 edges to [[_COMMUNITY_cod-export.util.ts]]
+- 3 edges to [[_COMMUNITY_EncryptionService]]
+- 2 edges to [[_COMMUNITY_UpdateShippingDetailsDto]]
+- 2 edges to [[_COMMUNITY_rbac-policy.ts]]
+- 2 edges to [[_COMMUNITY_financial.controller.ts]]
+- 2 edges to [[_COMMUNITY_inventory-consistency.service.ts]]
+- 2 edges to [[_COMMUNITY_oms-bulk.service.ts]]
+- 2 edges to [[_COMMUNITY_shipping-tracking.service.ts]]
+- 2 edges to [[_COMMUNITY_returns.controller.ts]]
+- 2 edges to [[_COMMUNITY_ListAdjustmentsQueryDto]]
+- 2 edges to [[_COMMUNITY_task-inventory-effects.service.ts]]
+- 2 edges to [[_COMMUNITY_MediaStorageService]]
+- 2 edges to [[_COMMUNITY_CodRecordsService]]
+- 2 edges to [[_COMMUNITY_ClientPrincipal]]
+- 2 edges to [[_COMMUNITY_shipping.service.ts]]
+- 2 edges to [[_COMMUNITY_product-delete-references.util.ts]]
+- 2 edges to [[_COMMUNITY_grn-pdf.service.ts]]
+- 2 edges to [[_COMMUNITY_ClientNotificationsService]]
+- 1 edge to [[_COMMUNITY_QuoteFingerprintDto]]
+- 1 edge to [[_COMMUNITY_CreateOutboundOrderDto]]
+- 1 edge to [[_COMMUNITY_reliability-test-helpers.ts]]
+- 1 edge to [[_COMMUNITY_observability.service.ts]]
+- 1 edge to [[_COMMUNITY_shipping.controller.ts]]
+- 1 edge to [[_COMMUNITY_AuthService]]
+- 1 edge to [[_COMMUNITY_GoogleOAuthService]]
+- 1 edge to [[_COMMUNITY_CreateOmsSalesChannelDto]]
+- 1 edge to [[_COMMUNITY_shipping-fx.service.ts]]
+- 1 edge to [[_COMMUNITY_shipping-fee.service.ts]]
+- 1 edge to [[_COMMUNITY_BulkProcessOutboundItemDto]]
+- 1 edge to [[_COMMUNITY_CreateOmsOrderDto]]
+
+## Top bridge nodes
+- [[AuthPrincipal]] - degree 955, connects to 78 communities
+- [[dot-list()_23]] - degree 11, connects to 5 communities
+- [[dot-buildListWhere()_1]] - degree 7, connects to 5 communities
+- [[OutboundBulkService]] - degree 18, connects to 4 communities
+- [[OutboundController]] - degree 34, connects to 3 communities

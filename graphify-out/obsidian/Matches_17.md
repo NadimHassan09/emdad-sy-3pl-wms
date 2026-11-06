@@ -1,0 +1,16 @@
+---
+source_file: ""
+type: "code"
+community: "ListAdjustmentsQueryDto"
+tags:
+  - graphify/code
+  - graphify/EXTRACTED
+  - community/ListAdjustmentsQueryDto
+---
+
+# Matches
+
+## Connections
+- [[ListAdjustmentsQueryDto]] - `references` [EXTRACTED]
+
+#graphify/code #graphify/EXTRACTED #community/ListAdjustmentsQueryDto

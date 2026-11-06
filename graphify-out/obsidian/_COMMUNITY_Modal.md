@@ -1,0 +1,213 @@
+---
+type: community
+cohesion: 0.02
+members: 154
+---
+
+# Modal
+
+**Cohesion:** 0.02 - loosely connected
+**Members:** 154 nodes
+
+## Members
+- [[ArchiveButton()]] - code - frontend/src/components/clients/CustomerLifecycleModal.tsx
+- [[BarcodeImageModal.tsx]] - code - frontend/src/components/BarcodeImageModal.tsx
+- [[BarcodeImageModalProps]] - code - frontend/src/components/BarcodeImageModal.tsx
+- [[BulkShippingProcessingModal()]] - code - frontend/src/components/shipping/BulkShippingProcessingModal.tsx
+- [[BulkShippingProcessingModal.tsx]] - code - frontend/src/components/shipping/BulkShippingProcessingModal.tsx
+- [[ButtonProps]] - code - frontend/src/components/Button.tsx
+- [[COUNTRIES]] - code - frontend/src/lib/geography.ts
+- [[CancelButtonVariant]] - code - frontend/src/components/ConfirmModal.tsx
+- [[ClientSummary]] - code - frontend/src/components/inbound/InboundOrdersImportModal.tsx
+- [[ConfirmModal()]] - code - frontend/src/components/ConfirmModal.tsx
+- [[ConfirmModal.tsx]] - code - frontend/src/components/ConfirmModal.tsx
+- [[ConfirmModalProps]] - code - frontend/src/components/ConfirmModal.tsx
+- [[ConfirmReturnByScanModal()]] - code - frontend/src/components/ConfirmReturnByScanModal.tsx
+- [[ConfirmReturnByScanModal.tsx]] - code - frontend/src/components/ConfirmReturnByScanModal.tsx
+- [[ConfirmReturnByScanModalProps]] - code - frontend/src/components/ConfirmReturnByScanModal.tsx
+- [[ContractCatalogRow]] - code - frontend/src/api/documents.ts
+- [[ContractGenerationFilter]] - code - frontend/src/api/documents.ts
+- [[ContractGenerationStatus]] - code - frontend/src/api/documents.ts
+- [[ContractLangSlot]] - code - frontend/src/api/documents.ts
+- [[ContractLangSlot_1]] - code - frontend/src/api/final-contracts.ts
+- [[CountryOption]] - code - frontend/src/lib/geography.ts
+- [[CreateFinalContractInput]] - code - frontend/src/api/final-contracts.ts
+- [[CreateFinalContractModal.tsx]] - code - frontend/src/components/final-contracts/CreateFinalContractModal.tsx
+- [[CreateOmsReturnModal()]] - code - frontend/src/components/oms/CreateOmsReturnModal.tsx
+- [[CreateOmsReturnModal.tsx]] - code - frontend/src/components/oms/CreateOmsReturnModal.tsx
+- [[CreateWarehouseInput]] - code - frontend/src/api/warehouses.ts
+- [[CreateWarehouseModal()]] - code - frontend/src/pages/WarehousesPage.tsx
+- [[CreateWarehouseModalProps]] - code - frontend/src/pages/WarehousesPage.tsx
+- [[CustomerLifecycleModal()]] - code - frontend/src/components/clients/CustomerLifecycleModal.tsx
+- [[CustomerLifecycleModal.tsx]] - code - frontend/src/components/clients/CustomerLifecycleModal.tsx
+- [[DEFAULT_RATES]] - code - frontend/src/components/final-contracts/CreateFinalContractModal.tsx
+- [[DISCRETE_UOMS]] - code - frontend/src/components/oms/CreateOmsReturnModal.tsx
+- [[DetailRow()]] - code - frontend/src/pages/forms/FormsPage.tsx
+- [[DocumentLang]] - code - frontend/src/api/documents.ts
+- [[DocumentMeta]] - code - frontend/src/api/documents.ts
+- [[DocumentReferenceType]] - code - frontend/src/api/documents.ts
+- [[DocumentSlotFields]] - code - frontend/src/api/documents.ts
+- [[DocumentType]] - code - frontend/src/api/documents.ts
+- [[DocumentsApi]] - code - frontend/src/api/documents.ts
+- [[EMPTY]] - code - frontend/src/components/documents/EditDocumentSlotModal.tsx
+- [[EditDocumentSlotModal()]] - code - frontend/src/components/documents/EditDocumentSlotModal.tsx
+- [[EditDocumentSlotModal.tsx]] - code - frontend/src/components/documents/EditDocumentSlotModal.tsx
+- [[EditWarehouseModal()]] - code - frontend/src/pages/WarehousesPage.tsx
+- [[ExportFileFormat]] - code - frontend/src/components/oms/OmsOrdersExportModal.tsx
+- [[ExpressReturnModal()]] - code - frontend/src/components/oms/ExpressReturnModal.tsx
+- [[ExpressReturnModal.tsx]] - code - frontend/src/components/oms/ExpressReturnModal.tsx
+- [[ExpressReturnResult]] - code - frontend/src/components/oms/ExpressReturnModal.tsx
+- [[FilterCheckboxField()]] - code - frontend/src/components/FilterCheckboxField.tsx
+- [[FilterCheckboxField.tsx]] - code - frontend/src/components/FilterCheckboxField.tsx
+- [[FinalContractRow]] - code - frontend/src/api/final-contracts.ts
+- [[FinalContractsApi]] - code - frontend/src/api/final-contracts.ts
+- [[FormsApi]] - code - frontend/src/api/forms.ts
+- [[FormsPage()]] - code - frontend/src/pages/forms/FormsPage.tsx
+- [[FormsPage.tsx]] - code - frontend/src/pages/forms/FormsPage.tsx
+- [[GeneratedDocument]] - code - frontend/src/api/documents.ts
+- [[INITIAL_FILTERS_3]] - code - frontend/src/pages/WarehousesPage.tsx
+- [[ImportErrorRow]] - code - frontend/src/components/oms/CreateOmsReturnModal.tsx
+- [[ImportErrorRow_1]] - code - frontend/src/components/oms/ExpressReturnModal.tsx
+- [[ImportResult]] - code - frontend/src/components/inbound/InboundOrdersImportModal.tsx
+- [[InboundOrdersImportModal()]] - code - frontend/src/components/inbound/InboundOrdersImportModal.tsx
+- [[InboundOrdersImportModal.tsx]] - code - frontend/src/components/inbound/InboundOrdersImportModal.tsx
+- [[LANGS]] - code - frontend/src/components/documents/TaskDocumentActions.tsx
+- [[LeadFormSubmission]] - code - frontend/src/api/forms.ts
+- [[LifecycleAction]] - code - frontend/src/components/clients/CustomerLifecycleModal.tsx
+- [[ListContractsParams]] - code - frontend/src/api/documents.ts
+- [[ListFilters_2]] - code - frontend/src/pages/WarehousesPage.tsx
+- [[ListFinalContractsParams]] - code - frontend/src/api/final-contracts.ts
+- [[ListLeadFormsQuery]] - code - frontend/src/api/forms.ts
+- [[Modal()]] - code - frontend/src/components/Modal.tsx
+- [[ModalProps]] - code - frontend/src/components/Modal.tsx
+- [[OTHER_COUNTRY]] - code - frontend/src/lib/geography.ts
+- [[OmsConfirmReturnByScanResponse]] - code - frontend/src/api/oms.ts
+- [[OmsExportColumnOption]] - code - frontend/src/components/oms/OmsOrdersExportModal.tsx
+- [[OmsExportHeaderLang]] - code - frontend/src/components/oms/OmsOrdersExportModal.tsx
+- [[OmsOrderScanSearchModal()]] - code - frontend/src/components/oms/OmsOrderScanSearchModal.tsx
+- [[OmsOrderScanSearchModal.tsx]] - code - frontend/src/components/oms/OmsOrderScanSearchModal.tsx
+- [[OmsOrderScanSearchModalProps]] - code - frontend/src/components/oms/OmsOrderScanSearchModal.tsx
+- [[OmsOrdersExportModal.tsx]] - code - frontend/src/components/oms/OmsOrdersExportModal.tsx
+- [[OmsReturnsApi]] - code - frontend/src/api/oms.ts
+- [[OmsScanResult]] - code - frontend/src/components/oms/OmsOrderScanSearchModal.tsx
+- [[OrderBlock]] - code - frontend/src/components/oms/CreateOmsReturnModal.tsx
+- [[OrderInput]] - code - frontend/src/components/oms/ExpressReturnModal.tsx
+- [[PreviewLine]] - code - frontend/src/components/oms/CreateOmsReturnModal.tsx
+- [[ProductSpecsValidationModal()]] - code - frontend/src/pages/tasks/receiving/ProductSpecsValidationModal.tsx
+- [[ProductSpecsValidationModal.tsx]] - code - frontend/src/pages/tasks/receiving/ProductSpecsValidationModal.tsx
+- [[Props_10]] - code - frontend/src/components/documents/EditDocumentSlotModal.tsx
+- [[Props_11]] - code - frontend/src/components/documents/OrderDocumentsCard.tsx
+- [[Props_12]] - code - frontend/src/components/documents/TaskDocumentActions.tsx
+- [[Props_13]] - code - frontend/src/components/final-contracts/CreateFinalContractModal.tsx
+- [[Props_14]] - code - frontend/src/components/inbound/InboundOrdersImportModal.tsx
+- [[Props_15]] - code - frontend/src/components/oms/CreateOmsReturnModal.tsx
+- [[Props_16]] - code - frontend/src/components/oms/ExpressReturnModal.tsx
+- [[Props_17]] - code - frontend/src/components/oms/OmsOrdersExportModal.tsx
+- [[Props_18]] - code - frontend/src/components/shipping/BulkShippingProcessingModal.tsx
+- [[Props_19]] - code - frontend/src/pages/tasks/receiving/ProductSpecsValidationModal.tsx
+- [[ResultsStep()]] - code - frontend/src/components/shipping/BulkShippingProcessingModal.tsx
+- [[ReviewRow()]] - code - frontend/src/components/shipping/BulkShippingProcessingModal.tsx
+- [[ReviewStep()]] - code - frontend/src/components/shipping/BulkShippingProcessingModal.tsx
+- [[SUPPORTED_FORMATS]] - code - frontend/src/components/oms/OmsOrderScanSearchModal.tsx
+- [[SUPPORTED_SCAN_FORMATS]] - code - frontend/src/components/ConfirmReturnByScanModal.tsx
+- [[ScannedItemLog]] - code - frontend/src/components/ConfirmReturnByScanModal.tsx
+- [[Size]] - code - frontend/src/components/Button.tsx
+- [[SpecField]] - code - frontend/src/pages/tasks/receiving/ProductSpecsValidationModal.tsx
+- [[Stat()]] - code - frontend/src/components/clients/CustomerLifecycleModal.tsx
+- [[StatusFilter_1]] - code - frontend/src/pages/WarehousesPage.tsx
+- [[Step]] - code - frontend/src/components/shipping/BulkShippingProcessingModal.tsx
+- [[TaskDocumentActions.tsx]] - code - frontend/src/components/documents/TaskDocumentActions.tsx
+- [[UpdateWarehouseInput]] - code - frontend/src/api/warehouses.ts
+- [[VARIANT_MAP]] - code - frontend/src/components/Button.tsx
+- [[ValidatedOrder]] - code - frontend/src/components/oms/ExpressReturnModal.tsx
+- [[Variant]] - code - frontend/src/components/Button.tsx
+- [[WarehouseStatus]] - code - frontend/src/api/warehouses.ts
+- [[WarehousesApi]] - code - frontend/src/api/warehouses.ts
+- [[WarehousesPage]] - code - frontend/src/router.tsx
+- [[WarehousesPage()]] - code - frontend/src/pages/WarehousesPage.tsx
+- [[WarehousesPage.tsx]] - code - frontend/src/pages/WarehousesPage.tsx
+- [[api]] - code - frontend/src/api/client.ts
+- [[componentsButton.tsx]] - code - frontend/src/components/Button.tsx
+- [[componentsModal.tsx]] - code - frontend/src/components/Modal.tsx
+- [[cssVar()]] - code - frontend/src/components/BarcodeImageModal.tsx
+- [[csvEscape()]] - code - frontend/src/components/oms/CreateOmsReturnModal.tsx
+- [[csvEscape()_1]] - code - frontend/src/components/oms/ExpressReturnModal.tsx
+- [[dedupeInputs()]] - code - frontend/src/components/oms/ExpressReturnModal.tsx
+- [[documents.ts]] - code - frontend/src/api/documents.ts
+- [[downloadText()]] - code - frontend/src/components/inbound/InboundOrdersImportModal.tsx
+- [[downloadText()_1]] - code - frontend/src/components/oms/CreateOmsReturnModal.tsx
+- [[downloadText()_2]] - code - frontend/src/components/oms/ExpressReturnModal.tsx
+- [[emptyBlock()]] - code - frontend/src/components/oms/CreateOmsReturnModal.tsx
+- [[errorsToCsv()]] - code - frontend/src/components/inbound/InboundOrdersImportModal.tsx
+- [[errorsToCsv()_1]] - code - frontend/src/components/oms/CreateOmsReturnModal.tsx
+- [[errorsToCsv()_2]] - code - frontend/src/components/oms/ExpressReturnModal.tsx
+- [[filterWarehouses()_1]] - code - frontend/src/pages/WarehousesPage.tsx
+- [[final-contracts.ts]] - code - frontend/src/api/final-contracts.ts
+- [[fmtMoney()_1]] - code - frontend/src/components/shipping/BulkShippingProcessingModal.tsx
+- [[formatDateTime()]] - code - frontend/src/pages/forms/FormsPage.tsx
+- [[forms.ts]] - code - frontend/src/api/forms.ts
+- [[geography.ts]] - code - frontend/src/lib/geography.ts
+- [[handleSubmit()_2]] - code - frontend/src/components/documents/EditDocumentSlotModal.tsx
+- [[html5-qrcode]] - concept - frontend/package.json
+- [[isDiscreteUom()]] - code - frontend/src/components/oms/CreateOmsReturnModal.tsx
+- [[makeEmptyRow()]] - code - frontend/src/components/oms/ExpressReturnModal.tsx
+- [[nextKey()]] - code - frontend/src/components/oms/CreateOmsReturnModal.tsx
+- [[nextKey()_1]] - code - frontend/src/components/oms/ExpressReturnModal.tsx
+- [[parseCSV()]] - code - frontend/src/components/oms/ExpressReturnModal.tsx
+- [[parseNormalReturnCsv()]] - code - frontend/src/components/oms/CreateOmsReturnModal.tsx
+- [[parsePackedShipmentError()]] - code - frontend/src/components/shipping/ShipmentErrorActions.tsx
+- [[playFeedbackSound()]] - code - frontend/src/components/ConfirmReturnByScanModal.tsx
+- [[playSuccessChime()]] - code - frontend/src/components/oms/OmsOrderScanSearchModal.tsx
+- [[ref_jsbarcode]] - concept
+- [[setField()]] - code - frontend/src/components/documents/EditDocumentSlotModal.tsx
+- [[t()]] - code - frontend/src/components/clients/CustomerLifecycleModal.tsx
+- [[useIsArabic()_1]] - code - frontend/src/components/documents/TaskDocumentActions.tsx
+- [[useWarehouseLabel.ts]] - code - frontend/src/hooks/useWarehouseLabel.ts
+- [[warehouses.ts]] - code - frontend/src/api/warehouses.ts
+
+## Live Query (requires Dataview plugin)
+
+```dataview
+TABLE source_file, type FROM #community/Modal
+SORT file.name ASC
+```
+
+## Connections to other communities
+- 176 edges to [[_COMMUNITY_TextField]]
+- 84 edges to [[_COMMUNITY_ref_tanstack_react_query]]
+- 55 edges to [[_COMMUNITY_query-keys.ts]]
+- 53 edges to [[_COMMUNITY_OmsOrdersListPage.tsx]]
+- 47 edges to [[_COMMUNITY_useToast]]
+- 36 edges to [[_COMMUNITY_useWmsTranslation]]
+- 36 edges to [[_COMMUNITY_design-system-nextuiindex.ts]]
+- 23 edges to [[_COMMUNITY_router.tsx]]
+- 15 edges to [[_COMMUNITY_OmsOrderCreatePage.tsx]]
+- 12 edges to [[_COMMUNITY_ReturnProcessPage.tsx]]
+- 10 edges to [[_COMMUNITY_UsersPage.tsx]]
+- 9 edges to [[_COMMUNITY_ReceivingExecutionPanel.tsx]]
+- 6 edges to [[_COMMUNITY_carrier-shipping-form.ts]]
+- 6 edges to [[_COMMUNITY_client.ts]]
+- 5 edges to [[_COMMUNITY_shipping.ts]]
+- 5 edges to [[_COMMUNITY_outbound.ts]]
+- 5 edges to [[_COMMUNITY_AdjustmentDetailPage.tsx]]
+- 5 edges to [[_COMMUNITY_OmsBulkShippingDetailsModal]]
+- 4 edges to [[_COMMUNITY_DashboardOverviewPage.tsx]]
+- 4 edges to [[_COMMUNITY_AuditLogDetailModal.tsx]]
+- 3 edges to [[_COMMUNITY_OmsBulkShippingDetailsModal.tsx]]
+- 2 edges to [[_COMMUNITY_EcommerceOrdersPage.tsx]]
+- 2 edges to [[_COMMUNITY_notificationsNotificationsPage.tsx]]
+- 2 edges to [[_COMMUNITY_frontendpackage.json]]
+- 1 edge to [[_COMMUNITY_cn]]
+- 1 edge to [[_COMMUNITY_audit-logs.ts]]
+- 1 edge to [[_COMMUNITY_backups.ts]]
+- 1 edge to [[_COMMUNITY_OrderProgressGaugeCard.tsx]]
+- 1 edge to [[_COMMUNITY_useReportFramework.ts]]
+- 1 edge to [[_COMMUNITY_master-data-cache.ts]]
+- 1 edge to [[_COMMUNITY_BackupHistoryPage.tsx]]
+
+## Top bridge nodes
+- [[componentsButton.tsx]] - degree 92, connects to 20 communities
+- [[api]] - degree 30, connects to 19 communities
+- [[Modal()]] - degree 97, connects to 13 communities
+- [[componentsModal.tsx]] - degree 51, connects to 13 communities
+- [[FormsPage.tsx]] - degree 47, connects to 9 communities

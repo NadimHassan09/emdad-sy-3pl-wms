@@ -1,0 +1,85 @@
+---
+source_file: "backend/src/modules/realtime/realtime.service.ts"
+type: "code"
+community: "RealtimeService"
+location: "L1"
+tags:
+  - graphify/code
+  - graphify/EXTRACTED
+  - community/RealtimeService
+---
+
+# realtime.service.ts
+
+## Connections
+- [[@nestjscommon]] - `imports_from` [EXTRACTED]
+- [[INTERNAL_MASTER_DATA_ROOM]] - `imports` [EXTRACTED]
+- [[MutationBusService]] - `imports` [EXTRACTED]
+- [[MutationQueueService]] - `imports` [EXTRACTED]
+- [[PrismaService]] - `imports` [EXTRACTED]
+- [[RealtimeEventName]] - `imports` [EXTRACTED]
+- [[RealtimeEvents_1]] - `imports` [EXTRACTED]
+- [[RealtimeService]] - `contains` [EXTRACTED]
+- [[RealtimeSyncModeService]] - `imports` [EXTRACTED]
+- [[UserListRealtimePayload]] - `imports` [EXTRACTED]
+- [[adjustments.service.ts]] - `imports_from` [EXTRACTED]
+- [[audit-log.service.ts]] - `imports_from` [EXTRACTED]
+- [[audit-mutations.integration.ts]] - `imports_from` [EXTRACTED]
+- [[auth.service.ts]] - `imports_from` [EXTRACTED]
+- [[billing-cycle-processor.service.ts]] - `imports_from` [EXTRACTED]
+- [[billing-invoices.service.ts]] - `imports_from` [EXTRACTED]
+- [[billing-notifications.service.ts]] - `imports_from` [EXTRACTED]
+- [[billing-plans.service.ts]] - `imports_from` [EXTRACTED]
+- [[buildTaskListPayload()]] - `imports` [EXTRACTED]
+- [[bulk-shipping.service.ts]] - `imports_from` [EXTRACTED]
+- [[client-notifications.service.ts]] - `imports_from` [EXTRACTED]
+- [[cod-records.service.ts]] - `imports_from` [EXTRACTED]
+- [[companyRoomName()]] - `imports` [EXTRACTED]
+- [[customer-lifecycle.service.ts]] - `imports_from` [EXTRACTED]
+- [[cycle-count-variance.service.ts]] - `imports_from` [EXTRACTED]
+- [[cycle-count.service.ts]] - `imports_from` [EXTRACTED]
+- [[dashboard-realtime.service.ts]] - `imports_from` [EXTRACTED]
+- [[dn-pdf.service.ts]] - `imports_from` [EXTRACTED]
+- [[document-slot-overrides.service.ts]] - `imports_from` [EXTRACTED]
+- [[final-contract-pdf.service.ts]] - `imports_from` [EXTRACTED]
+- [[final-contracts.service.ts]] - `imports_from` [EXTRACTED]
+- [[forms.service.ts]] - `imports_from` [EXTRACTED]
+- [[grn-pdf.service.ts]] - `imports_from` [EXTRACTED]
+- [[inbound.service.ts]] - `imports_from` [EXTRACTED]
+- [[inventory.service.ts]] - `imports_from` [EXTRACTED]
+- [[locations.service.ts]] - `imports_from` [EXTRACTED]
+- [[locations.service.unit.spec.ts]] - `imports_from` [EXTRACTED]
+- [[mutation-bus.service.ts]] - `imports_from` [EXTRACTED]
+- [[mutation-queue.service.ts]] - `imports_from` [EXTRACTED]
+- [[normalizeCompanyId()]] - `imports` [EXTRACTED]
+- [[notifications.service.ts]] - `imports_from` [EXTRACTED]
+- [[observability.service.ts]] - `imports_from` [EXTRACTED]
+- [[oms-orders.service.ts]] - `imports_from` [EXTRACTED]
+- [[oms-outbound-sync.service.ts]] - `imports_from` [EXTRACTED]
+- [[oms-returns.service.ts]] - `imports_from` [EXTRACTED]
+- [[outbound.service.ts]] - `imports_from` [EXTRACTED]
+- [[presence.service.ts]] - `imports_from` [EXTRACTED]
+- [[prisma.service.ts]] - `imports_from` [EXTRACTED]
+- [[products-barcode.integration.ts]] - `imports_from` [EXTRACTED]
+- [[products.service.ts]] - `imports_from` [EXTRACTED]
+- [[realtime-master-data.payload.ts]] - `imports_from` [EXTRACTED]
+- [[realtime-socket-auth.ts]] - `imports_from` [EXTRACTED]
+- [[realtime-sync-mode.service.ts]] - `imports_from` [EXTRACTED]
+- [[realtime-task.payload.ts]] - `imports_from` [EXTRACTED]
+- [[realtime.events.ts]] - `imports_from` [EXTRACTED]
+- [[realtime.gateway.ts]] - `imports_from` [EXTRACTED]
+- [[realtime.module.ts]] - `imports_from` [EXTRACTED]
+- [[reliability-test-helpers.ts]] - `imports_from` [EXTRACTED]
+- [[return-workflow.service.ts]] - `imports_from` [EXTRACTED]
+- [[returns.service.ts]] - `imports_from` [EXTRACTED]
+- [[shipping-auto-return.service.ts]] - `imports_from` [EXTRACTED]
+- [[shipping-tracking.service.ts]] - `imports_from` [EXTRACTED]
+- [[shipping.service.ts]] - `imports_from` [EXTRACTED]
+- [[socket.io]] - `imports_from` [EXTRACTED]
+- [[userRoomName()]] - `imports` [EXTRACTED]
+- [[users.service.ts]] - `imports_from` [EXTRACTED]
+- [[warehouse-tasks.service.ts]] - `imports_from` [EXTRACTED]
+- [[warehouses.service.ts]] - `imports_from` [EXTRACTED]
+- [[warehouses.service.unit.spec.ts]] - `imports_from` [EXTRACTED]
+
+#graphify/code #graphify/EXTRACTED #community/RealtimeService

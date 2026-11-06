@@ -1,0 +1,87 @@
+---
+source_file: "shared/design-system-next/ui/SelectField.tsx"
+type: "code"
+community: "TextField"
+location: "L24"
+tags:
+  - graphify/code
+  - graphify/EXTRACTED
+  - community/TextField
+---
+
+# SelectField
+
+## Connections
+- [[AddAdjustmentLineForm()]] - `calls` [EXTRACTED]
+- [[AddAdjustmentLineForm.tsx]] - `imports` [EXTRACTED]
+- [[AuditLogsPage()]] - `calls` [EXTRACTED]
+- [[AuditLogsPage.tsx]] - `imports` [EXTRACTED]
+- [[BillingInvoiceDetailPage()]] - `calls` [EXTRACTED]
+- [[BillingInvoicesPage()]] - `calls` [EXTRACTED]
+- [[BillingInvoicesPage.tsx]] - `imports` [EXTRACTED]
+- [[BillingPlanCreatePage()]] - `calls` [EXTRACTED]
+- [[BillingPlanCreatePage.tsx]] - `imports` [EXTRACTED]
+- [[BillingPlanEditPage()]] - `calls` [EXTRACTED]
+- [[BillingPlanEditPage.tsx]] - `imports` [EXTRACTED]
+- [[ClientsPage()]] - `calls` [EXTRACTED]
+- [[ClientsPage.tsx]] - `imports` [EXTRACTED]
+- [[ContractsPage()]] - `calls` [EXTRACTED]
+- [[ContractsPage.tsx]] - `imports` [EXTRACTED]
+- [[CreateEcommerceOrderPage()]] - `calls` [EXTRACTED]
+- [[CreateEcommerceOrderPage.tsx]] - `imports` [EXTRACTED]
+- [[CreateInternalTransferModal()]] - `calls` [EXTRACTED]
+- [[CreateLocationModal()]] - `calls` [EXTRACTED]
+- [[CreateProductModal()]] - `calls` [EXTRACTED]
+- [[CreateQuickDirectedOutboundModal()]] - `calls` [EXTRACTED]
+- [[CreateQuickDirectedOutboundModal.tsx]] - `imports` [EXTRACTED]
+- [[CreateWarehouseModal()]] - `calls` [EXTRACTED]
+- [[CycleCountDetailPage()]] - `calls` [EXTRACTED]
+- [[CycleCountDetailPage.tsx]] - `imports` [EXTRACTED]
+- [[CycleCountListPage()]] - `calls` [EXTRACTED]
+- [[CycleCountListPage.tsx]] - `imports` [EXTRACTED]
+- [[EditLocationModal()]] - `calls` [EXTRACTED]
+- [[EditProductModal()]] - `calls` [EXTRACTED]
+- [[FinalContractPage()]] - `calls` [EXTRACTED]
+- [[FinalContractPage.tsx]] - `imports` [EXTRACTED]
+- [[InternalTransferPage.tsx]] - `imports` [EXTRACTED]
+- [[InventoryLedgerPage()]] - `calls` [EXTRACTED]
+- [[InventoryLedgerPage.tsx]] - `imports` [EXTRACTED]
+- [[InventoryPage()]] - `calls` [EXTRACTED]
+- [[InventoryPage.tsx]] - `imports` [EXTRACTED]
+- [[InventoryProductDetailPage()]] - `calls` [EXTRACTED]
+- [[InventoryProductDetailPage.tsx]] - `imports` [EXTRACTED]
+- [[LocationsPage()]] - `calls` [EXTRACTED]
+- [[LocationsPage.tsx]] - `imports` [EXTRACTED]
+- [[OmsOrderCreatePage()]] - `calls` [EXTRACTED]
+- [[OmsOrderCreatePage.tsx]] - `imports` [EXTRACTED]
+- [[OmsOrderFormModal()]] - `calls` [EXTRACTED]
+- [[OmsOrderFormModal.tsx]] - `imports` [EXTRACTED]
+- [[OrderShippingFields()]] - `calls` [EXTRACTED]
+- [[OrderShippingFields.tsx]] - `imports` [EXTRACTED]
+- [[OrderShippingIntentFields()]] - `calls` [EXTRACTED]
+- [[OrderShippingIntentFields.tsx]] - `imports` [EXTRACTED]
+- [[QuickDirectedOutboundPage()]] - `calls` [EXTRACTED]
+- [[QuickDirectedOutboundPage.tsx]] - `imports` [EXTRACTED]
+- [[ReportFiltersPanel()]] - `calls` [EXTRACTED]
+- [[ReportFiltersPanel.tsx]] - `imports` [EXTRACTED]
+- [[ReturnProcessPage()]] - `calls` [EXTRACTED]
+- [[ReturnProcessPage.tsx]] - `imports` [EXTRACTED]
+- [[TaskLinesFilterCard()]] - `calls` [EXTRACTED]
+- [[TaskLinesFilterCard.tsx]] - `imports` [EXTRACTED]
+- [[TasksListPage()]] - `calls` [EXTRACTED]
+- [[TasksListPage.tsx]] - `imports` [EXTRACTED]
+- [[UsersPage.tsx]] - `imports` [EXTRACTED]
+- [[UsersPageContent()]] - `calls` [EXTRACTED]
+- [[WarehouseLocationsPage()]] - `calls` [EXTRACTED]
+- [[WarehouseLocationsPage.tsx]] - `imports` [EXTRACTED]
+- [[WarehousesPage()]] - `calls` [EXTRACTED]
+- [[WarehousesPage.tsx]] - `imports` [EXTRACTED]
+- [[WorkerProfilePanel()]] - `calls` [EXTRACTED]
+- [[WorkerProfilePanel.tsx]] - `imports` [EXTRACTED]
+- [[billingBillingInvoiceDetailPage.tsx]] - `imports` [EXTRACTED]
+- [[componentsSelectField.tsx]] - `re_exports` [EXTRACTED]
+- [[design-system-nextuiSelectField.tsx]] - `contains` [EXTRACTED]
+- [[design-system-nextuiindex.ts]] - `re_exports` [EXTRACTED]
+- [[frontendsrcpagesProductsPage.tsx]] - `imports` [EXTRACTED]
+
+#graphify/code #graphify/EXTRACTED #community/TextField

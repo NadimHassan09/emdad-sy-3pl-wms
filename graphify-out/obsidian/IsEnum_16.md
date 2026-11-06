@@ -1,0 +1,16 @@
+---
+source_file: ""
+type: "code"
+community: "UpdateProductDto"
+tags:
+  - graphify/code
+  - graphify/EXTRACTED
+  - community/UpdateProductDto
+---
+
+# IsEnum
+
+## Connections
+- [[UpdateProductDto]] - `references` [EXTRACTED]
+
+#graphify/code #graphify/EXTRACTED #community/UpdateProductDto

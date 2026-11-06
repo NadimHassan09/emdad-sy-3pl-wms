@@ -1,0 +1,291 @@
+---
+type: community
+cohesion: 0.02
+members: 232
+---
+
+# router.tsx
+
+**Cohesion:** 0.02 - loosely connected
+**Members:** 232 nodes
+
+## Members
+- [[AdjustmentsPage]] - code - frontend/src/router.tsx
+- [[AllocationReportPage]] - code - frontend/src/pages/reports/OmsReportPages.tsx
+- [[AllocationReportPage_1]] - code - frontend/src/router.tsx
+- [[AuditLogsPage]] - code - frontend/src/router.tsx
+- [[AuthApi]] - code - frontend/src/api/auth.ts
+- [[AuthContext]] - code - frontend/src/auth/AuthContext.tsx
+- [[AuthContextValue]] - code - frontend/src/auth/AuthContext.tsx
+- [[AuthUser]] - code - frontend/src/auth/AuthContext.tsx
+- [[BackupGoogleDrivePage]] - code - frontend/src/router.tsx
+- [[BackupGoogleDrivePage()]] - code - frontend/src/pages/settings/BackupGoogleDrivePage.tsx
+- [[BackupGoogleDrivePage.tsx]] - code - frontend/src/pages/settings/BackupGoogleDrivePage.tsx
+- [[BackupHealthPage]] - code - frontend/src/router.tsx
+- [[BackupHealthPage()]] - code - frontend/src/pages/settings/BackupHealthPage.tsx
+- [[BackupHealthPage.tsx]] - code - frontend/src/pages/settings/BackupHealthPage.tsx
+- [[BackupHealthSeverity]] - code - frontend/src/api/backups.ts
+- [[BackupHistoryPage]] - code - frontend/src/router.tsx
+- [[BackupOperationContext]] - code - frontend/src/context/BackupOperationContext.tsx
+- [[BackupOperationContext.tsx]] - code - frontend/src/context/BackupOperationContext.tsx
+- [[BackupOperationContextValue]] - code - frontend/src/context/BackupOperationContext.tsx
+- [[BackupOperationProvider()]] - code - frontend/src/context/BackupOperationContext.tsx
+- [[BackupRetentionPage]] - code - frontend/src/router.tsx
+- [[BackupRetentionPage()]] - code - frontend/src/pages/settings/BackupRetentionPage.tsx
+- [[BackupRetentionPage.tsx]] - code - frontend/src/pages/settings/BackupRetentionPage.tsx
+- [[BackupScheduleFrequency]] - code - frontend/src/lib/backup-schedule-display.ts
+- [[BackupScheduleLike]] - code - frontend/src/lib/backup-schedule-display.ts
+- [[BackupSchedulesPage]] - code - frontend/src/router.tsx
+- [[BackupSchedulesPage()]] - code - frontend/src/pages/settings/BackupSchedulesPage.tsx
+- [[BackupSchedulesPage.tsx]] - code - frontend/src/pages/settings/BackupSchedulesPage.tsx
+- [[BillingDashboardPage]] - code - frontend/src/router.tsx
+- [[BillingInvoiceDetailPage]] - code - frontend/src/router.tsx
+- [[BillingInvoicesPage]] - code - frontend/src/router.tsx
+- [[BillingPlanCreatePage]] - code - frontend/src/router.tsx
+- [[BillingPlanDetailPage]] - code - frontend/src/router.tsx
+- [[BillingPlanEditPage]] - code - frontend/src/router.tsx
+- [[BillingPlansPage]] - code - frontend/src/router.tsx
+- [[CATEGORIES]] - code - frontend/src/pages/shipping/ShippingFeeRatePage.tsx
+- [[CapacityUtilizationReportPage]] - code - frontend/src/pages/reports/InventoryIntelligenceReportPages.tsx
+- [[CapacityUtilizationReportPage_1]] - code - frontend/src/router.tsx
+- [[CarrierCostsPage]] - code - frontend/src/router.tsx
+- [[ClientAccountsPage]] - code - frontend/src/router.tsx
+- [[ClientsPage]] - code - frontend/src/router.tsx
+- [[CodFinancialPage]] - code - frontend/src/router.tsx
+- [[CodReportPage]] - code - frontend/src/pages/reports/OmsReportPages.tsx
+- [[CompanyDetailPage]] - code - frontend/src/router.tsx
+- [[ContractsPage]] - code - frontend/src/router.tsx
+- [[CycleCountDetailPage]] - code - frontend/src/router.tsx
+- [[CycleCountListPage]] - code - frontend/src/router.tsx
+- [[CycleCountMyTasksPage]] - code - frontend/src/router.tsx
+- [[DEFAULT_REPORT_PATH]] - code - frontend/src/lib/reports/report-catalog.ts
+- [[DashboardOverviewPage]] - code - frontend/src/router.tsx
+- [[DeliveryReportPage]] - code - frontend/src/pages/reports/OmsReportPages.tsx
+- [[DeliveryReportPage_1]] - code - frontend/src/router.tsx
+- [[DraftLocation]] - code - frontend/src/pages/shipping/ShippingFeeRatePage.tsx
+- [[DriveSyncStatusKey]] - code - frontend/src/pages/settings/BackupGoogleDrivePage.tsx
+- [[FeeConfig]] - code - frontend/src/pages/shipping/ShippingFeeRatePage.tsx
+- [[FeeGroup]] - code - frontend/src/pages/shipping/ShippingFeeRatePage.tsx
+- [[FeeLocation]] - code - frontend/src/pages/shipping/ShippingFeeRatePage.tsx
+- [[FinalContractPage]] - code - frontend/src/router.tsx
+- [[FinanceReportPages.tsx]] - code - frontend/src/pages/reports/FinanceReportPages.tsx
+- [[FinancialOverviewPage]] - code - frontend/src/router.tsx
+- [[FinancialSettingsPage]] - code - frontend/src/router.tsx
+- [[FinancialTransactionsPage]] - code - frontend/src/router.tsx
+- [[FormsPage]] - code - frontend/src/router.tsx
+- [[FxRateCard()]] - code - frontend/src/pages/shipping/ShippingCompaniesPage.tsx
+- [[GDRIVE_ALERT_CODES]] - code - frontend/src/pages/settings/BackupHealthPage.tsx
+- [[GROUP_COLORS]] - code - frontend/src/pages/shipping/ShippingFeeRatePage.tsx
+- [[InboundAccuracyReportPage]] - code - frontend/src/pages/reports/OperationalReportPages.tsx
+- [[InboundAccuracyReportPage_1]] - code - frontend/src/router.tsx
+- [[InboundDetailPage]] - code - frontend/src/router.tsx
+- [[InboundListPage]] - code - frontend/src/router.tsx
+- [[InternalTransferPage]] - code - frontend/src/router.tsx
+- [[InventoryIntelligenceReportPages.tsx]] - code - frontend/src/pages/reports/InventoryIntelligenceReportPages.tsx
+- [[InventoryLedgerReferencePage]] - code - frontend/src/router.tsx
+- [[InventoryPage]] - code - frontend/src/router.tsx
+- [[InventoryReportPage]] - code - frontend/src/router.tsx
+- [[InventoryReportPage()]] - code - frontend/src/pages/reports/InventoryReportPage.tsx
+- [[InventoryReportPage.tsx]] - code - frontend/src/pages/reports/InventoryReportPage.tsx
+- [[InventoryReservedReportPage]] - code - frontend/src/pages/reports/OmsReportPages.tsx
+- [[InventoryReservedReportPage_1]] - code - frontend/src/router.tsx
+- [[LocationsPage]] - code - frontend/src/router.tsx
+- [[LoginPage]] - code - frontend/src/router.tsx
+- [[LotExpiryReportPage]] - code - frontend/src/pages/reports/InventoryIntelligenceReportPages.tsx
+- [[LotExpiryReportPage_1]] - code - frontend/src/router.tsx
+- [[MerchantOrdersReportPage]] - code - frontend/src/pages/reports/OmsReportPages.tsx
+- [[MerchantOrdersReportPage_1]] - code - frontend/src/router.tsx
+- [[OmsBatchesPage]] - code - frontend/src/router.tsx
+- [[OmsCodPage]] - code - frontend/src/router.tsx
+- [[OmsOrderCreatePage]] - code - frontend/src/router.tsx
+- [[OmsOrdersListPage]] - code - frontend/src/router.tsx
+- [[OmsReportPages.tsx]] - code - frontend/src/pages/reports/OmsReportPages.tsx
+- [[OmsReturnsPage]] - code - frontend/src/router.tsx
+- [[OperationalReportPages.tsx]] - code - frontend/src/pages/reports/OperationalReportPages.tsx
+- [[OrderCycleTimeReportPage]] - code - frontend/src/pages/reports/OperationalReportPages.tsx
+- [[OrderCycleTimeReportPage_1]] - code - frontend/src/router.tsx
+- [[OutboundFillRateReportPage]] - code - frontend/src/pages/reports/OperationalReportPages.tsx
+- [[OutboundFillRateReportPage_1]] - code - frontend/src/router.tsx
+- [[OutboundListPage]] - code - frontend/src/router.tsx
+- [[OutletContext]] - code - frontend/src/pages/reports/FinanceReportPages.tsx
+- [[OutletContext_1]] - code - frontend/src/pages/reports/InventoryIntelligenceReportPages.tsx
+- [[OutletContext_2]] - code - frontend/src/pages/reports/InventoryReportPage.tsx
+- [[OutletContext_3]] - code - frontend/src/pages/reports/OmsReportPages.tsx
+- [[OutletContext_4]] - code - frontend/src/pages/reports/OperationalReportPages.tsx
+- [[OutletContext_5]] - code - frontend/src/pages/reports/ProductMovesReportPage.tsx
+- [[OutletContext_6]] - code - frontend/src/pages/reports/WarehouseAnalysisReportPage.tsx
+- [[PayoutManagementPage]] - code - frontend/src/router.tsx
+- [[PickupAddressCard()]] - code - frontend/src/pages/shipping/ShippingCompaniesPage.tsx
+- [[PillSubNav()]] - code - frontend/src/components/PillSubNav.tsx
+- [[PillSubNav.tsx]] - code - frontend/src/components/PillSubNav.tsx
+- [[PillSubNavItem]] - code - frontend/src/components/PillSubNav.tsx
+- [[PillSubNavProps]] - code - frontend/src/components/PillSubNav.tsx
+- [[ProductDetailPage]] - code - frontend/src/router.tsx
+- [[ProductMovesReportPage]] - code - frontend/src/router.tsx
+- [[ProductMovesReportPage()]] - code - frontend/src/pages/reports/ProductMovesReportPage.tsx
+- [[ProductMovesReportPage.tsx]] - code - frontend/src/pages/reports/ProductMovesReportPage.tsx
+- [[ProductsPage_2]] - code - frontend/src/router.tsx
+- [[Props_55]] - code - frontend/src/components/reports/ReportsNav.tsx
+- [[Props_56]] - code - frontend/src/components/reports/ReportWorkspace.tsx
+- [[ProviderCard()]] - code - frontend/src/pages/shipping/ShippingCompaniesPage.tsx
+- [[REPORT_CATALOG]] - code - frontend/src/lib/reports/report-catalog.ts
+- [[ReceivablesAgingReportPage]] - code - frontend/src/pages/reports/FinanceReportPages.tsx
+- [[ReceivablesAgingReportPage_1]] - code - frontend/src/router.tsx
+- [[ReportCatalogEntry]] - code - frontend/src/lib/reports/report-catalog.ts
+- [[ReportCatalogId]] - code - frontend/src/lib/reports/report-catalog.ts
+- [[ReportKpiGrid()]] - code - frontend/src/components/reports/ReportKpiGrid.tsx
+- [[ReportPreviewTable()]] - code - frontend/src/components/reports/ReportPreviewTable.tsx
+- [[ReportPreviewTable.tsx]] - code - frontend/src/components/reports/ReportPreviewTable.tsx
+- [[ReportPreviewTableProps]] - code - frontend/src/components/reports/ReportPreviewTable.tsx
+- [[ReportWorkspace()]] - code - frontend/src/components/reports/ReportWorkspace.tsx
+- [[ReportWorkspace.tsx]] - code - frontend/src/components/reports/ReportWorkspace.tsx
+- [[ReportsLayout]] - code - frontend/src/router.tsx
+- [[ReportsLayout()]] - code - frontend/src/pages/reports/ReportsLayout.tsx
+- [[ReportsLayout.tsx]] - code - frontend/src/pages/reports/ReportsLayout.tsx
+- [[ReportsNav()]] - code - frontend/src/components/reports/ReportsNav.tsx
+- [[ReportsNav.tsx]] - code - frontend/src/components/reports/ReportsNav.tsx
+- [[ReportsPage()]] - code - frontend/src/pages/ReportsPage.tsx
+- [[ReportsPage.tsx]] - code - frontend/src/pages/ReportsPage.tsx
+- [[RequireAuth()]] - code - frontend/src/auth/RequireAuth.tsx
+- [[ReturnRateReportPage]] - code - frontend/src/pages/reports/InventoryIntelligenceReportPages.tsx
+- [[ReturnRateReportPage_1]] - code - frontend/src/router.tsx
+- [[ReturnsListPage]] - code - frontend/src/router.tsx
+- [[ReturnsReportPage]] - code - frontend/src/pages/reports/OmsReportPages.tsx
+- [[RevenueByClientReportPage]] - code - frontend/src/pages/reports/FinanceReportPages.tsx
+- [[RevenueByClientReportPage_1]] - code - frontend/src/router.tsx
+- [[RoleHomeRedirect()]] - code - frontend/src/auth/RoleHomeRedirect.tsx
+- [[RoleHomeRedirect.tsx]] - code - frontend/src/auth/RoleHomeRedirect.tsx
+- [[SETTINGS_TABS]] - code - frontend/src/lib/settings/settings-catalog.ts
+- [[SalesReportPage]] - code - frontend/src/pages/reports/OmsReportPages.tsx
+- [[SalesReportPage_1]] - code - frontend/src/router.tsx
+- [[SectionContainer()]] - code - shared/design-system-next/ui/SectionContainer.tsx
+- [[ServerPagination_1]] - code - frontend/src/components/reports/ReportPreviewTable.tsx
+- [[SettingsLayout]] - code - frontend/src/router.tsx
+- [[SettingsLayout()]] - code - frontend/src/pages/settings/SettingsLayout.tsx
+- [[SettingsLayout.tsx]] - code - frontend/src/pages/settings/SettingsLayout.tsx
+- [[SettingsLayoutBody()]] - code - frontend/src/pages/settings/SettingsLayout.tsx
+- [[SettingsNav()]] - code - frontend/src/components/settings/SettingsNav.tsx
+- [[SettingsNav.tsx]] - code - frontend/src/components/settings/SettingsNav.tsx
+- [[SettingsTabEntry]] - code - frontend/src/lib/settings/settings-catalog.ts
+- [[ShippingCompaniesPage]] - code - frontend/src/router.tsx
+- [[ShippingCompaniesPage()]] - code - frontend/src/pages/shipping/ShippingCompaniesPage.tsx
+- [[ShippingCompaniesPage.tsx]] - code - frontend/src/pages/shipping/ShippingCompaniesPage.tsx
+- [[ShippingFeeRatePage]] - code - frontend/src/router.tsx
+- [[ShippingFeeRatePage.tsx]] - code - frontend/src/pages/shipping/ShippingFeeRatePage.tsx
+- [[SlaComplianceReportPage]] - code - frontend/src/pages/reports/OperationalReportPages.tsx
+- [[SlaComplianceReportPage_1]] - code - frontend/src/router.tsx
+- [[SortState]] - code - frontend/src/components/reports/ReportPreviewTable.tsx
+- [[StockAgingReportPage]] - code - frontend/src/pages/reports/InventoryIntelligenceReportPages.tsx
+- [[StockAgingReportPage_1]] - code - frontend/src/router.tsx
+- [[TaskExecutePage]] - code - frontend/src/router.tsx
+- [[TaskExecutePage()]] - code - frontend/src/pages/TaskExecutePage.tsx
+- [[TaskExecutePage.tsx]] - code - frontend/src/pages/TaskExecutePage.tsx
+- [[TasksListPage]] - code - frontend/src/router.tsx
+- [[WarehouseAnalysisReportPage]] - code - frontend/src/router.tsx
+- [[WarehouseAnalysisReportPage()]] - code - frontend/src/pages/reports/WarehouseAnalysisReportPage.tsx
+- [[WarehouseAnalysisReportPage.tsx]] - code - frontend/src/pages/reports/WarehouseAnalysisReportPage.tsx
+- [[WarehouseLocationsPage]] - code - frontend/src/router.tsx
+- [[WorkerProductivityReportPage]] - code - frontend/src/pages/reports/OperationalReportPages.tsx
+- [[WorkerProductivityReportPage_1]] - code - frontend/src/router.tsx
+- [[alertVariant()]] - code - frontend/src/pages/settings/BackupHealthPage.tsx
+- [[atScheduleTime()]] - code - frontend/src/lib/backup-schedule-display.ts
+- [[backup-gdrive-ui.ts]] - code - frontend/src/lib/backup-gdrive-ui.ts
+- [[backup-schedule-display.ts]] - code - frontend/src/lib/backup-schedule-display.ts
+- [[canAccessShippingAdmin()]] - code - frontend/src/pages/shipping/ShippingCompaniesPage.tsx
+- [[connectionCardClass()]] - code - frontend/src/pages/settings/BackupGoogleDrivePage.tsx
+- [[connectionCardClass()_1]] - code - frontend/src/pages/shipping/ShippingCompaniesPage.tsx
+- [[defaultHomePath()]] - code - frontend/src/lib/rbac.ts
+- [[deriveDriveHealthKey()]] - code - frontend/src/pages/settings/BackupHealthPage.tsx
+- [[deriveSyncStatus()]] - code - frontend/src/pages/settings/BackupGoogleDrivePage.tsx
+- [[driveHealthSeverity()]] - code - frontend/src/pages/settings/BackupHealthPage.tsx
+- [[financePage()]] - code - frontend/src/pages/reports/FinanceReportPages.tsx
+- [[formatHours()]] - code - frontend/src/pages/settings/BackupHealthPage.tsx
+- [[formatScheduleFrequency()]] - code - frontend/src/lib/backup-schedule-display.ts
+- [[formatScheduleTime()]] - code - frontend/src/lib/backup-schedule-display.ts
+- [[formatTimestamp()]] - code - frontend/src/pages/shipping/ShippingCompaniesPage.tsx
+- [[frontendsrcauthAuthContext.tsx]] - code - frontend/src/auth/AuthContext.tsx
+- [[frontendsrcauthRequireAuth.tsx]] - code - frontend/src/auth/RequireAuth.tsx
+- [[frontend_src_components_backups_backupdriveretentionauditpanel]] - concept
+- [[frontend_src_components_backups_backupdriveretentionauditpanel_backupdriveretentionauditpanel]] - concept
+- [[frontend_src_components_backups_backuphealthauditpanel]] - concept
+- [[frontend_src_components_backups_backuphealthauditpanel_backuphealthauditpanel]] - concept
+- [[frontend_src_components_backups_backupschedulemodal]] - concept
+- [[frontend_src_components_backups_backupschedulemodal_backupschedulemodal]] - concept
+- [[frontend_src_components_backups_systemmaintenancescreen]] - concept
+- [[frontend_src_components_backups_systemmaintenancescreen_systemmaintenancescreen]] - concept
+- [[getNextBackupScheduleRun()]] - code - frontend/src/lib/backup-schedule-display.ts
+- [[getVisibleSettingsTabs()]] - code - frontend/src/lib/settings/settings-catalog.ts
+- [[healthStatusClass()]] - code - frontend/src/pages/settings/BackupHealthPage.tsx
+- [[inventoryIntelligencePage()]] - code - frontend/src/pages/reports/InventoryIntelligenceReportPages.tsx
+- [[isBackupGdriveUiEnabled()]] - code - frontend/src/lib/backup-gdrive-ui.ts
+- [[localizedBackupHealthStatus()]] - code - frontend/src/lib/ui-labels/settings-backup.ts
+- [[localizedGoogleDriveSyncStatus()]] - code - frontend/src/lib/ui-labels/settings-backup.ts
+- [[omsPage()]] - code - frontend/src/pages/reports/OmsReportPages.tsx
+- [[operationalPage()]] - code - frontend/src/pages/reports/OperationalReportPages.tsx
+- [[parseFlag()_1]] - code - frontend/src/lib/backup-gdrive-ui.ts
+- [[pillClass()]] - code - frontend/src/components/PillSubNav.tsx
+- [[remainingFromNextAllowedAt()]] - code - frontend/src/hooks/useManualBackupCooldown.ts
+- [[report-catalog.ts]] - code - frontend/src/lib/reports/report-catalog.ts
+- [[router.tsx]] - code - frontend/src/router.tsx
+- [[settings-catalog.ts]] - code - frontend/src/lib/settings/settings-catalog.ts
+- [[sortableHeader()]] - code - frontend/src/components/reports/ReportPreviewTable.tsx
+- [[summarizeDrivePreview()]] - code - frontend/src/pages/settings/BackupRetentionPage.tsx
+- [[summarizeLocalPreview()]] - code - frontend/src/pages/settings/BackupRetentionPage.tsx
+- [[syncStatusCardClass()]] - code - frontend/src/pages/settings/BackupGoogleDrivePage.tsx
+- [[t()_2]] - code - frontend/src/components/reports/ReportWorkspace.tsx
+- [[t()_3]] - code - frontend/src/pages/reports/ReportsLayout.tsx
+- [[useBackupAdminAccess()]] - code - frontend/src/hooks/useBackupAdminAccess.ts
+- [[useBackupAdminAccess.ts]] - code - frontend/src/hooks/useBackupAdminAccess.ts
+- [[useBackupOperationContext()]] - code - frontend/src/context/BackupOperationContext.tsx
+- [[useClaimSectionNav()]] - code - frontend/src/components/section-nav-ownership.tsx
+- [[useIsArabic()_4]] - code - frontend/src/pages/reports/ReportsLayout.tsx
+- [[useManualBackupCooldown()]] - code - frontend/src/hooks/useManualBackupCooldown.ts
+- [[useManualBackupCooldown.ts]] - code - frontend/src/hooks/useManualBackupCooldown.ts
+- [[useManualBackupCooldown.unit.spec.ts]] - code - frontend/src/hooks/useManualBackupCooldown.unit.spec.ts
+
+## Live Query (requires Dataview plugin)
+
+```dataview
+TABLE source_file, type FROM #community/routertsx
+SORT file.name ASC
+```
+
+## Connections to other communities
+- 126 edges to [[_COMMUNITY_ref_tanstack_react_query]]
+- 97 edges to [[_COMMUNITY_TextField]]
+- 32 edges to [[_COMMUNITY_BackupHistoryPage.tsx]]
+- 29 edges to [[_COMMUNITY_UsersPage.tsx]]
+- 29 edges to [[_COMMUNITY_useWmsTranslation]]
+- 25 edges to [[_COMMUNITY_design-system-nextuiindex.ts]]
+- 25 edges to [[_COMMUNITY_query-keys.ts]]
+- 23 edges to [[_COMMUNITY_Modal]]
+- 20 edges to [[_COMMUNITY_frontendsrcpagesLoginPage.tsx]]
+- 18 edges to [[_COMMUNITY_useToast]]
+- 15 edges to [[_COMMUNITY_reportstypes.ts]]
+- 15 edges to [[_COMMUNITY_backup-display.ts]]
+- 15 edges to [[_COMMUNITY_OmsOrdersListPage.tsx]]
+- 14 edges to [[_COMMUNITY_settings-backup.ts]]
+- 11 edges to [[_COMMUNITY_backups.ts]]
+- 10 edges to [[_COMMUNITY_ReturnProcessPage.tsx]]
+- 8 edges to [[_COMMUNITY_ShippingFeeRatePage]]
+- 8 edges to [[_COMMUNITY_OmsOrderCreatePage.tsx]]
+- 7 edges to [[_COMMUNITY_Layout.tsx]]
+- 6 edges to [[_COMMUNITY_client.ts]]
+- 5 edges to [[_COMMUNITY_reportsregistry.ts]]
+- 5 edges to [[_COMMUNITY_frontendsrcmain.tsx]]
+- 5 edges to [[_COMMUNITY_useReportFramework.ts]]
+- 3 edges to [[_COMMUNITY_shipping.ts]]
+- 3 edges to [[_COMMUNITY_DashboardOverviewPage.tsx]]
+- 2 edges to [[_COMMUNITY_frontendsrcrealtimeRealtimeProvider.tsx]]
+- 2 edges to [[_COMMUNITY_cn]]
+- 2 edges to [[_COMMUNITY_notificationsNotificationsPage.tsx]]
+- 2 edges to [[_COMMUNITY_AdjustmentDetailPage.tsx]]
+- 2 edges to [[_COMMUNITY_frontendsrcrealtimeuseSystemVersionSync.ts]]
+- 1 edge to [[_COMMUNITY_design-system-nextuiModal.tsx]]
+
+## Top bridge nodes
+- [[router.tsx]] - degree 197, connects to 19 communities
+- [[frontendsrcauthAuthContext.tsx]] - degree 79, connects to 17 communities
+- [[BackupSchedulesPage.tsx]] - degree 41, connects to 12 communities
+- [[BackupHealthPage.tsx]] - degree 42, connects to 11 communities
+- [[BackupGoogleDrivePage.tsx]] - degree 40, connects to 11 communities

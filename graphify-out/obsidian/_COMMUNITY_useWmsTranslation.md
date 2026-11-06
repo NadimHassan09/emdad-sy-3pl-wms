@@ -1,0 +1,217 @@
+---
+type: community
+cohesion: 0.03
+members: 166
+---
+
+# useWmsTranslation
+
+**Cohesion:** 0.03 - loosely connected
+**Members:** 166 nodes
+
+## Members
+- [[ADJUSTMENT_STOCK_LOCATION_TYPES_1]] - code - frontend/src/lib/location-types.ts
+- [[AddAdjustmentLineForm()]] - code - frontend/src/components/adjustments/AddAdjustmentLineForm.tsx
+- [[AddAdjustmentLineForm.tsx]] - code - frontend/src/components/adjustments/AddAdjustmentLineForm.tsx
+- [[AdjustmentStockLocationPicker()]] - code - frontend/src/components/locations/AdjustmentStockLocationPicker.tsx
+- [[AdjustmentStockLocationPicker.tsx]] - code - frontend/src/components/locations/AdjustmentStockLocationPicker.tsx
+- [[AllocationBadge()_1]] - code - frontend/src/pages/oms/OmsReturnPlanEditPage.tsx
+- [[AvailabilityResult_1]] - code - frontend/src/api/inventory.ts
+- [[BalanceHistoryPoint]] - code - frontend/src/api/inventory.ts
+- [[BalanceHistoryResult]] - code - frontend/src/api/inventory.ts
+- [[BarcodeScanIcon()]] - code - frontend/src/components/BarcodeScanIcon.tsx
+- [[BarcodeScanIcon.tsx]] - code - frontend/src/components/BarcodeScanIcon.tsx
+- [[BreadcrumbCrumb]] - code - frontend/src/pages/WarehouseLocationsPage.tsx
+- [[CreateInternalTransferModal()]] - code - frontend/src/pages/InternalTransferPage.tsx
+- [[CreateLocationInput]] - code - frontend/src/api/locations.ts
+- [[CreateLocationModal()]] - code - frontend/src/pages/WarehouseLocationsPage.tsx
+- [[CreateLocationModalProps]] - code - frontend/src/pages/WarehouseLocationsPage.tsx
+- [[DispatchDockPicker()]] - code - frontend/src/components/locations/DispatchDockPicker.tsx
+- [[DispatchDockPicker.tsx]] - code - frontend/src/components/locations/DispatchDockPicker.tsx
+- [[DispositionLocationPicker()]] - code - frontend/src/components/locations/DispositionLocationPicker.tsx
+- [[DispositionLocationPicker.tsx]] - code - frontend/src/components/locations/DispositionLocationPicker.tsx
+- [[DraftLine_8]] - code - frontend/src/pages/oms/OmsReturnPlanEditPage.tsx
+- [[EXECUTION_LOOKUP_LIMIT]] - code - frontend/src/lib/location-resolve.ts
+- [[EditLocationModal()]] - code - frontend/src/pages/WarehouseLocationsPage.tsx
+- [[InternalTransferInput]] - code - frontend/src/api/inventory.ts
+- [[InternalTransferPage()]] - code - frontend/src/pages/InternalTransferPage.tsx
+- [[InternalTransferPage.tsx]] - code - frontend/src/pages/InternalTransferPage.tsx
+- [[InternalTransferResult]] - code - frontend/src/api/inventory.ts
+- [[InventoryApi]] - code - frontend/src/api/inventory.ts
+- [[InventoryPayload]] - code - frontend/src/realtime/inventory-cache.ts
+- [[LABEL_BY_TYPE]] - code - frontend/src/lib/location-types.ts
+- [[LOCATION_TYPE_HINTS]] - code - frontend/src/lib/ui-labels/locations.ts
+- [[LOCATION_TYPE_LABELS]] - code - frontend/src/lib/ui-labels/locations.ts
+- [[LOCATION_TYPE_OPTIONS]] - code - frontend/src/lib/location-types.ts
+- [[LedgerEntryResponse]] - code - frontend/src/api/inventory.ts
+- [[LedgerQuery]] - code - frontend/src/api/inventory.ts
+- [[LedgerRow]] - code - frontend/src/api/inventory.ts
+- [[ListLocationsChildrenParams]] - code - frontend/src/api/locations.ts
+- [[LocalizedMessage]] - code - frontend/src/lib/ui-i18n.ts
+- [[Location]] - code - frontend/src/api/locations.ts
+- [[LocationDraftFilters]] - code - frontend/src/pages/WarehouseLocationsPage.tsx
+- [[LocationParentPicker()]] - code - frontend/src/components/locations/LocationParentPicker.tsx
+- [[LocationParentPicker.tsx]] - code - frontend/src/components/locations/LocationParentPicker.tsx
+- [[LocationRowMenuItem()]] - code - frontend/src/components/locations/LocationsTreeTable.tsx
+- [[LocationStatusPill()]] - code - frontend/src/components/locations/LocationsDrillDownTable.tsx
+- [[LocationStatusPill()_1]] - code - frontend/src/components/locations/LocationsTreeTable.tsx
+- [[LocationTableRow()]] - code - frontend/src/components/locations/LocationsTreeTable.tsx
+- [[LocationTreeNode]] - code - frontend/src/api/locations.ts
+- [[LocationType]] - code - frontend/src/api/locations.ts
+- [[LocationsApi]] - code - frontend/src/api/locations.ts
+- [[LocationsDrillDownTable()]] - code - frontend/src/components/locations/LocationsDrillDownTable.tsx
+- [[LocationsDrillDownTable.tsx]] - code - frontend/src/components/locations/LocationsDrillDownTable.tsx
+- [[LocationsPurgeContext]] - code - frontend/src/api/locations.ts
+- [[LocationsTreeTable()]] - code - frontend/src/components/locations/LocationsTreeTable.tsx
+- [[LocationsTreeTable.tsx]] - code - frontend/src/components/locations/LocationsTreeTable.tsx
+- [[LookupLocationsParams]] - code - frontend/src/api/locations.ts
+- [[MANAGED_LOCATION_API_TYPES]] - code - frontend/src/lib/location-types.ts
+- [[ManagedLocationApiType]] - code - frontend/src/lib/location-types.ts
+- [[NON_STORAGE_LOCATION_TYPES_1]] - code - frontend/src/lib/location-types.ts
+- [[OmsOrderReturnInfoPanel()]] - code - frontend/src/components/oms/OmsOrderReturnInfoPanel.tsx
+- [[OmsOrderReturnInfoPanel.tsx]] - code - frontend/src/components/oms/OmsOrderReturnInfoPanel.tsx
+- [[OmsReturnPlanEditPage]] - code - frontend/src/router.tsx
+- [[OmsReturnPlanEditPage()]] - code - frontend/src/pages/oms/OmsReturnPlanEditPage.tsx
+- [[OmsReturnPlanEditPage.tsx]] - code - frontend/src/pages/oms/OmsReturnPlanEditPage.tsx
+- [[PUTAWAY_DESTINATION_TYPES]] - code - frontend/src/lib/location-types.ts
+- [[PUTAWAY_QUARANTINE_DESTINATION_TYPES]] - code - frontend/src/lib/location-types.ts
+- [[PackingLocationPicker()]] - code - frontend/src/components/locations/PackingLocationPicker.tsx
+- [[PackingLocationPicker.tsx]] - code - frontend/src/components/locations/PackingLocationPicker.tsx
+- [[PageResult_2]] - code - frontend/src/api/client.ts
+- [[ProductAttributeValidationCard()]] - code - frontend/src/pages/tasks/receiving/ProductAttributeValidationCard.tsx
+- [[ProductAttributeValidationCard.tsx]] - code - frontend/src/pages/tasks/receiving/ProductAttributeValidationCard.tsx
+- [[ProductListQuery]] - code - frontend/src/api/products.ts
+- [[ProductSearchCategory]] - code - frontend/src/components/adjustments/AddAdjustmentLineForm.tsx
+- [[ProductSearchCategory_1]] - code - frontend/src/pages/InternalTransferPage.tsx
+- [[ProductStockSummaryRow]] - code - frontend/src/api/inventory.ts
+- [[ProductSummaryPayload]] - code - frontend/src/realtime/inventory-cache.ts
+- [[Props_83]] - code - frontend/src/components/locations/AdjustmentStockLocationPicker.tsx
+- [[Props_84]] - code - frontend/src/components/locations/DispatchDockPicker.tsx
+- [[Props_85]] - code - frontend/src/components/locations/DispositionLocationPicker.tsx
+- [[Props_86]] - code - frontend/src/components/locations/LocationParentPicker.tsx
+- [[Props_87]] - code - frontend/src/components/locations/PackingLocationPicker.tsx
+- [[Props_88]] - code - frontend/src/components/locations/ReceivingDockPicker.tsx
+- [[Props_89]] - code - frontend/src/components/locations/StorageLocationPicker.tsx
+- [[Props_90]] - code - frontend/src/components/oms/OmsOrderReturnInfoPanel.tsx
+- [[Props_91]] - code - frontend/src/pages/tasks/putaway/PutawayDestinationPicker.tsx
+- [[Props_92]] - code - frontend/src/pages/tasks/receiving/ProductAttributeValidationCard.tsx
+- [[PutawayDestinationPicker.tsx]] - code - frontend/src/pages/tasks/putaway/PutawayDestinationPicker.tsx
+- [[PutawayRow_1]] - code - frontend/src/pages/oms/OmsReturnPlanEditPage.tsx
+- [[ReceivingDockPicker()]] - code - frontend/src/components/locations/ReceivingDockPicker.tsx
+- [[ReceivingDockPicker.tsx]] - code - frontend/src/components/locations/ReceivingDockPicker.tsx
+- [[ResolveLocationOptions]] - code - frontend/src/lib/location-resolve.ts
+- [[ReturnStep]] - code - frontend/src/components/oms/OmsOrderReturnInfoPanel.tsx
+- [[STORAGE_PRELOAD_TYPES]] - code - frontend/src/components/locations/StorageLocationPicker.tsx
+- [[StockModal()]] - code - frontend/src/pages/WarehouseLocationsPage.tsx
+- [[StockPageResult]] - code - frontend/src/api/inventory.ts
+- [[StockQuery]] - code - frontend/src/api/inventory.ts
+- [[StockRow_1]] - code - frontend/src/api/inventory.ts
+- [[StockRowPayload]] - code - frontend/src/realtime/inventory-cache.ts
+- [[StockSourceLocationOption]] - code - frontend/src/lib/inventory-location-options.ts
+- [[StockTotals]] - code - frontend/src/api/inventory.ts
+- [[StorageLocationPicker()]] - code - frontend/src/components/locations/StorageLocationPicker.tsx
+- [[StorageLocationPicker.tsx]] - code - frontend/src/components/locations/StorageLocationPicker.tsx
+- [[TFn_1]] - code - frontend/src/lib/ui-labels/locations.ts
+- [[TRANSFER_LOCATION_TYPE_OPTIONS]] - code - frontend/src/pages/InternalTransferPage.tsx
+- [[TransferLocationTypeFilter]] - code - frontend/src/pages/InternalTransferPage.tsx
+- [[UiLanguage_2]] - code - frontend/src/lib/ui-i18n.ts
+- [[UpdateLocationInput]] - code - frontend/src/api/locations.ts
+- [[WMS_UI_LANGUAGE_CHANGED_EVENT]] - code - frontend/src/lib/ui-i18n.ts
+- [[WMS_UI_LANGUAGE_STORAGE_KEY]] - code - frontend/src/lib/ui-i18n.ts
+- [[WarehouseLocationsPage()]] - code - frontend/src/pages/WarehouseLocationsPage.tsx
+- [[WarehouseLocationsPage.tsx]] - code - frontend/src/pages/WarehouseLocationsPage.tsx
+- [[apilocations.ts]] - code - frontend/src/api/locations.ts
+- [[applyLocationScan()]] - code - frontend/src/pages/InternalTransferPage.tsx
+- [[buildAdjustmentStockLocationOptions()]] - code - frontend/src/lib/inventory-location-options.ts
+- [[buildLocationTree()]] - code - frontend/src/lib/location-tree.unit.spec.ts
+- [[buildLocationTree()_1]] - code - frontend/src/pages/WarehouseLocationsPage.tsx
+- [[buildStockSourceLocationOptions()]] - code - frontend/src/lib/inventory-location-options.ts
+- [[collectSubtreeIdsFromFlat()]] - code - frontend/src/components/locations/LocationsTreeTable.tsx
+- [[companyHeaders()_1]] - code - frontend/src/api/inventory.ts
+- [[dataTablePaginationLabels()_2]] - code - frontend/src/lib/ui-labels/locations.ts
+- [[fmtLedgerQty()]] - code - frontend/src/lib/ledger-display.ts
+- [[fmtQty()_12]] - code - frontend/src/pages/WarehouseLocationsPage.tsx
+- [[formatChildLabel()]] - code - frontend/src/components/locations/LocationsDrillDownTable.tsx
+- [[formatTransferLocationLabel()]] - code - frontend/src/pages/InternalTransferPage.tsx
+- [[inboundAdminPlanReadinessIssues()]] - code - frontend/src/lib/execution-plan.ts
+- [[inventory-cache.ts]] - code - frontend/src/realtime/inventory-cache.ts
+- [[inventory-location-options.ts]] - code - frontend/src/lib/inventory-location-options.ts
+- [[inventory.ts]] - code - frontend/src/api/inventory.ts
+- [[isAdjustmentStockLocationType()_1]] - code - frontend/src/lib/location-types.ts
+- [[isManagedLocationApiType()]] - code - frontend/src/lib/location-types.ts
+- [[isPutawayDestinationLocationType()]] - code - frontend/src/lib/location-types.ts
+- [[isReceivingDockLocationType()]] - code - frontend/src/lib/location-types.ts
+- [[isStorageLocationType()_1]] - code - frontend/src/lib/location-types.ts
+- [[localizedLocationStatusLabel()]] - code - frontend/src/lib/ui-labels/locations.ts
+- [[localizedLocationTypeHint()]] - code - frontend/src/lib/ui-labels/locations.ts
+- [[localizedLocationTypeLabel()]] - code - frontend/src/lib/ui-labels/locations.ts
+- [[localizedLocationTypeSelectOptions()]] - code - frontend/src/lib/ui-labels/locations.ts
+- [[localizedManagedTypeOptionsForEdit()]] - code - frontend/src/lib/ui-labels/locations.ts
+- [[location-resolve.ts]] - code - frontend/src/lib/location-resolve.ts
+- [[location-tree.unit.spec.ts]] - code - frontend/src/lib/location-tree.unit.spec.ts
+- [[location-types.ts]] - code - frontend/src/lib/location-types.ts
+- [[locationFromMap()]] - code - frontend/src/lib/location-resolve.ts
+- [[locationTypeLabel()]] - code - frontend/src/lib/location-types.ts
+- [[locationTypePillClass()]] - code - frontend/src/lib/location-types.ts
+- [[locationTypeShowsStockContents()]] - code - frontend/src/lib/location-types.ts
+- [[locationTypeSupportsCapacityFields()]] - code - frontend/src/lib/location-types.ts
+- [[locationTypesForDisposition()]] - code - frontend/src/lib/return-labels.ts
+- [[managedTypeOptionsForEdit()]] - code - frontend/src/lib/location-types.ts
+- [[onSubmit()_3]] - code - frontend/src/pages/oms/OmsReturnPlanEditPage.tsx
+- [[parseOptionalPositiveDecimal()]] - code - frontend/src/pages/WarehouseLocationsPage.tsx
+- [[patchInventoryChanged()]] - code - frontend/src/realtime/inventory-cache.ts
+- [[productListQuery()]] - code - frontend/src/components/adjustments/AddAdjustmentLineForm.tsx
+- [[productListQuery()_1]] - code - frontend/src/pages/InternalTransferPage.tsx
+- [[readIsArabic()]] - code - frontend/src/lib/ui-i18n.ts
+- [[resolveLocationByScan()]] - code - frontend/src/lib/location-resolve.ts
+- [[resolveMessage()]] - code - frontend/src/lib/ui-i18n.ts
+- [[subtreeTouchesBlocker()]] - code - frontend/src/components/locations/LocationsTreeTable.tsx
+- [[toSummaryRow()]] - code - frontend/src/realtime/inventory-cache.ts
+- [[transferableQtyAtRow()]] - code - frontend/src/lib/inventory-location-options.ts
+- [[ui-i18n.ts]] - code - frontend/src/lib/ui-i18n.ts
+- [[ui-labelslocations.ts]] - code - frontend/src/lib/ui-labels/locations.ts
+- [[uniqueStockLocationIds()]] - code - frontend/src/lib/inventory-location-options.ts
+- [[useResolvedLocations()]] - code - frontend/src/hooks/useResolvedLocations.ts
+- [[useResolvedLocations.ts]] - code - frontend/src/hooks/useResolvedLocations.ts
+- [[useTypedLocationLookup()]] - code - frontend/src/hooks/useTypedLocationLookup.ts
+- [[useTypedLocationLookup.ts]] - code - frontend/src/hooks/useTypedLocationLookup.ts
+- [[useWmsTranslation()]] - code - frontend/src/lib/ui-i18n.ts
+
+## Live Query (requires Dataview plugin)
+
+```dataview
+TABLE source_file, type FROM #community/useWmsTranslation
+SORT file.name ASC
+```
+
+## Connections to other communities
+- 144 edges to [[_COMMUNITY_TextField]]
+- 123 edges to [[_COMMUNITY_useToast]]
+- 47 edges to [[_COMMUNITY_query-keys.ts]]
+- 42 edges to [[_COMMUNITY_ref_tanstack_react_query]]
+- 36 edges to [[_COMMUNITY_Modal]]
+- 33 edges to [[_COMMUNITY_OmsOrderCreatePage.tsx]]
+- 29 edges to [[_COMMUNITY_router.tsx]]
+- 25 edges to [[_COMMUNITY_design-system-nextuiindex.ts]]
+- 16 edges to [[_COMMUNITY_ReceivingExecutionPanel.tsx]]
+- 13 edges to [[_COMMUNITY_OmsOrdersListPage.tsx]]
+- 9 edges to [[_COMMUNITY_ReturnProcessPage.tsx]]
+- 8 edges to [[_COMMUNITY_outbound.ts]]
+- 6 edges to [[_COMMUNITY_AdjustmentDetailPage.tsx]]
+- 4 edges to [[_COMMUNITY_UsersPage.tsx]]
+- 4 edges to [[_COMMUNITY_client.ts]]
+- 3 edges to [[_COMMUNITY_settings-backup.ts]]
+- 3 edges to [[_COMMUNITY_BackupHistoryPage.tsx]]
+- 3 edges to [[_COMMUNITY_DashboardOverviewPage.tsx]]
+- 2 edges to [[_COMMUNITY_master-data-cache.ts]]
+- 1 edge to [[_COMMUNITY_audit-logs.ts]]
+- 1 edge to [[_COMMUNITY_backups.ts]]
+- 1 edge to [[_COMMUNITY_frontendsrcrealtimeorders-cache.ts]]
+- 1 edge to [[_COMMUNITY_ShippingFeeRatePage]]
+
+## Top bridge nodes
+- [[PageResult_2]] - degree 21, connects to 15 communities
+- [[ui-i18n.ts]] - degree 66, connects to 14 communities
+- [[useWmsTranslation()]] - degree 129, connects to 13 communities
+- [[OmsReturnPlanEditPage.tsx]] - degree 29, connects to 9 communities
+- [[InternalTransferPage.tsx]] - degree 65, connects to 8 communities

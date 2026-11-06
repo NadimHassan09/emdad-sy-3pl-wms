@@ -1,0 +1,290 @@
+---
+type: community
+cohesion: 0.02
+members: 224
+---
+
+# ClientPrincipal
+
+**Cohesion:** 0.02 - loosely connected
+**Members:** 224 nodes
+
+## Members
+- [[dot-access()]] - code - backend/src/modules/client-portal/billing/client-billing.controller.ts
+- [[dot-availability()_2]] - code - backend/src/modules/client-portal/stock/client-stock.service.ts
+- [[dot-availability()_3]] - code - backend/src/modules/inventory/inventory.service.ts
+- [[dot-cancel()_9]] - code - backend/src/modules/client-portal/oms/client-oms-orders.controller.ts
+- [[dot-cancel()_10]] - code - backend/src/modules/client-portal/oms/client-oms-orders.service.ts
+- [[dot-cancelBulk()_1]] - code - backend/src/modules/client-portal/oms/client-oms-orders.controller.ts
+- [[dot-cancelBulk()_2]] - code - backend/src/modules/client-portal/oms/client-oms-orders.service.ts
+- [[dot-cancelRevert()_1]] - code - backend/src/modules/client-portal/oms/client-oms-orders.controller.ts
+- [[dot-codReport()_1]] - code - backend/src/modules/client-portal/oms/client-oms-orders.controller.ts
+- [[dot-codReport()_2]] - code - backend/src/modules/client-portal/oms/client-oms-orders.service.ts
+- [[dot-columns()_5]] - code - backend/src/modules/client-portal/order-export/client-outbound-export.service.ts
+- [[dot-confirm()_4]] - code - backend/src/modules/client-portal/oms/client-oms-orders.controller.ts
+- [[dot-confirm()_5]] - code - backend/src/modules/client-portal/oms/client-oms-orders.service.ts
+- [[dot-confirmBulk()_2]] - code - backend/src/modules/client-portal/oms/client-oms-orders.controller.ts
+- [[dot-confirmBulk()_3]] - code - backend/src/modules/client-portal/oms/client-oms-orders.service.ts
+- [[dot-constructor()_188]] - code - backend/src/modules/client-portal/external-api/external-outbound.controller.ts
+- [[dot-constructor()_189]] - code - backend/src/modules/client-portal/external-api/external-outbound.service.ts
+- [[dot-constructor()_190]] - code - backend/src/modules/client-portal/oms/client-oms-orders.controller.ts
+- [[dot-constructor()_191]] - code - backend/src/modules/client-portal/oms-returns/client-oms-returns.controller.ts
+- [[dot-constructor()_192]] - code - backend/src/modules/client-portal/products/client-products.controller.ts
+- [[dot-constructor()_193]] - code - backend/src/modules/client-portal/returns/client-returns.controller.ts
+- [[dot-create()_25]] - code - backend/src/modules/client-portal/api-credentials/api-credentials.controller.ts
+- [[dot-create()_26]] - code - backend/src/modules/client-portal/external-api/external-outbound.controller.ts
+- [[dot-create()_27]] - code - backend/src/modules/client-portal/inbound/client-inbound-orders.controller.ts
+- [[dot-create()_28]] - code - backend/src/modules/client-portal/inbound/client-inbound-orders.service.ts
+- [[dot-create()_29]] - code - backend/src/modules/client-portal/oms/client-oms-orders.controller.ts
+- [[dot-create()_30]] - code - backend/src/modules/client-portal/oms/client-oms-orders.service.ts
+- [[dot-create()_31]] - code - backend/src/modules/client-portal/oms-returns/client-oms-returns.controller.ts
+- [[dot-create()_32]] - code - backend/src/modules/client-portal/oms-returns/client-oms-returns.service.ts
+- [[dot-create()_33]] - code - backend/src/modules/client-portal/outbound/client-outbound-orders.controller.ts
+- [[dot-create()_34]] - code - backend/src/modules/client-portal/outbound/client-outbound-orders.service.ts
+- [[dot-create()_35]] - code - backend/src/modules/client-portal/products/client-products.controller.ts
+- [[dot-create()_36]] - code - backend/src/modules/client-portal/products/client-products.service.ts
+- [[dot-create()_37]] - code - backend/src/modules/client-portal/returns/client-returns.controller.ts
+- [[dot-create()_38]] - code - backend/src/modules/client-portal/returns/client-returns.service.ts
+- [[dot-createFromApi()]] - code - backend/src/modules/client-portal/oms/client-oms-orders.service.ts
+- [[dot-exportCodReport()]] - code - backend/src/modules/client-portal/oms/client-oms-orders.controller.ts
+- [[dot-exportCodReportXlsx()]] - code - backend/src/modules/client-portal/oms/client-oms-orders.service.ts
+- [[dot-exportColumns()_4]] - code - backend/src/modules/client-portal/oms/client-oms-orders.controller.ts
+- [[dot-exportColumns()_5]] - code - backend/src/modules/client-portal/outbound/client-outbound-orders.controller.ts
+- [[dot-exportOrders()_4]] - code - backend/src/modules/client-portal/oms/client-oms-orders.controller.ts
+- [[dot-exportOrders()_5]] - code - backend/src/modules/client-portal/outbound/client-outbound-orders.controller.ts
+- [[dot-findByExternalOrderId()_1]] - code - backend/src/modules/client-portal/external-api/external-oms.service.ts
+- [[dot-findByExternalOrderId()_2]] - code - backend/src/modules/client-portal/external-api/external-outbound.service.ts
+- [[dot-findByExternalReference()_2]] - code - backend/src/modules/client-portal/inbound/client-inbound-orders.service.ts
+- [[dot-findByExternalReference()_3]] - code - backend/src/modules/client-portal/oms/client-oms-orders.service.ts
+- [[dot-findByExternalReference()_4]] - code - backend/src/modules/client-portal/outbound/client-outbound-orders.service.ts
+- [[dot-findById()_11]] - code - backend/src/modules/client-portal/products/client-products.service.ts
+- [[dot-findByOrderNumber()_1]] - code - backend/src/modules/client-portal/external-api/external-oms.service.ts
+- [[dot-findByOrderNumber()_2]] - code - backend/src/modules/client-portal/external-api/external-outbound.service.ts
+- [[dot-findByOrderNumber()_3]] - code - backend/src/modules/client-portal/inbound/client-inbound-orders.service.ts
+- [[dot-findByOrderNumber()_4]] - code - backend/src/modules/client-portal/oms/client-oms-orders.service.ts
+- [[dot-findByOrderNumber()_5]] - code - backend/src/modules/client-portal/outbound/client-outbound-orders.service.ts
+- [[dot-findOne()_11]] - code - backend/src/modules/client-portal/external-api/external-inbound.controller.ts
+- [[dot-findOne()_12]] - code - backend/src/modules/client-portal/external-api/external-oms.controller.ts
+- [[dot-findOne()_13]] - code - backend/src/modules/client-portal/external-api/external-oms.service.ts
+- [[dot-findOne()_14]] - code - backend/src/modules/client-portal/external-api/external-outbound.controller.ts
+- [[dot-findOne()_15]] - code - backend/src/modules/client-portal/external-api/external-outbound.service.ts
+- [[dot-findOne()_16]] - code - backend/src/modules/client-portal/inbound/client-inbound-orders.controller.ts
+- [[dot-findOne()_17]] - code - backend/src/modules/client-portal/oms/client-oms-orders.controller.ts
+- [[dot-findOne()_18]] - code - backend/src/modules/client-portal/oms/client-oms-orders.service.ts
+- [[dot-findOne()_19]] - code - backend/src/modules/client-portal/oms-returns/client-oms-returns.controller.ts
+- [[dot-findOne()_20]] - code - backend/src/modules/client-portal/oms-returns/client-oms-returns.service.ts
+- [[dot-findOne()_21]] - code - backend/src/modules/client-portal/outbound/client-outbound-orders.controller.ts
+- [[dot-findOne()_22]] - code - backend/src/modules/client-portal/outbound/client-outbound-orders.service.ts
+- [[dot-findOne()_23]] - code - backend/src/modules/client-portal/returns/client-returns.controller.ts
+- [[dot-findOne()_24]] - code - backend/src/modules/client-portal/returns/client-returns.service.ts
+- [[dot-findOneByLookup()_1]] - code - backend/src/modules/client-portal/external-api/external-oms.service.ts
+- [[dot-findOneByLookup()_2]] - code - backend/src/modules/client-portal/external-api/external-outbound.service.ts
+- [[dot-getAccess()]] - code - backend/src/modules/client-portal/billing/client-billing.service.ts
+- [[dot-getById()_1]] - code - backend/src/modules/client-portal/products/client-products.controller.ts
+- [[dot-getOperationalAccess()]] - code - backend/src/modules/billing/billing-access.service.ts
+- [[dot-getOutboundQuota()]] - code - backend/src/modules/client-portal/returns/client-returns.controller.ts
+- [[dot-getOutboundQuota()_1]] - code - backend/src/modules/client-portal/returns/client-returns.service.ts
+- [[dot-getShippingMovement()]] - code - backend/src/modules/client-portal/oms/client-oms-orders.service.ts
+- [[dot-importFile()_2]] - code - backend/src/modules/client-portal/order-import/oms-client-import.service.ts
+- [[dot-importOrders()_4]] - code - backend/src/modules/client-portal/oms/client-oms-orders.controller.ts
+- [[dot-importOrders()_5]] - code - backend/src/modules/client-portal/outbound/client-outbound-orders.controller.ts
+- [[dot-importTemplate()_4]] - code - backend/src/modules/client-portal/oms/client-oms-orders.controller.ts
+- [[dot-importTemplate()_5]] - code - backend/src/modules/client-portal/outbound/client-outbound-orders.controller.ts
+- [[dot-list()_33]] - code - backend/src/modules/client-portal/api-credentials/api-credentials.controller.ts
+- [[dot-list()_34]] - code - backend/src/modules/client-portal/external-api/external-inbound.service.ts
+- [[dot-list()_35]] - code - backend/src/modules/client-portal/external-api/external-oms.service.ts
+- [[dot-list()_36]] - code - backend/src/modules/client-portal/external-api/external-outbound.service.ts
+- [[dot-list()_37]] - code - backend/src/modules/client-portal/inbound/client-inbound-orders.controller.ts
+- [[dot-list()_38]] - code - backend/src/modules/client-portal/inbound/client-inbound-orders.service.ts
+- [[dot-list()_39]] - code - backend/src/modules/client-portal/oms/client-oms-orders.controller.ts
+- [[dot-list()_40]] - code - backend/src/modules/client-portal/oms/client-oms-orders.service.ts
+- [[dot-list()_41]] - code - backend/src/modules/client-portal/oms-returns/client-oms-returns.controller.ts
+- [[dot-list()_42]] - code - backend/src/modules/client-portal/oms-returns/client-oms-returns.service.ts
+- [[dot-list()_43]] - code - backend/src/modules/client-portal/outbound/client-outbound-orders.controller.ts
+- [[dot-list()_44]] - code - backend/src/modules/client-portal/outbound/client-outbound-orders.service.ts
+- [[dot-list()_45]] - code - backend/src/modules/client-portal/products/client-products.controller.ts
+- [[dot-list()_46]] - code - backend/src/modules/client-portal/products/client-products.service.ts
+- [[dot-list()_47]] - code - backend/src/modules/client-portal/returns/client-returns.controller.ts
+- [[dot-list()_48]] - code - backend/src/modules/client-portal/returns/client-returns.service.ts
+- [[dot-listForExport()_3]] - code - backend/src/modules/client-portal/oms/client-oms-orders.service.ts
+- [[dot-listForExport()_4]] - code - backend/src/modules/client-portal/outbound/client-outbound-orders.service.ts
+- [[dot-listOrFind()]] - code - backend/src/modules/client-portal/external-api/external-inbound.controller.ts
+- [[dot-listOrFind()_1]] - code - backend/src/modules/client-portal/external-api/external-oms.controller.ts
+- [[dot-listOrFind()_2]] - code - backend/src/modules/client-portal/external-api/external-outbound.controller.ts
+- [[dot-markAllRead()_3]] - code - backend/src/modules/client-portal/notifications/client-notifications.controller.ts
+- [[dot-overview()_2]] - code - backend/src/modules/client-portal/dashboard/client-dashboard.controller.ts
+- [[dot-remove()_6]] - code - backend/src/modules/client-portal/products/client-products.controller.ts
+- [[dot-remove()_7]] - code - backend/src/modules/client-portal/products/client-products.service.ts
+- [[dot-revertCancel()]] - code - backend/src/modules/client-portal/oms/client-oms-orders.service.ts
+- [[dot-shippingMovement()_1]] - code - backend/src/modules/client-portal/oms/client-oms-orders.controller.ts
+- [[dot-statusNavCounts()_1]] - code - backend/src/modules/client-portal/oms/client-oms-orders.controller.ts
+- [[dot-statusNavCounts()_2]] - code - backend/src/modules/client-portal/oms/client-oms-orders.service.ts
+- [[dot-statusSummary()]] - code - backend/src/modules/client-portal/oms/client-oms-orders.controller.ts
+- [[dot-statusSummary()_1]] - code - backend/src/modules/client-portal/oms/client-oms-orders.service.ts
+- [[dot-summary()_1]] - code - backend/src/modules/client-portal/billing/client-billing.controller.ts
+- [[dot-timeline()_1]] - code - backend/src/modules/client-portal/oms/client-oms-orders.controller.ts
+- [[dot-timeline()_2]] - code - backend/src/modules/client-portal/oms/client-oms-orders.service.ts
+- [[dot-update()_7]] - code - backend/src/modules/client-portal/products/client-products.controller.ts
+- [[dot-update()_8]] - code - backend/src/modules/client-portal/products/client-products.service.ts
+- [[Body_25]] - code
+- [[Body_26]] - code
+- [[Body_27]] - code
+- [[Body_28]] - code
+- [[Body_29]] - code
+- [[Body_30]] - code
+- [[ClientCodReportQueryDto]] - code - backend/src/modules/client-portal/oms/dto/client-cod-report-query.dto.ts
+- [[ClientListOutboundQueryDto]] - code - backend/src/modules/client-portal/outbound/dto/client-list-outbound-query.dto.ts
+- [[ClientOmsOrdersController]] - code - backend/src/modules/client-portal/oms/client-oms-orders.controller.ts
+- [[ClientOmsOrdersService]] - code - backend/src/modules/client-portal/oms/client-oms-orders.service.ts
+- [[ClientOmsReturnsController]] - code - backend/src/modules/client-portal/oms-returns/client-oms-returns.controller.ts
+- [[ClientOmsReturnsService]] - code - backend/src/modules/client-portal/oms-returns/client-oms-returns.service.ts
+- [[ClientOutboundOrdersController]] - code - backend/src/modules/client-portal/outbound/client-outbound-orders.controller.ts
+- [[ClientOutboundOrdersService]] - code - backend/src/modules/client-portal/outbound/client-outbound-orders.service.ts
+- [[ClientPrincipal]] - code - backend/src/common/auth/client-principal.types.ts
+- [[ClientProductsController]] - code - backend/src/modules/client-portal/products/client-products.controller.ts
+- [[ClientProductsService]] - code - backend/src/modules/client-portal/products/client-products.service.ts
+- [[ClientReturnsController]] - code - backend/src/modules/client-portal/returns/client-returns.controller.ts
+- [[ClientReturnsService]] - code - backend/src/modules/client-portal/returns/client-returns.service.ts
+- [[ClientUser_18]] - code - backend/src/modules/client-portal/auth/client-user.decorator.ts
+- [[Controller_35]] - code
+- [[Controller_36]] - code
+- [[Controller_37]] - code
+- [[Controller_38]] - code
+- [[Controller_39]] - code
+- [[Controller_40]] - code
+- [[Delete_8]] - code
+- [[ExternalOutboundController]] - code - backend/src/modules/client-portal/external-api/external-outbound.controller.ts
+- [[ExternalOutboundService]] - code - backend/src/modules/client-portal/external-api/external-outbound.service.ts
+- [[Get_30]] - code
+- [[Get_31]] - code
+- [[Get_32]] - code
+- [[Get_33]] - code
+- [[Get_34]] - code
+- [[Get_35]] - code
+- [[Get_36]] - code
+- [[Get_37]] - code
+- [[Get_38]] - code
+- [[Get_39]] - code
+- [[Header_6]] - code
+- [[Header_7]] - code
+- [[Injectable_127]] - code
+- [[Injectable_128]] - code
+- [[Injectable_129]] - code
+- [[Injectable_130]] - code
+- [[Injectable_131]] - code
+- [[Injectable_132]] - code
+- [[IsIn_36]] - code
+- [[IsIn_37]] - code
+- [[IsIn_38]] - code
+- [[IsOptional_96]] - code
+- [[IsOptional_97]] - code
+- [[IsOptional_98]] - code
+- [[IsString_77]] - code
+- [[IsString_78]] - code
+- [[IsString_79]] - code
+- [[ListClientOmsOrdersQueryDto]] - code - backend/src/modules/client-portal/oms/dto/list-client-oms-orders-query.dto.ts
+- [[Matches_21]] - code
+- [[Matches_22]] - code
+- [[MaxLength_45]] - code
+- [[MaxLength_46]] - code
+- [[MaxLength_47]] - code
+- [[Param_23]] - code
+- [[Param_24]] - code
+- [[Param_25]] - code
+- [[Param_26]] - code
+- [[Param_27]] - code
+- [[Param_28]] - code
+- [[Param_29]] - code
+- [[Param_30]] - code
+- [[Param_31]] - code
+- [[Patch_16]] - code
+- [[Post_26]] - code
+- [[Post_27]] - code
+- [[Post_28]] - code
+- [[Post_29]] - code
+- [[Post_30]] - code
+- [[Post_31]] - code
+- [[Post_32]] - code
+- [[Query_28]] - code
+- [[Query_29]] - code
+- [[Query_30]] - code
+- [[Query_31]] - code
+- [[Query_32]] - code
+- [[Query_33]] - code
+- [[Query_34]] - code
+- [[Query_35]] - code
+- [[Query_36]] - code
+- [[Res_11]] - code
+- [[Res_12]] - code
+- [[Throttle_7]] - code
+- [[Throttle_8]] - code
+- [[Throttle_9]] - code
+- [[Throttle_10]] - code
+- [[UploadedFile_6]] - code
+- [[UploadedFile_7]] - code
+- [[UseGuards_27]] - code
+- [[UseGuards_28]] - code
+- [[UseGuards_29]] - code
+- [[UseGuards_30]] - code
+- [[UseGuards_31]] - code
+- [[UseGuards_32]] - code
+- [[UseInterceptors_6]] - code
+- [[UseInterceptors_7]] - code
+- [[clientAuthPrincipal()]] - code - backend/src/common/auth/client-auth-principal.ts
+- [[productImageUrl()]] - code - backend/src/modules/client-portal/products/client-products.service.ts
+- [[stripClientCarrierCosts()]] - code - backend/src/modules/client-portal/oms/client-oms-orders.service.ts
+- [[toProductImageUrl()_1]] - code - backend/src/modules/client-portal/outbound/client-outbound-orders.service.ts
+
+## Live Query (requires Dataview plugin)
+
+```dataview
+TABLE source_file, type FROM #community/ClientPrincipal
+SORT file.name ASC
+```
+
+## Connections to other communities
+- 110 edges to [[_COMMUNITY_@nestjscommon]]
+- 73 edges to [[_COMMUNITY_client-oms-orders.service.ts]]
+- 39 edges to [[_COMMUNITY_inbound-orders-csv.service.ts]]
+- 26 edges to [[_COMMUNITY_api-credentials.service.ts]]
+- 25 edges to [[_COMMUNITY_withTenantRls]]
+- 24 edges to [[_COMMUNITY_ClientBillingService]]
+- 22 edges to [[_COMMUNITY_EmptyToUndefined]]
+- 17 edges to [[_COMMUNITY_oms-client-import.service.ts]]
+- 11 edges to [[_COMMUNITY_ClientInboundOrdersController]]
+- 10 edges to [[_COMMUNITY_MediaStorageService]]
+- 10 edges to [[_COMMUNITY_ClientNotificationsService]]
+- 8 edges to [[_COMMUNITY_ClientStockService]]
+- 8 edges to [[_COMMUNITY_ListFinancialTransactionsQueryDto]]
+- 7 edges to [[_COMMUNITY_dot-validateResourceOwnership]]
+- 4 edges to [[_COMMUNITY_ReturnsService]]
+- 4 edges to [[_COMMUNITY_returns.controller.ts]]
+- 4 edges to [[_COMMUNITY_@prismaclient]]
+- 3 edges to [[_COMMUNITY_CreateOmsOrderDto]]
+- 3 edges to [[_COMMUNITY_ProductsService]]
+- 2 edges to [[_COMMUNITY_inventory.service.ts]]
+- 2 edges to [[_COMMUNITY_CreateInboundOrderDto]]
+- 2 edges to [[_COMMUNITY_ListOmsReturnsQueryDto]]
+- 2 edges to [[_COMMUNITY_ClientCreateProductDto]]
+- 2 edges to [[_COMMUNITY_CreateOutboundOrderDto]]
+- 2 edges to [[_COMMUNITY_ClientUpdateProductDto]]
+- 2 edges to [[_COMMUNITY_AuthPrincipal]]
+- 2 edges to [[_COMMUNITY_client-financial.controller.ts]]
+- 2 edges to [[_COMMUNITY_dot-requestPayout]]
+- 2 edges to [[_COMMUNITY_product-delete-references.util.ts]]
+- 1 edge to [[_COMMUNITY_task-inventory-effects.service.ts]]
+- 1 edge to [[_COMMUNITY_ExternalCreateOutboundOrderDto]]
+- 1 edge to [[_COMMUNITY_CodRecordsService]]
+- 1 edge to [[_COMMUNITY_outbound-orders-csv.service.ts]]
+- 1 edge to [[_COMMUNITY_RunReportQueryDto]]
+- 1 edge to [[_COMMUNITY_CurrentUser]]
+- 1 edge to [[_COMMUNITY_dot-fromPrincipal]]
+- 1 edge to [[_COMMUNITY_dot-assertCompanyAccess]]
+- 1 edge to [[_COMMUNITY_NotificationsService]]
+
+## Top bridge nodes
+- [[ClientPrincipal]] - degree 218, connects to 14 communities
+- [[ClientUser_18]] - degree 96, connects to 11 communities
+- [[clientAuthPrincipal()]] - degree 59, connects to 7 communities
+- [[dot-availability()_3]] - degree 7, connects to 5 communities
+- [[ClientOmsOrdersService]] - degree 34, connects to 4 communities

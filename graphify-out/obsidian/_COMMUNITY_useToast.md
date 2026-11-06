@@ -1,0 +1,366 @@
+---
+type: community
+cohesion: 0.02
+members: 316
+---
+
+# useToast
+
+**Cohesion:** 0.02 - loosely connected
+**Members:** 316 nodes
+
+## Members
+- [[AddMode]] - code - frontend/src/pages/tasks/dispatch/DispatchAddToShipmentModal.tsx
+- [[BARCODE_FORMATS]] - code - frontend/src/components/BarcodeScanModal.tsx
+- [[BarcodeScanModal()]] - code - frontend/src/components/BarcodeScanModal.tsx
+- [[BarcodeScanModal.tsx]] - code - frontend/src/components/BarcodeScanModal.tsx
+- [[BarcodeScanModalProps]] - code - frontend/src/components/BarcodeScanModal.tsx
+- [[BillingInvoicePrintInput]] - code - frontend/src/lib/billing-invoice-print.ts
+- [[Ctx]] - code - frontend/src/hooks/useTaskProgressSave.ts
+- [[DEFAULT_PICK_LINE_FILTERS]] - code - frontend/src/pages/tasks/pick/pick-utils.ts
+- [[DEFAULT_TASK_LINE_FILTERS]] - code - frontend/src/lib/task-line-filters.ts
+- [[DispatchAddToShipmentModal()]] - code - frontend/src/pages/tasks/dispatch/DispatchAddToShipmentModal.tsx
+- [[DispatchAddToShipmentModal.tsx]] - code - frontend/src/pages/tasks/dispatch/DispatchAddToShipmentModal.tsx
+- [[DispatchExecutionDraft]] - code - frontend/src/pages/tasks/dispatch/dispatch-types.ts
+- [[DispatchExecutionPanel()]] - code - frontend/src/pages/tasks/dispatch/DispatchExecutionPanel.tsx
+- [[DispatchExecutionPanel.tsx]] - code - frontend/src/pages/tasks/dispatch/DispatchExecutionPanel.tsx
+- [[DispatchLineDraft]] - code - frontend/src/pages/tasks/dispatch/dispatch-types.ts
+- [[DispatchLineFilterStatus]] - code - frontend/src/pages/tasks/dispatch/dispatch-utils.ts
+- [[DispatchPackageDraft]] - code - frontend/src/pages/tasks/dispatch/dispatch-types.ts
+- [[DispatchPrintInput]] - code - frontend/src/pages/tasks/dispatch/dispatch-print.ts
+- [[DispatchReadiness]] - code - frontend/src/pages/tasks/dispatch/dispatch-types.ts
+- [[DispatchScanStep]] - code - frontend/src/pages/tasks/dispatch/dispatch-types.ts
+- [[DispatchSummary]] - code - frontend/src/pages/tasks/dispatch/dispatch-types.ts
+- [[ExecuteFormSwitcher()]] - code - frontend/src/pages/TaskExecutionView.tsx
+- [[FilterScanField()]] - code - frontend/src/components/FilterScanField.tsx
+- [[FilterScanField.tsx]] - code - frontend/src/components/FilterScanField.tsx
+- [[LINE_TYPE_LABELS]] - code - frontend/src/lib/billing-invoice-print.ts
+- [[LINE_TYPE_ORDER]] - code - frontend/src/lib/billing-invoice-print.ts
+- [[LocationDisplay]] - code - frontend/src/pages/tasks/putaway/putaway-types.ts
+- [[MOCK_WORKER_ID]] - code - frontend/src/pages/TaskExecutionView.tsx
+- [[MovementHero()]] - code - frontend/src/pages/tasks/dispatch/DispatchExecutionPanel.tsx
+- [[NATIVE_BARCODE_FORMATS]] - code - frontend/src/components/BarcodeScanModal.tsx
+- [[OutboundOrderLine]] - code - frontend/src/api/outbound.ts
+- [[PACKAGE_TYPE_OPTIONS]] - code - frontend/src/pages/tasks/pack/pack-utils.ts
+- [[PackExecutionDraft]] - code - frontend/src/pages/tasks/pack/pack-types.ts
+- [[PackExecutionPanel()]] - code - frontend/src/pages/tasks/pack/PackExecutionPanel.tsx
+- [[PackExecutionPanel.tsx]] - code - frontend/src/pages/tasks/pack/PackExecutionPanel.tsx
+- [[PackLineDraft]] - code - frontend/src/pages/tasks/pack/pack-types.ts
+- [[PackLineStatus]] - code - frontend/src/pages/tasks/pack/pack-types.ts
+- [[PackPackageDraft]] - code - frontend/src/pages/tasks/pack/pack-types.ts
+- [[PackPackageItem]] - code - frontend/src/pages/tasks/pack/pack-types.ts
+- [[PackPrintInput]] - code - frontend/src/pages/tasks/pack/pack-print.ts
+- [[PackScanStep]] - code - frontend/src/pages/tasks/pack/pack-types.ts
+- [[PackSummary]] - code - frontend/src/pages/tasks/pack/pack-types.ts
+- [[PackableLineRow]] - code - frontend/src/pages/tasks/pack/PackageDetailsModal.tsx
+- [[PackageDetailsModal()]] - code - frontend/src/pages/tasks/pack/PackageDetailsModal.tsx
+- [[PackageDetailsModal.tsx]] - code - frontend/src/pages/tasks/pack/PackageDetailsModal.tsx
+- [[PackageType]] - code - frontend/src/pages/tasks/pack/pack-types.ts
+- [[PackagesPanel()]] - code - frontend/src/pages/tasks/pack/PackExecutionPanel.tsx
+- [[PickExecutionDraft]] - code - frontend/src/pages/tasks/pick/pick-types.ts
+- [[PickExecutionPanel()]] - code - frontend/src/pages/tasks/pick/PickExecutionPanel.tsx
+- [[PickExecutionPanel.tsx]] - code - frontend/src/pages/tasks/pick/PickExecutionPanel.tsx
+- [[PickLineDraft]] - code - frontend/src/pages/tasks/pick/pick-types.ts
+- [[PickLineFilters]] - code - frontend/src/pages/tasks/pick/pick-utils.ts
+- [[PickLineStatus]] - code - frontend/src/pages/tasks/pick/pick-types.ts
+- [[PickLinesFilterCard()]] - code - frontend/src/pages/tasks/pick/PickLinesFilterCard.tsx
+- [[PickLinesFilterCard.tsx]] - code - frontend/src/pages/tasks/pick/PickLinesFilterCard.tsx
+- [[PickLinesTable()]] - code - frontend/src/pages/tasks/pick/PickExecutionPanel.tsx
+- [[PickPrintInput]] - code - frontend/src/pages/tasks/pick/pick-print.ts
+- [[PickReservationRow]] - code - frontend/src/pages/tasks/pick/pick-types.ts
+- [[PickScanStep]] - code - frontend/src/pages/tasks/pick/pick-types.ts
+- [[PickSummary]] - code - frontend/src/pages/tasks/pick/pick-types.ts
+- [[Props]] - code - frontend/src/pages/tasks/dispatch/DispatchExecutionPanel.tsx
+- [[Props_1]] - code - frontend/src/pages/tasks/pack/PackExecutionPanel.tsx
+- [[Props_2]] - code - frontend/src/pages/tasks/pick/PickExecutionPanel.tsx
+- [[Props_3]] - code - frontend/src/pages/tasks/putaway/PutawayExecutionPanel.tsx
+- [[PutawayDestinationPicker()]] - code - frontend/src/pages/tasks/putaway/PutawayDestinationPicker.tsx
+- [[PutawayExecutionDraft]] - code - frontend/src/pages/tasks/putaway/putaway-types.ts
+- [[PutawayExecutionPanel()]] - code - frontend/src/pages/tasks/putaway/PutawayExecutionPanel.tsx
+- [[PutawayExecutionPanel.tsx]] - code - frontend/src/pages/tasks/putaway/PutawayExecutionPanel.tsx
+- [[PutawayLineDraft]] - code - frontend/src/pages/tasks/putaway/putaway-types.ts
+- [[PutawayLineRow]] - code - frontend/src/pages/tasks/putaway/putaway-types.ts
+- [[PutawayLineStatus]] - code - frontend/src/pages/tasks/putaway/putaway-types.ts
+- [[PutawayLinesTable()]] - code - frontend/src/pages/tasks/putaway/PutawayExecutionPanel.tsx
+- [[PutawayPrintInput]] - code - frontend/src/pages/tasks/putaway/putaway-print.ts
+- [[PutawayScanStep]] - code - frontend/src/pages/tasks/putaway/putaway-types.ts
+- [[PutawaySummary]] - code - frontend/src/pages/tasks/putaway/putaway-types.ts
+- [[QcExecuteForm()]] - code - frontend/src/pages/TaskExecutionView.tsx
+- [[QcLineRow]] - code - frontend/src/pages/TaskExecutionView.tsx
+- [[ResolveTaskResolution]] - code - frontend/src/api/tasks.ts
+- [[ScanTarget]] - code - frontend/src/pages/tasks/pick/PickLinesFilterCard.tsx
+- [[ShippingDetailsExecutionPanel()]] - code - frontend/src/pages/tasks/shipping-details/ShippingDetailsExecutionPanel.tsx
+- [[SummaryCards()]] - code - frontend/src/pages/tasks/pick/PickExecutionPanel.tsx
+- [[SummaryCards()_1]] - code - frontend/src/pages/tasks/putaway/PutawayExecutionPanel.tsx
+- [[TASK_PRINT_PAGE_STYLES]] - code - frontend/src/lib/task-print-html.ts
+- [[TFn]] - code - frontend/src/lib/ui-labels/task-execution.ts
+- [[TaskDetailField]] - code - frontend/src/components/tasks/TaskDetailsCard.tsx
+- [[TaskDetailFieldRow()]] - code - frontend/src/components/tasks/TaskDetailsCard.tsx
+- [[TaskDetailPage]] - code - frontend/src/router.tsx
+- [[TaskDetailPage()]] - code - frontend/src/pages/TaskDetailPage.tsx
+- [[TaskDetailPage.tsx]] - code - frontend/src/pages/TaskDetailPage.tsx
+- [[TaskDetailsCard()]] - code - frontend/src/components/tasks/TaskDetailsCard.tsx
+- [[TaskDetailsCard.tsx]] - code - frontend/src/components/tasks/TaskDetailsCard.tsx
+- [[TaskDocumentActions()]] - code - frontend/src/components/documents/TaskDocumentActions.tsx
+- [[TaskExecutionView()]] - code - frontend/src/pages/TaskExecutionView.tsx
+- [[TaskExecutionView.tsx]] - code - frontend/src/pages/TaskExecutionView.tsx
+- [[TaskJsonCompleteBlock()]] - code - frontend/src/pages/TaskExecutionView.tsx
+- [[TaskLineFilters]] - code - frontend/src/lib/task-line-filters.ts
+- [[TaskLineSearchFields]] - code - frontend/src/lib/task-line-filters.ts
+- [[TaskLineStatusOption]] - code - frontend/src/components/tasks/TaskLinesFilterCard.tsx
+- [[TaskLinesFilterCard()]] - code - frontend/src/components/tasks/TaskLinesFilterCard.tsx
+- [[TaskLinesFilterCard.tsx]] - code - frontend/src/components/tasks/TaskLinesFilterCard.tsx
+- [[TaskManagerSkipBlock()]] - code - frontend/src/pages/TaskExecutionView.tsx
+- [[TaskMutationEnvelope]] - code - frontend/src/api/tasks.ts
+- [[TasksApi]] - code - frontend/src/api/tasks.ts
+- [[WedgeScanField()]] - code - frontend/src/components/WedgeScanField.tsx
+- [[WedgeScanField.tsx]] - code - frontend/src/components/WedgeScanField.tsx
+- [[addPackage()]] - code - frontend/src/pages/tasks/pack/PackExecutionPanel.tsx
+- [[admin-confirm-fallback.ts]] - code - frontend/src/lib/admin-confirm-fallback.ts
+- [[adminConfirmOrStartComplete()]] - code - frontend/src/lib/admin-confirm-fallback.ts
+- [[applyTaskMutationEnvelope()]] - code - frontend/src/lib/task-mutation-cache.ts
+- [[billing-invoice-print.ts]] - code - frontend/src/lib/billing-invoice-print.ts
+- [[buildBillingInvoicePrintHtml()]] - code - frontend/src/lib/billing-invoice-print.ts
+- [[buildChargeRows()]] - code - frontend/src/lib/billing-invoice-print.ts
+- [[buildDetailedLineRows()]] - code - frontend/src/lib/billing-invoice-print.ts
+- [[buildDispatchCompletePayload()]] - code - frontend/src/pages/tasks/dispatch/dispatch-utils.ts
+- [[buildDispatchPrintHtml()]] - code - frontend/src/pages/tasks/dispatch/dispatch-print.ts
+- [[buildPackCompletePayload()]] - code - frontend/src/pages/tasks/pack/pack-utils.ts
+- [[buildPackPrintHtml()]] - code - frontend/src/pages/tasks/pack/pack-print.ts
+- [[buildPickCompletePayload()]] - code - frontend/src/pages/tasks/pick/pick-utils.ts
+- [[buildPickPrintHtml()]] - code - frontend/src/pages/tasks/pick/pick-print.ts
+- [[buildPutawayPrintHtml()]] - code - frontend/src/pages/tasks/putaway/putaway-print.ts
+- [[canvasFromVideoFrame()]] - code - frontend/src/components/BarcodeScanModal.tsx
+- [[canvasToPngFile()]] - code - frontend/src/components/BarcodeScanModal.tsx
+- [[commitGunScan()]] - code - frontend/src/pages/tasks/dispatch/DispatchAddToShipmentModal.tsx
+- [[companyHeaders()]] - code - frontend/src/api/tasks.ts
+- [[completeBlockers()]] - code - frontend/src/pages/tasks/dispatch/DispatchExecutionPanel.tsx
+- [[computeDispatchLineFilterStatus()]] - code - frontend/src/pages/tasks/dispatch/dispatch-utils.ts
+- [[computeDispatchReadiness()]] - code - frontend/src/pages/tasks/dispatch/dispatch-utils.ts
+- [[computeDispatchSummary()]] - code - frontend/src/pages/tasks/dispatch/dispatch-utils.ts
+- [[computeLineStatus()]] - code - frontend/src/pages/tasks/putaway/putaway-utils.ts
+- [[computePackLineStatus()]] - code - frontend/src/pages/tasks/pack/pack-utils.ts
+- [[computePackSummary()]] - code - frontend/src/pages/tasks/pack/pack-utils.ts
+- [[computePickLineStatus()]] - code - frontend/src/pages/tasks/pick/pick-utils.ts
+- [[computePickSummary()]] - code - frontend/src/pages/tasks/pick/pick-utils.ts
+- [[computePutawaySummary()]] - code - frontend/src/pages/tasks/putaway/putaway-utils.ts
+- [[createEmptyPackage()]] - code - frontend/src/pages/tasks/pack/pack-utils.ts
+- [[dataTablePaginationLabels()]] - code - frontend/src/lib/ui-labels/task-execution.ts
+- [[decodeCanvasWithHtml5()]] - code - frontend/src/components/BarcodeScanModal.tsx
+- [[defaultCompleteJsonBody()]] - code - frontend/src/pages/TaskExecutionView.tsx
+- [[defaultPackages()]] - code - frontend/src/pages/tasks/dispatch/dispatch-utils.ts
+- [[deletePackage()]] - code - frontend/src/pages/tasks/pack/PackExecutionPanel.tsx
+- [[dispatch-print.ts]] - code - frontend/src/pages/tasks/dispatch/dispatch-print.ts
+- [[dispatch-types.ts]] - code - frontend/src/pages/tasks/dispatch/dispatch-types.ts
+- [[dispatch-utils.ts]] - code - frontend/src/pages/tasks/dispatch/dispatch-utils.ts
+- [[dispatchDestinationLocationHint()]] - code - frontend/src/pages/tasks/dispatch/dispatch-utils.ts
+- [[dispatchLineStatusFilterOptions()]] - code - frontend/src/pages/tasks/dispatch/dispatch-utils.ts
+- [[dispatchLocationLabel()]] - code - frontend/src/pages/tasks/dispatch/dispatch-print.ts
+- [[dispatchScanStepLabel()]] - code - frontend/src/pages/tasks/dispatch/dispatch-utils.ts
+- [[dispatchSourceLocationHint()]] - code - frontend/src/pages/tasks/dispatch/dispatch-utils.ts
+- [[eligibleDispatchDockLocations()]] - code - frontend/src/pages/tasks/dispatch/dispatch-utils.ts
+- [[envelopeTouch()]] - code - frontend/src/pages/TaskExecutionView.tsx
+- [[esc()]] - code - frontend/src/lib/task-print-html.ts
+- [[fileScanHtml5Config]] - code - frontend/src/components/BarcodeScanModal.tsx
+- [[filterDispatchLines()]] - code - frontend/src/pages/tasks/dispatch/dispatch-utils.ts
+- [[filterPackLineIdsByProduct()]] - code - frontend/src/pages/tasks/pack/pack-utils.ts
+- [[filterPackLines()]] - code - frontend/src/pages/tasks/pack/pack-utils.ts
+- [[filterPickDrafts()]] - code - frontend/src/pages/tasks/pick/pick-utils.ts
+- [[filterPutawayDrafts()]] - code - frontend/src/pages/tasks/putaway/putaway-utils.ts
+- [[finalizePackage()]] - code - frontend/src/pages/tasks/pack/PackExecutionPanel.tsx
+- [[findDispatchLineByProductScan()]] - code - frontend/src/pages/tasks/dispatch/dispatch-utils.ts
+- [[findLineByProductScan()]] - code - frontend/src/pages/tasks/pack/pack-utils.ts
+- [[findLocationById()]] - code - frontend/src/pages/tasks/dispatch/dispatch-utils.ts
+- [[findPackageByLabel()]] - code - frontend/src/pages/tasks/dispatch/dispatch-utils.ts
+- [[findPackageByLabelScan()]] - code - frontend/src/pages/tasks/pack/pack-utils.ts
+- [[findWorkflowTimelineTask()]] - code - frontend/src/pages/tasks/dispatch/dispatch-utils.ts
+- [[formatCycleRange()]] - code - frontend/src/lib/billing-invoice-print.ts
+- [[formatTaskDateOnly()]] - code - frontend/src/lib/task-details-helpers.tsx
+- [[formatTaskDateTime()]] - code - frontend/src/lib/task-details-helpers.tsx
+- [[handleAddPackage()]] - code - frontend/src/pages/tasks/dispatch/DispatchAddToShipmentModal.tsx
+- [[handleAddProduct()]] - code - frontend/src/pages/tasks/dispatch/DispatchAddToShipmentModal.tsx
+- [[handleAddRow()]] - code - frontend/src/pages/tasks/pack/PackageDetailsModal.tsx
+- [[handleClose()]] - code - frontend/src/pages/tasks/dispatch/DispatchAddToShipmentModal.tsx
+- [[handleComplete()]] - code - frontend/src/pages/tasks/dispatch/DispatchExecutionPanel.tsx
+- [[handleComplete()_1]] - code - frontend/src/pages/tasks/pack/PackExecutionPanel.tsx
+- [[handleComplete()_2]] - code - frontend/src/pages/tasks/pick/PickExecutionPanel.tsx
+- [[handleComplete()_3]] - code - frontend/src/pages/tasks/putaway/PutawayExecutionPanel.tsx
+- [[handleFinalizeAndComplete()]] - code - frontend/src/pages/tasks/pack/PackExecutionPanel.tsx
+- [[handleGunScan()]] - code - frontend/src/pages/tasks/dispatch/DispatchAddToShipmentModal.tsx
+- [[handleGunScan()_1]] - code - frontend/src/pages/tasks/pack/PackageDetailsModal.tsx
+- [[handleScan()]] - code - frontend/src/components/tasks/TaskLinesFilterCard.tsx
+- [[handleScan()_1]] - code - frontend/src/pages/tasks/pick/PickLinesFilterCard.tsx
+- [[html5Config]] - code - frontend/src/components/BarcodeScanModal.tsx
+- [[inboundOrderTitle()]] - code - frontend/src/lib/task-details-helpers.tsx
+- [[initialDispatchLines()]] - code - frontend/src/pages/tasks/dispatch/dispatch-utils.ts
+- [[initialDraftRows()]] - code - frontend/src/pages/tasks/putaway/PutawayExecutionPanel.tsx
+- [[initialPackLines()]] - code - frontend/src/pages/tasks/pack/pack-utils.ts
+- [[initialPickDrafts()]] - code - frontend/src/pages/tasks/pick/pick-utils.ts
+- [[isAllowedPutawayDestination()]] - code - frontend/src/lib/location-types.ts
+- [[isMissingAdminConfirmEndpoint()]] - code - frontend/src/lib/admin-confirm-fallback.ts
+- [[isRecord()]] - code - frontend/src/pages/TaskExecutionView.tsx
+- [[isRecord()_1]] - code - frontend/src/pages/tasks/dispatch/dispatch-utils.ts
+- [[isRecord()_2]] - code - frontend/src/pages/tasks/pick/pick-utils.ts
+- [[isSelectableLocation()]] - code - frontend/src/pages/tasks/dispatch/dispatch-utils.ts
+- [[lineStatusClass()]] - code - frontend/src/pages/tasks/putaway/putaway-utils.ts
+- [[lineStatusLabel()]] - code - frontend/src/pages/tasks/putaway/putaway-utils.ts
+- [[lineTotalByType()]] - code - frontend/src/lib/billing-invoice-display.ts
+- [[localizedDispatchDestinationLocationHint()]] - code - frontend/src/lib/ui-labels/task-execution.ts
+- [[localizedDispatchLineStatusFilterOptions()]] - code - frontend/src/lib/ui-labels/task-execution.ts
+- [[localizedDispatchReadiness()]] - code - frontend/src/lib/ui-labels/task-execution.ts
+- [[localizedDispatchScanStep()]] - code - frontend/src/lib/ui-labels/task-execution.ts
+- [[localizedDispatchSourceLocationHint()]] - code - frontend/src/lib/ui-labels/task-execution.ts
+- [[localizedPackLineStatus()]] - code - frontend/src/lib/ui-labels/task-execution.ts
+- [[localizedPackScanStep()]] - code - frontend/src/lib/ui-labels/task-execution.ts
+- [[localizedPackageTypeOptions()]] - code - frontend/src/lib/ui-labels/task-execution.ts
+- [[localizedPickLineStatus()]] - code - frontend/src/lib/ui-labels/task-execution.ts
+- [[localizedPickScanStep()]] - code - frontend/src/lib/ui-labels/task-execution.ts
+- [[localizedPickStatusFilterOptions()]] - code - frontend/src/lib/ui-labels/task-execution.ts
+- [[localizedPutawayLineStatus()]] - code - frontend/src/lib/ui-labels/task-execution.ts
+- [[localizedPutawayScanStep()]] - code - frontend/src/lib/ui-labels/task-execution.ts
+- [[localizedPutawayStatusFilterOptions()]] - code - frontend/src/lib/ui-labels/task-execution.ts
+- [[localizedTaskLineSearchPlaceholder()]] - code - frontend/src/lib/ui-labels/task-execution.ts
+- [[localizedTaskTypeTitle()]] - code - frontend/src/lib/ui-labels/task-execution.ts
+- [[locationDisplay()]] - code - frontend/src/pages/tasks/putaway/putaway-utils.ts
+- [[matchLocationByScan()]] - code - frontend/src/pages/tasks/putaway/putaway-utils.ts
+- [[matchLocationIdByScan()]] - code - frontend/src/pages/tasks/dispatch/dispatch-utils.ts
+- [[matchOutboundLineProductScan()]] - code - frontend/src/pages/tasks/pack/pack-utils.ts
+- [[matchProductScan()]] - code - frontend/src/pages/tasks/putaway/putaway-utils.ts
+- [[matchReservationLocationScan()]] - code - frontend/src/pages/tasks/pick/pick-utils.ts
+- [[matchReservationProductScan()]] - code - frontend/src/pages/tasks/pick/pick-utils.ts
+- [[matchesPackProductFilter()]] - code - frontend/src/pages/tasks/pack/pack-utils.ts
+- [[matchesPickLocationFilter()]] - code - frontend/src/pages/tasks/pick/pick-utils.ts
+- [[matchesPickProductFilter()]] - code - frontend/src/pages/tasks/pick/pick-utils.ts
+- [[matchesTaskLineSearch()]] - code - frontend/src/lib/task-line-filters.ts
+- [[newPackageLabel()]] - code - frontend/src/pages/tasks/dispatch/dispatch-utils.ts
+- [[newPackageLabel()_1]] - code - frontend/src/pages/tasks/pack/pack-utils.ts
+- [[openBillingInvoicePrintPdf()]] - code - frontend/src/lib/billing-invoice-print.ts
+- [[openDispatchPrintPdf()]] - code - frontend/src/pages/tasks/dispatch/dispatch-print.ts
+- [[openInboundInstructionsPdf()]] - code - frontend/src/lib/order-instructions-print.ts
+- [[openOutboundInstructionsPdf()]] - code - frontend/src/lib/order-instructions-print.ts
+- [[openPackPrintPdf()]] - code - frontend/src/pages/tasks/pack/pack-print.ts
+- [[openPackage()]] - code - frontend/src/pages/tasks/pack/PackExecutionPanel.tsx
+- [[openPickPrintPdf()]] - code - frontend/src/pages/tasks/pick/pick-print.ts
+- [[openPutawayPrintPdf()]] - code - frontend/src/pages/tasks/putaway/putaway-print.ts
+- [[openTaskPrintHtml()]] - code - frontend/src/lib/task-print-html.ts
+- [[order-instructions-print.ts]] - code - frontend/src/lib/order-instructions-print.ts
+- [[orderRef()]] - code - frontend/src/hooks/useTaskProgressSave.ts
+- [[outboundOrderTitle()]] - code - frontend/src/lib/task-details-helpers.tsx
+- [[pack-print.ts]] - code - frontend/src/pages/tasks/pack/pack-print.ts
+- [[pack-types.ts]] - code - frontend/src/pages/tasks/pack/pack-types.ts
+- [[pack-utils.ts]] - code - frontend/src/pages/tasks/pack/pack-utils.ts
+- [[packLineStatusClass()]] - code - frontend/src/pages/tasks/pack/pack-utils.ts
+- [[packLineStatusFilterOptions()]] - code - frontend/src/pages/tasks/pack/pack-utils.ts
+- [[packLineStatusLabel()]] - code - frontend/src/pages/tasks/pack/pack-utils.ts
+- [[packScanStepLabel()]] - code - frontend/src/pages/tasks/pack/pack-utils.ts
+- [[packageUnits()]] - code - frontend/src/pages/tasks/pack/PackExecutionPanel.tsx
+- [[parsePickReservationsFromExecutionState()]] - code - frontend/src/pages/tasks/pick/pick-utils.ts
+- [[parseQty()]] - code - frontend/src/pages/tasks/putaway/putaway-utils.ts
+- [[pick-print.ts]] - code - frontend/src/pages/tasks/pick/pick-print.ts
+- [[pick-types.ts]] - code - frontend/src/pages/tasks/pick/pick-types.ts
+- [[pick-utils.ts]] - code - frontend/src/pages/tasks/pick/pick-utils.ts
+- [[pickLineFiltersAfterScan()]] - code - frontend/src/pages/tasks/pick/pick-utils.ts
+- [[pickLineStatusClass()]] - code - frontend/src/pages/tasks/pick/pick-utils.ts
+- [[pickLineStatusFilterOptions()]] - code - frontend/src/pages/tasks/pick/pick-utils.ts
+- [[pickLineStatusLabel()]] - code - frontend/src/pages/tasks/pick/pick-utils.ts
+- [[pickScanStepLabel()]] - code - frontend/src/pages/tasks/pick/pick-utils.ts
+- [[primaryPackageLabelForLine()]] - code - frontend/src/pages/tasks/pack/pack-utils.ts
+- [[printPackageLabel()]] - code - frontend/src/pages/tasks/pack/PackExecutionPanel.tsx
+- [[putaway-print.ts]] - code - frontend/src/pages/tasks/putaway/putaway-print.ts
+- [[putaway-types.ts]] - code - frontend/src/pages/tasks/putaway/putaway-types.ts
+- [[putaway-utils.ts]] - code - frontend/src/pages/tasks/putaway/putaway-utils.ts
+- [[putawayDestinationSummary()]] - code - frontend/src/pages/tasks/putaway/putaway-print.ts
+- [[putawayDestinationTypes()]] - code - frontend/src/lib/location-types.ts
+- [[putawayLineStatusFilterOptions()]] - code - frontend/src/pages/tasks/putaway/putaway-utils.ts
+- [[putawayLotLabel()]] - code - frontend/src/pages/tasks/putaway/putaway-utils.ts
+- [[putawaySourceSummary()]] - code - frontend/src/pages/tasks/putaway/putaway-print.ts
+- [[qtyInPackage()]] - code - frontend/src/pages/tasks/pack/pack-utils.ts
+- [[readDispatchDraft()]] - code - frontend/src/pages/tasks/dispatch/dispatch-utils.ts
+- [[readDispatchDraftDestinationId()]] - code - frontend/src/pages/tasks/dispatch/dispatch-utils.ts
+- [[readDispatchPayloadSourceLocationId()]] - code - frontend/src/pages/tasks/dispatch/dispatch-utils.ts
+- [[readOperatorNotes()]] - code - frontend/src/pages/TaskExecutionView.tsx
+- [[readPackDraft()]] - code - frontend/src/pages/tasks/pack/pack-utils.ts
+- [[readPackDraftPackages()]] - code - frontend/src/pages/tasks/dispatch/dispatch-utils.ts
+- [[readPackDraftPackingStationId()]] - code - frontend/src/pages/tasks/dispatch/dispatch-utils.ts
+- [[readPickDraft()]] - code - frontend/src/pages/tasks/pick/PickExecutionPanel.tsx
+- [[readPickDraftPackingDestinationId()]] - code - frontend/src/pages/tasks/dispatch/dispatch-utils.ts
+- [[readPutawayDraft()]] - code - frontend/src/pages/tasks/putaway/PutawayExecutionPanel.tsx
+- [[readTaskExecutionState()]] - code - frontend/src/pages/tasks/dispatch/dispatch-utils.ts
+- [[readinessClass()]] - code - frontend/src/pages/tasks/dispatch/dispatch-utils.ts
+- [[readinessLabel()]] - code - frontend/src/pages/tasks/dispatch/dispatch-utils.ts
+- [[remainingPackableQty()]] - code - frontend/src/pages/tasks/pack/pack-utils.ts
+- [[renewalStatusLabel()]] - code - frontend/src/lib/billing-invoice-display.ts
+- [[reservationRowKey()]] - code - frontend/src/pages/tasks/pick/pick-utils.ts
+- [[resetFields()]] - code - frontend/src/pages/tasks/dispatch/DispatchAddToShipmentModal.tsx
+- [[resolveDispatchDestinationFromQueue()]] - code - frontend/src/pages/tasks/dispatch/dispatch-utils.ts
+- [[resolveDispatchSourceLocationId()]] - code - frontend/src/pages/tasks/dispatch/dispatch-utils.ts
+- [[runnabilityBlockedHint()]] - code - frontend/src/pages/TaskExecutionView.tsx
+- [[scanBarcodeFromImageFile()]] - code - frontend/src/components/BarcodeScanModal.tsx
+- [[scanStepLabel()]] - code - frontend/src/pages/tasks/putaway/putaway-utils.ts
+- [[snapshotField()]] - code - frontend/src/lib/billing-invoice-print.ts
+- [[sortDraftsByLocationPath()]] - code - frontend/src/pages/tasks/pick/pick-utils.ts
+- [[splitRow()]] - code - frontend/src/pages/tasks/putaway/PutawayExecutionPanel.tsx
+- [[stopInstance()]] - code - frontend/src/components/BarcodeScanModal.tsx
+- [[submitComplete()]] - code - frontend/src/pages/tasks/pack/PackExecutionPanel.tsx
+- [[sumPackedForLine()]] - code - frontend/src/pages/tasks/pack/pack-utils.ts
+- [[syncLinePackedQty()]] - code - frontend/src/pages/tasks/pack/pack-utils.ts
+- [[task-details-helpers.tsx]] - code - frontend/src/lib/task-details-helpers.tsx
+- [[task-execution.ts]] - code - frontend/src/lib/ui-labels/task-execution.ts
+- [[task-line-filters.ts]] - code - frontend/src/lib/task-line-filters.ts
+- [[task-print-html.ts]] - code - frontend/src/lib/task-print-html.ts
+- [[task-type-icons.ts]] - code - frontend/src/lib/task-type-icons.ts
+- [[taskLineFiltersWithSearch()]] - code - frontend/src/lib/task-line-filters.ts
+- [[taskPrintNotesBlock()]] - code - frontend/src/lib/task-print-html.ts
+- [[taskTypeIconClass()]] - code - frontend/src/lib/task-type-icons.ts
+- [[tasks.ts]] - code - frontend/src/api/tasks.ts
+- [[tryNativeBarcodeDetect()]] - code - frontend/src/components/BarcodeScanModal.tsx
+- [[useExecutionExitBlocker()]] - code - frontend/src/hooks/useExecutionExitBlocker.ts
+- [[useExecutionExitBlocker.ts]] - code - frontend/src/hooks/useExecutionExitBlocker.ts
+- [[useFilterGridColumns()]] - code - frontend/src/hooks/useFilterGridColumns.ts
+- [[useFilterGridColumns.ts]] - code - frontend/src/hooks/useFilterGridColumns.ts
+- [[useMediaQuery()]] - code - frontend/src/hooks/useMediaQuery.ts
+- [[useMediaQuery.ts]] - code - frontend/src/hooks/useMediaQuery.ts
+- [[useTaskMutationCacheRefresh()]] - code - frontend/src/hooks/useTaskProgressSave.ts
+- [[useTaskProgressSave()]] - code - frontend/src/hooks/useTaskProgressSave.ts
+- [[useTaskProgressSave.ts]] - code - frontend/src/hooks/useTaskProgressSave.ts
+- [[useToast()]] - code - frontend/src/components/ToastProvider.tsx
+- [[useWarehouseLabel()]] - code - frontend/src/hooks/useWarehouseLabel.ts
+- [[useWorkflowUx()]] - code - frontend/src/workflow/WorkflowUxContext.tsx
+
+## Live Query (requires Dataview plugin)
+
+```dataview
+TABLE source_file, type FROM #community/useToast
+SORT file.name ASC
+```
+
+## Connections to other communities
+- 129 edges to [[_COMMUNITY_TextField]]
+- 123 edges to [[_COMMUNITY_useWmsTranslation]]
+- 79 edges to [[_COMMUNITY_ref_tanstack_react_query]]
+- 61 edges to [[_COMMUNITY_query-keys.ts]]
+- 47 edges to [[_COMMUNITY_Modal]]
+- 46 edges to [[_COMMUNITY_ReceivingExecutionPanel.tsx]]
+- 25 edges to [[_COMMUNITY_design-system-nextuiindex.ts]]
+- 23 edges to [[_COMMUNITY_outbound.ts]]
+- 23 edges to [[_COMMUNITY_OmsOrderCreatePage.tsx]]
+- 18 edges to [[_COMMUNITY_router.tsx]]
+- 17 edges to [[_COMMUNITY_OmsOrdersListPage.tsx]]
+- 14 edges to [[_COMMUNITY_ReturnProcessPage.tsx]]
+- 8 edges to [[_COMMUNITY_UsersPage.tsx]]
+- 7 edges to [[_COMMUNITY_WorkflowOrderTimeline.tsx]]
+- 5 edges to [[_COMMUNITY_carrier-shipping-form.ts]]
+- 2 edges to [[_COMMUNITY_OmsBulkShippingDetailsModal]]
+- 2 edges to [[_COMMUNITY_AdjustmentDetailPage.tsx]]
+- 2 edges to [[_COMMUNITY_DashboardOverviewPage.tsx]]
+- 2 edges to [[_COMMUNITY_BackupHistoryPage.tsx]]
+- 1 edge to [[_COMMUNITY_ShippingFeeRatePage]]
+- 1 edge to [[_COMMUNITY_OmsBulkShippingDetailsModal.tsx]]
+- 1 edge to [[_COMMUNITY_client.ts]]
+
+## Top bridge nodes
+- [[useToast()]] - degree 200, connects to 18 communities
+- [[TaskExecutionView.tsx]] - degree 89, connects to 12 communities
+- [[PutawayExecutionPanel.tsx]] - degree 83, connects to 8 communities
+- [[PickExecutionPanel.tsx]] - degree 80, connects to 8 communities
+- [[BarcodeScanModal.tsx]] - degree 34, connects to 8 communities

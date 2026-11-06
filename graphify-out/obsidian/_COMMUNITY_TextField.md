@@ -1,0 +1,386 @@
+---
+type: community
+cohesion: 0.03
+members: 308
+---
+
+# TextField
+
+**Cohesion:** 0.03 - loosely connected
+**Members:** 308 nodes
+
+## Members
+- [[AdjListDraft]] - code - frontend/src/pages/AdjustmentsPage.tsx
+- [[AdjustmentsPage()]] - code - frontend/src/pages/AdjustmentsPage.tsx
+- [[AdjustmentsPage.tsx]] - code - frontend/src/pages/AdjustmentsPage.tsx
+- [[AdminListPageShell()]] - code - frontend/src/components/AdminListPageShell.tsx
+- [[AdminListPageShell.tsx]] - code - frontend/src/components/AdminListPageShell.tsx
+- [[AdvancedFilterSection()]] - code - shared/design-system-next/ui/AdvancedFilterSection.tsx
+- [[AnchoredDropdown()]] - code - frontend/src/components/AnchoredDropdown.tsx
+- [[AuditLogsPage()]] - code - frontend/src/pages/AuditLogsPage.tsx
+- [[AuditLogsPage.tsx]] - code - frontend/src/pages/AuditLogsPage.tsx
+- [[BarcodeImageModal()]] - code - frontend/src/components/BarcodeImageModal.tsx
+- [[BillingInvoicesPage()]] - code - frontend/src/pages/billing/BillingInvoicesPage.tsx
+- [[BillingInvoicesPage.tsx]] - code - frontend/src/pages/billing/BillingInvoicesPage.tsx
+- [[BillingLabel()]] - code - frontend/src/pages/billing/BillingPlansPage.tsx
+- [[BillingPlansPage()]] - code - frontend/src/pages/billing/BillingPlansPage.tsx
+- [[BillingPlansPage.tsx]] - code - frontend/src/pages/billing/BillingPlansPage.tsx
+- [[CHUNK_SIZE_STANDARD]] - code - shared/design-system-next/hooks/useChunkedServerPagination.ts
+- [[COD_LIST_FILTERS]] - code - client-frontend/src/pages/CodReportsPage.tsx
+- [[COD_RECORD_STATUS_OPTIONS]] - code - frontend/src/pages/OmsCodReturnsPages.tsx
+- [[COD_STATUS_FILTER_OPTIONS]] - code - frontend/src/pages/OmsCodReturnsPages.tsx
+- [[COD_STATUS_SELECT_CLASS]] - code - frontend/src/pages/OmsCodReturnsPages.tsx
+- [[COD_STATUS_TONE]] - code - frontend/src/pages/OmsCodReturnsPages.tsx
+- [[ClientListFilters]] - code - frontend/src/pages/ClientsPage.tsx
+- [[ClientOrderDraftLineRow]] - code - client-frontend/src/components/ClientOrderLinesTable.tsx
+- [[ClientOrderLinesTable()]] - code - client-frontend/src/components/ClientOrderLinesTable.tsx
+- [[ClientOrderLinesTable.tsx]] - code - client-frontend/src/components/ClientOrderLinesTable.tsx
+- [[ClientOrderLinesTableProps]] - code - client-frontend/src/components/ClientOrderLinesTable.tsx
+- [[ClientsPage()]] - code - frontend/src/pages/ClientsPage.tsx
+- [[ClientsPage.tsx]] - code - frontend/src/pages/ClientsPage.tsx
+- [[CodReportsPage.tsx]] - code - client-frontend/src/pages/CodReportsPage.tsx
+- [[Column]] - code - frontend/src/components/DataTable.tsx
+- [[Combobox()]] - code - shared/design-system-next/ui/Combobox.tsx
+- [[ComboboxOption]] - code - shared/design-system-next/ui/Combobox.tsx
+- [[CompaniesApi]] - code - frontend/src/api/companies.ts
+- [[CompanyDetailField()]] - code - frontend/src/components/clients/CompanyDetailsCard.tsx
+- [[CompanyDetailsCard()]] - code - frontend/src/components/clients/CompanyDetailsCard.tsx
+- [[CompanyDetailsCard.tsx]] - code - frontend/src/components/clients/CompanyDetailsCard.tsx
+- [[CompanyListRow]] - code - frontend/src/api/companies.ts
+- [[CompanyNameCell()]] - code - frontend/src/components/CompanyNameCell.tsx
+- [[CompanyNameCell.tsx]] - code - frontend/src/components/CompanyNameCell.tsx
+- [[CompanyStatus]] - code - frontend/src/api/companies.ts
+- [[ContractFilters]] - code - frontend/src/pages/ContractsPage.tsx
+- [[ContractsPage()]] - code - frontend/src/pages/ContractsPage.tsx
+- [[ContractsPage.tsx]] - code - frontend/src/pages/ContractsPage.tsx
+- [[ContractsRouteKind]] - code - frontend/src/pages/ContractsPage.tsx
+- [[CreateCompanyPayload]] - code - frontend/src/api/companies.ts
+- [[CreateFinalContractModal()]] - code - frontend/src/components/final-contracts/CreateFinalContractModal.tsx
+- [[CreateProductInput]] - code - frontend/src/api/products.ts
+- [[CreateProductModal()]] - code - frontend/src/pages/ProductsPage.tsx
+- [[CreateProductModalProps]] - code - frontend/src/pages/ProductsPage.tsx
+- [[CustomerLifecycleContext]] - code - frontend/src/api/companies.ts
+- [[CustomerLifecycleCounts]] - code - frontend/src/api/companies.ts
+- [[CycleCountApi]] - code - frontend/src/api/cycle-count.ts
+- [[CycleCountDetailPage()]] - code - frontend/src/pages/cycle-count/CycleCountDetailPage.tsx
+- [[CycleCountDetailPage.tsx]] - code - frontend/src/pages/cycle-count/CycleCountDetailPage.tsx
+- [[CycleCountListPage()]] - code - frontend/src/pages/cycle-count/CycleCountListPage.tsx
+- [[CycleCountListPage.tsx]] - code - frontend/src/pages/cycle-count/CycleCountListPage.tsx
+- [[CycleCountMyTasksPage()]] - code - frontend/src/pages/cycle-count/CycleCountMyTasksPage.tsx
+- [[CycleCountMyTasksPage.tsx]] - code - frontend/src/pages/cycle-count/CycleCountMyTasksPage.tsx
+- [[DataTable()]] - code - frontend/src/components/DataTable.tsx
+- [[DataTableProps]] - code - frontend/src/components/DataTable.tsx
+- [[DraftLine]] - code - frontend/src/components/returns/NewReturnModal.tsx
+- [[EditProductModal()]] - code - frontend/src/pages/ProductsPage.tsx
+- [[FILTER_COMPACT_SEARCH_CLASS]] - code - shared/design-system-next/ui/filter-panel-styles.ts
+- [[FILTER_PRIMARY_BUTTON_CLASS]] - code - frontend/src/components/FilterPanel.tsx
+- [[FieldTextarea()]] - code - frontend/src/pages/ClientsPage.tsx
+- [[FilterDraft]] - code - frontend/src/pages/cycle-count/CycleCountListPage.tsx
+- [[FilterDraft_1]] - code - frontend/src/pages/returns/ReturnsListPage.tsx
+- [[FilterPanel()]] - code - frontend/src/components/FilterPanel.tsx
+- [[FilterScanButton()]] - code - frontend/src/components/FilterScanButton.tsx
+- [[FinalContractFilters]] - code - frontend/src/pages/FinalContractPage.tsx
+- [[FinalContractPage()]] - code - frontend/src/pages/FinalContractPage.tsx
+- [[FinalContractPage.tsx]] - code - frontend/src/pages/FinalContractPage.tsx
+- [[INBOUND_LIST_FILTERS]] - code - client-frontend/src/pages/InboundOrdersPage.tsx
+- [[INITIAL_FILTERS]] - code - frontend/src/pages/billing/BillingInvoicesPage.tsx
+- [[INITIAL_FILTERS_1]] - code - frontend/src/pages/billing/BillingPlansPage.tsx
+- [[INITIAL_FILTERS_2]] - code - frontend/src/pages/LocationsPage.tsx
+- [[InboundListPage()]] - code - frontend/src/pages/InboundListPage.tsx
+- [[InboundListPage.tsx]] - code - frontend/src/pages/InboundListPage.tsx
+- [[InboundOrdersPage.tsx]] - code - client-frontend/src/pages/InboundOrdersPage.tsx
+- [[InvDraftFilters]] - code - frontend/src/pages/InventoryPage.tsx
+- [[InventoryLedgerEntryPage]] - code - frontend/src/router.tsx
+- [[InventoryLedgerEntryPage()]] - code - frontend/src/pages/InventoryLedgerEntryPage.tsx
+- [[InventoryLedgerEntryPage.tsx]] - code - frontend/src/pages/InventoryLedgerEntryPage.tsx
+- [[InventoryLedgerPage()]] - code - frontend/src/pages/InventoryLedgerPage.tsx
+- [[InventoryLedgerPage.tsx]] - code - frontend/src/pages/InventoryLedgerPage.tsx
+- [[InventoryLedgerReferencePage()]] - code - frontend/src/pages/InventoryLedgerReferencePage.tsx
+- [[InventoryLedgerReferencePage.tsx]] - code - frontend/src/pages/InventoryLedgerReferencePage.tsx
+- [[InventoryPage()]] - code - frontend/src/pages/InventoryPage.tsx
+- [[InventoryPage.tsx]] - code - frontend/src/pages/InventoryPage.tsx
+- [[InventoryProductDetailPage]] - code - frontend/src/router.tsx
+- [[InventoryProductDetailPage()]] - code - frontend/src/pages/InventoryProductDetailPage.tsx
+- [[InventoryProductDetailPage.tsx]] - code - frontend/src/pages/InventoryProductDetailPage.tsx
+- [[InventorySearchCategory]] - code - frontend/src/pages/InventoryPage.tsx
+- [[LastMovementCell()]] - code - frontend/src/pages/InventoryPage.tsx
+- [[LedgerDetailField()]] - code - frontend/src/pages/InventoryLedgerEntryPage.tsx
+- [[LedgerDraft]] - code - frontend/src/pages/InventoryLedgerPage.tsx
+- [[LedgerMovementCategory]] - code - frontend/src/lib/ledger-display.ts
+- [[LedgerMovementSummaryCard()]] - code - frontend/src/pages/InventoryLedgerEntryPage.tsx
+- [[LedgerSearchCategory]] - code - frontend/src/pages/InventoryLedgerPage.tsx
+- [[ListDraft]] - code - frontend/src/pages/InboundListPage.tsx
+- [[ListFilters]] - code - frontend/src/pages/billing/BillingInvoicesPage.tsx
+- [[ListFilters_1]] - code - frontend/src/pages/billing/BillingPlansPage.tsx
+- [[LocationsPage()]] - code - frontend/src/pages/LocationsPage.tsx
+- [[LocationsPage.tsx]] - code - frontend/src/pages/LocationsPage.tsx
+- [[MOVEMENT_INBOUND]] - code - frontend/src/lib/ledger-display.ts
+- [[MOVEMENT_OUTBOUND]] - code - frontend/src/lib/ledger-display.ts
+- [[MOVEMENT_QC]] - code - frontend/src/lib/ledger-display.ts
+- [[MOVEMENT_RETURN]] - code - frontend/src/lib/ledger-display.ts
+- [[MOVEMENT_SCRAP]] - code - frontend/src/lib/ledger-display.ts
+- [[MOVEMENT_TRANSFER]] - code - frontend/src/lib/ledger-display.ts
+- [[MergedLotLocationLine]] - code - frontend/src/lib/ledger-display.ts
+- [[MetricTile()]] - code - frontend/src/pages/InventoryProductDetailPage.tsx
+- [[MovementDraft]] - code - frontend/src/pages/InventoryProductDetailPage.tsx
+- [[MovementQty()]] - code - frontend/src/pages/InventoryProductDetailPage.tsx
+- [[NewAdjustmentModal()]] - code - frontend/src/components/adjustments/NewAdjustmentModal.tsx
+- [[NewAdjustmentModal.tsx]] - code - frontend/src/components/adjustments/NewAdjustmentModal.tsx
+- [[NewReturnModal()]] - code - frontend/src/components/returns/NewReturnModal.tsx
+- [[NewReturnModal.tsx]] - code - frontend/src/components/returns/NewReturnModal.tsx
+- [[OmsBatchesPage()]] - code - frontend/src/pages/OmsBatchesPage.tsx
+- [[OmsBatchesPage.tsx]] - code - frontend/src/pages/OmsBatchesPage.tsx
+- [[OmsCodPage()]] - code - frontend/src/pages/OmsCodReturnsPages.tsx
+- [[OmsCodReturnsPages.tsx]] - code - frontend/src/pages/OmsCodReturnsPages.tsx
+- [[OmsOrdersExportModal()]] - code - frontend/src/components/oms/OmsOrdersExportModal.tsx
+- [[OmsReturnsPage()]] - code - frontend/src/pages/OmsCodReturnsPages.tsx
+- [[OrderDraftLineRow]] - code - frontend/src/components/OrderDraftLinesTable.tsx
+- [[OrderDraftLinesTable()]] - code - frontend/src/components/OrderDraftLinesTable.tsx
+- [[OrderDraftLinesTable.tsx]] - code - frontend/src/components/OrderDraftLinesTable.tsx
+- [[OrderDraftLinesTableProps]] - code - frontend/src/components/OrderDraftLinesTable.tsx
+- [[OrderShippingFields()]] - code - frontend/src/components/shipping/OrderShippingFields.tsx
+- [[OrderShippingFields.tsx]] - code - frontend/src/components/shipping/OrderShippingFields.tsx
+- [[OutListDraft]] - code - frontend/src/pages/OutboundListPage.tsx
+- [[OutboundListPage()]] - code - frontend/src/pages/OutboundListPage.tsx
+- [[OutboundListPage.tsx]] - code - frontend/src/pages/OutboundListPage.tsx
+- [[PendingAdjustmentRow]] - code - frontend/src/components/adjustments/NewAdjustmentModal.tsx
+- [[ProductDetailField()]] - code - frontend/src/pages/InventoryProductDetailPage.tsx
+- [[ProductDraftFilters]] - code - frontend/src/pages/ProductsPage.tsx
+- [[ProductNameCell()]] - code - frontend/src/components/ProductNameCell.tsx
+- [[ProductNameCell.tsx]] - code - frontend/src/components/ProductNameCell.tsx
+- [[ProductsPage()]] - code - frontend/src/pages/ProductsPage.tsx
+- [[Props_4]] - code - frontend/src/components/AdminListPageShell.tsx
+- [[Props_5]] - code - frontend/src/components/CompanyNameCell.tsx
+- [[Props_6]] - code - frontend/src/components/ProductNameCell.tsx
+- [[Props_7]] - code - frontend/src/components/returns/NewReturnModal.tsx
+- [[Props_8]] - code - frontend/src/components/ServerPaginationBar.tsx
+- [[Props_9]] - code - frontend/src/components/shipping/OrderShippingFields.tsx
+- [[QuickDirectedOutboundPage()]] - code - frontend/src/pages/QuickDirectedOutboundPage.tsx
+- [[QuickDirectedOutboundPage.tsx]] - code - frontend/src/pages/QuickDirectedOutboundPage.tsx
+- [[QuickOutListDraft]] - code - frontend/src/pages/QuickDirectedOutboundPage.tsx
+- [[REASON_LABELS]] - code - frontend/src/pages/cycle-count/CycleCountDetailPage.tsx
+- [[ReportFiltersPanel()]] - code - frontend/src/components/reports/ReportFiltersPanel.tsx
+- [[ReportFiltersPanel.tsx]] - code - frontend/src/components/reports/ReportFiltersPanel.tsx
+- [[ReportFiltersPanelProps]] - code - frontend/src/components/reports/ReportFiltersPanel.tsx
+- [[ReturnsApi]] - code - frontend/src/api/returns.ts
+- [[ReturnsListPage()]] - code - frontend/src/pages/returns/ReturnsListPage.tsx
+- [[RowAction]] - code - frontend/src/components/RowActionsMenu.tsx
+- [[RowActionsMenu()]] - code - frontend/src/components/RowActionsMenu.tsx
+- [[RowActionsMenu.tsx]] - code - frontend/src/components/RowActionsMenu.tsx
+- [[STATUS_CARD_TONES]] - code - shared/design-system-next/ui/StatusCardNav.tsx
+- [[STATUS_OPTIONS]] - code - frontend/src/pages/ClientsPage.tsx
+- [[SelectField]] - code - shared/design-system-next/ui/SelectField.tsx
+- [[ServerPagination]] - code - frontend/src/hooks/useServerPagination.ts
+- [[ServerPaginationBar()]] - code - frontend/src/components/ServerPaginationBar.tsx
+- [[ServerPaginationBar.tsx]] - code - frontend/src/components/ServerPaginationBar.tsx
+- [[ServerPaginationFetchFn]] - code - frontend/src/hooks/useServerPagination.ts
+- [[StatusBadge()]] - code - shared/design-system-next/ui/StatusBadge.tsx
+- [[StatusCardItem]] - code - shared/design-system-next/ui/StatusCardNav.tsx
+- [[StatusCardNav()]] - code - shared/design-system-next/ui/StatusCardNav.tsx
+- [[StatusFilter]] - code - frontend/src/pages/LocationsPage.tsx
+- [[StockLevelChart()]] - code - frontend/src/pages/InventoryProductDetailPage.tsx
+- [[StockStatusBadge()]] - code - frontend/src/pages/InventoryProductDetailPage.tsx
+- [[TABS]] - code - frontend/src/pages/InventoryProductDetailPage.tsx
+- [[TASK_LIST_DEFAULT_PAGE_SIZE]] - code - frontend/src/hooks/useServerPagination.ts
+- [[TASK_LIST_PAGE_SIZE_OPTIONS]] - code - frontend/src/hooks/useServerPagination.ts
+- [[TASK_TYPE_OPTIONS]] - code - frontend/src/components/reports/ReportFiltersPanel.tsx
+- [[Tab]] - code - frontend/src/pages/cycle-count/CycleCountListPage.tsx
+- [[TabId]] - code - frontend/src/pages/InventoryProductDetailPage.tsx
+- [[TableCardHeader()]] - code - shared/design-system-next/ui/TableCardHeader.tsx
+- [[TaskListFilters]] - code - frontend/src/pages/TasksListPage.tsx
+- [[TasksListPage()]] - code - frontend/src/pages/TasksListPage.tsx
+- [[TasksListPage.tsx]] - code - frontend/src/pages/TasksListPage.tsx
+- [[TextField]] - code - shared/design-system-next/ui/TextField.tsx
+- [[UOM_LABELS]] - code - frontend/src/pages/InventoryProductDetailPage.tsx
+- [[UOM_OPTIONS]] - code - frontend/src/pages/InventoryPage.tsx
+- [[UOM_VALUES]] - code - frontend/src/pages/ProductsPage.tsx
+- [[UpdateCompanyPayload]] - code - frontend/src/api/companies.ts
+- [[UseServerPaginationOptions]] - code - frontend/src/hooks/useServerPagination.ts
+- [[WarehouseListFilters]] - code - frontend/src/pages/LocationsPage.tsx
+- [[WorkersApi]] - code - frontend/src/api/workers.ts
+- [[admin-media.ts]] - code - frontend/src/lib/admin-media.ts
+- [[adminMediaSrc()]] - code - frontend/src/lib/admin-media.ts
+- [[auditActionToneLabel()]] - code - frontend/src/pages/AuditLogsPage.tsx
+- [[auditLogSummaryText()]] - code - frontend/src/lib/audit-log-display.ts
+- [[buildInboundListParams()]] - code - frontend/src/lib/inbound-list-params.ts
+- [[buildOutboundListParams()]] - code - frontend/src/lib/outbound-list-params.ts
+- [[canExecuteCycleCount()]] - code - frontend/src/lib/rbac.ts
+- [[codStatusScanCopy()]] - code - frontend/src/pages/OmsCodReturnsPages.tsx
+- [[companies.ts]] - code - frontend/src/api/companies.ts
+- [[company-filter-options.ts]] - code - frontend/src/lib/company-filter-options.ts
+- [[company-filter-options.unit.spec.ts]] - code - frontend/src/lib/company-filter-options.unit.spec.ts
+- [[companyFilterComboboxOptions()]] - code - frontend/src/lib/company-filter-options.ts
+- [[componentsCombobox.tsx]] - code - frontend/src/components/Combobox.tsx
+- [[componentsDataTable.tsx]] - code - frontend/src/components/DataTable.tsx
+- [[componentsSelectField.tsx]] - code - frontend/src/components/SelectField.tsx
+- [[componentsStatusBadge.tsx]] - code - frontend/src/components/StatusBadge.tsx
+- [[componentsTextField.tsx]] - code - frontend/src/components/TextField.tsx
+- [[countNonEmptyFilters()]] - code - shared/design-system-next/lib/filter-state.ts
+- [[dayYmd()]] - code - frontend/src/pages/InventoryProductDetailPage.tsx
+- [[describeLedgerLocations()]] - code - frontend/src/lib/ledger-display.ts
+- [[design-system-nextuiStatusCardNav.tsx]] - code - shared/design-system-next/ui/StatusCardNav.tsx
+- [[design-v2Badge.tsx]] - code - client-frontend/src/design-v2/Badge.tsx
+- [[design-v2ListPageHeader.tsx]] - code - client-frontend/src/design-v2/ListPageHeader.tsx
+- [[display()]] - code - frontend/src/components/clients/CompanyDetailsCard.tsx
+- [[documentTypeForRoute()]] - code - frontend/src/pages/ContractsPage.tsx
+- [[emptyCreate]] - code - frontend/src/pages/ClientsPage.tsx
+- [[filterWarehouses()]] - code - frontend/src/pages/LocationsPage.tsx
+- [[findScrollParent()]] - code - frontend/src/components/AnchoredDropdown.tsx
+- [[fmtAdjustmentQty()]] - code - frontend/src/components/adjustments/NewAdjustmentModal.tsx
+- [[fmtMoney()]] - code - frontend/src/pages/OmsCodReturnsPages.tsx
+- [[fmtQty()]] - code - frontend/src/pages/InventoryPage.tsx
+- [[fmtQty()_1]] - code - frontend/src/pages/InventoryProductDetailPage.tsx
+- [[fmtQty()_2]] - code - frontend/src/pages/QuickDirectedOutboundPage.tsx
+- [[fmtSignedDelta()]] - code - frontend/src/lib/ledger-display.ts
+- [[formatCount()]] - code - shared/design-system-next/ui/StatusCardNav.tsx
+- [[formatDt()]] - code - frontend/src/pages/returns/ReturnsListPage.tsx
+- [[formatReturnListQuantities()]] - code - frontend/src/lib/return-list-summary.ts
+- [[formatWhen()]] - code - frontend/src/pages/OmsBatchesPage.tsx
+- [[frontendsrccomponentsAnchoredDropdown.tsx]] - code - frontend/src/components/AnchoredDropdown.tsx
+- [[frontendsrchooksuseCachedState.ts]] - code - frontend/src/hooks/useCachedState.ts
+- [[frontendsrchooksuseChunkedServerPagination.ts]] - code - frontend/src/hooks/useChunkedServerPagination.ts
+- [[frontendsrchooksuseFilters.ts]] - code - frontend/src/hooks/useFilters.ts
+- [[frontendsrclibidentifiers.ts]] - code - frontend/src/lib/identifiers.ts
+- [[frontendsrcpagesProductsPage.tsx]] - code - frontend/src/pages/ProductsPage.tsx
+- [[generateLotNumber()]] - code - frontend/src/lib/identifiers.ts
+- [[generateSku()]] - code - frontend/src/lib/identifiers.ts
+- [[generationStatusClass()]] - code - frontend/src/pages/ContractsPage.tsx
+- [[generationStatusClass()_1]] - code - frontend/src/pages/FinalContractPage.tsx
+- [[generationStatusLabel()]] - code - frontend/src/pages/ContractsPage.tsx
+- [[generationStatusLabel()_1]] - code - frontend/src/pages/FinalContractPage.tsx
+- [[handleExport()]] - code - frontend/src/pages/AuditLogsPage.tsx
+- [[handleLangAction()]] - code - frontend/src/pages/ContractsPage.tsx
+- [[handleLangAction()_1]] - code - frontend/src/pages/FinalContractPage.tsx
+- [[handleSubmit()]] - code - frontend/src/components/final-contracts/CreateFinalContractModal.tsx
+- [[hasDiscrepancy()]] - code - frontend/src/pages/cycle-count/CycleCountListPage.tsx
+- [[inbound-shortfall.ts]] - code - frontend/src/lib/inbound-shortfall.ts
+- [[inboundHasQuantityShortfall()]] - code - frontend/src/lib/inbound-shortfall.ts
+- [[inboundLabel()]] - code - frontend/src/pages/InboundListPage.tsx
+- [[inventorySearchParams()]] - code - frontend/src/pages/InventoryPage.tsx
+- [[isBulkShippingCandidate()]] - code - frontend/src/pages/OutboundListPage.tsx
+- [[isConfirmableReturn()]] - code - frontend/src/pages/OmsCodReturnsPages.tsx
+- [[isOverdue()]] - code - frontend/src/pages/cycle-count/CycleCountListPage.tsx
+- [[isProductsPageOneChunkKey()]] - code - frontend/src/pages/ProductsPage.tsx
+- [[ledger-display.ts]] - code - frontend/src/lib/ledger-display.ts
+- [[ledgerEntryDetailPath()]] - code - frontend/src/lib/ledger-display.ts
+- [[ledgerGroupRefLabel()]] - code - frontend/src/lib/ledger-display.ts
+- [[ledgerLotLocationBucketKey()]] - code - frontend/src/lib/ledger-display.ts
+- [[ledgerMovementCategory()]] - code - frontend/src/lib/ledger-display.ts
+- [[ledgerMovementLabel()]] - code - frontend/src/lib/ledger-display.ts
+- [[ledgerQuantityDisplay()]] - code - frontend/src/lib/ledger-display.ts
+- [[ledgerReferenceAdminPath()]] - code - frontend/src/lib/ledger-display.ts
+- [[ledgerReferenceIdLabel()]] - code - frontend/src/pages/InventoryLedgerEntryPage.tsx
+- [[ledgerRowKey()]] - code - frontend/src/pages/InventoryLedgerPage.tsx
+- [[ledgerSearchParams()]] - code - frontend/src/pages/InventoryLedgerPage.tsx
+- [[ledgerSignedChange()]] - code - frontend/src/lib/ledger-display.ts
+- [[locationCell()]] - code - frontend/src/pages/InventoryLedgerReferencePage.tsx
+- [[mergeLedgerLinesByLotAndLocation()]] - code - frontend/src/lib/ledger-display.ts
+- [[movementIcon()]] - code - frontend/src/pages/InventoryLedgerEntryPage.tsx
+- [[movementTone()]] - code - frontend/src/pages/InventoryLedgerEntryPage.tsx
+- [[onDocClick()]] - code - shared/design-system-next/ui/Combobox.tsx
+- [[orderPath()]] - code - frontend/src/pages/ContractsPage.tsx
+- [[outboundLabel()]] - code - frontend/src/pages/OutboundListPage.tsx
+- [[parseCoord()]] - code - frontend/src/components/shipping/OrderShippingFields.tsx
+- [[parseDimUpdate()]] - code - frontend/src/pages/ProductsPage.tsx
+- [[parseOptionalCreateDim()]] - code - frontend/src/pages/ProductsPage.tsx
+- [[parseQty()_1]] - code - frontend/src/lib/ledger-display.ts
+- [[patch()]] - code - frontend/src/components/shipping/OrderShippingFields.tsx
+- [[prependProductAcrossCaches()]] - code - frontend/src/pages/ProductsPage.tsx
+- [[prettyDate()]] - code - frontend/src/components/clients/CompanyDetailsCard.tsx
+- [[primaryDocumentNumber()]] - code - frontend/src/pages/ContractsPage.tsx
+- [[productUomLabel()]] - code - frontend/src/lib/ui-labels/products.ts
+- [[quickDirectedReasonFromReference()]] - code - frontend/src/lib/quick-directed-outbound.ts
+- [[quickDirectedReasonLabel()]] - code - frontend/src/lib/quick-directed-outbound.ts
+- [[randomToken()]] - code - frontend/src/lib/identifiers.ts
+- [[rangeFromPreset()]] - code - frontend/src/pages/InventoryProductDetailPage.tsx
+- [[rateField()]] - code - frontend/src/components/final-contracts/CreateFinalContractModal.tsx
+- [[referenceTypeForRoute()]] - code - frontend/src/pages/ContractsPage.tsx
+- [[resolveRouteKind()]] - code - frontend/src/pages/ContractsPage.tsx
+- [[returnsReturnsListPage.tsx]] - code - frontend/src/pages/returns/ReturnsListPage.tsx
+- [[sourceBadge()]] - code - frontend/src/components/shipping/OrderShippingFields.tsx
+- [[stageLabel()]] - code - frontend/src/pages/OmsBatchesPage.tsx
+- [[toggleAll()]] - code - frontend/src/pages/OmsCodReturnsPages.tsx
+- [[toggleRow()]] - code - frontend/src/pages/OmsCodReturnsPages.tsx
+- [[toggleRow()_1]] - code - frontend/src/pages/OmsCodReturnsPages.tsx
+- [[uomLabel()]] - code - frontend/src/pages/InventoryPage.tsx
+- [[uomLabel()_1]] - code - frontend/src/pages/InventoryProductDetailPage.tsx
+- [[upsertProductAcrossCaches()]] - code - frontend/src/pages/ProductsPage.tsx
+- [[useArabic()]] - code - frontend/src/pages/OmsBatchesPage.tsx
+- [[useCachedState()]] - code - frontend/src/hooks/useCachedState.ts
+- [[useChunkedServerPagination()]] - code - frontend/src/hooks/useChunkedServerPagination.ts
+- [[useDebounced()]] - code - frontend/src/lib/useDebounced.ts
+- [[useDebounced.ts]] - code - frontend/src/lib/useDebounced.ts
+- [[useDefaultWarehouse.ts]] - code - frontend/src/hooks/useDefaultWarehouse.ts
+- [[useDefaultWarehouseId()]] - code - frontend/src/hooks/useDefaultWarehouse.ts
+- [[useFilters()]] - code - frontend/src/hooks/useFilters.ts
+- [[useIsArabic()]] - code - frontend/src/pages/OmsCodReturnsPages.tsx
+- [[useServerPagination()]] - code - frontend/src/hooks/useServerPagination.ts
+- [[useServerPagination.ts]] - code - frontend/src/hooks/useServerPagination.ts
+- [[useTenantCompanyId()]] - code - frontend/src/hooks/useTenantCompanyId.ts
+- [[useTenantCompanyId.ts]] - code - frontend/src/hooks/useTenantCompanyId.ts
+
+## Live Query (requires Dataview plugin)
+
+```dataview
+TABLE source_file, type FROM #community/TextField
+SORT file.name ASC
+```
+
+## Connections to other communities
+- 321 edges to [[_COMMUNITY_ref_tanstack_react_query]]
+- 176 edges to [[_COMMUNITY_Modal]]
+- 151 edges to [[_COMMUNITY_design-system-nextuiindex.ts]]
+- 144 edges to [[_COMMUNITY_useWmsTranslation]]
+- 129 edges to [[_COMMUNITY_useToast]]
+- 124 edges to [[_COMMUNITY_query-keys.ts]]
+- 119 edges to [[_COMMUNITY_OmsOrderCreatePage.tsx]]
+- 97 edges to [[_COMMUNITY_router.tsx]]
+- 86 edges to [[_COMMUNITY_OmsOrdersListPage.tsx]]
+- 72 edges to [[_COMMUNITY_UsersPage.tsx]]
+- 54 edges to [[_COMMUNITY_ReturnProcessPage.tsx]]
+- 53 edges to [[_COMMUNITY_EcommerceOrdersPage.tsx]]
+- 22 edges to [[_COMMUNITY_outbound.ts]]
+- 18 edges to [[_COMMUNITY_AdjustmentDetailPage.tsx]]
+- 18 edges to [[_COMMUNITY_client-frontendsrcpagesProductsPage.tsx]]
+- 15 edges to [[_COMMUNITY_BackupHistoryPage.tsx]]
+- 15 edges to [[_COMMUNITY_CreateReturnPage.tsx]]
+- 15 edges to [[_COMMUNITY_AuditLogDetailModal.tsx]]
+- 15 edges to [[_COMMUNITY_CreateEcommerceOrderPage.tsx]]
+- 14 edges to [[_COMMUNITY_WorkflowOrderTimeline.tsx]]
+- 12 edges to [[_COMMUNITY_DashboardPage.tsx]]
+- 9 edges to [[_COMMUNITY_carrier-shipping-form.ts]]
+- 8 edges to [[_COMMUNITY_DashboardOverviewPage.tsx]]
+- 7 edges to [[_COMMUNITY_ReceivingExecutionPanel.tsx]]
+- 7 edges to [[_COMMUNITY_InvoicesPage.tsx]]
+- 7 edges to [[_COMMUNITY_useReportFramework.ts]]
+- 7 edges to [[_COMMUNITY_InboundOrderDetailPage.tsx]]
+- 6 edges to [[_COMMUNITY_OmsBulkShippingDetailsModal]]
+- 6 edges to [[_COMMUNITY_company-form-validation.ts]]
+- 6 edges to [[_COMMUNITY_notificationsNotificationsPage.tsx]]
+- 6 edges to [[_COMMUNITY_isClientArabic]]
+- 5 edges to [[_COMMUNITY_shipping.ts]]
+- 5 edges to [[_COMMUNITY_Layout.tsx]]
+- 4 edges to [[_COMMUNITY_audit-logs.ts]]
+- 4 edges to [[_COMMUNITY_cn]]
+- 4 edges to [[_COMMUNITY_ShippingFeeRatePage]]
+- 4 edges to [[_COMMUNITY_design-system-nextuiStatusBadge.tsx]]
+- 4 edges to [[_COMMUNITY_App.tsx]]
+- 3 edges to [[_COMMUNITY_frontendsrccomponentsDeliveryLocationMap.tsx]]
+- 3 edges to [[_COMMUNITY_frontendsrcrealtimeRealtimeProvider.tsx]]
+- 3 edges to [[_COMMUNITY_client-frontendsrcpagesProductDetailPage.tsx]]
+- 2 edges to [[_COMMUNITY_reportstypes.ts]]
+- 2 edges to [[_COMMUNITY_client-frontendsrccomponentsCascadingAddressSelector.tsx]]
+- 2 edges to [[_COMMUNITY_ClientOrderImportModal.tsx]]
+- 2 edges to [[_COMMUNITY_client-frontendsrcpagesProfilePage.tsx]]
+- 2 edges to [[_COMMUNITY_client-ui-language.ts]]
+- 2 edges to [[_COMMUNITY_client.ts]]
+- 1 edge to [[_COMMUNITY_backup-display.ts]]
+- 1 edge to [[_COMMUNITY_ops-cache.ts]]
+- 1 edge to [[_COMMUNITY_frontendsrcpagesLoginPage.tsx]]
+
+## Top bridge nodes
+- [[TextField]] - degree 152, connects to 17 communities
+- [[StatusBadge()]] - degree 78, connects to 17 communities
+- [[Combobox()]] - degree 112, connects to 14 communities
+- [[componentsDataTable.tsx]] - degree 54, connects to 13 communities
+- [[DataTable()]] - degree 98, connects to 12 communities

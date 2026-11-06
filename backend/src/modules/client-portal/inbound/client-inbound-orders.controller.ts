@@ -2,9 +2,11 @@ import {
   BadRequestException,
   Body,
   Controller,
+  Delete,
   Get,
   Header,
   Param,
+  Patch,
   Post,
   Query,
   Res,
@@ -26,6 +28,7 @@ import { ClientUser } from '../auth/client-user.decorator';
 import { JwtClientAuthGuard } from '../auth/jwt-client-auth.guard';
 import { ClientInboundExportService } from '../order-export/client-inbound-export.service';
 import { InboundClientImportService } from '../order-import/inbound-client-import.service';
+import { UpdateClientInboundOrderDto } from './dto/update-client-inbound-order.dto';
 import { ClientInboundOrdersService } from './client-inbound-orders.service';
 import { ClientInboundOrdersExportDto } from './dto/client-inbound-export.dto';
 import { ClientListInboundQueryDto } from './dto/client-list-inbound-query.dto';
@@ -112,5 +115,19 @@ export class ClientInboundOrdersController {
   @Post()
   create(@ClientUser() client: ClientPrincipal, @Body() body: CreateInboundOrderDto) {
     return this.inbound.create(client, body);
+  }
+
+  @Patch(':id')
+  update(
+    @ClientUser() client: ClientPrincipal,
+    @Param('id', ParseUuidLoosePipe) id: string,
+    @Body() body: UpdateClientInboundOrderDto,
+  ) {
+    return this.inbound.updateEditable(client, id, body);
+  }
+
+  @Delete(':id')
+  remove(@ClientUser() client: ClientPrincipal, @Param('id', ParseUuidLoosePipe) id: string) {
+    return this.inbound.removeUnapproved(client, id);
   }
 }

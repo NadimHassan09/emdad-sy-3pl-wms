@@ -1,0 +1,19 @@
+---
+source_file: "client-frontend/src/services/clientOmsOrdersService.ts"
+type: "code"
+community: "EcommerceOrdersPage.tsx"
+location: "L5"
+tags:
+  - graphify/code
+  - graphify/EXTRACTED
+  - community/EcommerceOrdersPagetsx
+---
+
+# ClientOmsOrderStatus
+
+## Connections
+- [[DashboardPage.tsx]] - `imports` [EXTRACTED]
+- [[EcommerceOrdersPage.tsx]] - `imports` [EXTRACTED]
+- [[clientOmsOrdersService.ts]] - `contains` [EXTRACTED]
+
+#graphify/code #graphify/EXTRACTED #community/EcommerceOrdersPagetsx

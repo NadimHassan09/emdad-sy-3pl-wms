@@ -1,0 +1,18 @@
+---
+source_file: "frontend/src/api/backups.ts"
+type: "code"
+community: "BackupHistoryPage.tsx"
+location: "L46"
+tags:
+  - graphify/code
+  - graphify/EXTRACTED
+  - community/BackupHistoryPagetsx
+---
+
+# BackupDetail
+
+## Connections
+- [[BackupHistoryPage.tsx]] - `imports` [EXTRACTED]
+- [[backups.ts]] - `contains` [EXTRACTED]
+
+#graphify/code #graphify/EXTRACTED #community/BackupHistoryPagetsx

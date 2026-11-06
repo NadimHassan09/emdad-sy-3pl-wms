@@ -1,10 +1,14 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { OutboundOrderStatus } from '@prisma/client';
 
 import { clientAuthPrincipal } from '../../../common/auth/client-auth-principal';
 import { ClientPrincipal } from '../../../common/auth/client-principal.types';
+import { AuditLogService } from '../../../common/audit/audit-log.service';
 import { PrismaService } from '../../../common/prisma/prisma.service';
 import { withTenantRls } from '../../../common/prisma/tenant-rls';
+import { assertCalendarDateNotBeforeToday } from '../../../common/utils/order-planning-date';
+import { assertClientMayChangeWmsOrder } from '../shared/client-order-lock';
+import { UpdateClientOutboundOrderDto } from './dto/update-client-outbound-order.dto';
 import { CreateOutboundOrderDto } from '../../outbound/dto/create-outbound.dto';
 import { ListOutboundQueryDto } from '../../outbound/dto/list-outbound-query.dto';
 import { OutboundService } from '../../outbound/outbound.service';
@@ -28,6 +32,7 @@ export class ClientOutboundOrdersService {
   constructor(
     private readonly outbound: OutboundService,
     private readonly prisma: PrismaService,
+    private readonly audit: AuditLogService,
   ) {}
 
   async findOne(client: ClientPrincipal, id: string) {
@@ -123,6 +128,54 @@ export class ClientOutboundOrdersService {
       { ...dto, executionMode: 'admin', executionPlan: undefined },
       { pendingClientApproval: true },
     );
+  }
+
+  /** Client edit of an outbound order's header, allowed only until the warehouse approves it. */
+  async updateEditable(client: ClientPrincipal, id: string, dto: UpdateClientOutboundOrderDto) {
+    const principal = clientAuthPrincipal(client);
+    const updated = await withTenantRls(this.prisma, principal, async (tx) => {
+      const order = await tx.outboundOrder.findFirst({
+        where: { id, companyId: client.companyId },
+        select: { id: true, status: true, companyId: true, omsOrder: { select: { id: true } } },
+      });
+      if (!order) throw new NotFoundException('Outbound order not found.');
+      if (order.omsOrder) {
+        throw new BadRequestException('This order belongs to an online (OMS) order. Edit it from the OMS sheet.');
+      }
+      assertClientMayChangeWmsOrder(order.status);
+      if (dto.requiredShipDate) assertCalendarDateNotBeforeToday(dto.requiredShipDate, 'Required ship date');
+      return tx.outboundOrder.update({
+        where: { id },
+        data: {
+          destinationAddress: dto.destinationAddress,
+          requiredShipDate: dto.requiredShipDate ? new Date(dto.requiredShipDate) : undefined,
+          clientReference: dto.clientReference,
+          notes: dto.notes,
+          updatedAt: new Date(),
+        },
+        select: { id: true, status: true, companyId: true },
+      });
+    });
+    await this.audit.log(
+      this.audit.fromPrincipal(principal, {
+        action: 'OUTBOUND_CLIENT_EDITED',
+        resourceType: 'outbound_order',
+        resourceId: updated.id,
+        companyId: updated.companyId,
+        newState: { status: updated.status },
+      }),
+    );
+    return this.findOne(client, id);
+  }
+
+  /** Client removal of an outbound order, allowed only until the warehouse approves it. */
+  async removeUnapproved(client: ClientPrincipal, id: string) {
+    const principal = clientAuthPrincipal(client);
+    const order = await this.outbound.findById(id, principal);
+    if (order.companyId !== client.companyId) throw new NotFoundException('Outbound order not found.');
+    assertClientMayChangeWmsOrder(order.status);
+    await this.outbound.cancel(id, principal);
+    return this.outbound.remove(id, principal);
   }
 
   async findByExternalReference(client: ClientPrincipal, externalReference: string) {

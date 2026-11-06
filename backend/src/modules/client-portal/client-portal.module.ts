@@ -3,6 +3,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
 
+import { AuditModule } from '../../common/audit/audit.module';
 import { CryptoModule } from '../../common/crypto/crypto.module';
 import { PrismaModule } from '../../common/prisma/prisma.module';
 import { InboundModule } from '../inbound/inbound.module';
@@ -63,6 +64,7 @@ import { ClientShippingController } from './shipping/client-shipping.controller'
 
 @Module({
   imports: [
+    AuditModule,
     ConfigModule,
     PassportModule.register({}),
     JwtModule.registerAsync({

@@ -1,0 +1,406 @@
+---
+type: community
+cohesion: 0.02
+members: 257
+---
+
+# @prisma/client
+
+**Cohesion:** 0.02 - loosely connected
+**Members:** 257 nodes
+
+## Members
+- [[dot-assertCompanyExists()]] - code - backend/src/common/company-access/company-access.service.ts
+- [[dot-assertMembershipIncludes()]] - code - backend/src/common/company-access/company-access.service.ts
+- [[dot-constructor()_113]] - code - backend/src/common/company-access/company-access.service.ts
+- [[dot-constructor()_114]] - code - backend/src/common/cron/cron-leader.service.ts
+- [[dot-constructor()_115]] - code - backend/src/common/prisma/prisma.service.ts
+- [[dot-constructor()_116]] - code - backend/src/modules/auth/auth.service.ts
+- [[dot-constructor()_117]] - code - backend/src/modules/auth/strategies/jwt.strategy.ts
+- [[dot-constructor()_118]] - code - backend/src/modules/auth/user-activity.service.ts
+- [[dot-constructor()_119]] - code - backend/src/modules/billing/billing-cycle-processor.service.ts
+- [[dot-constructor()_120]] - code - backend/src/modules/billing/billing-cycles.service.ts
+- [[dot-constructor()_121]] - code - backend/src/modules/billing/billing-expiry-reminder.service.ts
+- [[dot-constructor()_122]] - code - backend/src/modules/billing/billing-invoice-overdue-processor.service.ts
+- [[dot-constructor()_123]] - code - backend/src/modules/billing/billing-invoices.service.ts
+- [[dot-constructor()_124]] - code - backend/src/modules/billing/billing-usage-processor.service.ts
+- [[dot-constructor()_125]] - code - backend/src/modules/cycle-count/cycle-count-scheduler.service.ts
+- [[dot-constructor()_126]] - code - backend/src/modules/final-contracts/final-contracts.service.ts
+- [[dot-constructor()_127]] - code - backend/src/modules/oms/inbound-traceability.service.ts
+- [[dot-constructor()_128]] - code - backend/src/modules/oms/oms.controller.ts
+- [[dot-constructor()_129]] - code - backend/src/modules/oms/oms-dashboard.service.ts
+- [[dot-constructor()_130]] - code - backend/src/modules/reports/oms-reports.runner.ts
+- [[dot-constructor()_131]] - code - backend/src/modules/reports/operational-reports.runner.ts
+- [[dot-constructor()_132]] - code - backend/src/modules/users/users.service.ts
+- [[dot-constructor()_133]] - code - backend/src/modules/warehouse-workflow/analytics-overview.controller.ts
+- [[dot-constructor()_134]] - code - backend/src/modules/warehouse-workflow/sla-escalation.service.ts
+- [[dot-constructor()_135]] - code - backend/src/modules/warehouse-workflow/workflow-workers.service.ts
+- [[dot-constructor()_136]] - code - backend/src/pdf/documents.service.ts
+- [[dot-enrichPrincipal()]] - code - backend/src/common/company-access/company-access.service.ts
+- [[dot-getAuthorizedCompanyScope()]] - code - backend/src/common/company-access/company-access.service.ts
+- [[dot-getReadFilterCompanyId()]] - code - backend/src/common/company-access/company-access.service.ts
+- [[dot-list()_27]] - code - backend/src/modules/warehouse-workflow/workflow-workers.service.ts
+- [[dot-listUnlinked()_1]] - code - backend/src/modules/warehouse-workflow/workflow-workers.service.ts
+- [[dot-loadMembership()]] - code - backend/src/common/company-access/company-access.service.ts
+- [[dot-normalizeCompanyId()]] - code - backend/src/common/company-access/company-access.service.ts
+- [[dot-onModuleDestroy()_2]] - code - backend/src/common/prisma/prisma.service.ts
+- [[dot-onModuleInit()_4]] - code - backend/src/common/prisma/prisma.service.ts
+- [[dot-orderSummary()_1]] - code - backend/src/modules/oms/oms-dashboard.service.ts
+- [[dot-resolvePrincipalTenant()]] - code - backend/src/common/company-access/company-access.service.ts
+- [[dot-summary()]] - code - backend/src/modules/oms/oms-dashboard.service.ts
+- [[dot-touch()]] - code - backend/src/modules/auth/user-activity.service.ts
+- [[dot-validate()]] - code - backend/src/modules/auth/strategies/jwt.strategy.ts
+- [[dot-workerLoad()]] - code - backend/src/modules/warehouse-workflow/workflow-workers.service.ts
+- [[@nestjsschedule]] - concept - backend/package.json
+- [[@prismaclient]] - concept - backend/package.json
+- [[ACTIVE]] - code - backend/src/modules/oms/oms-batch.service.ts
+- [[ADMIN_NOTIFY_ROLES]] - code - backend/src/modules/billing/billing-notifications.service.ts
+- [[AWAITING_APPROVAL]] - code - backend/src/modules/oms/oms-dashboard.service.ts
+- [[AnalyticsOverviewController]] - code - backend/src/modules/warehouse-workflow/analytics-overview.controller.ts
+- [[AuthPrincipalWithTenant]] - code - backend/src/common/company-access/company-access.types.ts
+- [[AuthorizedCompanyScope]] - code - backend/src/common/company-access/company-access.types.ts
+- [[BILLING_AUDIT_ACTIONS]] - code - backend/src/modules/billing/billing-audit.service.ts
+- [[BillingAuditService]] - code - backend/src/modules/billing/billing-audit.service.ts
+- [[BillingCycleProcessorService]] - code - backend/src/modules/billing/billing-cycle-processor.service.ts
+- [[BillingCycleRow]] - code - backend/src/modules/client-portal/billing/client-billing.service.ts
+- [[BillingInvoiceOverdueProcessorService]] - code - backend/src/modules/billing/billing-invoice-overdue-processor.service.ts
+- [[BillingUsageProcessorService]] - code - backend/src/modules/billing/billing-usage-processor.service.ts
+- [[CHARGE_SELECT]] - code - backend/src/modules/billing/order-manual-charges.service.ts
+- [[CLIENT_ROLES_2]] - code - backend/src/modules/auth/auth.service.ts
+- [[CLIENT_ROLES_3]] - code - backend/src/modules/auth/strategies/jwt.strategy.ts
+- [[CLIENT_ROLES_4]] - code - backend/src/modules/users/users.service.ts
+- [[COMPANY_LIST_SELECT]] - code - backend/src/modules/companies/companies.service.ts
+- [[CYCLE_SELECT]] - code - backend/src/modules/billing/billing-cycles.service.ts
+- [[ClientAccountStatus]] - code - backend/src/modules/client-portal/billing/client-billing.service.ts
+- [[CompanyAccessService]] - code - backend/src/common/company-access/company-access.service.ts
+- [[CompanyRow]] - code - backend/src/modules/companies/companies.service.ts
+- [[CompanyUsageTotals]] - code - backend/src/modules/billing/billing-usage.service.ts
+- [[ContractCatalogRow_1]] - code - backend/src/pdf/contracts-catalog.types.ts
+- [[ContractLangSlot_2]] - code - backend/src/pdf/contracts-catalog.types.ts
+- [[Controller_27]] - code
+- [[CreateDocumentInput]] - code - backend/src/pdf/documents.service.ts
+- [[CreateWorkerDto]] - code - backend/src/modules/warehouse-workflow/workflow-workers.service.ts
+- [[CronLeaderService]] - code - backend/src/common/cron/cron-leader.service.ts
+- [[EXECUTION_COUNT_INCLUDE]] - code - backend/src/modules/cycle-count/cycle-count-execution.service.ts
+- [[EXPIRY_REMINDER_DAYS]] - code - backend/src/modules/billing/billing-notifications.service.ts
+- [[ExpiryReminderDay]] - code - backend/src/modules/billing/billing-notifications.service.ts
+- [[GLOBAL_TENANT_ROLES]] - code - backend/src/common/company-access/company-access.service.ts
+- [[INBOUND_OPEN]] - code - backend/src/modules/client-portal/dashboard/client-dashboard.service.ts
+- [[INCLUDE_5]] - code - backend/src/modules/cod/cod-records.service.ts
+- [[INCLUDE_6]] - code - backend/src/modules/oms-returns/oms-returns.service.ts
+- [[INTERNAL_ROLES_1]] - code - backend/src/common/prisma/tenant-rls.ts
+- [[INVOICE_SELECT]] - code - backend/src/modules/billing/billing-invoices.service.ts
+- [[INVOICE_WIDGET_SELECT]] - code - backend/src/modules/billing/billing-dashboard.service.ts
+- [[InboundAllocationLineInput]] - code - backend/src/modules/oms/inbound-traceability.service.ts
+- [[InboundTraceabilityService]] - code - backend/src/modules/oms/inbound-traceability.service.ts
+- [[InboundTraceabilityStatus]] - code - backend/src/modules/oms/inbound-traceability.service.ts
+- [[Injectable_74]] - code
+- [[Injectable_75]] - code
+- [[Injectable_76]] - code
+- [[Injectable_77]] - code
+- [[Injectable_78]] - code
+- [[Injectable_79]] - code
+- [[Injectable_80]] - code
+- [[Injectable_81]] - code
+- [[Injectable_82]] - code
+- [[Injectable_83]] - code
+- [[Injectable_84]] - code
+- [[Injectable_85]] - code
+- [[Injectable_86]] - code
+- [[IsIn_29]] - code
+- [[JwtAccessPayload]] - code - backend/src/modules/auth/strategies/jwt.strategy.ts
+- [[JwtRefreshPayload]] - code - backend/src/modules/auth/auth.service.ts
+- [[JwtStrategy]] - code - backend/src/modules/auth/strategies/jwt.strategy.ts
+- [[LangSlot]] - code - backend/src/modules/final-contracts/final-contracts.service.ts
+- [[OMS_RETURN_ELIGIBLE_STATUSES_1]] - code - backend/src/modules/oms/oms-return-eligibility.ts
+- [[OMS_SHIPPING_SCAN_ACTIONS]] - code - backend/src/modules/oms/dto/scan-shipping-transition.dto.ts
+- [[OUTBOUND_OPEN]] - code - backend/src/modules/client-portal/dashboard/client-dashboard.service.ts
+- [[OmsDashboardService]] - code - backend/src/modules/oms/oms-dashboard.service.ts
+- [[OmsInboundTraceabilityItem_1]] - code - backend/src/modules/oms/inbound-traceability.service.ts
+- [[OmsOrdersListFilters_1]] - code - backend/src/modules/oms/oms-orders-list-where.ts
+- [[OmsShippingScanResult]] - code - backend/src/modules/oms/oms-shipping-scan.service.ts
+- [[OwnableResource]] - code - backend/src/common/company-access/company-access.types.ts
+- [[PENDING_FULFILLMENT_1]] - code - backend/src/modules/oms/oms-dashboard.service.ts
+- [[PLAN_RATE_SELECT]] - code - backend/src/modules/billing/billing-cycles.service.ts
+- [[PLAN_SELECT]] - code - backend/src/modules/billing/billing-plans.service.ts
+- [[PasswordService]] - code - backend/src/common/crypto/password.service.ts
+- [[PrismaService]] - code - backend/src/common/prisma/prisma.service.ts
+- [[RefreshRotationResult]] - code - backend/src/modules/auth/refresh-session.service.ts
+- [[RefreshSessionIssue]] - code - backend/src/modules/auth/refresh-session.service.ts
+- [[Request]] - code - backend/src/common/auth/current-user.types.ts
+- [[SEQ]] - code - backend/src/pdf/documents.service.ts
+- [[SYSTEM_ROLES]] - code - backend/src/modules/users/users.service.ts
+- [[StorageUtilizationSnapshot]] - code - backend/src/modules/billing/billing-usage.service.ts
+- [[TenantScopeMode]] - code - backend/src/common/company-access/company-access.types.ts
+- [[TestResult]] - code - backend/scripts/verify-inbound-traceability-staging.ts
+- [[Tx_2]] - code - backend/src/modules/oms/inbound-traceability.service.ts
+- [[Tx_3]] - code - backend/src/modules/oms/oms-order-events.service.ts
+- [[USER_LIST_SELECT]] - code - backend/src/modules/users/users.service.ts
+- [[UpdateInvoiceStatusDto]] - code - backend/src/modules/billing/dto/update-invoice-status.dto.ts
+- [[UserActivityService]] - code - backend/src/modules/auth/user-activity.service.ts
+- [[UserListRow_1]] - code - backend/src/modules/users/users.service.ts
+- [[WorkflowWorkersService]] - code - backend/src/modules/warehouse-workflow/workflow-workers.service.ts
+- [[admin_1]] - code - backend/src/modules/reports/inventory-intelligence-reports.runner.unit.spec.ts
+- [[admin_2]] - code - backend/src/modules/reports/operational-reports.runner.unit.spec.ts
+- [[adminUser]] - code - backend/src/modules/cycle-count/cycle-count-list.service.unit.spec.ts
+- [[adminUser_1]] - code - backend/src/modules/reports/oms-reports.runner.unit.spec.ts
+- [[adminUser_2]] - code - backend/src/modules/returns/returns-list.service.unit.spec.ts
+- [[adminUser_3]] - code - backend/src/modules/users/users-list.service.unit.spec.ts
+- [[adminUser_4]] - code - backend/src/modules/users/users.worker-profile.service.unit.spec.ts
+- [[adminUser_5]] - code - backend/src/modules/warehouse-workflow/warehouse-tasks-list.service.unit.spec.ts
+- [[analytics-overview.controller.ts]] - code - backend/src/modules/warehouse-workflow/analytics-overview.controller.ts
+- [[auth.service.ts]] - code - backend/src/modules/auth/auth.service.ts
+- [[avatar-url.ts]] - code - backend/src/modules/media/avatar-url.ts
+- [[billing-audit.service.ts]] - code - backend/src/modules/billing/billing-audit.service.ts
+- [[billing-cycle-processor.service.ts]] - code - backend/src/modules/billing/billing-cycle-processor.service.ts
+- [[billing-cycles.service.ts]] - code - backend/src/modules/billing/billing-cycles.service.ts
+- [[billing-dashboard.service.ts]] - code - backend/src/modules/billing/billing-dashboard.service.ts
+- [[billing-expiry-reminder.service.ts]] - code - backend/src/modules/billing/billing-expiry-reminder.service.ts
+- [[billing-invoice-overdue-processor.service.ts]] - code - backend/src/modules/billing/billing-invoice-overdue-processor.service.ts
+- [[billing-invoices.service.ts]] - code - backend/src/modules/billing/billing-invoices.service.ts
+- [[billing-notifications.service.ts]] - code - backend/src/modules/billing/billing-notifications.service.ts
+- [[billing-plans.service.ts]] - code - backend/src/modules/billing/billing-plans.service.ts
+- [[billing-preview.service.ts]] - code - backend/src/modules/billing/billing-preview.service.ts
+- [[billing-usage-processor.service.ts]] - code - backend/src/modules/billing/billing-usage-processor.service.ts
+- [[billing-usage.service.ts]] - code - backend/src/modules/billing/billing-usage.service.ts
+- [[billing.controller.ts]] - code - backend/src/modules/billing/billing.controller.ts
+- [[billing.module.ts]] - code - backend/src/modules/billing/billing.module.ts
+- [[buildOmsOrderStatusDateFilter()]] - code - backend/src/modules/oms/oms-order-status-filter.util.ts
+- [[buildOmsOrdersListWhere()]] - code - backend/src/modules/oms/oms-orders-list-where.ts
+- [[buildService()_3]] - code - backend/src/modules/cycle-count/cycle-count-list.service.unit.spec.ts
+- [[buildService()_4]] - code - backend/src/modules/returns/returns-list.service.unit.spec.ts
+- [[buildService()_5]] - code - backend/src/modules/users/users-list.service.unit.spec.ts
+- [[buildService()_6]] - code - backend/src/modules/users/users.worker-profile.service.unit.spec.ts
+- [[buildService()_7]] - code - backend/src/modules/warehouse-workflow/warehouse-tasks-list.service.unit.spec.ts
+- [[client-billing.service.ts]] - code - backend/src/modules/client-portal/billing/client-billing.service.ts
+- [[client-dashboard.service.ts]] - code - backend/src/modules/client-portal/dashboard/client-dashboard.service.ts
+- [[cod-records.service.ts]] - code - backend/src/modules/cod/cod-records.service.ts
+- [[companies.service.ts]] - code - backend/src/modules/companies/companies.service.ts
+- [[company-access.service.ts]] - code - backend/src/common/company-access/company-access.service.ts
+- [[company-access.types.ts]] - code - backend/src/common/company-access/company-access.types.ts
+- [[company-accessindex.ts]] - code - backend/src/common/company-access/index.ts
+- [[company-read-scope.ts]] - code - backend/src/common/auth/company-read-scope.ts
+- [[companyAccess]] - code - backend/scripts/verify-inbound-traceability-staging.ts
+- [[companyAccessMock()_2]] - code - backend/src/modules/cycle-count/cycle-count-list.service.unit.spec.ts
+- [[companyAccessMock()_3]] - code - backend/src/modules/returns/returns-list.service.unit.spec.ts
+- [[companyAccessMock()_4]] - code - backend/src/modules/users/users-list.service.unit.spec.ts
+- [[companyAccessMock()_5]] - code - backend/src/modules/users/users.worker-profile.service.unit.spec.ts
+- [[companyAccessMock()_6]] - code - backend/src/modules/warehouse-workflow/warehouse-tasks-list.service.unit.spec.ts
+- [[contracts-catalog.types.ts]] - code - backend/src/pdf/contracts-catalog.types.ts
+- [[create-invoice-line.dto.ts]] - code - backend/src/modules/billing/dto/create-invoice-line.dto.ts
+- [[cron-leader.service.ts]] - code - backend/src/common/cron/cron-leader.service.ts
+- [[current-user.types.ts]] - code - backend/src/common/auth/current-user.types.ts
+- [[cycle-count-execution.service.ts]] - code - backend/src/modules/cycle-count/cycle-count-execution.service.ts
+- [[cycle-count-list.service.unit.spec.ts]] - code - backend/src/modules/cycle-count/cycle-count-list.service.unit.spec.ts
+- [[cycle-count-scheduler.service.ts]] - code - backend/src/modules/cycle-count/cycle-count-scheduler.service.ts
+- [[dayKey()]] - code - backend/src/modules/oms/oms-dashboard.service.ts
+- [[documents.service.ts]] - code - backend/src/pdf/documents.service.ts
+- [[envBool()]] - code - backend/src/common/cron/cron-leader.service.ts
+- [[expiryAgingBucket()]] - code - backend/src/modules/reports/inventory-intelligence-reports.runner.ts
+- [[express-serve-static-core]] - code - backend/src/common/auth/current-user.types.ts
+- [[final-contracts.service.ts]] - code - backend/src/modules/final-contracts/final-contracts.service.ts
+- [[finance-reports.runner.unit.spec.ts]] - code - backend/src/modules/reports/finance-reports.runner.unit.spec.ts
+- [[financeUser]] - code - backend/src/modules/reports/finance-reports.runner.unit.spec.ts
+- [[fmtDate()_3]] - code - backend/src/modules/reports/oms-reports.runner.ts
+- [[forms.service.ts]] - code - backend/src/modules/forms/forms.service.ts
+- [[fromCookie()]] - code - backend/src/modules/auth/strategies/jwt.strategy.ts
+- [[inbound-traceability.service.ts]] - code - backend/src/modules/oms/inbound-traceability.service.ts
+- [[inbound-traceability.service.unit.spec.ts]] - code - backend/src/modules/oms/inbound-traceability.service.unit.spec.ts
+- [[inventory-intelligence-reports.runner.ts]] - code - backend/src/modules/reports/inventory-intelligence-reports.runner.ts
+- [[inventory-intelligence-reports.runner.unit.spec.ts]] - code - backend/src/modules/reports/inventory-intelligence-reports.runner.unit.spec.ts
+- [[inventory.availability.unit.spec.ts]] - code - backend/src/modules/inventory/inventory.availability.unit.spec.ts
+- [[jwt.strategy.ts]] - code - backend/src/modules/auth/strategies/jwt.strategy.ts
+- [[ledger-idempotency.service.ts]] - code - backend/src/modules/inventory/ledger-idempotency.service.ts
+- [[locations.service.ts]] - code - backend/src/modules/locations/locations.service.ts
+- [[locations.service.unit.spec.ts]] - code - backend/src/modules/locations/locations.service.unit.spec.ts
+- [[main()_33]] - code - backend/scripts/reconcile-oms-ready-to-ship.ts
+- [[mapCompany()]] - code - backend/src/modules/companies/companies.service.ts
+- [[mockRealtime()]] - code - backend/src/modules/locations/locations.service.unit.spec.ts
+- [[oms-batch.service.ts]] - code - backend/src/modules/oms/oms-batch.service.ts
+- [[oms-dashboard.service.ts]] - code - backend/src/modules/oms/oms-dashboard.service.ts
+- [[oms-order-events.service.ts]] - code - backend/src/modules/oms/oms-order-events.service.ts
+- [[oms-order-status-filter.util.ts]] - code - backend/src/modules/oms/oms-order-status-filter.util.ts
+- [[oms-order-status-filter.util.unit.spec.ts]] - code - backend/src/modules/oms/oms-order-status-filter.util.unit.spec.ts
+- [[oms-orders-list-where.ts]] - code - backend/src/modules/oms/oms-orders-list-where.ts
+- [[oms-orders-validation-parity.unit.spec.ts]] - code - backend/src/modules/oms/oms-orders-validation-parity.unit.spec.ts
+- [[oms-reports.runner.ts]] - code - backend/src/modules/reports/oms-reports.runner.ts
+- [[oms-reports.runner.unit.spec.ts]] - code - backend/src/modules/reports/oms-reports.runner.unit.spec.ts
+- [[oms-return-eligibility.unit.spec.ts]] - code - backend/src/modules/oms/oms-return-eligibility.unit.spec.ts
+- [[oms-return-rollback.unit.spec.ts]] - code - backend/src/modules/oms-returns/oms-return-rollback.unit.spec.ts
+- [[oms-returns.service.ts]] - code - backend/src/modules/oms-returns/oms-returns.service.ts
+- [[oms-shipping-fee-adjustment.unit.spec.ts]] - code - backend/src/modules/oms/oms-shipping-fee-adjustment.unit.spec.ts
+- [[oms-shipping-scan.service.ts]] - code - backend/src/modules/oms/oms-shipping-scan.service.ts
+- [[oms-shipping-scan.service.unit.spec.ts]] - code - backend/src/modules/oms/oms-shipping-scan.service.unit.spec.ts
+- [[omsoms-return-eligibility.ts]] - code - backend/src/modules/oms/oms-return-eligibility.ts
+- [[operational-reports.runner.ts]] - code - backend/src/modules/reports/operational-reports.runner.ts
+- [[operational-reports.runner.unit.spec.ts]] - code - backend/src/modules/reports/operational-reports.runner.unit.spec.ts
+- [[operatorUser]] - code - backend/src/modules/warehouse-workflow/warehouse-tasks-list.service.unit.spec.ts
+- [[order-manual-charges.service.ts]] - code - backend/src/modules/billing/order-manual-charges.service.ts
+- [[orderRow()]] - code - backend/src/modules/oms/oms-shipping-scan.service.unit.spec.ts
+- [[password.service.ts]] - code - backend/src/common/crypto/password.service.ts
+- [[prisma_10]] - code - backend/scripts/reconcile-oms-ready-to-ship.ts
+- [[prisma_11]] - code - backend/scripts/verify-inbound-traceability-staging.ts
+- [[prisma.service.ts]] - code - backend/src/common/prisma/prisma.service.ts
+- [[readCompanyIdCatalogFilter()]] - code - backend/src/common/auth/company-read-scope.ts
+- [[readCompanyIdFilter()]] - code - backend/src/common/auth/company-read-scope.ts
+- [[reconcile-oms-ready-to-ship.ts]] - code - backend/scripts/reconcile-oms-ready-to-ship.ts
+- [[refresh-session.service.ts]] - code - backend/src/modules/auth/refresh-session.service.ts
+- [[requestedCompanyIdFromRequest()]] - code - backend/src/modules/auth/strategies/jwt.strategy.ts
+- [[results_6]] - code - backend/scripts/verify-inbound-traceability-staging.ts
+- [[returns-list.service.unit.spec.ts]] - code - backend/src/modules/returns/returns-list.service.unit.spec.ts
+- [[scan-shipping-transition.dto.ts]] - code - backend/src/modules/oms/dto/scan-shipping-transition.dto.ts
+- [[shipping-auto-return.service.ts]] - code - backend/src/modules/shipping/shipping-auto-return.service.ts
+- [[shipping-auto-return.service.unit.spec.ts]] - code - backend/src/modules/shipping/shipping-auto-return.service.unit.spec.ts
+- [[startOfLocalDay()]] - code - backend/src/modules/oms/oms-dashboard.service.ts
+- [[stockMovementAgingBucket()]] - code - backend/src/modules/reports/inventory-intelligence-reports.runner.ts
+- [[tenant-rls.ts]] - code - backend/src/common/prisma/tenant-rls.ts
+- [[toAvatarPublicUrl()]] - code - backend/src/modules/media/avatar-url.ts
+- [[traceabilityService]] - code - backend/scripts/verify-inbound-traceability-staging.ts
+- [[update-invoice-status.dto.ts]] - code - backend/src/modules/billing/dto/update-invoice-status.dto.ts
+- [[update-user.dto.ts]] - code - backend/src/modules/users/dto/update-user.dto.ts
+- [[upsert-user-worker-profile.dto.ts]] - code - backend/src/modules/users/dto/upsert-user-worker-profile.dto.ts
+- [[user-activity.service.ts]] - code - backend/src/modules/auth/user-activity.service.ts
+- [[users-list.service.unit.spec.ts]] - code - backend/src/modules/users/users-list.service.unit.spec.ts
+- [[users.service.ts]] - code - backend/src/modules/users/users.service.ts
+- [[users.worker-profile.service.unit.spec.ts]] - code - backend/src/modules/users/users.worker-profile.service.unit.spec.ts
+- [[verify-inbound-traceability-staging.ts]] - code - backend/scripts/verify-inbound-traceability-staging.ts
+- [[warehouse-tasks-list.service.unit.spec.ts]] - code - backend/src/modules/warehouse-workflow/warehouse-tasks-list.service.unit.spec.ts
+- [[workflow-recovery.service.ts]] - code - backend/src/modules/warehouse-workflow/workflow-recovery.service.ts
+- [[workflow-workers.service.ts]] - code - backend/src/modules/warehouse-workflow/workflow-workers.service.ts
+
+## Live Query (requires Dataview plugin)
+
+```dataview
+TABLE source_file, type FROM #community/prisma/client
+SORT file.name ASC
+```
+
+## Connections to other communities
+- 175 edges to [[_COMMUNITY_@nestjscommon]]
+- 96 edges to [[_COMMUNITY_outbound.service.ts]]
+- 92 edges to [[_COMMUNITY_AuditLogService]]
+- 72 edges to [[_COMMUNITY_AuthPrincipal]]
+- 70 edges to [[_COMMUNITY_BillingInvoiceCalculationService]]
+- 61 edges to [[_COMMUNITY_app.module.ts]]
+- 49 edges to [[_COMMUNITY_RealtimeService]]
+- 49 edges to [[_COMMUNITY_cycle-count.service.ts]]
+- 48 edges to [[_COMMUNITY_RunReportQueryDto]]
+- 43 edges to [[_COMMUNITY_NotificationsService]]
+- 42 edges to [[_COMMUNITY_inventory.service.ts]]
+- 41 edges to [[_COMMUNITY_withTenantRls]]
+- 41 edges to [[_COMMUNITY_class-validator]]
+- 37 edges to [[_COMMUNITY_warehouse-tasks.service.ts]]
+- 35 edges to [[_COMMUNITY_task-inventory-effects.service.ts]]
+- 35 edges to [[_COMMUNITY_EmptyToUndefined]]
+- 33 edges to [[_COMMUNITY_dot-validateResourceOwnership]]
+- 30 edges to [[_COMMUNITY_returns.service.ts]]
+- 28 edges to [[_COMMUNITY_CodRecordsService]]
+- 26 edges to [[_COMMUNITY_grn-pdf.service.ts]]
+- 22 edges to [[_COMMUNITY_shipping-tracking.service.ts]]
+- 22 edges to [[_COMMUNITY_BillingController]]
+- 22 edges to [[_COMMUNITY_client-financial.controller.ts]]
+- 20 edges to [[_COMMUNITY_reliability-test-helpers.ts]]
+- 15 edges to [[_COMMUNITY_UsersService]]
+- 15 edges to [[_COMMUNITY_LocationsService]]
+- 15 edges to [[_COMMUNITY_MediaStorageService]]
+- 12 edges to [[_COMMUNITY_oms-client-import.service.ts]]
+- 12 edges to [[_COMMUNITY_oms-sales-channel.service.ts]]
+- 12 edges to [[_COMMUNITY_client-oms-orders.service.ts]]
+- 12 edges to [[_COMMUNITY_rbac-policy.ts]]
+- 11 edges to [[_COMMUNITY_dot-fromPrincipal]]
+- 11 edges to [[_COMMUNITY_inventory-consistency.service.ts]]
+- 11 edges to [[_COMMUNITY_warehouse-tasks.controller.ts]]
+- 10 edges to [[_COMMUNITY_documents.controller.ts]]
+- 9 edges to [[_COMMUNITY_dot-assertCompanyAccess]]
+- 9 edges to [[_COMMUNITY_oms-instruction-pdf.service.ts]]
+- 8 edges to [[_COMMUNITY_EncryptionService]]
+- 8 edges to [[_COMMUNITY_OmsShippingScanService]]
+- 8 edges to [[_COMMUNITY_shipping.controller.ts]]
+- 8 edges to [[_COMMUNITY_dashboard.service.ts]]
+- 8 edges to [[_COMMUNITY_cod-export.util.ts]]
+- 7 edges to [[_COMMUNITY_ClientBillingService]]
+- 7 edges to [[_COMMUNITY_RedisService]]
+- 7 edges to [[_COMMUNITY_CycleCountExecutionService]]
+- 7 edges to [[_COMMUNITY_CreateFinalContractDto]]
+- 7 edges to [[_COMMUNITY_CreateAdHocInvoiceDto]]
+- 7 edges to [[_COMMUNITY_bulk-shipping.service.ts]]
+- 6 edges to [[_COMMUNITY_CurrentUser]]
+- 6 edges to [[_COMMUNITY_shipping.service.ts]]
+- 6 edges to [[_COMMUNITY_CreateOmsOrderDto]]
+- 6 edges to [[_COMMUNITY_oms-waybill.service.ts]]
+- 6 edges to [[_COMMUNITY_UpdateCompanyDto]]
+- 6 edges to [[_COMMUNITY_omsoms-operational-stage.ts]]
+- 6 edges to [[_COMMUNITY_inbound-orders-csv.service.ts]]
+- 6 edges to [[_COMMUNITY_dot-login]]
+- 6 edges to [[_COMMUNITY_oms-bulk.service.ts]]
+- 6 edges to [[_COMMUNITY_reports-framework.service.ts]]
+- 6 edges to [[_COMMUNITY_backendpackage.json]]
+- 5 edges to [[_COMMUNITY_CycleCountService]]
+- 5 edges to [[_COMMUNITY_CreateLeadFormDto]]
+- 5 edges to [[_COMMUNITY_ListCodRecordsQueryDto]]
+- 5 edges to [[_COMMUNITY_userRoleToAuthGroup]]
+- 5 edges to [[_COMMUNITY_api-credentials.service.ts]]
+- 5 edges to [[_COMMUNITY_shipping-fee.service.ts]]
+- 5 edges to [[_COMMUNITY_contracts-catalog.query.ts]]
+- 4 edges to [[_COMMUNITY_ReturnsService]]
+- 4 edges to [[_COMMUNITY_PdfService]]
+- 4 edges to [[_COMMUNITY_FinancialCarrierCostsService]]
+- 4 edges to [[_COMMUNITY_observability.service.ts]]
+- 4 edges to [[_COMMUNITY_babel-express.adapter.ts]]
+- 4 edges to [[_COMMUNITY_final-contract-pdf.service.ts]]
+- 4 edges to [[_COMMUNITY_ClientPrincipal]]
+- 3 edges to [[_COMMUNITY_CreateUserDto]]
+- 3 edges to [[_COMMUNITY_shipping.module.ts]]
+- 3 edges to [[_COMMUNITY_product-delete-references.util.ts]]
+- 3 edges to [[_COMMUNITY_oms-orders-list-filters.util.ts]]
+- 2 edges to [[_COMMUNITY_UpdateBillingPlanDto]]
+- 2 edges to [[_COMMUNITY_WarehouseTasksService]]
+- 2 edges to [[_COMMUNITY_AuthService]]
+- 2 edges to [[_COMMUNITY_CycleCountSchedulerService]]
+- 2 edges to [[_COMMUNITY_OmsBatchMembershipDto]]
+- 2 edges to [[_COMMUNITY_CacheInvalidationService]]
+- 2 edges to [[_COMMUNITY_UsersController]]
+- 2 edges to [[_COMMUNITY_CreateBillingPlanDto]]
+- 2 edges to [[_COMMUNITY_LoginDto]]
+- 2 edges to [[_COMMUNITY_ChangePasswordDto]]
+- 2 edges to [[_COMMUNITY_CreateOrderManualChargeDto]]
+- 2 edges to [[_COMMUNITY_shipping-preflight.ts]]
+- 2 edges to [[_COMMUNITY_shipping-fx.service.ts]]
+- 2 edges to [[_COMMUNITY_ProductsService]]
+- 2 edges to [[_COMMUNITY_returns.controller.ts]]
+- 2 edges to [[_COMMUNITY_ref_fs]]
+- 2 edges to [[_COMMUNITY_outbound-orders-csv.service.ts]]
+- 2 edges to [[_COMMUNITY_financial.controller.ts]]
+- 2 edges to [[_COMMUNITY_variance.dto.ts]]
+- 2 edges to [[_COMMUNITY_backendsrcvendorwms-task-executioncompensation.ts]]
+- 1 edge to [[_COMMUNITY_ListOmsReturnsQueryDto]]
+- 1 edge to [[_COMMUNITY_runAcceptanceTests]]
+- 1 edge to [[_COMMUNITY_FinancialPoliciesService]]
+- 1 edge to [[_COMMUNITY_sila-webhook.util.ts]]
+- 1 edge to [[_COMMUNITY_WarehousesService]]
+- 1 edge to [[_COMMUNITY_CodController]]
+- 1 edge to [[_COMMUNITY_AuditLogsService]]
+- 1 edge to [[_COMMUNITY_report-registry.config.ts]]
+- 1 edge to [[_COMMUNITY_perf-dataset-expansion.cjs]]
+- 1 edge to [[_COMMUNITY_rollback-accidental-oms-fulfillment.cjs]]
+- 1 edge to [[_COMMUNITY_fulfill-incomplete-oms-exception.cjs]]
+- 1 edge to [[_COMMUNITY_performance-dataset-certification.cjs]]
+- 1 edge to [[_COMMUNITY_CreateOmsSalesChannelDto]]
+- 1 edge to [[_COMMUNITY_bulk-fulfill-oms-production.cjs]]
+- 1 edge to [[_COMMUNITY_verify-shipping-fee-staging.js]]
+- 1 edge to [[_COMMUNITY_backfill-execution-mode.cjs]]
+- 1 edge to [[_COMMUNITY_performance-bulk-seed.cjs]]
+- 1 edge to [[_COMMUNITY_backfill-outbound-reservations.cjs]]
+- 1 edge to [[_COMMUNITY_strip-usage-invoice-lines.cjs]]
+- 1 edge to [[_COMMUNITY_bootstrap-db.js]]
+- 1 edge to [[_COMMUNITY_seed.ts]]
+- 1 edge to [[_COMMUNITY_migrate-to-financial-accounts.ts]]
+- 1 edge to [[_COMMUNITY_scratch-check.js]]
+- 1 edge to [[_COMMUNITY_client-portal-account-access.ts]]
+
+## Top bridge nodes
+- [[@prismaclient]] - degree 329, connects to 78 communities
+- [[PrismaService]] - degree 273, connects to 52 communities
+- [[prisma.service.ts]] - degree 144, connects to 39 communities
+- [[current-user.types.ts]] - degree 145, connects to 34 communities
+- [[CompanyAccessService]] - degree 118, connects to 22 communities

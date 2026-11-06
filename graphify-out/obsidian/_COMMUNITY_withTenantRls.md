@@ -1,0 +1,262 @@
+---
+type: community
+cohesion: 0.03
+members: 173
+---
+
+# withTenantRls
+
+**Cohesion:** 0.03 - loosely connected
+**Members:** 173 nodes
+
+## Members
+- [[dot-adjustShippingFee()_1]] - code - backend/src/modules/oms/oms-orders.service.ts
+- [[dot-allocate()_1]] - code - backend/src/modules/oms/oms-orders.service.ts
+- [[dot-allocateInboundSources()]] - code - backend/src/modules/oms/inbound-traceability.service.ts
+- [[dot-allocateLinkedOutbound()]] - code - backend/src/modules/oms/oms-orders.service.ts
+- [[dot-allocateOrder()]] - code - backend/src/modules/oms/order-allocation.service.ts
+- [[dot-approve()_7]] - code - backend/src/modules/oms/oms-orders.service.ts
+- [[dot-approveBulk()_1]] - code - backend/src/modules/oms/oms-bulk.service.ts
+- [[dot-assertAllocatable()]] - code - backend/src/modules/oms/order-allocation.service.ts
+- [[dot-assertBillingAllowed()]] - code - backend/src/modules/oms/oms-orders.service.ts
+- [[dot-assertImportCreateReady()]] - code - backend/src/modules/inbound/inbound.service.ts
+- [[dot-assertImportCreateReady()_1]] - code - backend/src/modules/oms/oms-orders.service.ts
+- [[dot-assertImportCreateReady()_2]] - code - backend/src/modules/outbound/outbound.service.ts
+- [[dot-assertOperationalBilling()]] - code - backend/src/modules/billing/billing-access.service.ts
+- [[dot-assertOutboundLinkable()]] - code - backend/src/modules/oms/oms-orders.service.ts
+- [[dot-assertSufficientStockForLines()]] - code - backend/src/modules/oms/oms-orders.service.ts
+- [[dot-assertSufficientStockForLines()_1]] - code - backend/src/modules/outbound/outbound.service.ts
+- [[dot-buildListWhere()_5]] - code - backend/src/modules/oms/oms-orders.service.ts
+- [[dot-cancel()_13]] - code - backend/src/modules/oms/oms-orders.service.ts
+- [[dot-cancel()_14]] - code - backend/src/modules/outbound/outbound.service.ts
+- [[dot-cancelBulk()_3]] - code - backend/src/modules/oms/oms-bulk.service.ts
+- [[dot-cancelShipment()_5]] - code - backend/src/modules/oms/oms-orders.service.ts
+- [[dot-completeShippingDetailsAdmin()]] - code - backend/src/modules/outbound/outbound.service.ts
+- [[dot-confirm()_9]] - code - backend/src/modules/oms/oms-orders.service.ts
+- [[dot-confirmBulk()_4]] - code - backend/src/modules/oms/oms-bulk.service.ts
+- [[dot-confirmReturnReceipt()_1]] - code - backend/src/modules/oms/oms-orders.service.ts
+- [[dot-constructor()_214]] - code - backend/src/modules/client-portal/oms/client-oms-orders.service.ts
+- [[dot-constructor()_215]] - code - backend/src/modules/client-portal/order-import/outbound-client-import.service.ts
+- [[dot-constructor()_216]] - code - backend/src/modules/client-portal/outbound/client-outbound-orders.service.ts
+- [[dot-constructor()_217]] - code - backend/src/modules/oms/oms-bulk.service.ts
+- [[dot-containsPoint()]] - code - backend/src/modules/shipping/shipping-geo.service.ts
+- [[dot-create()_44]] - code - backend/src/modules/oms/oms-orders.service.ts
+- [[dot-create()_45]] - code - backend/src/modules/outbound/outbound.service.ts
+- [[dot-createOutboundFromOms()]] - code - backend/src/modules/oms/oms-outbound-sync.service.ts
+- [[dot-deductOutboundOrderLines()]] - code - backend/src/modules/outbound/outbound.service.ts
+- [[dot-delete()_1]] - code - backend/src/modules/oms/oms-orders.service.ts
+- [[dot-deliveredBulk()_1]] - code - backend/src/modules/oms/oms-bulk.service.ts
+- [[dot-emitOms()]] - code - backend/src/modules/oms/oms-orders.service.ts
+- [[dot-emitOutboundOrderUpdated()]] - code - backend/src/modules/realtime/realtime.service.ts
+- [[dot-executeImport()_2]] - code - backend/src/modules/oms/oms-orders-csv.service.ts
+- [[dot-failedDeliveryBulk()_1]] - code - backend/src/modules/oms/oms-bulk.service.ts
+- [[dot-findById()_15]] - code - backend/src/modules/oms/oms-orders.service.ts
+- [[dot-findById()_16]] - code - backend/src/modules/outbound/outbound.service.ts
+- [[dot-findByIdForAdminPicking()]] - code - backend/src/modules/outbound/outbound.service.ts
+- [[dot-findByIdForAdminStage()]] - code - backend/src/modules/outbound/outbound.service.ts
+- [[dot-findByOrderNumber()_7]] - code - backend/src/modules/outbound/outbound.service.ts
+- [[dot-findExistingByExternalReference()]] - code - backend/src/modules/oms/oms-orders.service.ts
+- [[dot-findExistingByOrderNumber()]] - code - backend/src/modules/oms/oms-orders.service.ts
+- [[dot-findProductsBySkus()_2]] - code - backend/src/modules/oms/oms-orders.service.ts
+- [[dot-findStockCandidates()]] - code - backend/src/modules/outbound/outbound.service.ts
+- [[dot-fulfillReservations()]] - code - backend/src/modules/oms/order-allocation.service.ts
+- [[dot-getShippingMovement()_1]] - code - backend/src/modules/oms/oms-orders.service.ts
+- [[dot-getTraceabilityForOrder()]] - code - backend/src/modules/oms/inbound-traceability.service.ts
+- [[dot-hasActiveReservations()]] - code - backend/src/modules/oms/order-allocation.service.ts
+- [[dot-isEnabled()_3]] - code - backend/src/modules/oms/order-allocation.service.ts
+- [[dot-list()_54]] - code - backend/src/modules/oms/oms-orders.service.ts
+- [[dot-listForExport()_5]] - code - backend/src/modules/oms/oms-orders.service.ts
+- [[dot-listForOrder()]] - code - backend/src/modules/oms/oms-order-events.service.ts
+- [[dot-listForOrderTx()]] - code - backend/src/modules/oms/oms-order-events.service.ts
+- [[dot-lookupBoundary()]] - code - backend/src/modules/shipping/shipping-geo.service.ts
+- [[dot-lookupOrderNumber()_1]] - code - backend/src/modules/oms/oms-bulk.service.ts
+- [[dot-markDelivered()]] - code - backend/src/modules/oms/oms-orders.service.ts
+- [[dot-markFailedDelivery()]] - code - backend/src/modules/oms/oms-orders.service.ts
+- [[dot-markFulfilled()]] - code - backend/src/modules/oms/inbound-traceability.service.ts
+- [[dot-markOutForDelivery()]] - code - backend/src/modules/oms/oms-orders.service.ts
+- [[dot-markReturned()]] - code - backend/src/modules/oms/oms-orders.service.ts
+- [[dot-mirrorFromOutbound()]] - code - backend/src/modules/oms/oms-orders.service.ts
+- [[dot-previewOrder()]] - code - backend/src/modules/outbound/outbound-bulk.service.ts
+- [[dot-processShippingDetailsItem()]] - code - backend/src/modules/outbound/outbound-bulk.service.ts
+- [[dot-record()]] - code - backend/src/modules/oms/oms-order-events.service.ts
+- [[dot-recordExternalFulfillment()_1]] - code - backend/src/modules/oms/oms-orders.service.ts
+- [[dot-reject()_3]] - code - backend/src/modules/oms/oms-orders.service.ts
+- [[dot-releaseAllocation()_1]] - code - backend/src/modules/oms/oms-orders.service.ts
+- [[dot-releaseAllocation()_2]] - code - backend/src/modules/oms/order-allocation.service.ts
+- [[dot-releaseAllocations()]] - code - backend/src/modules/oms/inbound-traceability.service.ts
+- [[dot-remove()_12]] - code - backend/src/modules/outbound/outbound.service.ts
+- [[dot-resolveImportCompanyId()_1]] - code - backend/src/modules/oms/oms-orders.service.ts
+- [[dot-resolveImportCompanyId()_2]] - code - backend/src/modules/outbound/outbound.service.ts
+- [[dot-resolveOrder()]] - code - backend/src/modules/oms/oms-orders.service.ts
+- [[dot-resolveWriteCompanyId()]] - code - backend/src/common/company-access/company-access.service.ts
+- [[dot-returnedBulk()_1]] - code - backend/src/modules/oms/oms-bulk.service.ts
+- [[dot-revertCancel()_1]] - code - backend/src/modules/oms/oms-orders.service.ts
+- [[dot-revertDelivery()]] - code - backend/src/modules/oms/oms-orders.service.ts
+- [[dot-rollbackReturn()_2]] - code - backend/src/modules/oms/oms-orders.service.ts
+- [[dot-runStatusBulk()]] - code - backend/src/modules/oms/oms-bulk.service.ts
+- [[dot-saveShippingDetails()_1]] - code - backend/src/modules/outbound/outbound.service.ts
+- [[dot-selectShippingMethodAdmin()]] - code - backend/src/modules/outbound/outbound.service.ts
+- [[dot-statusNavCounts()_3]] - code - backend/src/modules/oms/oms-orders.service.ts
+- [[dot-supersedeUnconfirmedShipments()]] - code - backend/src/modules/outbound/outbound.service.ts
+- [[dot-syncFromOutbound()]] - code - backend/src/modules/oms/oms-outbound-sync.service.ts
+- [[dot-syncFromOutboundStandalone()]] - code - backend/src/modules/oms/oms-outbound-sync.service.ts
+- [[dot-timeline()_3]] - code - backend/src/modules/oms/oms-orders.service.ts
+- [[dot-transition()]] - code - backend/src/modules/oms/oms-orders.service.ts
+- [[dot-tryAllocateOnConfirm()]] - code - backend/src/modules/outbound/outbound.service.ts
+- [[dot-undoConfirmedReturn()_2]] - code - backend/src/modules/oms/oms-orders.service.ts
+- [[dot-uniqueIds()]] - code - backend/src/modules/oms/oms-bulk.service.ts
+- [[dot-update()_13]] - code - backend/src/modules/oms/oms-orders.service.ts
+- [[dot-updatePlan()_6]] - code - backend/src/modules/outbound/outbound.service.ts
+- [[dot-validateGroups()_2]] - code - backend/src/modules/oms/oms-orders-csv.service.ts
+- [[AllocateOmsOrderDto]] - code - backend/src/modules/oms/dto/oms-order.dto.ts
+- [[BABEL_MAX_BOX_WEIGHT_KG]] - code - backend/src/modules/shipping/shipping-config.util.ts
+- [[BulkIdsResponse_1]] - code - backend/src/modules/outbound/outbound-bulk.service.ts
+- [[BulkItemFailure_1]] - code - backend/src/modules/outbound/outbound-bulk.service.ts
+- [[BulkItemResult_1]] - code - backend/src/modules/outbound/outbound-bulk.service.ts
+- [[Injectable_151]] - code
+- [[Injectable_152]] - code
+- [[Injectable_153]] - code
+- [[IsIn_41]] - code
+- [[IsOptional_105]] - code
+- [[IsString_87]] - code
+- [[ListOmsOrdersQueryDto]] - code - backend/src/modules/oms/dto/list-oms-orders-query.dto.ts
+- [[Matches_23]] - code
+- [[MaxLength_51]] - code
+- [[OmsBulkService]] - code - backend/src/modules/oms/oms-bulk.service.ts
+- [[OmsOrderLineWithProduct]] - code - backend/src/modules/oms/oms-order.mapper.ts
+- [[OmsOrderWithRelations]] - code - backend/src/modules/oms/oms-order.mapper.ts
+- [[OmsOrdersService]] - code - backend/src/modules/oms/oms-orders.service.ts
+- [[OutboundService]] - code - backend/src/modules/outbound/outbound.service.ts
+- [[SHIPPING_DETAILS_ELIGIBLE]] - code - backend/src/modules/outbound/outbound-bulk.service.ts
+- [[SHIPPING_IDENTITY_LOCKED_STATUSES]] - code - backend/src/modules/shipping/shipping-config.util.ts
+- [[SHIPPING_LOCKED_STATUSES]] - code - backend/src/modules/shipping/shipping-config.util.ts
+- [[SHIPPING_PATCH_KEYS]] - code - backend/src/modules/shipping/shipping-config.util.ts
+- [[ShippingConfigFields]] - code - backend/src/modules/shipping/shipping-config.util.ts
+- [[adminOutboundListItem()]] - code - backend/src/modules/realtime/realtime-client.payload.ts
+- [[assertAndNormalizeRecipientContact()]] - code - backend/src/modules/oms/oms-orders.service.ts
+- [[assertCalendarDateNotBeforeToday()]] - code - backend/src/common/utils/order-planning-date.ts
+- [[assertOmsCreateContactAndAddressRequired()]] - code - backend/src/modules/oms/oms-orders.service.ts
+- [[assertOmsCreatePaymentMethodRequired()]] - code - backend/src/modules/oms/oms-orders.service.ts
+- [[assertOmsTransition()]] - code - backend/src/modules/oms/oms-order-transitions.ts
+- [[assertShippingConfigUnlocked()]] - code - backend/src/modules/shipping/shipping-config.util.ts
+- [[assertShippingIntentReady()]] - code - backend/src/modules/shipping/shipping-config.util.ts
+- [[assertShippingPhoneCountry()]] - code - backend/src/modules/shipping/shipping-config.util.ts
+- [[async-pool.ts]] - code - backend/src/common/utils/async-pool.ts
+- [[async-pool.unit.spec.ts]] - code - backend/src/common/utils/async-pool.unit.spec.ts
+- [[buildLegacyDestination()]] - code - backend/src/modules/oms/oms-order.mapper.ts
+- [[calculateOrderVolume]] - code - backend/src/modules/shipping/shipping-config.util.ts
+- [[calculateOrderWeight]] - code - backend/src/modules/shipping/shipping-config.util.ts
+- [[composeDestinationAddress()]] - code - backend/src/modules/oms/oms-order.mapper.ts
+- [[computeSubtotal()]] - code - backend/src/modules/oms/oms-order.mapper.ts
+- [[computeTotal()]] - code - backend/src/modules/oms/oms-order.mapper.ts
+- [[copyShippingFieldsFromOms()]] - code - backend/src/modules/shipping/shipping-config.util.ts
+- [[dec()_5]] - code - backend/src/modules/oms/oms-order.mapper.ts
+- [[deriveCodStatus()]] - code - backend/src/modules/oms/oms-order.mapper.ts
+- [[extractCalendarYmd()_2]] - code - backend/src/common/utils/order-planning-date.ts
+- [[isAwbPendingReassignment()]] - code - backend/src/modules/shipping/shipping-lifecycle.util.ts
+- [[isShippingConfigLocked()]] - code - backend/src/modules/shipping/shipping-config.util.ts
+- [[linesSum()]] - code - backend/src/modules/oms/oms-order.mapper.ts
+- [[liveAwbPending()]] - code - backend/src/modules/oms/oms-order.mapper.ts
+- [[liveShipmentTracking()]] - code - backend/src/modules/oms/oms-order.mapper.ts
+- [[mapOutboundStatusToOms()]] - code - backend/src/modules/oms/oms-order.mapper.ts
+- [[normalizeShippingPhoneCountry()]] - code - backend/src/modules/shipping/shipping-config.util.ts
+- [[oms-order.mapper.ts]] - code - backend/src/modules/oms/oms-order.mapper.ts
+- [[oms-order.mapper.unit.spec.ts]] - code - backend/src/modules/oms/oms-order.mapper.unit.spec.ts
+- [[omsEventTypeForStatus()]] - code - backend/src/modules/oms/oms-order.mapper.ts
+- [[outbound-bulk.service.ts]] - code - backend/src/modules/outbound/outbound-bulk.service.ts
+- [[pickActiveCarrierShipment()]] - code - backend/src/modules/shipping/shipping-lifecycle.util.ts
+- [[recordResult()]] - code - backend/scripts/verify-inbound-traceability-staging.ts
+- [[resolveOmsActorRole()]] - code - backend/src/modules/oms/oms-order-transitions.ts
+- [[resolveOmsDeliveryLocation()]] - code - backend/src/modules/oms/oms-delivery-resolution.ts
+- [[resolveShippingVolumeCbm()]] - code - backend/src/modules/shipping/shipping-config.util.ts
+- [[resolveShippingWeightKg()]] - code - backend/src/modules/shipping/shipping-config.util.ts
+- [[runPool()_1]] - code - backend/src/common/utils/async-pool.ts
+- [[runVerification()]] - code - backend/scripts/verify-inbound-traceability-staging.ts
+- [[serializeOmsOrder()]] - code - backend/src/modules/oms/oms-order.mapper.ts
+- [[serializeOmsOrderLine()]] - code - backend/src/modules/oms/oms-order.mapper.ts
+- [[serializeOmsOrderListItem()]] - code - backend/src/modules/oms/oms-order.mapper.ts
+- [[shipping-config.util.ts]] - code - backend/src/modules/shipping/shipping-config.util.ts
+- [[shipping-config.util.unit.spec.ts]] - code - backend/src/modules/shipping/shipping-config.util.unit.spec.ts
+- [[shippingPackagesPrisma()]] - code - backend/src/modules/outbound/outbound.service.ts
+- [[shippingPrismaData()]] - code - backend/src/modules/shipping/shipping-config.util.ts
+- [[snapshotOnEnteringCancelled()]] - code - backend/src/modules/oms/oms-cancel-revert.ts
+- [[sumLineVolumesCbm()]] - code - backend/src/modules/shipping/shipping-config.util.ts
+- [[sumLineWeightsKg()]] - code - backend/src/modules/shipping/shipping-config.util.ts
+- [[withTenantRls()]] - code - backend/src/common/prisma/tenant-rls.ts
+
+## Live Query (requires Dataview plugin)
+
+```dataview
+TABLE source_file, type FROM #community/withTenantRls
+SORT file.name ASC
+```
+
+## Connections to other communities
+- 100 edges to [[_COMMUNITY_outbound.service.ts]]
+- 89 edges to [[_COMMUNITY_AuthPrincipal]]
+- 63 edges to [[_COMMUNITY_dot-fromPrincipal]]
+- 41 edges to [[_COMMUNITY_@prismaclient]]
+- 40 edges to [[_COMMUNITY_CurrentUser]]
+- 32 edges to [[_COMMUNITY_task-inventory-effects.service.ts]]
+- 28 edges to [[_COMMUNITY_shipping.service.ts]]
+- 26 edges to [[_COMMUNITY_shipping-tracking.service.ts]]
+- 25 edges to [[_COMMUNITY_oms-client-import.service.ts]]
+- 25 edges to [[_COMMUNITY_ClientPrincipal]]
+- 15 edges to [[_COMMUNITY_client-oms-orders.service.ts]]
+- 15 edges to [[_COMMUNITY_dot-validateResourceOwnership]]
+- 11 edges to [[_COMMUNITY_@nestjscommon]]
+- 11 edges to [[_COMMUNITY_inbound-orders-csv.service.ts]]
+- 10 edges to [[_COMMUNITY_RealtimeService]]
+- 10 edges to [[_COMMUNITY_CodController]]
+- 9 edges to [[_COMMUNITY_outbound-orders-csv.service.ts]]
+- 8 edges to [[_COMMUNITY_CreateOmsOrderDto]]
+- 8 edges to [[_COMMUNITY_EncryptionService]]
+- 7 edges to [[_COMMUNITY_validatorsrecipient-contact.ts]]
+- 6 edges to [[_COMMUNITY_oms-bulk.service.ts]]
+- 6 edges to [[_COMMUNITY_inventory.service.ts]]
+- 6 edges to [[_COMMUNITY_class-validator]]
+- 6 edges to [[_COMMUNITY_OmsBatchMembershipDto]]
+- 5 edges to [[_COMMUNITY_omsoms-operational-stage.ts]]
+- 5 edges to [[_COMMUNITY_CycleCountService]]
+- 5 edges to [[_COMMUNITY_dot-assertCompanyAccess]]
+- 4 edges to [[_COMMUNITY_app.module.ts]]
+- 4 edges to [[_COMMUNITY_RunReportQueryDto]]
+- 4 edges to [[_COMMUNITY_EmptyToUndefined]]
+- 4 edges to [[_COMMUNITY_oms-waybill.service.ts]]
+- 4 edges to [[_COMMUNITY_babel-express.adapter.ts]]
+- 3 edges to [[_COMMUNITY_rbac-policy.ts]]
+- 3 edges to [[_COMMUNITY_oms-sales-channel.service.ts]]
+- 3 edges to [[_COMMUNITY_shipping-fee.service.ts]]
+- 3 edges to [[_COMMUNITY_cycle-count.service.ts]]
+- 3 edges to [[_COMMUNITY_oms-instruction-pdf.service.ts]]
+- 2 edges to [[_COMMUNITY_reliability-test-helpers.ts]]
+- 2 edges to [[_COMMUNITY_OmsShippingScanService]]
+- 2 edges to [[_COMMUNITY_UpdateShippingDetailsDto]]
+- 2 edges to [[_COMMUNITY_oms-orders-list-filters.util.ts]]
+- 2 edges to [[_COMMUNITY_CreateOutboundOrderDto]]
+- 2 edges to [[_COMMUNITY_geo-polygon.util.ts]]
+- 2 edges to [[_COMMUNITY_ProductsService]]
+- 2 edges to [[_COMMUNITY_ReturnsService]]
+- 1 edge to [[_COMMUNITY_WarehouseTasksService]]
+- 1 edge to [[_COMMUNITY_CreateInboundOrderDto]]
+- 1 edge to [[_COMMUNITY_OmsOrdersExportDto]]
+- 1 edge to [[_COMMUNITY_BulkProcessOutboundItemDto]]
+- 1 edge to [[_COMMUNITY_CodRecordsService]]
+- 1 edge to [[_COMMUNITY_UsersService]]
+- 1 edge to [[_COMMUNITY_warehouse-tasks.service.ts]]
+- 1 edge to [[_COMMUNITY_AuditLogService]]
+- 1 edge to [[_COMMUNITY_ListAdjustmentsQueryDto]]
+- 1 edge to [[_COMMUNITY_shipping.controller.ts]]
+- 1 edge to [[_COMMUNITY_BillingInvoiceCalculationService]]
+- 1 edge to [[_COMMUNITY_NotificationsService]]
+- 1 edge to [[_COMMUNITY_cod-export.util.ts]]
+- 1 edge to [[_COMMUNITY_CreateFinalContractDto]]
+- 1 edge to [[_COMMUNITY_documents.controller.ts]]
+- 1 edge to [[_COMMUNITY_returns.service.ts]]
+
+## Top bridge nodes
+- [[withTenantRls()]] - degree 113, connects to 26 communities
+- [[OutboundService]] - degree 63, connects to 16 communities
+- [[dot-resolveWriteCompanyId()]] - degree 24, connects to 15 communities
+- [[ListOmsOrdersQueryDto]] - degree 28, connects to 12 communities
+- [[dot-create()_44]] - degree 39, connects to 11 communities

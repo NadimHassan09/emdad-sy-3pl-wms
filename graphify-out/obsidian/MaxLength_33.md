@@ -1,0 +1,16 @@
+---
+source_file: ""
+type: "code"
+community: "LoginDto"
+tags:
+  - graphify/code
+  - graphify/EXTRACTED
+  - community/LoginDto
+---
+
+# MaxLength
+
+## Connections
+- [[LoginDto]] - `references` [EXTRACTED]
+
+#graphify/code #graphify/EXTRACTED #community/LoginDto

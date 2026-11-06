@@ -1,0 +1,316 @@
+---
+type: community
+cohesion: 0.02
+members: 260
+---
+
+# OmsOrdersListPage.tsx
+
+**Cohesion:** 0.02 - loosely connected
+**Members:** 260 nodes
+
+## Members
+- [[AR_LABELS]] - code - frontend/src/lib/oms-commercial-status.ts
+- [[AVATAR_TONES]] - code - frontend/src/pages/OmsDashboardPage.tsx
+- [[Action()]] - code - frontend/src/pages/OmsBatchDetailPage.tsx
+- [[ActionResult]] - code - frontend/src/components/oms/BulkActionResultModal.tsx
+- [[AuditLogFilters]] - code - frontend/src/lib/audit-logs-filters.ts
+- [[BulkActionResultModal()]] - code - frontend/src/components/oms/BulkActionResultModal.tsx
+- [[BulkActionResultModal.tsx]] - code - frontend/src/components/oms/BulkActionResultModal.tsx
+- [[BulkIdsResponse]] - code - frontend/src/api/outbound.ts
+- [[BulkProcessOutboundItem]] - code - frontend/src/api/outbound.ts
+- [[BulkResult]] - code - frontend/src/pages/OmsOrdersListPage.tsx
+- [[CANCELLED_OR_FAILED]] - code - frontend/src/pages/OmsDashboardPage.tsx
+- [[CARRIER_CONFIGS]] - code - frontend/src/pages/OmsOrdersListPage.tsx
+- [[CONFIRMED_SHIPPING]] - code - frontend/src/pages/OmsBatchDetailPage.tsx
+- [[CancelShipmentModal()]] - code - frontend/src/components/oms/CancelShipmentModal.tsx
+- [[CancelShipmentModal.tsx]] - code - frontend/src/components/oms/CancelShipmentModal.tsx
+- [[CancelShipmentModalProps]] - code - frontend/src/components/oms/CancelShipmentModal.tsx
+- [[CancelShipmentResult]] - code - frontend/src/api/oms.ts
+- [[CancelShipmentTargetOrder]] - code - frontend/src/components/oms/CancelShipmentModal.tsx
+- [[CarrierConfig]] - code - frontend/src/pages/OmsOrdersListPage.tsx
+- [[CarrierCostView]] - code - frontend/src/pages/OmsOrderDetailPage.tsx
+- [[CodGenerationStatus]] - code - frontend/src/api/oms.ts
+- [[CodListFilters]] - code - frontend/src/lib/oms-cod-list-params.ts
+- [[CodRecord]] - code - frontend/src/api/oms.ts
+- [[CodRecordAdjustment]] - code - frontend/src/api/oms.ts
+- [[CodRecordStatus]] - code - frontend/src/api/oms.ts
+- [[CodSetStatusByScanResponse]] - code - frontend/src/api/oms.ts
+- [[CreateOmsOrderLineInput]] - code - frontend/src/api/oms.ts
+- [[CreateOmsReturnInput]] - code - frontend/src/api/oms.ts
+- [[CreateOmsReturnLineInput]] - code - frontend/src/api/oms.ts
+- [[DELIVERED]] - code - frontend/src/pages/OmsDashboardPage.tsx
+- [[DateRangePreset]] - code - frontend/src/pages/OmsDashboardPage.tsx
+- [[DonutChart()]] - code - frontend/src/pages/OmsDashboardPage.tsx
+- [[DonutSlice]] - code - frontend/src/pages/OmsDashboardPage.tsx
+- [[ELIGIBLE_STATUSES]] - code - frontend/src/components/oms/OmsBulkExecutionPlanModal.tsx
+- [[EN_LABELS]] - code - frontend/src/lib/oms-commercial-status.ts
+- [[EditableShippingFeeOrder]] - code - frontend/src/components/oms/OmsEditShippingFeeModal.tsx
+- [[FailureItem]] - code - frontend/src/components/oms/BulkActionResultModal.tsx
+- [[Field()_2]] - code - frontend/src/pages/OmsOrderDetailPage.tsx
+- [[FilterFieldLabel()]] - code - frontend/src/pages/OmsOrdersListPage.tsx
+- [[ISSUE_1]] - code - frontend/src/pages/OmsBatchDetailPage.tsx
+- [[KpiTone]] - code - frontend/src/pages/OmsDashboardPage.tsx
+- [[LEGACY_TO_DISPLAY]] - code - frontend/src/lib/oms-commercial-status.ts
+- [[LinkedOutboundSummary]] - code - frontend/src/api/oms.ts
+- [[Metric()]] - code - frontend/src/pages/OmsBatchDetailPage.tsx
+- [[ModalStep]] - code - frontend/src/components/oms/CancelShipmentModal.tsx
+- [[OMS_ADMIN_CANCELLABLE_STATUSES]] - code - frontend/src/lib/oms-order-cancel.ts
+- [[OMS_COMMERCIAL_FILTER_OPTIONS]] - code - frontend/src/lib/oms-commercial-status.ts
+- [[OMS_COMMERCIAL_STATUS_COLORS]] - code - frontend/src/lib/oms-commercial-status.ts
+- [[OMS_OPERATIONAL_STAGES]] - code - frontend/src/lib/oms-operational-stage.ts
+- [[OMS_ORDERS_FILTER_DEFAULTS]] - code - frontend/src/lib/oms-orders-list-filters.ts
+- [[OMS_RETURN_ELIGIBLE_STATUSES]] - code - frontend/src/lib/oms-return-eligibility.ts
+- [[OMS_TOTAL_OPERATOR_OPTIONS]] - code - frontend/src/lib/oms-orders-list-filters.ts
+- [[OUT_FOR_DELIVERY]] - code - frontend/src/pages/OmsDashboardPage.tsx
+- [[OmsAddToBatchModal()]] - code - frontend/src/components/oms/OmsAddToBatchModal.tsx
+- [[OmsAdjustShippingFeeResponse]] - code - frontend/src/api/oms.ts
+- [[OmsAllocationStatus]] - code - frontend/src/api/oms.ts
+- [[OmsApi]] - code - frontend/src/api/oms.ts
+- [[OmsBatchDetail]] - code - frontend/src/api/oms.ts
+- [[OmsBatchDetailPage]] - code - frontend/src/router.tsx
+- [[OmsBatchDetailPage()]] - code - frontend/src/pages/OmsBatchDetailPage.tsx
+- [[OmsBatchDetailPage.tsx]] - code - frontend/src/pages/OmsBatchDetailPage.tsx
+- [[OmsBatchOrderRow]] - code - frontend/src/api/oms.ts
+- [[OmsBatchSummary]] - code - frontend/src/api/oms.ts
+- [[OmsBulkApproveFailure]] - code - frontend/src/api/oms.ts
+- [[OmsBulkApproveResponse]] - code - frontend/src/api/oms.ts
+- [[OmsBulkApproveResultItem]] - code - frontend/src/api/oms.ts
+- [[OmsBulkCancelResponse]] - code - frontend/src/api/oms.ts
+- [[OmsBulkConfirmResponse]] - code - frontend/src/api/oms.ts
+- [[OmsBulkConfirmReturnsResponse]] - code - frontend/src/api/oms.ts
+- [[OmsBulkExecutionPlanModal()]] - code - frontend/src/components/oms/OmsBulkExecutionPlanModal.tsx
+- [[OmsBulkExecutionPlanModal.tsx]] - code - frontend/src/components/oms/OmsBulkExecutionPlanModal.tsx
+- [[OmsBulkShippingFeeFailure]] - code - frontend/src/api/oms.ts
+- [[OmsBulkShippingFeeResponse]] - code - frontend/src/api/oms.ts
+- [[OmsBulkShippingFeeResultItem]] - code - frontend/src/api/oms.ts
+- [[OmsBulkStatusTransitionResponse]] - code - frontend/src/api/oms.ts
+- [[OmsCarrierCell()]] - code - frontend/src/pages/OmsOrdersListPage.tsx
+- [[OmsCodStatus]] - code - frontend/src/api/oms.ts
+- [[OmsCommercialDisplayStatus]] - code - frontend/src/lib/oms-commercial-status.ts
+- [[OmsDashboardPage]] - code - frontend/src/router.tsx
+- [[OmsDashboardPage()]] - code - frontend/src/pages/OmsDashboardPage.tsx
+- [[OmsDashboardPage.tsx]] - code - frontend/src/pages/OmsDashboardPage.tsx
+- [[OmsDashboardSummary]] - code - frontend/src/api/oms.ts
+- [[OmsEditShippingFeeModal()]] - code - frontend/src/components/oms/OmsEditShippingFeeModal.tsx
+- [[OmsEditShippingFeeModal.tsx]] - code - frontend/src/components/oms/OmsEditShippingFeeModal.tsx
+- [[OmsEditShippingFeeModalProps]] - code - frontend/src/components/oms/OmsEditShippingFeeModal.tsx
+- [[OmsImportExecuteResult]] - code - frontend/src/api/oms.ts
+- [[OmsImportRowError]] - code - frontend/src/api/oms.ts
+- [[OmsImportValidateResult]] - code - frontend/src/api/oms.ts
+- [[OmsInboundTraceabilityItem]] - code - frontend/src/api/oms.ts
+- [[OmsOperationalStage_1]] - code - frontend/src/lib/oms-operational-stage.ts
+- [[OmsOrderDetailPage]] - code - frontend/src/router.tsx
+- [[OmsOrderDetailPage()]] - code - frontend/src/pages/OmsOrderDetailPage.tsx
+- [[OmsOrderDetailPage.tsx]] - code - frontend/src/pages/OmsOrderDetailPage.tsx
+- [[OmsOrderLine]] - code - frontend/src/api/oms.ts
+- [[OmsOrderListItem]] - code - frontend/src/api/oms.ts
+- [[OmsOrderStatusSummary]] - code - frontend/src/api/oms.ts
+- [[OmsOrdersImportModal()]] - code - frontend/src/components/oms/OmsOrdersImportModal.tsx
+- [[OmsOrdersImportModal.tsx]] - code - frontend/src/components/oms/OmsOrdersImportModal.tsx
+- [[OmsOrdersListFilters]] - code - frontend/src/lib/oms-orders-list-filters.ts
+- [[OmsOrdersListPage()]] - code - frontend/src/pages/OmsOrdersListPage.tsx
+- [[OmsOrdersListPage.tsx]] - code - frontend/src/pages/OmsOrdersListPage.tsx
+- [[OmsOrdersListQueryParams]] - code - frontend/src/lib/oms-orders-list-filters.ts
+- [[OmsOrdersNavCounts]] - code - frontend/src/api/oms.ts
+- [[OmsOrdersStatusNav()]] - code - frontend/src/components/oms/OmsOrdersStatusNav.tsx
+- [[OmsOrdersStatusNav.tsx]] - code - frontend/src/components/oms/OmsOrdersStatusNav.tsx
+- [[OmsQrStatusAction]] - code - frontend/src/pages/OmsOrdersListPage.tsx
+- [[OmsReturnAdminAction]] - code - frontend/src/api/oms.ts
+- [[OmsReturnLine]] - code - frontend/src/api/oms.ts
+- [[OmsReturnStatus]] - code - frontend/src/api/oms.ts
+- [[OmsReturnWarehouseLine]] - code - frontend/src/api/oms.ts
+- [[OmsRollbackReturnResponse]] - code - frontend/src/api/oms.ts
+- [[OmsShipmentMovementEvent]] - code - frontend/src/api/oms.ts
+- [[OmsShipmentMovementPanel()]] - code - frontend/src/components/oms/OmsShipmentMovementPanel.tsx
+- [[OmsShipmentMovementPanel.tsx]] - code - frontend/src/components/oms/OmsShipmentMovementPanel.tsx
+- [[OmsShippingMovementResult]] - code - frontend/src/api/oms.ts
+- [[OmsStageBadge()]] - code - frontend/src/components/oms/OmsStageBadge.tsx
+- [[OmsStageBadge.tsx]] - code - frontend/src/components/oms/OmsStageBadge.tsx
+- [[OmsStageSource]] - code - frontend/src/lib/oms-operational-stage.ts
+- [[OmsStatusBadge()]] - code - frontend/src/components/oms/OmsStatusBadge.tsx
+- [[OmsStatusBadge.tsx]] - code - frontend/src/components/oms/OmsStatusBadge.tsx
+- [[OmsTotalOperator]] - code - frontend/src/lib/oms-orders-list-filters.ts
+- [[OmsWaybillData]] - code - frontend/src/api/oms.ts
+- [[OmsWaybillModal()]] - code - frontend/src/components/oms/OmsWaybillModal.tsx
+- [[OmsWaybillModal.tsx]] - code - frontend/src/components/oms/OmsWaybillModal.tsx
+- [[OmsWaybillPage]] - code - frontend/src/router.tsx
+- [[OmsWaybillPage()]] - code - frontend/src/pages/OmsWaybillPage.tsx
+- [[OmsWaybillPage.tsx]] - code - frontend/src/pages/OmsWaybillPage.tsx
+- [[OmsWaybillView()]] - code - frontend/src/components/oms/OmsWaybillView.tsx
+- [[OmsWaybillView.tsx]] - code - frontend/src/components/oms/OmsWaybillView.tsx
+- [[OrdersTrendChart()]] - code - frontend/src/pages/OmsDashboardPage.tsx
+- [[PAGE_SIZE_PRESETS]] - code - frontend/src/pages/OmsOrdersListPage.tsx
+- [[PENDING_FULFILLMENT]] - code - frontend/src/pages/OmsDashboardPage.tsx
+- [[PICKING_OUTBOUND]] - code - frontend/src/lib/oms-operational-stage.ts
+- [[PROCESSING_OPERATIONAL_STAGES]] - code - frontend/src/lib/oms-operational-stage.ts
+- [[ParsedOmsOrderNumber]] - code - frontend/src/lib/oms-orders-list-filters.ts
+- [[PhoneNumber()]] - code - frontend/src/components/oms/OmsWaybillView.tsx
+- [[Props_37]] - code - frontend/src/components/oms/BulkActionResultModal.tsx
+- [[Props_38]] - code - frontend/src/components/oms/OmsBulkExecutionPlanModal.tsx
+- [[Props_39]] - code - frontend/src/components/oms/OmsOrdersImportModal.tsx
+- [[Props_40]] - code - frontend/src/components/oms/OmsOrdersStatusNav.tsx
+- [[Props_41]] - code - frontend/src/components/oms/OmsShipmentMovementPanel.tsx
+- [[Props_42]] - code - frontend/src/components/oms/OmsStageBadge.tsx
+- [[Props_43]] - code - frontend/src/components/oms/OmsWaybillModal.tsx
+- [[Props_44]] - code - frontend/src/components/oms/OmsWaybillView.tsx
+- [[READY_TO_SHIP_OPERATIONAL_STAGES]] - code - frontend/src/lib/oms-operational-stage.ts
+- [[RETURNED]] - code - frontend/src/pages/OmsDashboardPage.tsx
+- [[ResultItem]] - code - frontend/src/components/oms/BulkActionResultModal.tsx
+- [[RowConfig]] - code - frontend/src/components/oms/OmsBulkExecutionPlanModal.tsx
+- [[STAGE_LABELS]] - code - frontend/src/lib/oms-operational-stage.ts
+- [[STATUS_CARDS]] - code - frontend/src/components/oms/OmsOrdersStatusNav.tsx
+- [[SectionHeader()]] - code - frontend/src/components/oms/OmsWaybillView.tsx
+- [[StageChip()]] - code - frontend/src/components/oms/OmsOrdersStatusNav.tsx
+- [[StatusCard]] - code - frontend/src/components/oms/OmsOrdersStatusNav.tsx
+- [[StatusCell()]] - code - frontend/src/pages/OmsDashboardPage.tsx
+- [[TopKpi()]] - code - frontend/src/pages/OmsDashboardPage.tsx
+- [[WAITING]] - code - frontend/src/pages/OmsDashboardPage.tsx
+- [[WAYBILL_STATUSES]] - code - frontend/src/components/oms/useOmsOrderRowActions.tsx
+- [[WaybillScanOrder]] - code - frontend/src/lib/oms-waybill-scan.ts
+- [[Workflow()]] - code - frontend/src/pages/OmsBatchDetailPage.tsx
+- [[aggregateCommercialStatusCounts()]] - code - frontend/src/lib/oms-commercial-status.ts
+- [[appliedAudit]] - code - frontend/src/lib/export-filter-parity.unit.spec.ts
+- [[appliedInbound]] - code - frontend/src/lib/export-filter-parity.unit.spec.ts
+- [[appliedOutbound]] - code - frontend/src/lib/export-filter-parity.unit.spec.ts
+- [[audit-logs-filters.ts]] - code - frontend/src/lib/audit-logs-filters.ts
+- [[auditLogsFiltersToParams()]] - code - frontend/src/lib/audit-logs-filters.ts
+- [[buildCodListParams()]] - code - frontend/src/lib/oms-cod-list-params.ts
+- [[buildOmsAppliedFilterSummary()]] - code - frontend/src/lib/oms-orders-list-filters.ts
+- [[buildOmsOrdersListParams()]] - code - frontend/src/lib/oms-orders-list-filters.ts
+- [[canOrderHaveWaybill()]] - code - frontend/src/components/oms/useOmsOrderRowActions.tsx
+- [[canOrderHaveWaybill()_1]] - code - frontend/src/pages/OmsOrdersListPage.tsx
+- [[chunk-ids.ts]] - code - frontend/src/lib/chunk-ids.ts
+- [[chunkedOms()]] - code - frontend/src/pages/OmsBatchDetailPage.tsx
+- [[confirm()]] - code - frontend/src/components/oms/OmsAddToBatchModal.tsx
+- [[countAppliedOmsAdvancedFilters()]] - code - frontend/src/lib/oms-orders-list-filters.ts
+- [[countCommercialPending()]] - code - frontend/src/lib/oms-commercial-status.ts
+- [[customerInitials()]] - code - frontend/src/pages/OmsDashboardPage.tsx
+- [[datesForPreset()]] - code - frontend/src/pages/OmsDashboardPage.tsx
+- [[downloadText()_4]] - code - frontend/src/components/oms/OmsOrdersImportModal.tsx
+- [[endOfMonth()]] - code - frontend/src/pages/OmsDashboardPage.tsx
+- [[errorsToCsv()_5]] - code - frontend/src/components/oms/OmsOrdersImportModal.tsx
+- [[eventIcon()]] - code - frontend/src/pages/OmsDashboardPage.tsx
+- [[eventLabel()]] - code - frontend/src/pages/OmsDashboardPage.tsx
+- [[export-filter-parity.unit.spec.ts]] - code - frontend/src/lib/export-filter-parity.unit.spec.ts
+- [[filenameFromDisposition()]] - code - frontend/src/api/oms.ts
+- [[fmtMoney()_2]] - code - frontend/src/pages/OmsDashboardPage.tsx
+- [[fmtMoney()_3]] - code - frontend/src/pages/OmsOrderDetailPage.tsx
+- [[fmtPct()_2]] - code - frontend/src/pages/OmsDashboardPage.tsx
+- [[formatCount()_1]] - code - frontend/src/components/oms/OmsOrdersStatusNav.tsx
+- [[formatDiff()]] - code - frontend/src/components/oms/OmsEditShippingFeeModal.tsx
+- [[formatEventDateTime()]] - code - frontend/src/components/oms/OmsShipmentMovementPanel.tsx
+- [[formatFee()]] - code - frontend/src/components/oms/OmsEditShippingFeeModal.tsx
+- [[getCardClasses()]] - code - frontend/src/components/oms/OmsShipmentMovementPanel.tsx
+- [[getCarrierConfig()]] - code - frontend/src/pages/OmsOrdersListPage.tsx
+- [[getOrderShippingFee()]] - code - frontend/src/components/oms/OmsEditShippingFeeModal.tsx
+- [[isApproveResponse()]] - code - frontend/src/components/oms/BulkActionResultModal.tsx
+- [[isCancelResponse()]] - code - frontend/src/components/oms/BulkActionResultModal.tsx
+- [[isCancelShipmentArray()]] - code - frontend/src/components/oms/BulkActionResultModal.tsx
+- [[isConfirmResponse()]] - code - frontend/src/components/oms/BulkActionResultModal.tsx
+- [[isOmsAdminCancellableStatus()]] - code - frontend/src/lib/oms-order-cancel.ts
+- [[isOmsOperationalStage()_1]] - code - frontend/src/lib/oms-operational-stage.ts
+- [[isOmsOrderDeletable()_1]] - code - frontend/src/lib/oms-order-delete.ts
+- [[isOmsReturnEligibleStatus()]] - code - frontend/src/lib/oms-return-eligibility.ts
+- [[labelReadiness()]] - code - frontend/src/pages/OmsBatchDetailPage.tsx
+- [[liboms-operational-stage.ts]] - code - frontend/src/lib/oms-operational-stage.ts
+- [[liboms-operational-stage.unit.spec.ts]] - code - frontend/src/lib/oms-operational-stage.unit.spec.ts
+- [[liboms-return-eligibility.ts]] - code - frontend/src/lib/oms-return-eligibility.ts
+- [[mapOmsCommercialDisplayStatus()]] - code - frontend/src/lib/oms-commercial-status.ts
+- [[menu()]] - code - frontend/src/components/oms/useOmsOrderRowActions.tsx
+- [[normalizeOmsOrdersListFilters()]] - code - frontend/src/lib/oms-orders-list-filters.ts
+- [[normalizeResult()]] - code - frontend/src/components/oms/BulkActionResultModal.tsx
+- [[normalizeWaybillScan()]] - code - frontend/src/lib/oms-waybill-scan.ts
+- [[oms-cod-list-params.ts]] - code - frontend/src/lib/oms-cod-list-params.ts
+- [[oms-cod-list-params.unit.spec.ts]] - code - frontend/src/lib/oms-cod-list-params.unit.spec.ts
+- [[oms-commercial-status.ts]] - code - frontend/src/lib/oms-commercial-status.ts
+- [[oms-order-cancel.ts]] - code - frontend/src/lib/oms-order-cancel.ts
+- [[oms-order-delete.ts]] - code - frontend/src/lib/oms-order-delete.ts
+- [[oms-orders-list-filters.ts]] - code - frontend/src/lib/oms-orders-list-filters.ts
+- [[oms-orders-list-filters.unit.spec.ts]] - code - frontend/src/lib/oms-orders-list-filters.unit.spec.ts
+- [[oms-waybill-scan.ts]] - code - frontend/src/lib/oms-waybill-scan.ts
+- [[oms-waybill-scan.unit.spec.ts]] - code - frontend/src/lib/oms-waybill-scan.unit.spec.ts
+- [[oms.ts]] - code - frontend/src/api/oms.ts
+- [[omsCommercialStatusBadgeKey()]] - code - frontend/src/lib/oms-commercial-status.ts
+- [[omsCommercialStatusLabel()]] - code - frontend/src/lib/oms-commercial-status.ts
+- [[omsOperationalStageLabel()]] - code - frontend/src/lib/oms-operational-stage.ts
+- [[omsOrderDeleteBlockedMessage()_1]] - code - frontend/src/lib/oms-order-delete.ts
+- [[operationalStagesForStatus()]] - code - frontend/src/lib/oms-operational-stage.ts
+- [[orderMainStatus()]] - code - frontend/src/lib/oms-operational-stage.ts
+- [[orderMatchesWaybillScan()]] - code - frontend/src/lib/oms-waybill-scan.ts
+- [[orderOperationalStage()]] - code - frontend/src/lib/oms-operational-stage.ts
+- [[outboundBulk()]] - code - frontend/src/pages/OmsBatchDetailPage.tsx
+- [[outboundId()]] - code - frontend/src/pages/OmsBatchDetailPage.tsx
+- [[parseAndNormalizeOmsOrderNumber()]] - code - frontend/src/lib/oms-orders-list-filters.ts
+- [[parseNum()]] - code - frontend/src/components/oms/OmsEditShippingFeeModal.tsx
+- [[pct()]] - code - frontend/src/pages/OmsDashboardPage.tsx
+- [[print-pdf-blob.ts]] - code - frontend/src/lib/print-pdf-blob.ts
+- [[printPdfBlob()]] - code - frontend/src/lib/print-pdf-blob.ts
+- [[ref_qrcode]] - concept
+- [[refresh()]] - code - frontend/src/pages/OmsBatchDetailPage.tsx
+- [[relativeTime()]] - code - frontend/src/pages/OmsDashboardPage.tsx
+- [[resolveChunkSize()]] - code - frontend/src/pages/OmsOrdersListPage.tsx
+- [[run()]] - code - frontend/src/pages/OmsBatchDetailPage.tsx
+- [[runInChunks()]] - code - frontend/src/lib/chunk-ids.ts
+- [[saveOmsBlob()]] - code - frontend/src/api/oms.ts
+- [[shipmentSent()]] - code - frontend/src/pages/OmsBatchDetailPage.tsx
+- [[shouldShowOmsStageColumn()]] - code - frontend/src/lib/oms-operational-stage.ts
+- [[startOfMonth()]] - code - frontend/src/pages/OmsDashboardPage.tsx
+- [[statusHasOperationalStages()]] - code - frontend/src/lib/oms-operational-stage.ts
+- [[statusLabel()]] - code - frontend/src/pages/OmsDashboardPage.tsx
+- [[statusScanCopy()]] - code - frontend/src/pages/OmsOrdersListPage.tsx
+- [[sumBucket()]] - code - frontend/src/pages/OmsDashboardPage.tsx
+- [[summarize()]] - code - frontend/src/pages/OmsBatchDetailPage.tsx
+- [[text()_1]] - code - frontend/src/lib/oms-orders-list-filters.ts
+- [[toYmd()]] - code - frontend/src/pages/OmsDashboardPage.tsx
+- [[useArabic()_1]] - code - frontend/src/pages/OmsBatchDetailPage.tsx
+- [[useOmsOrderRowActions()]] - code - frontend/src/components/oms/useOmsOrderRowActions.tsx
+- [[useOmsOrderRowActions.tsx]] - code - frontend/src/components/oms/useOmsOrderRowActions.tsx
+- [[validateOmsOrderRange()]] - code - frontend/src/lib/oms-orders-list-filters.ts
+- [[vitest]] - concept - frontend/package.json
+- [[vitest.config.ts]] - code - frontend/vitest.config.ts
+- [[waybillScanAttempts()]] - code - frontend/src/lib/oms-waybill-scan.ts
+
+## Live Query (requires Dataview plugin)
+
+```dataview
+TABLE source_file, type FROM #community/OmsOrdersListPagetsx
+SORT file.name ASC
+```
+
+## Connections to other communities
+- 86 edges to [[_COMMUNITY_TextField]]
+- 66 edges to [[_COMMUNITY_ref_tanstack_react_query]]
+- 53 edges to [[_COMMUNITY_Modal]]
+- 49 edges to [[_COMMUNITY_query-keys.ts]]
+- 30 edges to [[_COMMUNITY_design-system-nextuiindex.ts]]
+- 18 edges to [[_COMMUNITY_outbound.ts]]
+- 17 edges to [[_COMMUNITY_useToast]]
+- 16 edges to [[_COMMUNITY_OmsOrderCreatePage.tsx]]
+- 15 edges to [[_COMMUNITY_router.tsx]]
+- 13 edges to [[_COMMUNITY_useWmsTranslation]]
+- 10 edges to [[_COMMUNITY_OmsBulkShippingDetailsModal.tsx]]
+- 5 edges to [[_COMMUNITY_OmsOrderTrackingPanel.tsx]]
+- 5 edges to [[_COMMUNITY_OmsBulkShippingDetailsModal]]
+- 4 edges to [[_COMMUNITY_OmsBulkActionBar.tsx]]
+- 4 edges to [[_COMMUNITY_carrier-shipping-form.ts]]
+- 2 edges to [[_COMMUNITY_audit-logs.ts]]
+- 2 edges to [[_COMMUNITY_UsersPage.tsx]]
+- 2 edges to [[_COMMUNITY_client.ts]]
+- 1 edge to [[_COMMUNITY_devDependencies]]
+- 1 edge to [[_COMMUNITY_backup-display.ts]]
+- 1 edge to [[_COMMUNITY_ShippingFeeRatePage]]
+- 1 edge to [[_COMMUNITY_frontendpackage.json]]
+- 1 edge to [[_COMMUNITY_librecipient-contact.ts]]
+- 1 edge to [[_COMMUNITY_shipping.ts]]
+- 1 edge to [[_COMMUNITY_DashboardOverviewPage.tsx]]
+- 1 edge to [[_COMMUNITY_company-form-validation.ts]]
+- 1 edge to [[_COMMUNITY_ReceivingExecutionPanel.tsx]]
+- 1 edge to [[_COMMUNITY_oms-waybill.service.ts]]
+
+## Top bridge nodes
+- [[vitest]] - degree 22, connects to 15 communities
+- [[OmsOrdersListPage.tsx]] - degree 123, connects to 12 communities
+- [[oms.ts]] - degree 106, connects to 12 communities
+- [[OmsOrderDetailPage.tsx]] - degree 60, connects to 10 communities
+- [[useOmsOrderRowActions.tsx]] - degree 40, connects to 10 communities

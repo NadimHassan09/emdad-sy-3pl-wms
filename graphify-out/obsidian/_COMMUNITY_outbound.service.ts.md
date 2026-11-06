@@ -1,0 +1,241 @@
+---
+type: community
+cohesion: 0.03
+members: 155
+---
+
+# outbound.service.ts
+
+**Cohesion:** 0.03 - loosely connected
+**Members:** 155 nodes
+
+## Members
+- [[dot-constructor()]] - code - backend/src/common/errors/billing-exceptions.ts
+- [[dot-constructor()_1]] - code - backend/src/common/errors/billing-exceptions.ts
+- [[dot-constructor()_2]] - code - backend/src/common/errors/billing-exceptions.ts
+- [[dot-constructor()_3]] - code - backend/src/common/errors/domain-exceptions.ts
+- [[dot-constructor()_4]] - code - backend/src/common/errors/domain-exceptions.ts
+- [[dot-constructor()_5]] - code - backend/src/common/errors/domain-exceptions.ts
+- [[dot-constructor()_6]] - code - backend/src/common/errors/domain-exceptions.ts
+- [[dot-constructor()_7]] - code - backend/src/common/errors/domain-exceptions.ts
+- [[dot-constructor()_8]] - code - backend/src/common/errors/domain-exceptions.ts
+- [[dot-constructor()_9]] - code - backend/src/common/errors/domain-exceptions.ts
+- [[dot-gateConfirmTransaction()]] - code - backend/src/modules/outbound/outbound.service.ts
+- [[dot-postReconciliation()]] - code - backend/src/modules/cycle-count/cycle-count-variance.service.ts
+- [[dot-quickDirectedOutbound()]] - code - backend/src/modules/outbound/outbound.service.ts
+- [[dot-receiveLine()]] - code - backend/src/modules/inbound/inbound.service.ts
+- [[ADMIN_STAGE_INCLUDE]] - code - backend/src/modules/outbound/outbound.service.ts
+- [[ALLOWED]] - code - backend/src/modules/oms/oms-order-transitions.ts
+- [[BILLING_BLOCKED_STATUSES]] - code - backend/src/modules/billing/billing-access.service.ts
+- [[BillingCycleExpiredException]] - code - backend/src/common/errors/billing-exceptions.ts
+- [[BillingPlanRequiredException]] - code - backend/src/common/errors/billing-exceptions.ts
+- [[CANCEL_EVENT_TYPES]] - code - backend/src/modules/oms/oms-cancel-revert.ts
+- [[CLIENT_CANCEL_REVERT_STATUSES]] - code - backend/src/modules/oms/oms-cancel-revert.ts
+- [[CONFIRM_LINE_INCLUDE]] - code - backend/src/modules/outbound/outbound.service.ts
+- [[CancelTimelineEvent]] - code - backend/src/modules/oms/oms-cancel-revert.ts
+- [[DomainException]] - code - backend/src/common/errors/domain-exceptions.ts
+- [[EVENT_TYPE_TO_OMS]] - code - backend/src/modules/oms/oms-cancel-revert.ts
+- [[ErrorPayload]] - code - backend/src/common/filters/all-exceptions.filter.ts
+- [[INBOUND_ACTIVE]] - code - backend/src/common/utils/warehouse-order-scope.ts
+- [[INBOUND_CONFIRMABLE]] - code - backend/src/modules/inbound/inbound-admin-stages.ts
+- [[INBOUND_CONFIRMABLE_1]] - code - backend/src/modules/inbound/inbound.service.ts
+- [[INBOUND_DELETABLE]] - code - backend/src/modules/inbound/inbound.service.ts
+- [[InboundAdminStageAction]] - code - backend/src/modules/inbound/inbound-admin-stages.ts
+- [[InboundOpenTaskHint]] - code - backend/src/modules/inbound/inbound-admin-stages.ts
+- [[InvalidLocationTypeException]] - code - backend/src/common/errors/domain-exceptions.ts
+- [[InvalidStateException]] - code - backend/src/common/errors/domain-exceptions.ts
+- [[InventoryIntegrityException]] - code - backend/src/common/errors/domain-exceptions.ts
+- [[LotLockedException]] - code - backend/src/common/errors/domain-exceptions.ts
+- [[LotRequiredException]] - code - backend/src/common/errors/domain-exceptions.ts
+- [[OMS_FULFILLMENT_RESTORE_STATUSES]] - code - backend/src/modules/oms/oms-cancel-revert.ts
+- [[OMS_PRE_FULFILLMENT]] - code - backend/src/modules/oms/oms-order-transitions.ts
+- [[OMS_PRIMARY_STATUSES]] - code - backend/src/modules/oms/oms-order-transitions.ts
+- [[OMS_STATUS_VALUES]] - code - backend/src/modules/oms/oms-cancel-revert.ts
+- [[OMS_TERMINAL_STATUSES]] - code - backend/src/modules/oms/oms-order-transitions.ts
+- [[ORDER_INCLUDE]] - code - backend/src/modules/inbound/inbound.service.ts
+- [[ORDER_INCLUDE_1]] - code - backend/src/modules/oms/oms-orders.service.ts
+- [[ORDER_INCLUDE_2]] - code - backend/src/modules/outbound/outbound.service.ts
+- [[OUTBOUND_ACTIVE]] - code - backend/src/common/utils/warehouse-order-scope.ts
+- [[OUTBOUND_CONFIRMABLE]] - code - backend/src/modules/outbound/outbound-confirm-lock.util.ts
+- [[OUTBOUND_POST_CONFIRM]] - code - backend/src/modules/outbound/outbound-confirm-lock.util.ts
+- [[OUTBOUND_STATUS_VALUES]] - code - backend/src/modules/oms/oms-cancel-revert.ts
+- [[OmsReturnAdminStageAction]] - code - backend/src/modules/oms-returns/oms-return-admin-stages.ts
+- [[OmsReturnWhHint]] - code - backend/src/modules/oms-returns/oms-return-admin-stages.ts
+- [[OmsTransitionAction]] - code - backend/src/modules/oms/oms-order-transitions.ts
+- [[OmsTransitionActor]] - code - backend/src/modules/oms/oms-order-transitions.ts
+- [[OutboundAdminNextAction]] - code - backend/src/modules/outbound/outbound-admin-stages.ts
+- [[OutboundAdminPickingPrefetch]] - code - backend/src/modules/outbound/outbound.service.ts
+- [[OutboundAdminStageAction]] - code - backend/src/modules/outbound/outbound-admin-stages.ts
+- [[OutboundAdminStageOptions]] - code - backend/src/modules/outbound/outbound.service.ts
+- [[OverReceiveException]] - code - backend/src/common/errors/domain-exceptions.ts
+- [[PgErrorLike]] - code - backend/src/common/filters/all-exceptions.filter.ts
+- [[PrismaLike]] - code - backend/src/modules/outbound/outbound-admin-task.helpers.ts
+- [[QUICK_DIRECTED_OUTBOUND_REF_PREFIX]] - code - backend/src/modules/outbound/quick-directed-outbound.constants.ts
+- [[QuickDirectedOutboundResult]] - code - backend/src/modules/outbound/quick-directed-outbound.types.ts
+- [[QuickDirectedPickSlice]] - code - backend/src/modules/outbound/quick-directed-outbound.helper.ts
+- [[QuickDirectedPickSlice_1]] - code - backend/src/modules/outbound/quick-directed-outbound.types.ts
+- [[ReceivingQtyCheckInput]] - code - backend/src/modules/warehouse-workflow/receiving-qty.validation.ts
+- [[StockRow]] - code - backend/src/modules/outbound/outbound.service.ts
+- [[StockShortage]] - code - backend/src/common/errors/domain-exceptions.ts
+- [[TransitionKey]] - code - backend/src/modules/oms/oms-order-transitions.ts
+- [[Tx]] - code - backend/src/modules/oms/oms-outbound-sync.service.ts
+- [[UNSAFE_OMS_RESTORE_STATUSES]] - code - backend/src/modules/oms/oms-cancel-revert.ts
+- [[UNSAFE_OUTBOUND_RESTORE_STATUSES]] - code - backend/src/modules/oms/oms-cancel-revert.ts
+- [[VolumeAllocationExceededException]] - code - backend/src/common/errors/billing-exceptions.ts
+- [[WAREHOUSE_ALLOCATABLE_CAPACITY_RATIO]] - code - backend/src/modules/billing/billing-access.service.ts
+- [[WaitOpenWarehouseTaskOptions]] - code - backend/src/modules/outbound/outbound-admin-task.helpers.ts
+- [[all-exceptions.filter.ts]] - code - backend/src/common/filters/all-exceptions.filter.ts
+- [[assert-product-orderable.ts]] - code - backend/src/common/utils/assert-product-orderable.ts
+- [[assertInboundAdminStageAction()]] - code - backend/src/modules/inbound/inbound-admin-stages.ts
+- [[assertOmsCancelRevert()]] - code - backend/src/modules/oms/oms-order-transitions.ts
+- [[assertOmsOrderDeletable()]] - code - backend/src/modules/oms/oms-order-delete.policy.ts
+- [[assertOutboundAdminStageAction()]] - code - backend/src/modules/outbound/outbound-admin-stages.ts
+- [[assertPreviousOmsStatusOrThrow()]] - code - backend/src/modules/oms/oms-cancel-revert.ts
+- [[assertProductOrderableForOrders()]] - code - backend/src/common/utils/assert-product-orderable.ts
+- [[assertReceivingQuantitiesWithinExpected()]] - code - backend/src/modules/warehouse-workflow/receiving-qty.validation.ts
+- [[billing-access.service.ts]] - code - backend/src/modules/billing/billing-access.service.ts
+- [[billing-exceptions.ts]] - code - backend/src/common/errors/billing-exceptions.ts
+- [[buildAdminPickCompleteBody()]] - code - backend/src/modules/outbound/outbound-admin-task.helpers.ts
+- [[buildQuickDirectedPickMessages()]] - code - backend/src/modules/outbound/quick-directed-outbound.helper.ts
+- [[canRevertCancel()]] - code - backend/src/modules/oms/oms-cancel-revert.ts
+- [[claimOutboundConfirmableOrder()]] - code - backend/src/modules/outbound/outbound-confirm-lock.util.ts
+- [[clientMayRevertTo()]] - code - backend/src/modules/oms/oms-cancel-revert.ts
+- [[domain-exceptions.ts]] - code - backend/src/common/errors/domain-exceptions.ts
+- [[feature-flags.ts]] - code - backend/src/modules/warehouse-workflow/feature-flags.ts
+- [[finalizeOutboundShipped()]] - code - backend/src/modules/outbound/outbound-confirm-lock.util.ts
+- [[formatQty()]] - code - backend/src/modules/outbound/quick-directed-outbound.helper.ts
+- [[hasShippingConfigPatch()]] - code - backend/src/modules/shipping/shipping-config.util.ts
+- [[inbound-admin-stages.ts]] - code - backend/src/modules/inbound/inbound-admin-stages.ts
+- [[inbound-admin-stages.unit.spec.ts]] - code - backend/src/modules/inbound/inbound-admin-stages.unit.spec.ts
+- [[inbound.service.ts]] - code - backend/src/modules/inbound/inbound.service.ts
+- [[inboundIdsVisibleForWarehouse()]] - code - backend/src/common/utils/warehouse-order-scope.ts
+- [[inboundReceiveDefersPutaway()]] - code - backend/src/modules/warehouse-workflow/feature-flags.ts
+- [[isInboundAdminConfirmable()]] - code - backend/src/modules/inbound/inbound-admin-stages.ts
+- [[isOmsOrderDeletable()]] - code - backend/src/modules/oms/oms-order-delete.policy.ts
+- [[isOutboundConfirmable()]] - code - backend/src/modules/outbound/outbound-confirm-lock.util.ts
+- [[isOutboundPostConfirm()]] - code - backend/src/modules/outbound/outbound-confirm-lock.util.ts
+- [[isQuickDirectedOutboundClientReference()]] - code - backend/src/modules/outbound/quick-directed-outbound.constants.ts
+- [[isRestorableOmsStatus()]] - code - backend/src/modules/oms/oms-cancel-revert.ts
+- [[isRestorableOutboundStatus()]] - code - backend/src/modules/oms/oms-cancel-revert.ts
+- [[isStorageLocationType()]] - code - backend/src/common/constants/storage-location-types.ts
+- [[lockOutboundOrderRow()]] - code - backend/src/modules/outbound/outbound-confirm-lock.util.ts
+- [[manualShippingConfirmNeedsMethodStep()]] - code - backend/src/modules/outbound/outbound-admin-stages.ts
+- [[needsReallocation()]] - code - backend/src/modules/oms/oms-cancel-revert.ts
+- [[nextInboundAdminAction()]] - code - backend/src/modules/inbound/inbound-admin-stages.ts
+- [[nextOmsReturnAdminAction()]] - code - backend/src/modules/oms-returns/oms-return-admin-stages.ts
+- [[nextOutboundAdminAction()]] - code - backend/src/modules/outbound/outbound-admin-stages.ts
+- [[oms-cancel-revert.ts]] - code - backend/src/modules/oms/oms-cancel-revert.ts
+- [[oms-cancel-revert.unit.spec.ts]] - code - backend/src/modules/oms/oms-cancel-revert.unit.spec.ts
+- [[oms-order-delete.policy.ts]] - code - backend/src/modules/oms/oms-order-delete.policy.ts
+- [[oms-order-delete.policy.unit.spec.ts]] - code - backend/src/modules/oms/oms-order-delete.policy.unit.spec.ts
+- [[oms-order-transitions.ts]] - code - backend/src/modules/oms/oms-order-transitions.ts
+- [[oms-order-transitions.unit.spec.ts]] - code - backend/src/modules/oms/oms-order-transitions.unit.spec.ts
+- [[oms-orders-stock-gate.unit.spec.ts]] - code - backend/src/modules/oms/oms-orders-stock-gate.unit.spec.ts
+- [[oms-orders.service.ts]] - code - backend/src/modules/oms/oms-orders.service.ts
+- [[oms-outbound-sync.service.ts]] - code - backend/src/modules/oms/oms-outbound-sync.service.ts
+- [[oms-return-admin-stages.ts]] - code - backend/src/modules/oms-returns/oms-return-admin-stages.ts
+- [[oms-return-admin-stages.unit.spec.ts]] - code - backend/src/modules/oms-returns/oms-return-admin-stages.unit.spec.ts
+- [[omsOrderDeleteBlockedMessage()]] - code - backend/src/modules/oms/oms-order-delete.policy.ts
+- [[outbound-admin-stages.ts]] - code - backend/src/modules/outbound/outbound-admin-stages.ts
+- [[outbound-admin-stages.unit.spec.ts]] - code - backend/src/modules/outbound/outbound-admin-stages.unit.spec.ts
+- [[outbound-admin-task.helpers.ts]] - code - backend/src/modules/outbound/outbound-admin-task.helpers.ts
+- [[outbound-confirm-lock.util.ts]] - code - backend/src/modules/outbound/outbound-confirm-lock.util.ts
+- [[outbound-confirm-lock.util.unit.spec.ts]] - code - backend/src/modules/outbound/outbound-confirm-lock.util.unit.spec.ts
+- [[outbound-external-fulfillment.unit.spec.ts]] - code - backend/src/modules/outbound/outbound-external-fulfillment.unit.spec.ts
+- [[outbound-orders-csv.service.unit.spec.ts]] - code - backend/src/modules/outbound/outbound-orders-csv.service.unit.spec.ts
+- [[outbound.service.ts]] - code - backend/src/modules/outbound/outbound.service.ts
+- [[outboundConfirmDefersDeduction()]] - code - backend/src/modules/warehouse-workflow/feature-flags.ts
+- [[outboundIdsVisibleForWarehouse()]] - code - backend/src/common/utils/warehouse-order-scope.ts
+- [[parseDamagedQtyFromNotes()]] - code - backend/src/modules/warehouse-workflow/receiving-qty.validation.ts
+- [[parseOmsStatus()]] - code - backend/src/modules/oms/oms-cancel-revert.ts
+- [[parseOutboundStatus()]] - code - backend/src/modules/oms/oms-cancel-revert.ts
+- [[quick-directed-outbound.constants.ts]] - code - backend/src/modules/outbound/quick-directed-outbound.constants.ts
+- [[quick-directed-outbound.helper.ts]] - code - backend/src/modules/outbound/quick-directed-outbound.helper.ts
+- [[quick-directed-outbound.helper.unit.spec.ts]] - code - backend/src/modules/outbound/quick-directed-outbound.helper.unit.spec.ts
+- [[quick-directed-outbound.types.ts]] - code - backend/src/modules/outbound/quick-directed-outbound.types.ts
+- [[quickDirectedReasonFromClientReference()]] - code - backend/src/modules/outbound/quick-directed-outbound.constants.ts
+- [[realtime-client.payload.ts]] - code - backend/src/modules/realtime/realtime-client.payload.ts
+- [[receiving-qty.validation.ts]] - code - backend/src/modules/warehouse-workflow/receiving-qty.validation.ts
+- [[receiving-qty.validation.unit.spec.ts]] - code - backend/src/modules/warehouse-workflow/receiving-qty.validation.unit.spec.ts
+- [[resolveDamagedQty()]] - code - backend/src/modules/warehouse-workflow/receiving-qty.validation.ts
+- [[resolveOutboundRestoreStatus()]] - code - backend/src/modules/oms/oms-cancel-revert.ts
+- [[resolvePreviousOmsStatus()]] - code - backend/src/modules/oms/oms-cancel-revert.ts
+- [[same-workflow-path.unit.spec.ts]] - code - backend/src/modules/oms/same-workflow-path.unit.spec.ts
+- [[setTenantRlsContext()]] - code - backend/src/common/prisma/tenant-rls.ts
+- [[statusFromEvent()]] - code - backend/src/modules/oms/oms-cancel-revert.ts
+- [[taskOnlyFlows()]] - code - backend/src/modules/warehouse-workflow/feature-flags.ts
+- [[warehouse-order-scope.ts]] - code - backend/src/common/utils/warehouse-order-scope.ts
+
+## Live Query (requires Dataview plugin)
+
+```dataview
+TABLE source_file, type FROM #community/outboundservicets
+SORT file.name ASC
+```
+
+## Connections to other communities
+- 100 edges to [[_COMMUNITY_withTenantRls]]
+- 96 edges to [[_COMMUNITY_@prismaclient]]
+- 68 edges to [[_COMMUNITY_dot-fromPrincipal]]
+- 53 edges to [[_COMMUNITY_task-inventory-effects.service.ts]]
+- 23 edges to [[_COMMUNITY_@nestjscommon]]
+- 19 edges to [[_COMMUNITY_warehouse-tasks.service.ts]]
+- 16 edges to [[_COMMUNITY_returns.service.ts]]
+- 14 edges to [[_COMMUNITY_dot-validateResourceOwnership]]
+- 12 edges to [[_COMMUNITY_cycle-count.service.ts]]
+- 11 edges to [[_COMMUNITY_CycleCountService]]
+- 11 edges to [[_COMMUNITY_RealtimeService]]
+- 9 edges to [[_COMMUNITY_AuthPrincipal]]
+- 8 edges to [[_COMMUNITY_shipping.service.ts]]
+- 8 edges to [[_COMMUNITY_AuditLogService]]
+- 7 edges to [[_COMMUNITY_BillingInvoiceCalculationService]]
+- 7 edges to [[_COMMUNITY_shipping-tracking.service.ts]]
+- 7 edges to [[_COMMUNITY_CreateOmsOrderDto]]
+- 7 edges to [[_COMMUNITY_oms-client-import.service.ts]]
+- 7 edges to [[_COMMUNITY_app.module.ts]]
+- 7 edges to [[_COMMUNITY_class-validator]]
+- 5 edges to [[_COMMUNITY_omsoms-operational-stage.ts]]
+- 4 edges to [[_COMMUNITY_client-oms-orders.service.ts]]
+- 4 edges to [[_COMMUNITY_NotificationsService]]
+- 3 edges to [[_COMMUNITY_outbound-orders-csv.service.ts]]
+- 3 edges to [[_COMMUNITY_CodController]]
+- 3 edges to [[_COMMUNITY_CycleCountExecutionService]]
+- 3 edges to [[_COMMUNITY_inventory-consistency.service.ts]]
+- 3 edges to [[_COMMUNITY_oms-waybill.service.ts]]
+- 3 edges to [[_COMMUNITY_RunReportQueryDto]]
+- 3 edges to [[_COMMUNITY_EmptyToUndefined]]
+- 2 edges to [[_COMMUNITY_WarehouseTasksService]]
+- 2 edges to [[_COMMUNITY_AllExceptionsFilter]]
+- 2 edges to [[_COMMUNITY_shipping-fee.service.ts]]
+- 2 edges to [[_COMMUNITY_reliability-test-helpers.ts]]
+- 2 edges to [[_COMMUNITY_QuickDirectedOutboundDto]]
+- 2 edges to [[_COMMUNITY_ReturnsService]]
+- 2 edges to [[_COMMUNITY_ReceiveLineDto]]
+- 2 edges to [[_COMMUNITY_geo-polygon.util.ts]]
+- 2 edges to [[_COMMUNITY_validatorsrecipient-contact.ts]]
+- 2 edges to [[_COMMUNITY_rbac-policy.ts]]
+- 2 edges to [[_COMMUNITY_oms-orders-list-filters.util.ts]]
+- 2 edges to [[_COMMUNITY_oms-bulk.service.ts]]
+- 1 edge to [[_COMMUNITY_EncryptionService]]
+- 1 edge to [[_COMMUNITY_CodRecordsService]]
+- 1 edge to [[_COMMUNITY_UpdateShippingDetailsDto]]
+- 1 edge to [[_COMMUNITY_CreateInboundOrderDto]]
+- 1 edge to [[_COMMUNITY_ListInboundQueryDto]]
+- 1 edge to [[_COMMUNITY_ListOutboundQueryDto]]
+- 1 edge to [[_COMMUNITY_AdjustmentsController]]
+- 1 edge to [[_COMMUNITY_CreateOutboundOrderDto]]
+- 1 edge to [[_COMMUNITY_UpdateInboundPlanDto]]
+- 1 edge to [[_COMMUNITY_InboundController]]
+- 1 edge to [[_COMMUNITY_inventory.service.ts]]
+- 1 edge to [[_COMMUNITY_main.ts]]
+- 1 edge to [[_COMMUNITY_inbound-orders-csv.service.ts]]
+- 1 edge to [[_COMMUNITY_shipping-preflight.ts]]
+- 1 edge to [[_COMMUNITY_shipping.module.ts]]
+- 1 edge to [[_COMMUNITY_oms-instruction-pdf.service.ts]]
+
+## Top bridge nodes
+- [[outbound.service.ts]] - degree 144, connects to 26 communities
+- [[oms-orders.service.ts]] - degree 126, connects to 25 communities
+- [[inbound.service.ts]] - degree 90, connects to 21 communities
+- [[InvalidStateException]] - degree 92, connects to 14 communities
+- [[domain-exceptions.ts]] - degree 43, connects to 8 communities

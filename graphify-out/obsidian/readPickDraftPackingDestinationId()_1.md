@@ -1,0 +1,20 @@
+---
+source_file: "backend/src/modules/warehouse-workflow/execution-state-location.util.ts"
+type: "code"
+community: "warehouse-tasks.service.ts"
+location: "L8"
+tags:
+  - graphify/code
+  - graphify/EXTRACTED
+  - community/warehouse-tasksservicets
+---
+
+# readPickDraftPackingDestinationId()
+
+## Connections
+- [[dot-enqueueDispatchTaskIfNeeded()]] - `calls` [EXTRACTED]
+- [[execution-state-location.util.ts]] - `contains` [EXTRACTED]
+- [[isRecord()_4]] - `calls` [EXTRACTED]
+- [[workflow-orchestration.service.ts]] - `imports` [EXTRACTED]
+
+#graphify/code #graphify/EXTRACTED #community/warehouse-tasksservicets
