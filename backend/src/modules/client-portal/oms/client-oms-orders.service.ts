@@ -22,6 +22,7 @@ import { ClientCodReportQueryDto } from './dto/client-cod-report-query.dto';
 import { ClientOmsStatusSummaryQueryDto } from './dto/client-oms-status-summary-query.dto';
 import { ListClientOmsOrdersQueryDto } from './dto/list-client-oms-orders-query.dto';
 import { portalCodStatusFromRecord } from './portal-cod-status.util';
+import { ClientSheetsGoogleService } from '../sheets/client-sheets-google.service';
 
 /** Clients see the configured shipping fee. Carrier quotes, actual costs, and cost history stay internal. */
 function stripClientCarrierCosts<T extends Record<string, unknown>>(order: T): T {
@@ -78,6 +79,7 @@ export class ClientOmsOrdersService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly omsOrders: OmsOrdersService,
+    private readonly sheets: ClientSheetsGoogleService,
   ) {}
 
   async list(client: ClientPrincipal, query: ListClientOmsOrdersQueryDto) {
@@ -250,7 +252,9 @@ export class ClientOmsOrdersService {
         unitPrice: l.unitPrice,
       })),
     };
-    return this.omsOrders.create(user, payload);
+    const result = await this.omsOrders.create(user, payload);
+    this.sheets.syncCompanyOrders(client.companyId);
+    return result;
   }
 
   async createFromApi(
@@ -329,7 +333,9 @@ export class ClientOmsOrdersService {
     if (!CLIENT_EDITABLE_OMS_STATUSES.has(String(existing.status))) {
       throw new ForbiddenException(clientLockMessage(String(existing.status)));
     }
-    return this.omsOrders.update(id, user, dto);
+    const result = await this.omsOrders.update(id, user, dto);
+    this.sheets.syncCompanyOrders(client.companyId);
+    return result;
   }
 
   async removeUnconfirmed(client: ClientPrincipal, id: string) {

@@ -21,6 +21,7 @@ const oms_order_status_filter_util_1 = require("../../oms/oms-order-status-filte
 const excel_export_util_1 = require("../../../common/utils/excel-export.util");
 const client_oms_order_lock_1 = require("./client-oms-order-lock");
 const portal_cod_status_util_1 = require("./portal-cod-status.util");
+const client_sheets_google_service_1 = require("../sheets/client-sheets-google.service");
 function stripClientCarrierCosts(order) {
     const linked = order.linkedOutboundOrder;
     const next = { ...order };
@@ -64,9 +65,11 @@ function matchesPortalCodFilter(portalStatus, filter) {
 let ClientOmsOrdersService = class ClientOmsOrdersService {
     prisma;
     omsOrders;
-    constructor(prisma, omsOrders) {
+    sheets;
+    constructor(prisma, omsOrders, sheets) {
         this.prisma = prisma;
         this.omsOrders = omsOrders;
+        this.sheets = sheets;
     }
     async list(client, query) {
         const user = (0, client_auth_principal_1.clientAuthPrincipal)(client);
@@ -205,7 +208,9 @@ let ClientOmsOrdersService = class ClientOmsOrdersService {
                 unitPrice: l.unitPrice,
             })),
         };
-        return this.omsOrders.create(user, payload);
+        const result = await this.omsOrders.create(user, payload);
+        this.sheets.syncCompanyOrders(client.companyId);
+        return result;
     }
     async createFromApi(client, dto) {
         const user = (0, client_auth_principal_1.clientAuthPrincipal)(client);
@@ -266,7 +271,9 @@ let ClientOmsOrdersService = class ClientOmsOrdersService {
         if (!client_oms_order_lock_1.CLIENT_EDITABLE_OMS_STATUSES.has(String(existing.status))) {
             throw new common_1.ForbiddenException((0, client_oms_order_lock_1.clientLockMessage)(String(existing.status)));
         }
-        return this.omsOrders.update(id, user, dto);
+        const result = await this.omsOrders.update(id, user, dto);
+        this.sheets.syncCompanyOrders(client.companyId);
+        return result;
     }
     async removeUnconfirmed(client, id) {
         const user = (0, client_auth_principal_1.clientAuthPrincipal)(client);
@@ -618,6 +625,7 @@ exports.ClientOmsOrdersService = ClientOmsOrdersService;
 exports.ClientOmsOrdersService = ClientOmsOrdersService = __decorate([
     (0, common_1.Injectable)(),
     __metadata("design:paramtypes", [prisma_service_1.PrismaService,
-        oms_orders_service_1.OmsOrdersService])
+        oms_orders_service_1.OmsOrdersService,
+        client_sheets_google_service_1.ClientSheetsGoogleService])
 ], ClientOmsOrdersService);
 //# sourceMappingURL=client-oms-orders.service.js.map
