@@ -817,6 +817,8 @@ export function CarrierShippingDetailsForm({
           providersLoading={providersQuery.isLoading}
           preferredCurrency={value.currency}
           getSupportedCurrencies={providerSupportedCurrencies}
+          quotedAtMs={ratesQuery.isSuccess ? ratesQuery.dataUpdatedAt : undefined}
+          onRefresh={readOnly ? undefined : () => { void ratesQuery.refetch(); }}
         />
         </div>
       ) : null}

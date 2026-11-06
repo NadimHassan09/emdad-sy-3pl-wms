@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useEffect, useState } from 'react';
 import type {
   ShippingProviderAdminView,
   ShippingRateError,
@@ -8,6 +8,20 @@ import type { ShippingCurrency } from './carrier-shipping-form';
 import { annotateQuotesForUi } from '../../lib/shipping-compare';
 import { formatEquivalents, formatMoney } from '../../lib/money';
 import { useManagedFxSnapshot } from '../../hooks/useManagedFxSnapshot';
+
+function useQuoteAge(quotedAtMs: number | undefined): string | null {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (!quotedAtMs) return;
+    const id = setInterval(() => setNow(Date.now()), 30_000);
+    return () => clearInterval(id);
+  }, [quotedAtMs]);
+  if (!quotedAtMs) return null;
+  const diffMs = now - quotedAtMs;
+  if (diffMs < 60_000) return 'just now';
+  const mins = Math.floor(diffMs / 60_000);
+  return `${mins} min ago`;
+}
 
 function etaLabel(quote: ShippingRateQuote): string {
   const min = quote.estimatedDeliveryMin;
@@ -36,6 +50,8 @@ type Props = {
   providersLoading?: boolean;
   preferredCurrency?: ShippingCurrency;
   getSupportedCurrencies?: (providerCode: string) => ShippingCurrency[];
+  quotedAtMs?: number;
+  onRefresh?: () => void;
 };
 
 export function ShippingCarrierCards({
@@ -51,9 +67,12 @@ export function ShippingCarrierCards({
   disabled = false,
   emptyHint = null,
   providersLoading = false,
+  quotedAtMs,
+  onRefresh,
 }: Props) {
   // Sort by effective comparable cost (FX-aware), never raw cross-currency numbers
   const fx = useManagedFxSnapshot();
+  const quoteAge = useQuoteAge(quotedAtMs);
   const sortedQuotes = useMemo(() => {
     if (loading) return [];
     const valid = quotes.filter((q) => q.available && Number.isFinite(q.price));
@@ -73,9 +92,29 @@ export function ShippingCarrierCards({
             Available shipping options for your shipment (sorted by price - lowest first).
           </p>
         </div>
-        <div className="inline-flex items-center gap-1.5 rounded-full bg-sky-50 dark:bg-sky-950/40 border border-sky-200 dark:border-sky-800 px-3 py-1 text-xs font-medium text-sky-700 dark:text-sky-300">
-          <i className="fa-solid fa-circle-info text-sky-500" aria-hidden="true" />
-          <span>Showing options from all connected providers</span>
+        <div className="flex flex-wrap items-center gap-2">
+          {quoteAge && !loading ? (
+            <div className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 px-2.5 py-1 text-xs text-amber-700 dark:text-amber-300">
+              <i className="fa-regular fa-clock text-amber-500" aria-hidden="true" />
+              <span>Quoted {quoteAge}</span>
+              {onRefresh ? (
+                <button
+                  type="button"
+                  onClick={onRefresh}
+                  disabled={loading || disabled}
+                  className="ml-0.5 inline-flex items-center gap-1 rounded-md bg-amber-100 dark:bg-amber-900/50 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800 dark:text-amber-200 hover:bg-amber-200 dark:hover:bg-amber-800 disabled:opacity-50"
+                  title="Refresh carrier prices"
+                >
+                  <i className="fa-solid fa-rotate text-[9px]" aria-hidden="true" />
+                  Refresh
+                </button>
+              ) : null}
+            </div>
+          ) : null}
+          <div className="inline-flex items-center gap-1.5 rounded-full bg-sky-50 dark:bg-sky-950/40 border border-sky-200 dark:border-sky-800 px-3 py-1 text-xs font-medium text-sky-700 dark:text-sky-300">
+            <i className="fa-solid fa-circle-info text-sky-500" aria-hidden="true" />
+            <span>Showing options from all connected providers</span>
+          </div>
         </div>
       </div>
 
