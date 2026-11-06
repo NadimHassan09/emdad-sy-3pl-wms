@@ -391,6 +391,12 @@ export function roleRank(role: string | undefined): number {
   return ROLE_RANK[role] ?? 0;
 }
 
+/** Returns true when the user is in read-only viewer mode. Write buttons should be hidden. */
+export function isViewerRole(role: string | undefined): boolean {
+  return normalizeInternalRole(role) === 'viewer';
+}
+
+
 /** Actor may suspend / delete / edit existing accounts only for strictly lower ranks. */
 export function canManageTargetRole(
   actorRole: string | undefined,

@@ -45,7 +45,7 @@ import { buildInboundListParams } from '../lib/inbound-list-params';
 import { inboundHasQuantityShortfall } from '../lib/inbound-shortfall';
 import { invalidateWorkflowTasksInventory } from '../lib/invalidate-wms-queries';
 import { companyFilterComboboxOptions } from '../lib/company-filter-options';
-import { canAccessInternalTransfer } from '../lib/rbac';
+import { canAccessInternalTransfer, isViewerRole } from '../lib/rbac';
 import { useCachedState } from '../hooks/useCachedState';
 
 type ListDraft = {
@@ -115,6 +115,7 @@ export function InboundListPage() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const isAdmin = canAccessInternalTransfer(user?.role);
+  const isViewer = isViewerRole(user?.role);
   const [toCancel, setToCancel] = useState<InboundOrder | null>(null);
   const [toDelete, setToDelete] = useState<InboundOrder | null>(null);
   const [importOpen, setImportOpen] = useState(false);
@@ -473,13 +474,15 @@ export function InboundListPage() {
 
   const newButton = (
     <div className="flex flex-wrap items-center justify-end gap-2">
-      <Button
-        variant="secondary"
-        size="md"
-        onClick={() => setImportOpen(true)}
-      >
-        {t('Import')}
-      </Button>
+      {!isViewer && (
+        <Button
+          variant="secondary"
+          size="md"
+          onClick={() => setImportOpen(true)}
+        >
+          {t('Import')}
+        </Button>
+      )}
       <Button
         variant="secondary"
         size="md"
@@ -489,14 +492,16 @@ export function InboundListPage() {
       >
         {t('Export CSV')}
       </Button>
-      <Button
-        variant="primary"
-        size="md"
-        onClick={openCreate}
-        className={FILTER_PRIMARY_BUTTON_CLASS}
-      >
-        {t('+ New inbound')}
-      </Button>
+      {!isViewer && (
+        <Button
+          variant="primary"
+          size="md"
+          onClick={openCreate}
+          className={FILTER_PRIMARY_BUTTON_CLASS}
+        >
+          {t('+ New inbound')}
+        </Button>
+      )}
     </div>
   );
 

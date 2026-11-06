@@ -22,6 +22,7 @@ import { OmsSingleShippingModal } from '../components/oms/OmsSingleShippingModal
 import { BulkActionResultModal } from '../components/oms/BulkActionResultModal';
 import { BulkShippingProcessingModal } from '../components/shipping/BulkShippingProcessingModal';
 import { OmsEditShippingFeeModal } from '../components/oms/OmsEditShippingFeeModal';
+import { isViewerRole } from '../lib/rbac';
 import { useAuth } from '../auth/AuthContext';
 import { ConfirmModal } from '../components/ConfirmModal';
 import { Column, DataTable } from '../components/DataTable';
@@ -409,6 +410,7 @@ export function OmsOrdersListPage() {
 
   // ─── Bulk state ─────────────────────────────────────────────────────────────
   const { user } = useAuth();
+  const isViewer = isViewerRole(user?.role);
   const canEditShippingFee =
     !user ||
     user?.role === 'super_admin' ||
@@ -1372,9 +1374,11 @@ export function OmsOrdersListPage() {
 
   const navActions = (
     <div className="flex flex-wrap items-center justify-end gap-2">
-      <Button variant="secondary" size="md" onClick={() => setImportOpen(true)}>
-        {isArabic ? 'استيراد' : 'Import'}
-      </Button>
+      {!isViewer && (
+        <Button variant="secondary" size="md" onClick={() => setImportOpen(true)}>
+          {isArabic ? 'استيراد' : 'Import'}
+        </Button>
+      )}
       <Button
         variant="secondary"
         size="md"
@@ -1384,14 +1388,16 @@ export function OmsOrdersListPage() {
       >
         {isArabic ? 'تصدير CSV' : 'Export CSV'}
       </Button>
-      <Button
-        variant="primary"
-        size="md"
-        onClick={() => navigate('/orders/oms/new')}
-        className={FILTER_PRIMARY_BUTTON_CLASS}
-      >
-        {isArabic ? 'إنشاء طلب OMS' : 'Create OMS Order'}
-      </Button>
+      {!isViewer && (
+        <Button
+          variant="primary"
+          size="md"
+          onClick={() => navigate('/orders/oms/new')}
+          className={FILTER_PRIMARY_BUTTON_CLASS}
+        >
+          {isArabic ? 'إنشاء طلب OMS' : 'Create OMS Order'}
+        </Button>
+      )}
     </div>
   );
 

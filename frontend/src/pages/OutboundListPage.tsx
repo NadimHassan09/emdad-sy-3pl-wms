@@ -43,7 +43,7 @@ import {
 import { buildOutboundListParams } from '../lib/outbound-list-params';
 import { invalidateWorkflowTasksInventory } from '../lib/invalidate-wms-queries';
 import { companyFilterComboboxOptions } from '../lib/company-filter-options';
-import { canAccessInternalTransfer } from '../lib/rbac';
+import { canAccessInternalTransfer, isViewerRole } from '../lib/rbac';
 import { useCachedState } from '../hooks/useCachedState';
 
 type OutListDraft = {
@@ -122,6 +122,7 @@ export function OutboundListPage() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const isAdmin = canAccessInternalTransfer(user?.role);
+  const isViewer = isViewerRole(user?.role);
   const [toCancel, setToCancel] = useState<OutboundOrder | null>(null);
   const [toDelete, setToDelete] = useState<OutboundOrder | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -496,13 +497,15 @@ export function OutboundListPage() {
           {selectedEligibleIds.length > 0 ? ` (${selectedEligibleIds.length})` : ''}
         </DsButton>
       )}
-      <DsButton
-        variant="secondary"
-        size="md"
-        onClick={() => setImportOpen(true)}
-      >
-        {t('Import')}
-      </DsButton>
+      {!isViewer && (
+        <DsButton
+          variant="secondary"
+          size="md"
+          onClick={() => setImportOpen(true)}
+        >
+          {t('Import')}
+        </DsButton>
+      )}
       <DsButton
         variant="secondary"
         size="md"
@@ -512,14 +515,16 @@ export function OutboundListPage() {
       >
         {t('Export CSV')}
       </DsButton>
-      <DsButton
-        variant="primary"
-        size="md"
-        onClick={openCreate}
-        className={FILTER_PRIMARY_BUTTON_CLASS}
-      >
-        {t('+ New outbound')}
-      </DsButton>
+      {!isViewer && (
+        <DsButton
+          variant="primary"
+          size="md"
+          onClick={openCreate}
+          className={FILTER_PRIMARY_BUTTON_CLASS}
+        >
+          {t('+ New outbound')}
+        </DsButton>
+      )}
     </div>
   );
 

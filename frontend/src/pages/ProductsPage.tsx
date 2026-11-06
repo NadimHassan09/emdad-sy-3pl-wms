@@ -12,6 +12,8 @@ import {
   ProductsApi,
   UpdateProductInput,
 } from '../api/products';
+import { isViewerRole } from '../lib/rbac';
+import { useAuth } from '../auth/AuthContext';
 import { AdminListPageShell } from '../components/AdminListPageShell';
 import { Button } from '../components/Button';
 import { Combobox } from '../components/Combobox';
@@ -99,6 +101,8 @@ function upsertProductAcrossCaches(qc: ReturnType<typeof useQueryClient>, update
 }
 export function ProductsPage() {
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const isViewer = isViewerRole(user?.role);
   const qc = useQueryClient();
   const toast = useToast();
   const { t, isArabic } = useWmsTranslation();
@@ -497,15 +501,17 @@ export function ProductsPage() {
           >
             {exporting ? t(['Exporting…', 'جاري التصدير…']) : t(['Export Excel', 'تصدير إكسل'])}
           </DsButton>
-          <DsButton
-            variant="primary"
-            size="md"
-            onClick={() => setOpenCreate(true)}
-            className={FILTER_PRIMARY_BUTTON_CLASS}
-            startIcon={<i className="fa-solid fa-plus text-xs" aria-hidden="true" />}
-          >
-            {t(['New product', 'منتج جديد'])}
-          </DsButton>
+          {!isViewer && (
+            <DsButton
+              variant="primary"
+              size="md"
+              onClick={() => setOpenCreate(true)}
+              className={FILTER_PRIMARY_BUTTON_CLASS}
+              startIcon={<i className="fa-solid fa-plus text-xs" aria-hidden="true" />}
+            >
+              {t(['New product', 'منتج جديد'])}
+            </DsButton>
+          )}
         </div>
       }
     >
