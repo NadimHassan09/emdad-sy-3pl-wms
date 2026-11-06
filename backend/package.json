@@ -19,9 +19,9 @@
     "test:integration:sprint2": "ts-node --transpile-only src/integration-tests/sprint2/sprint2-reliability.integration.ts",
     "test:integration:barcode": "ts-node --transpile-only src/integration-tests/products-barcode.integration.ts",
     "test:integration:audit": "ts-node --transpile-only src/integration-tests/audit-mutations.integration.ts",
-    "test": "jest --runInBand",
-    "test:unit": "jest --runInBand",
-    "test:unit:products": "jest --runInBand src/modules/products"
+    "test": "NODE_OPTIONS='--max-old-space-size=4096' jest --runInBand",
+    "test:unit": "NODE_OPTIONS='--max-old-space-size=4096' jest --runInBand",
+    "test:unit:products": "NODE_OPTIONS='--max-old-space-size=4096' jest --runInBand src/modules/products"
   },
   "prisma": {
     "seed": "ts-node --transpile-only prisma/seed.ts"
@@ -39,6 +39,7 @@
     "@nestjs/websockets": "^11.1.19",
     "@prisma/client": "^5.22.0",
     "@socket.io/redis-adapter": "^8.3.0",
+    "@types/nodemailer": "^8.0.2",
     "@types/qrcode": "^1.5.6",
     "bcrypt": "^6.0.0",
     "bwip-js": "^4.11.1",
@@ -52,6 +53,7 @@
     "ioredis": "^5.10.1",
     "jsonwebtoken": "^9.0.3",
     "libphonenumber-js": "^1.13.11",
+    "nodemailer": "^10.3.1",
     "passport": "^0.7.0",
     "passport-jwt": "^4.0.1",
     "pdf-lib": "^1.17.1",

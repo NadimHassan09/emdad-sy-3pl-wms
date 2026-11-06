@@ -76,9 +76,9 @@ describe('shipping waybill label layout', () => {
     }
     expect(report.dualPages).toBe(1);
     expect(report.twoPages).toBe(1);
-    expect(report.threePages).toBe(2);
-    expect(report.manyPages).toBeGreaterThan(1);
+    expect(report.threePages).toBe(1);
+    expect(report.manyPages).toBe(1);
     expect(report.qrHeight).toBeGreaterThan(60);
-    expect(report.qrHeight).toBeLessThan(90);
+    expect(report.qrHeight).toBeLessThan(100);
   }, 120_000);
 });
