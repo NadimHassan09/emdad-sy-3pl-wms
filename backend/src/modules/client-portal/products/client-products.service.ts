@@ -38,6 +38,14 @@ export class ClientProductsService {
     };
   }
 
+  /** Branded Excel of this client's products only (never other companies). */
+  exportXlsx(client: ClientPrincipal, query: ListProductsQueryDto): Promise<Buffer> {
+    return this.products.exportXlsx(clientAuthPrincipal(client), {
+      ...query,
+      companyId: client.companyId,
+    });
+  }
+
   async findById(client: ClientPrincipal, id: string) {
     const principal = clientAuthPrincipal(client);
     const product = await this.products.findById(id, principal);

@@ -3,12 +3,15 @@ import {
   Controller,
   Delete,
   Get,
+  Header,
   Param,
   Patch,
   Post,
   Query,
+  Res,
   UseGuards,
 } from '@nestjs/common';
+import type { Response } from 'express';
 
 import { Public } from '../../../common/auth/public.decorator';
 import { ClientPrincipal } from '../../../common/auth/client-principal.types';
@@ -29,6 +32,25 @@ export class ClientProductsController {
   @Get()
   list(@ClientUser() client: ClientPrincipal, @Query() query: ListProductsQueryDto) {
     return this.products.list(client, query);
+  }
+
+  /** Must be registered before `:id` or Nest treats "export" as a product UUID. */
+  @Get('export')
+  @Header('Cache-Control', 'no-store')
+  async export(
+    @ClientUser() client: ClientPrincipal,
+    @Query() query: ListProductsQueryDto,
+    @Res() res: Response,
+  ) {
+    const buffer = await this.products.exportXlsx(client, query);
+    const filename = `inventory-products-${new Date().toISOString().slice(0, 10)}.xlsx`;
+    res.setHeader(
+      'Content-Type',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    );
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.setHeader('Content-Length', buffer.length);
+    res.end(buffer);
   }
 
   @Get(':id')

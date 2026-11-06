@@ -11,7 +11,7 @@ Legend: ✅ present · ⚠ partial · ❌ missing · n/a
 | Outbound | Admin | ✅ | ✅ | ✅ | ✅ | |
 | Outbound | Client | n/a | ✅ | ✅ | ✅ | |
 | Products / Inventory | Admin | ✅ company | ⚠ | ⚠ | ✅ | Confirm date + CSV in UI |
-| Products / Inventory | Client | n/a | ⚠ | ❌ | ✅ `/products/export` | Need CSV + date filter audit |
+| Products / Inventory | Client | n/a | ⚠ | ❌ | ✅ (fixed 6 Nov route order) | Was 400 `id must be a UUID` because `export` hit `:id`; added `GET /client/products/export` before `:id` |
 | COD records | Admin | ✅ | ✅ | ❌? | ✅ | Check CSV |
 | COD report | Client | n/a | ✅ | ❌ | ✅ | Excel only today |
 | Returns (OMS) | Admin | ⚠ | ⚠ | ⚠ | ⚠ | Audit next |
