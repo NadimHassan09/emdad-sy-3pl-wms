@@ -270,7 +270,7 @@ function CreateWarehouseModal({ open, onClose, loading, onSubmit }: CreateWareho
   const toast = useToast();
   const [name, setName] = useState('');
   const [code, setCode] = useState('');
-  const [country, setCountry] = useState('SA');
+  const [country, setCountry] = useState('SY');
   const [city, setCity] = useState('');
   const [otherCity, setOtherCity] = useState('');
   const [address, setAddress] = useState('');

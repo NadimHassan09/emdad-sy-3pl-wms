@@ -54,7 +54,7 @@ const emptyCreate: CreateCompanyPayload = {
   name: '',
   contactEmail: '',
   tradeName: '',
-  country: 'SA',
+  country: 'SY',
   city: '',
   contactPhone: '',
   address: '',

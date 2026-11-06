@@ -289,7 +289,7 @@ export function DeliveryLocationMap({
         <MapContainer
           center={mapCenter}
           zoom={12}
-          scrollWheelZoom
+          scrollWheelZoom={false}
           style={{ height: 320, width: '100%' }}
         >
           <TileLayer

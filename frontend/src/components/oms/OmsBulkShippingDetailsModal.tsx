@@ -1155,13 +1155,13 @@ export function OmsBulkShippingDetailsModal({
     );
   };
 
-  // Soft-save recommendations once quotes settle
+  // Soft-save only explicit user selections once quotes settle (not auto-recommendations)
   useEffect(() => {
     if (!open) return;
     const ready = rows.filter(
       (r) =>
         !r.quotesLoading &&
-        (r.assignmentState === 'RECOMMENDED' || r.assignmentState === 'USER_MODIFIED') &&
+        r.assignmentState === 'USER_MODIFIED' &&
         r.selectedProviderCode &&
         r.selectedProviderCode !== 'manual',
     );

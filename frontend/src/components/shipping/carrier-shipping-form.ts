@@ -156,8 +156,14 @@ function cartonsFromStored(stored: StoredShippingCarton[]): ShippingCartonValue[
 }
 
 /** Default: one carton containing all order lines at full quantity. */
-export function buildDefaultCartons(catalog: OrderProductCatalog[]): ShippingCartonValue[] {
-  if (catalog.length === 0) return [emptyCarton()];
+export function buildDefaultCartons(
+  catalog: OrderProductCatalog[],
+  defaultDims?: { lengthCm: number; widthCm: number; heightCm: number } | null,
+): ShippingCartonValue[] {
+  const l = defaultDims && defaultDims.lengthCm > 0 ? String(defaultDims.lengthCm) : '10';
+  const w = defaultDims && defaultDims.widthCm > 0 ? String(defaultDims.widthCm) : '10';
+  const h = defaultDims && defaultDims.heightCm > 0 ? String(defaultDims.heightCm) : '10';
+  if (catalog.length === 0) return [{ ...emptyCarton(), lengthCm: l, widthCm: w, heightCm: h }];
   return [
     {
       cartonId: newCartonId(),
@@ -166,9 +172,9 @@ export function buildDefaultCartons(catalog: OrderProductCatalog[]): ShippingCar
         productId: p.productId,
         quantity: String(p.orderedQty),
       })),
-      lengthCm: '10',
-      widthCm: '10',
-      heightCm: '10',
+      lengthCm: l,
+      widthCm: w,
+      heightCm: h,
     },
   ];
 }
@@ -176,7 +182,18 @@ export function buildDefaultCartons(catalog: OrderProductCatalog[]): ShippingCar
 export function buildCarrierShippingFormFromOrder(order: OutboundOrder): CarrierShippingFormValue {
   const catalog = buildCatalogFromOrder(order);
   const stored = parseStoredCartons(order.shippingPackages);
-  const cartons = stored ? cartonsFromStored(stored) : buildDefaultCartons(catalog);
+  // Pick dimensions from the first product line that has them
+  let defaultDims: { lengthCm: number; widthCm: number; heightCm: number } | null = null;
+  for (const line of order.lines ?? []) {
+    const lc = Number(line.product?.lengthCm);
+    const wc = Number(line.product?.widthCm);
+    const hc = Number(line.product?.heightCm);
+    if (lc > 0 && wc > 0 && hc > 0) {
+      defaultDims = { lengthCm: lc, widthCm: wc, heightCm: hc };
+      break;
+    }
+  }
+  const cartons = stored ? cartonsFromStored(stored) : buildDefaultCartons(catalog, defaultDims);
   const savedPkg = order.shippingPackageType;
   const savedDelivery = order.shippingDeliveryType;
   const savedPayer = order.shippingPayer;

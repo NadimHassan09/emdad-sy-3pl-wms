@@ -181,7 +181,12 @@ let OmsDashboardService = class OmsDashboardService {
                     where: companyFilter ? { companyId: companyFilter } : {},
                     orderBy: { createdAt: 'desc' },
                     take: 20,
-                    include: {
+                    select: {
+                        id: true,
+                        eventType: true,
+                        createdAt: true,
+                        payload: true,
+                        createdBy: true,
                         creator: { select: { id: true, fullName: true } },
                         omsOrder: { select: { id: true, orderNumber: true } },
                     },
@@ -292,7 +297,7 @@ let OmsDashboardService = class OmsDashboardService {
                     createdAt: ev.createdAt,
                     orderId: ev.omsOrder?.id ?? null,
                     orderNumber: ev.omsOrder?.orderNumber ?? null,
-                    actorName: ev.creator?.fullName ?? null,
+                    actorName: ev.createdBy == null ? 'Carrier webhook' : (ev.creator?.fullName ?? null),
                     payload: ev.payload,
                 })),
                 recentOrders: recentOrders.map((o) => ({
