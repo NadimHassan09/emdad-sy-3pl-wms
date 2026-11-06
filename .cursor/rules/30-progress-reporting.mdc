@@ -1,0 +1,23 @@
+---
+description: Progress block the owner wants at the end of every round
+alwaysApply: true
+---
+
+# Progress reporting
+
+At the end of every round (after a batch of fixes or tests), run `python3 docs/handover/qa_progress.py` and post this block exactly (numbers real, never estimated upward):
+
+```
+╔══════════ EMDAD PROGRESS ══════════╗
+  Implementation : NN% done · NN% left  (open items: I-x, I-y)
+  Testing        : NN% done · NN% left (routes NN% · flows NN% · cross NN%)
+  Overall ready  : NN%
+  Open S1/S2     : n / n (ids)
+  Waiting on owner: Q-ids
+╚════════════════════════════════════╝
+```
+
+- Implementation % = ✅ rows ÷ all rows that are not ❓ in `CLIENT_WHATSAPP_REQUESTS.md` + `OWNER_CHANGE_REQUESTS.md` + PLAN §2 items.
+- Testing % = the "Overall" figure from `qa_progress.py`.
+- Overall ready = average of implementation and testing, capped at 99% while any S1/S2 is open or the handover pack is missing.
+- Claim 100% only when every inventory row is covered in the browser with reasonable edge cases.

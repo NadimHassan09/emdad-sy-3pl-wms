@@ -1,0 +1,17 @@
+---
+description: EMDAD project context and where the current plan lives
+alwaysApply: true
+---
+
+# EMDAD — read first
+
+- Project: Syrian 3PL WMS + OMS + finance with carrier integrations (Sena sandbox; Babel, Sila, Delivery Joud live). NestJS/Prisma/PostgreSQL backend, React/Vite admin (`frontend/`) and client portal (`client-frontend/`).
+- Full context: `docs/HANDOVER.md`. Plan and order of work: `.cursor/PLAN.md`. Request checklists: `docs/handover/CLIENT_WHATSAPP_REQUESTS.md`, `docs/handover/OWNER_CHANGE_REQUESTS.md`. Test status: `docs/handover/QA_TRACKER.md`, `docs/handover/QA_FLOWS.md`.
+- `docs/archive/` holds old reports for history only; never treat them as current truth.
+- Work only in `/var/www/emdad-sy-3pl-wms-staging`, branch `staging` (see `staging-only-changes.mdc`).
+- The owner writes Egyptian Arabic; reply in Egyptian Arabic. Code, commits and docs in English.
+- Continuous loop: implement → rebuild → verify in the browser → commit (stage files by name; never commit `dist/`, `node_modules/`, `graphify-out/cache`, generated PDFs) → push to `origin staging`. Do not ask permission for commits/pushes/staging restarts.
+- Build: backend `NODE_OPTIONS='--max-old-space-size=4096' npm run build && pm2 restart 1 --update-env`; admin `cd frontend && npm run build`; client `cd client-frontend && npm run build`. Tests: `cd backend && npm run test:unit`.
+- Code graph: if `graphify-out/graph.json` exists, run `graphify query "<question>"` before broad searching; after code changes run `graphify update .`.
+- Product rules: client sees USD only and never sees carriers or carrier prices; carrier chosen by staff at `ready_to_ship`; carrier is the source of truth for its currency/unit (new SYP); never offer the user an option that will fail later; red = delete/cancel, green = approve/success; admin and client controls look the same.
+- Commit trailer used by the owner's agents: `Co-Authored-By: <your model> <noreply@...>` is optional; keep messages short and explain why.

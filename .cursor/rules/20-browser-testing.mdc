@@ -1,0 +1,18 @@
+---
+description: How testing must be done — real browser via MCP, three layers, evidence
+alwaysApply: true
+---
+
+# Testing = using the real UI
+
+- UI testing must be done in a real browser through MCP (Playwright MCP `playwright-extension` driving the owner's logged-in Chrome, or Cursor's built-in browser). Open the page, take a snapshot/screenshot, scroll the whole page, click every button/tab/menu/modal, fill every field, read the result. API calls or unit tests never count as UI coverage.
+- The VPS cannot reach the staging HTTPS sites; the browser runs on the owner's machine. Do not disable TLS checks.
+- Sites: admin https://staging-admin.emdadsy.com, client https://staging-client.emdadsy.com. Carrier portals only to verify data (Babel, Sena, Sila, Delivery Joud) — see the safety rule before touching anything there.
+- Three layers, all required (details in `.cursor/PLAN.md` §5):
+  A. Code/API: backend unit suite green, vitest, Playwright API smoke against `http://127.0.0.1:3001/api`.
+  B. Workflows F01–F42 end to end in the browser, with reasonable edge cases and the failure path; cross-check the carrier portal for every carrier shipment.
+  C. Page sweep: every route in `QA_TRACKER.md` × Functional / Validation-edge / Roles / Consistency / Mobile (390 px), plus X01–X16.
+- Reasonable edge cases = mistakes a normal user can make without trying to break the system (empty, wrong format, too long, Arabic/English, duplicate submit, back button, wrong governorate, unsupported carrier/currency/COD minimum). Not penetration testing.
+- Look for functional errors (blocked work, wrong totals/states), semantic errors (wrong unit/currency/label, misleading message, Arabic/English mismatch) and visual errors (colour meaning, overflow, alignment, RTL, padding).
+- Evidence: screenshot per check (`qa-scripts/out/<route>_<check>_<date>.png`), order codes, then update the status mark in QA_TRACKER / QA_FLOWS and the checklist rows. ✅ only after a real browser check with edge cases.
+- Defects go into the QA_TRACKER defect log (next id after the last D-0xx) with severity S1–S4 and the fix commit.

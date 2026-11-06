@@ -1,0 +1,24 @@
+---
+description: Safety rules and the decisions that require the owner (human in the loop)
+alwaysApply: true
+---
+
+# Safety and human-in-the-loop
+
+Stop and ask the owner (one short Egyptian-Arabic message: recommendation + options), then keep working on something else while waiting, before:
+- Any database migration (`prisma migrate`, `db push`, manual DDL). Show the plan/SQL first. Needs an explicit yes in the current conversation every time.
+- Any action on a live carrier (Babel, Sila, Delivery Joud): create, edit, cancel, register webhooks. Sena sandbox is allowed without asking.
+- Touching any order inside a carrier portal. Say the exact order code and the action first. Filter by that exact code; stop unless exactly one row matches.
+- Deleting data other than your own test records; deleting branches or files that are not yours.
+- Business rules: money calculations, invoices, COD, fees, inventory rules, carrier selection rules, what the client sees, roles/permissions.
+- Anything touching production (`/var/www/emdad-sy-3pl-wms`, PM2 id 0, DB `wms_db`, branch `main`) — never do it.
+
+Always:
+- Test data only: client "Test company", recipient "Nadim Hassan", notes "TEST ORDER". Never touch other clients' orders.
+- Never type passwords. The owner logs in; you use the open browser session. If a login is needed, ask.
+- Never print, log, commit or echo secrets: Google OAuth credentials, carrier API keys, `.env` values, credentials found in WhatsApp exports.
+- Never weaken TLS (`NODE_TLS_REJECT_UNAUTHORIZED=0`, `--ignore-https-errors`, `curl -k`) to reach staging. Test from the owner's browser instead.
+- No force-push, no `git reset --hard`/`clean -f` on work you did not create; stash first.
+- If a requested change is hard or would force re-testing, do the safe part and say clearly what is hard. Never skip silently.
+
+Do not ask about: commits, pushes, rebuilding/restarting staging (PM2 id 1), small technical choices, copy text, internal refactors.
