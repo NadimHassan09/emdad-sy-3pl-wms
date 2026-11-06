@@ -117,6 +117,7 @@ const BackupHistoryPage       = lazyPage(() => import('./pages/settings/BackupHi
 const BackupSchedulesPage     = lazyPage(() => import('./pages/settings/BackupSchedulesPage'), 'BackupSchedulesPage');
 const BackupRetentionPage     = lazyPage(() => import('./pages/settings/BackupRetentionPage'), 'BackupRetentionPage');
 const BackupHealthPage        = lazyPage(() => import('./pages/settings/BackupHealthPage'), 'BackupHealthPage');
+const GoogleOAuthSettingsPage  = lazyPage(() => import('./pages/settings/GoogleOAuthSettingsPage'), 'GoogleOAuthSettingsPage');
 const BackupGoogleDrivePage   = lazyPage(() => import('./pages/settings/BackupGoogleDrivePage'), 'BackupGoogleDrivePage');
 const ShippingCompaniesPage   = lazyPage(() => import('./pages/shipping/ShippingCompaniesPage'), 'ShippingCompaniesPage');
 const ShippingFeeRatePage     = lazyPage(() => import('./pages/shipping/ShippingFeeRatePage'), 'ShippingFeeRatePage');
@@ -292,6 +293,7 @@ export const router = createBrowserRouter([
           { path: 'health', element: <BackupHealthPage /> },
           { path: 'storage-policy', element: <Navigate to="/backups" replace /> },
           { path: 'google-drive', element: <BackupGoogleDrivePage /> },
+          { path: 'google-oauth-settings', element: <GoogleOAuthSettingsPage /> },
         ],
       },
       { path: 'shipping', element: <Navigate to="/shipping/companies" replace /> },

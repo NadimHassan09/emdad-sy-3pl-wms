@@ -52,6 +52,15 @@ export const SETTINGS_TABS: SettingsTabEntry[] = [
     descriptionAr: 'ربط Google Drive ومراجعة حالة المزامنة وإعادة محاولة الرفع الفاشل.',
     path: '/backups/google-drive',
   },
+  {
+    id: 'google-oauth',
+    title: 'Google OAuth',
+    titleAr: 'Google OAuth',
+    description: 'Google OAuth credentials for client Sheets integration.',
+    descriptionAr: 'بيانات Google OAuth لربط شيتات العملاء.',
+    path: '/backups/google-oauth-settings',
+    superAdminOnly: true,
+  },
 ];
 
 const GDRIVE_TAB_ID = 'backup-google-drive';

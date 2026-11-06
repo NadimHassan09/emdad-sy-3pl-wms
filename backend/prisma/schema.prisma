@@ -1133,6 +1133,7 @@ model User {
   shippingProviderConnections  ShippingProviderConnection[] @relation("ShippingProviderConnectedBy")
   shippingOriginAddressUpdated ShippingOriginAddress[]      @relation("ShippingOriginAddressUpdatedBy")
   shippingFxSettingsUpdated    ShippingFxSettings[]         @relation("ShippingFxSettingsUpdatedBy")
+  googleOAuthSettings          GoogleOAuthSettings[]        @relation("GoogleOAuthSettingsUpdatedBy")
   bulkShippingJobsTriggered    BulkShippingJob[]            @relation("BulkShippingTriggeredBy")
   apiCredentialsCreated        ApiCredential[]              @relation("ApiCredentialCreatedBy")
   apiCredentialsRevoked        ApiCredential[]              @relation("ApiCredentialRevokedBy")
@@ -3085,4 +3086,23 @@ model ClientWebhookDelivery {
   @@index([status, nextAttemptAt], map: "idx_client_webhook_deliveries_due")
   @@index([endpointId, createdAt(sort: Desc)], map: "idx_client_webhook_deliveries_endpoint")
   @@map("client_webhook_deliveries")
+}
+
+model GoogleOAuthSettings {
+  id                   String    @id @default("default")
+  /// AES-256-GCM encrypted Google OAuth Client ID
+  encryptedClientId    String?   @map("encrypted_client_id") @db.Text
+  /// AES-256-GCM encrypted Google OAuth Client Secret
+  encryptedClientSecret String?  @map("encrypted_client_secret") @db.Text
+  redirectUri          String?   @map("redirect_uri") @db.Text
+  lastTestAt           DateTime? @map("last_test_at") @db.Timestamptz(6)
+  lastTestStatus       String?   @map("last_test_status") @db.VarChar(16)
+  lastTestError        String?   @map("last_test_error") @db.Text
+  updatedByUserId      String?   @map("updated_by_user_id") @db.Uuid
+  createdAt            DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt            DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  updatedBy User? @relation("GoogleOAuthSettingsUpdatedBy", fields: [updatedByUserId], references: [id], onDelete: SetNull)
+
+  @@map("google_oauth_settings")
 }
