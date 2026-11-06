@@ -601,134 +601,164 @@ function mastHeader(doc: BatchInstructionDocument, titleAr: string, titleEn: str
   </section>`;
 }
 
-/** Picking List: aggregated pick + verification + packing destination. */
+/** Picking List: simple aggregated picking table (clean reference-image style). */
 export function renderBatchPickingListHtml(doc: BatchInstructionDocument): string {
-  // Section 1 — rows grouped by location, with per-product totals when split across locations.
+  // Aggregate per-SKU totals across all locations.
   const productTotals = new Map<string, { sku: string; name: string; total: number; locs: Array<{ location: string; qty: number }> }>();
   for (const location of doc.locations) {
     const locLabel = [location.locationName, location.locationCode].filter(Boolean).join(' · ') || '—';
     for (const row of location.rows) {
       const key = `${row.sku}\u0000${row.name}`;
-      const qty = Number(String(row.quantity).replace(/,/g, '')) || 0;
+      const q = Number(String(row.quantity).replace(/,/g, '')) || 0;
       const bucket = productTotals.get(key) ?? { sku: row.sku, name: row.name, total: 0, locs: [] };
-      bucket.total += qty;
-      bucket.locs.push({ location: locLabel, qty });
+      bucket.total += q;
+      bucket.locs.push({ location: locLabel, qty: q });
       productTotals.set(key, bucket);
     }
   }
 
-  let pickRows = '';
-  let idx = 0;
-  if (productTotals.size === 0) {
-    pickRows = `<tr><td class="empty" colspan="4">لا توجد كميات للالتقاط.<span>No pick quantities found.</span></td></tr>`;
+  const sorted = [...productTotals.values()].sort((a, b) => a.sku.localeCompare(b.sku) || a.name.localeCompare(b.name));
+  const grandTotal = sorted.reduce((s, p) => s + p.total, 0);
+
+  let tableRows = '';
+  if (sorted.length === 0) {
+    tableRows = `<tr><td class="empty" colspan="4">لا توجد كميات للالتقاط.<span>No pick quantities found.</span></td></tr>`;
   } else {
-    for (const product of [...productTotals.values()].sort((a, b) => a.sku.localeCompare(b.sku) || a.name.localeCompare(b.name))) {
-      for (const loc of product.locs) {
-        idx += 1;
-        pickRows += `<tr>
-          <td class="idx">${idx}</td>
-          <td class="product">${esc(product.name)}<div class="sku">${esc(product.sku)}</div></td>
-          <td>${esc(loc.location)}</td>
-          <td class="qty">${esc(String(loc.qty))}</td>
+    sorted.forEach((product, i) => {
+      // If product is in multiple locations, show each location then a subtotal row.
+      const multiLoc = product.locs.length > 1;
+      product.locs.forEach((loc, li) => {
+        tableRows += `<tr${multiLoc && li > 0 ? ' class="loc-sub"' : ''}>
+          <td class="idx">${multiLoc && li > 0 ? '' : i + 1}</td>
+          <td class="sku-col">${multiLoc && li > 0 ? '' : esc(product.sku)}</td>
+          <td class="product">${multiLoc && li > 0 ? `<span class="loc-hint">${esc(loc.location)}</span>` : `${esc(product.name)}<div class="loc-hint">${esc(loc.location)}</div>`}</td>
+          <td class="qty">${loc.qty}</td>
+          <td class="check"><span class="box"></span></td>
+        </tr>`;
+      });
+      if (multiLoc) {
+        tableRows += `<tr class="subtotal-row">
+          <td colspan="3" style="text-align:left;padding-right:10px;">إجمالي: ${esc(product.name)}</td>
+          <td class="qty">${product.total}</td>
+          <td></td>
         </tr>`;
       }
-      if (product.locs.length > 1) {
-        pickRows += `<tr class="loc-banner">
-          <td colspan="3"><strong>${esc(product.name)}</strong> — الإجمالي<span>Product Total</span></td>
-          <td class="qty">${esc(String(product.total))}</td>
-        </tr>`;
-      }
-    }
+    });
   }
 
-  const verifyBody =
-    productTotals.size === 0
-      ? `<tr><td class="empty" colspan="5">—</td></tr>`
-      : [...productTotals.values()]
-          .sort((a, b) => a.sku.localeCompare(b.sku) || a.name.localeCompare(b.name))
-          .map(
-            (product, i) => `<tr>
-              <td class="idx">${i + 1}</td>
-              <td class="product">${esc(product.name)}<div class="sku">${esc(product.sku)}</div></td>
-              <td class="qty">${esc(String(product.total))}</td>
-              <td class="qty" style="border-bottom:1.5px solid #0b5e3c;">&nbsp;</td>
-              <td class="check"><span class="box"></span></td>
-            </tr>`,
-          )
-          .join('');
+  const title = doc.batchName ? `${doc.batchNumber} · ${doc.batchName}` : doc.batchNumber;
 
   return `<!DOCTYPE html>
 <html lang="ar"><head><meta charset="utf-8" /><title>قائمة الالتقاط ${esc(doc.batchNumber)}</title>
 <style>${sharedStyles()}
-  td.product .sku { margin-top:2px; color:#5e7368; font-size:11px; font-weight:700; }
-</style></head><body><section class="sheet">
-${mastHeader(doc, 'قائمة الالتقاط', 'Picking List')}
+  .simple-header { display:flex; align-items:flex-start; justify-content:space-between; gap:16px; padding:0 0 12px; margin:0 0 14px; border-bottom:3px solid #0b5e3c; }
+  .simple-brand { display:flex; align-items:center; gap:10px; }
+  .simple-brand .logo { height:52px; width:auto; display:block; }
+  .brand-block .brand-name { color:#0b5e3c; font-size:17px; font-weight:800; line-height:1.15; }
+  .brand-block .brand-sub { color:#6d8276; font-size:11px; margin-top:1px; }
+  .doc-info { text-align:right; }
+  .doc-info h1 { margin:0; color:#0b5e3c; font-size:28px; font-weight:800; line-height:1.05; }
+  .doc-info .doc-en { color:#6d8276; font-size:14px; margin-top:2px; }
+  .meta-bar { display:flex; gap:0; margin:0 0 14px; border:1.5px solid #c5ddd2; border-radius:12px; overflow:hidden; background:#eaf6f0; }
+  .meta-cell { flex:1; padding:9px 14px; border-left:1px solid #c5ddd2; }
+  .meta-cell:first-child { border-left:none; }
+  .meta-label { color:#5e7368; font-size:11px; font-weight:700; line-height:1.2; }
+  .meta-label span { display:block; color:#8da699; font-size:10px; }
+  .meta-val { color:#0b5e3c; font-size:15px; font-weight:800; margin-top:2px; line-height:1.2; }
+  .tbl-wrap { margin:0 0 10px; }
+  .pick-tbl { width:100%; border-collapse:separate; border-spacing:0; border-radius:12px; overflow:hidden; border:1.5px solid #c5ddd2; }
+  .pick-tbl th { background:#d7efe4; color:#1d4d36; font-size:12px; font-weight:800; padding:8px 10px; text-align:right; border-bottom:1.5px solid #c5ddd2; }
+  .pick-tbl th:not(:last-child), .pick-tbl td:not(:last-child) { border-left:1px solid #d7e6de; }
+  .pick-tbl td { padding:7px 10px; font-size:12.5px; vertical-align:middle; border-bottom:1px solid #e8f2ec; background:#fff; }
+  .pick-tbl td.idx { width:34px; text-align:center; color:#6d8276; font-weight:700; }
+  .pick-tbl td.sku-col { width:100px; color:#245443; font-weight:800; font-family:"Segoe UI",Tahoma,sans-serif; font-size:12px; }
+  .pick-tbl td.product { font-weight:800; color:#163028; }
+  .pick-tbl td.qty { width:70px; text-align:center; color:#0b5e3c; font-size:16px; font-weight:900; }
+  .pick-tbl td.check { width:44px; text-align:center; }
+  .loc-hint { color:#5e7368; font-size:10.5px; font-weight:600; margin-top:2px; }
+  .loc-sub td { background:#fafcfb; color:#5e7368; font-size:11.5px; }
+  .subtotal-row td { background:#eaf6f0; font-weight:800; color:#0b5e3c; font-size:12px; border-bottom:1.5px solid #c5ddd2; }
+  .grand-total-row td { background:#0b5e3c; color:#fff; font-size:14px; font-weight:800; }
+  .grand-total-row td.qty { color:#fff; font-size:17px; }
+  .box { display:inline-block; width:14px; height:14px; border:1.6px solid #0b5e3c; border-radius:3px; background:#fff; }
+  .short-warn { margin:0 0 10px; padding:9px 14px; background:#fffbeb; border:1.5px solid #f5c842; border-radius:10px; color:#8a5a12; font-size:12.5px; font-weight:700; }
+  .sig-row { display:flex; gap:24px; margin-top:16px; }
+  .sig-box { flex:1; border-top:1.5px solid #0b5e3c; padding-top:6px; }
+  .sig-box .sig-label { color:#0b5e3c; font-size:12px; font-weight:800; }
+  .sig-box .sig-label span { display:block; color:#8da699; font-size:10px; margin-top:1px; }
+</style></head><body style="padding:14mm 14mm 10mm;"><section class="sheet">
 
-<section class="stage stage-flow">
-  <div class="stage-head">
-    <div class="stage-main">
-      <span class="step">1</span>
-      <div class="stage-copy">
-        <h2>التقاط مجمّع <span>(Aggregated Picking)</span></h2>
-        <p>Collect total quantity from each location across the batch</p>
-      </div>
-    </div>
-    <div class="stage-hint">اجمع الكمية من كل موقع. لو المنتج موزع على أكثر من مكان ستظهر كميات منفصلة ثم الإجمالي.<span>Split locations show per-bin qty then product total.</span></div>
-  </div>
-  <div class="table-wrap">
-    <table>
-      <thead><tr>
-        <th class="idx">#</th>
-        <th>المنتج<span>Product</span></th>
-        <th>الموقع<span>Location</span></th>
-        <th>الكمية<span>Qty</span></th>
-      </tr></thead>
-      <tbody>${pickRows}</tbody>
-    </table>
-  </div>
-  ${doc.pickShort ? '<p class="pick-note">بعض الكميات غير متوفرة بالكامل في المخزون المتاح.</p>' : ''}
-</section>
-
-<section class="stage stage-flow">
-  <div class="stage-head">
-    <div class="stage-main">
-      <span class="step">2</span>
-      <div class="stage-copy">
-        <h2>التحقق من الالتقاط <span>(Picking Verification)</span></h2>
-        <p>Confirm consolidated totals after picking</p>
-      </div>
-    </div>
-  </div>
-  <div class="table-wrap">
-    <table>
-      <thead><tr>
-        <th class="idx">#</th>
-        <th>المنتج<span>Product</span></th>
-        <th>المطلوب<span>Required</span></th>
-        <th>الملتقط<span>Picked</span></th>
-        <th>تم التحقق<span>Verified</span></th>
-      </tr></thead>
-      <tbody>${verifyBody}</tbody>
-    </table>
-  </div>
-</section>
-
-<section class="stage stage-keep">
-  <div class="stage-head">
-    <div class="stage-main">
-      <span class="step">3</span>
-      <div class="stage-copy">
-        <h2>مكان التعبئة <span>(Packing Location)</span></h2>
-        <p>Deliver picked items here after picking is complete</p>
-      </div>
+<div class="simple-header">
+  <div class="simple-brand">
+    ${logoDataUri ? `<img class="logo" src="${logoDataUri}" alt="EMDAD" />` : ''}
+    <div class="brand-block">
+      <div class="brand-name">EMDAD Logistics</div>
+      <div class="brand-sub">Logistics &amp; Warehousing</div>
     </div>
   </div>
-  ${locationBars(doc.packingGroups, 'مكان التعبئة', 'Packing Location')}
-</section>
+  <div class="doc-info">
+    <h1>قائمة الالتقاط</h1>
+    <div class="doc-en">Picking List</div>
+  </div>
+</div>
+
+<div class="meta-bar">
+  <div class="meta-cell">
+    <div class="meta-label">رقم المجموعة<span>Batch</span></div>
+    <div class="meta-val">${esc(title)}</div>
+  </div>
+  <div class="meta-cell">
+    <div class="meta-label">التاريخ<span>Date</span></div>
+    <div class="meta-val">${esc(doc.createdAtLabel || '—')}</div>
+  </div>
+  <div class="meta-cell">
+    <div class="meta-label">الطلبات / القطع<span>Orders / Units</span></div>
+    <div class="meta-val">${doc.orderCount} · ${esc(doc.unitTotal)}</div>
+  </div>
+  <div class="meta-cell">
+    <div class="meta-label">بواسطة<span>Created by</span></div>
+    <div class="meta-val">${esc(doc.createdByName || '—')}</div>
+  </div>
+</div>
+
+${doc.pickShort ? `<div class="short-warn">⚠ بعض الكميات غير متوفرة بالكامل في المخزون المتاح.</div>` : ''}
+
+<div class="tbl-wrap">
+  <table class="pick-tbl">
+    <thead><tr>
+      <th class="idx">#</th>
+      <th style="width:100px">الصنف<span style="display:block;color:#6d8276;font-size:10px;font-weight:600;">SKU</span></th>
+      <th>المنتج والموقع<span style="display:block;color:#6d8276;font-size:10px;font-weight:600;">Product &amp; Location</span></th>
+      <th style="width:70px;text-align:center;">العدد<span style="display:block;color:#6d8276;font-size:10px;font-weight:600;">Qty</span></th>
+      <th style="width:44px;text-align:center;">✓</th>
+    </tr></thead>
+    <tbody>
+      ${tableRows}
+      ${sorted.length > 0 ? `<tr class="grand-total-row">
+        <td colspan="3" style="text-align:right;font-weight:800;">إجمالي القطع<span style="margin-right:8px;font-size:11px;font-weight:600;opacity:.8;">Total Units</span></td>
+        <td class="qty">${grandTotal}</td>
+        <td></td>
+      </tr>` : ''}
+    </tbody>
+  </table>
+</div>
+
+<div class="sig-row">
+  <div class="sig-box">
+    <div class="sig-label">توقيع أمين المستودع<span>Warehouse Keeper Signature</span></div>
+  </div>
+  <div class="sig-box">
+    <div class="sig-label">توقيع المشرف<span>Supervisor Signature</span></div>
+  </div>
+  <div class="sig-box">
+    <div class="sig-label">التاريخ والوقت<span>Date &amp; Time</span></div>
+  </div>
+</div>
+
 </section></body></html>`;
 }
 
-/** Packing List: redistribute picks to orders with 4-level verification + dispatch. */
+/** Packing List: clean per-order packing verification (reference-image style). */
 export function renderBatchPackingListHtml(doc: BatchInstructionDocument): string {
   const byOrder = new Map<string, Array<{ sku: string; name: string; quantity: string }>>();
   for (const alloc of doc.allocations) {
@@ -740,143 +770,146 @@ export function renderBatchPackingListHtml(doc: BatchInstructionDocument): strin
   }
   const checklistByOrder = new Map(doc.checklist.map((row) => [row.orderNumber, row]));
 
-  const allocationBody =
-    doc.allocations.length === 0
-      ? `<tr><td class="empty" colspan="3">لا يوجد توزيع على الطلبات.<span>No order allocation.</span></td></tr>`
-      : doc.allocations
-          .map(
-            (row) => `<tr>
-              <td class="product">${esc(row.name)}<div class="sku">${esc(row.sku)}</div></td>
-              <td class="qty">${esc(row.total)}</td>
-              <td class="split">${row.splits
-                .map((split) => `<span class="pill">${esc(split.orderNumber)} <b>${esc(split.quantity)}</b></span>`)
-                .join('')}</td>
-            </tr>`,
-          )
-          .join('');
-
   const sortedOrders = [...byOrder.entries()].sort((a, b) => {
-    const companyA = checklistByOrder.get(a[0])?.companyName || '—';
-    const companyB = checklistByOrder.get(b[0])?.companyName || '—';
-    const byCompany = companyA.localeCompare(companyB, 'ar');
-    if (byCompany !== 0) return byCompany;
-    return a[0].localeCompare(b[0], 'en', { numeric: true });
+    const ca = checklistByOrder.get(a[0])?.companyName || '—';
+    const cb = checklistByOrder.get(b[0])?.companyName || '—';
+    const byCompany = ca.localeCompare(cb, 'ar');
+    return byCompany !== 0 ? byCompany : a[0].localeCompare(b[0], 'en', { numeric: true });
   });
 
   let orderBlocks = '';
   if (sortedOrders.length === 0) {
-    orderBlocks = `<p class="pick-note">لا توجد بنود للتعبئة في هذه المجموعة.</p>`;
+    orderBlocks = `<p style="color:#5e7368;font-size:13px;padding:12px 0;">لا توجد بنود للتعبئة في هذه المجموعة.</p>`;
   } else {
     let lastCompany = '';
-    let index = 0;
-    for (const [orderNumber, lines] of sortedOrders) {
+    sortedOrders.forEach(([orderNumber, lines], index) => {
       const meta = checklistByOrder.get(orderNumber);
       const companyName = meta?.companyName || '—';
       if (companyName !== lastCompany) {
-        orderBlocks += `<div class="company-banner">العميل / Client: ${esc(companyName)}</div>`;
+        orderBlocks += `<div class="company-sep">${esc(companyName)}</div>`;
         lastCompany = companyName;
       }
-      index += 1;
-      const body = lines
-        .map(
-          (line, i) => `<tr>
-            <td class="idx">${i + 1}</td>
-            <td class="product">${esc(line.name)}<div class="sku">${esc(line.sku)}</div></td>
-            <td class="qty">${esc(line.quantity)}</td>
-            <td class="check"><span class="box"></span></td>
-            <td class="check"><span class="box"></span></td>
-          </tr>`,
-        )
-        .join('');
-      orderBlocks += `<div class="order-block">
-        <h3>${index}. ${esc(orderNumber)} <span style="color:#5e7368;font-weight:700;">(${esc(companyName)})</span></h3>
-        <div class="order-meta">
-          <span>${esc(meta?.customerName || '—')}</span>
-          <span class="phone">${esc(meta?.customerPhone || '—')}</span>
-          <span>${esc(meta?.itemCount || '0')} قطعة</span>
+      const orderQty = lines.reduce((s, l) => s + (Number(String(l.quantity).replace(/,/g, '')) || 0), 0);
+      const body = lines.map((line, i) => `<tr>
+        <td class="idx">${i + 1}</td>
+        <td class="sku-col">${esc(line.sku)}</td>
+        <td class="product">${esc(line.name)}</td>
+        <td class="qty">${esc(line.quantity)}</td>
+        <td class="check"><span class="box"></span></td>
+      </tr>`).join('');
+      orderBlocks += `<div class="order-card">
+        <div class="order-card-head">
+          <div class="order-num">${index + 1}. ${esc(orderNumber)}</div>
+          <div class="order-meta-row">
+            <span class="order-customer">${esc(meta?.customerName || '—')}</span>
+            ${meta?.customerPhone ? `<span class="order-phone">${esc(meta.customerPhone)}</span>` : ''}
+            <span class="order-items">${orderQty} قطعة</span>
+          </div>
         </div>
-        <table>
+        <table class="pack-tbl">
           <thead><tr>
             <th class="idx">#</th>
+            <th style="width:90px">الصنف<span>SKU</span></th>
             <th>المنتج<span>Product</span></th>
-            <th>الكمية<span>Qty</span></th>
-            <th>الكمية صحيحة<span>Qty Verified</span></th>
-            <th>تم تغليف المنتج<span>Product Packed</span></th>
+            <th style="width:60px;text-align:center;">الكمية<span>Qty</span></th>
+            <th style="width:40px;text-align:center;">✓</th>
           </tr></thead>
           <tbody>${body}</tbody>
         </table>
-        <div class="table-wrap" style="padding:8px 0 0">
-          <table>
-            <thead><tr>
-              <th>تحقق من محتوى الطلب<span>Order Contents Verified</span></th>
-              <th>تغليف الطلب كامل<span>Order Packed</span></th>
-            </tr></thead>
-            <tbody><tr>
-              <td class="check"><span class="box" style="width:22px;height:22px;"></span></td>
-              <td class="check"><span class="box" style="width:22px;height:22px;"></span></td>
-            </tr></tbody>
-          </table>
+        <div class="order-confirm-row">
+          <span class="confirm-label">تم التحقق من محتوى الطلب<span>Contents Verified</span></span>
+          <span class="box-lg"></span>
+          <span class="confirm-label">تم تغليف الطلب بالكامل<span>Order Fully Packed</span></span>
+          <span class="box-lg"></span>
         </div>
       </div>`;
-    }
+    });
   }
+
+  const title = doc.batchName ? `${doc.batchNumber} · ${doc.batchName}` : doc.batchNumber;
 
   return `<!DOCTYPE html>
 <html lang="ar"><head><meta charset="utf-8" /><title>قائمة التعبئة ${esc(doc.batchNumber)}</title>
 <style>${sharedStyles()}
-  td.product .sku { margin-top:2px; color:#5e7368; font-size:11px; font-weight:700; }
-</style></head><body><section class="sheet">
-${mastHeader(doc, 'قائمة التعبئة', 'Packing List')}
+  .simple-header { display:flex; align-items:flex-start; justify-content:space-between; gap:16px; padding:0 0 12px; margin:0 0 14px; border-bottom:3px solid #0b5e3c; }
+  .simple-brand { display:flex; align-items:center; gap:10px; }
+  .simple-brand .logo { height:52px; width:auto; display:block; }
+  .brand-block .brand-name { color:#0b5e3c; font-size:17px; font-weight:800; line-height:1.15; }
+  .brand-block .brand-sub { color:#6d8276; font-size:11px; margin-top:1px; }
+  .doc-info { text-align:right; }
+  .doc-info h1 { margin:0; color:#0b5e3c; font-size:28px; font-weight:800; line-height:1.05; }
+  .doc-info .doc-en { color:#6d8276; font-size:14px; margin-top:2px; }
+  .meta-bar { display:flex; gap:0; margin:0 0 14px; border:1.5px solid #c5ddd2; border-radius:12px; overflow:hidden; background:#eaf6f0; }
+  .meta-cell { flex:1; padding:9px 14px; border-left:1px solid #c5ddd2; }
+  .meta-cell:first-child { border-left:none; }
+  .meta-label { color:#5e7368; font-size:11px; font-weight:700; line-height:1.2; }
+  .meta-label span { display:block; color:#8da699; font-size:10px; }
+  .meta-val { color:#0b5e3c; font-size:15px; font-weight:800; margin-top:2px; line-height:1.2; }
+  .company-sep { margin:16px 0 6px; padding:6px 12px; background:#eaf6f0; border-radius:8px; color:#0b5e3c; font-size:13px; font-weight:800; border-right:3px solid #0b5e3c; }
+  .order-card { margin:0 0 14px; border:1.5px solid #c5ddd2; border-radius:12px; overflow:hidden; break-inside:avoid; page-break-inside:avoid; }
+  .order-card-head { padding:10px 14px; background:#f0fbf5; border-bottom:1px solid #d5e9de; }
+  .order-num { color:#0b5e3c; font-size:16px; font-weight:800; }
+  .order-meta-row { display:flex; gap:12px; align-items:center; margin-top:4px; }
+  .order-customer { color:#163028; font-size:13px; font-weight:700; }
+  .order-phone { color:#5e7368; font-size:12px; direction:ltr; font-family:"Segoe UI",Tahoma,sans-serif; }
+  .order-items { color:#0b5e3c; font-size:12px; font-weight:800; background:#d7efe4; padding:1px 8px; border-radius:999px; }
+  .pack-tbl { width:100%; border-collapse:collapse; }
+  .pack-tbl th { background:#d7efe4; color:#1d4d36; font-size:11.5px; font-weight:800; padding:6px 10px; text-align:right; border-bottom:1px solid #c5ddd2; }
+  .pack-tbl th span { display:block; color:#6d8276; font-size:10px; font-weight:600; }
+  .pack-tbl td { padding:6px 10px; font-size:12px; border-bottom:1px solid #eaf6f0; vertical-align:middle; }
+  .pack-tbl td.idx { width:30px; text-align:center; color:#6d8276; font-weight:700; }
+  .pack-tbl td.sku-col { color:#245443; font-weight:800; font-family:"Segoe UI",Tahoma,sans-serif; font-size:11.5px; }
+  .pack-tbl td.product { font-weight:700; color:#163028; }
+  .pack-tbl td.qty { text-align:center; color:#0b5e3c; font-size:14px; font-weight:900; }
+  .pack-tbl td.check { text-align:center; }
+  .box { display:inline-block; width:14px; height:14px; border:1.6px solid #0b5e3c; border-radius:3px; background:#fff; }
+  .box-lg { display:inline-block; width:20px; height:20px; border:1.8px solid #0b5e3c; border-radius:4px; background:#fff; vertical-align:middle; margin:0 6px; }
+  .order-confirm-row { display:flex; align-items:center; gap:4px; padding:8px 14px; background:#f7fcf9; border-top:1px solid #d5e9de; font-size:12px; color:#163028; font-weight:700; }
+  .confirm-label span { display:inline; color:#6d8276; font-size:10.5px; margin-right:6px; }
+  .dispatch-box { margin-top:16px; padding:12px 14px; border:1.5px solid #c5ddd2; border-radius:12px; background:#eaf6f0; }
+  .dispatch-title { color:#0b5e3c; font-size:14px; font-weight:800; margin:0 0 8px; }
+</style></head><body style="padding:14mm 14mm 10mm;"><section class="sheet">
 
-<section class="stage stage-flow">
-  <div class="stage-head">
-    <div class="stage-main">
-      <span class="step">1</span>
-      <div class="stage-copy">
-        <h2>توزيع المنتجات على الطلبات <span>(Allocate to Orders)</span></h2>
-        <p>Split aggregated picks back across each order</p>
-      </div>
+<div class="simple-header">
+  <div class="simple-brand">
+    ${logoDataUri ? `<img class="logo" src="${logoDataUri}" alt="EMDAD" />` : ''}
+    <div class="brand-block">
+      <div class="brand-name">EMDAD Logistics</div>
+      <div class="brand-sub">Logistics &amp; Warehousing</div>
     </div>
   </div>
-  <div class="table-wrap">
-    <table>
-      <thead><tr>
-        <th>المنتج<span>Product</span></th>
-        <th>المجموع<span>Total</span></th>
-        <th>الطلب ← الكمية<span>Order → Qty</span></th>
-      </tr></thead>
-      <tbody>${allocationBody}</tbody>
-    </table>
+  <div class="doc-info">
+    <h1>قائمة التعبئة</h1>
+    <div class="doc-en">Packing List</div>
   </div>
-</section>
+</div>
 
-<section class="stage stage-flow">
-  <div class="stage-head">
-    <div class="stage-main">
-      <span class="step">2</span>
-      <div class="stage-copy">
-        <h2>التحقق لكل طلب <span>(Per-order Verification)</span></h2>
-        <p>Qty verified → Product packed → Order verified → Order packed</p>
-      </div>
-    </div>
-    <div class="stage-hint">راجع منتجات كل طلب ثم أكّد الطلب كاملًا وتغليفه.<span>Four-level check per order.</span></div>
+<div class="meta-bar">
+  <div class="meta-cell">
+    <div class="meta-label">رقم المجموعة<span>Batch</span></div>
+    <div class="meta-val">${esc(title)}</div>
   </div>
-  ${PACKING_STEPS}
-  ${orderBlocks}
-</section>
+  <div class="meta-cell">
+    <div class="meta-label">التاريخ<span>Date</span></div>
+    <div class="meta-val">${esc(doc.createdAtLabel || '—')}</div>
+  </div>
+  <div class="meta-cell">
+    <div class="meta-label">الطلبات / القطع<span>Orders / Units</span></div>
+    <div class="meta-val">${doc.orderCount} · ${esc(doc.unitTotal)}</div>
+  </div>
+  <div class="meta-cell">
+    <div class="meta-label">بواسطة<span>Created by</span></div>
+    <div class="meta-val">${esc(doc.createdByName || '—')}</div>
+  </div>
+</div>
 
-<section class="stage stage-keep">
-  <div class="stage-head">
-    <div class="stage-main">
-      <span class="step">3</span>
-      <div class="stage-copy">
-        <h2>مكان الإرسال <span>(Dispatch Location)</span></h2>
-        <p>Place fully packed orders here awaiting outbound</p>
-      </div>
-    </div>
-  </div>
+${orderBlocks}
+
+${doc.dispatchGroups.length > 0 ? `<div class="dispatch-box">
+  <div class="dispatch-title">مكان الإرسال — Dispatch Location</div>
   ${locationBars(doc.dispatchGroups, 'مكان الإرسال', 'Dispatch Location')}
-</section>
+</div>` : ''}
+
 </section></body></html>`;
 }
 
