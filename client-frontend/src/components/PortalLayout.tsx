@@ -76,18 +76,21 @@ function PortalSidebarLink({
   isArabic,
   badge,
   onNavigate,
+  collapsed,
 }: {
   item: ClientNavItem;
   active: boolean;
   isArabic: boolean;
   badge?: number;
   onNavigate: (to: string) => void;
+  collapsed?: boolean;
 }): ReactElement {
   return (
     <SidebarLink
       href={item.to}
       isActive={active}
       icon={<NavIcon path={item.to} />}
+      collapsed={collapsed}
       onClick={(e) => {
         e.preventDefault();
         onNavigate(item.to);
@@ -111,6 +114,12 @@ export function PortalLayout(): ReactElement {
   const queryClient = useQueryClient();
   const { pathname } = useLocation();
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(() => {
+    try { return window.localStorage.getItem('client.sidebar.collapsed') === '1'; } catch { return false; }
+  });
+  useEffect(() => {
+    try { window.localStorage.setItem('client.sidebar.collapsed', sidebarCollapsed ? '1' : '0'); } catch { /* noop */ }
+  }, [sidebarCollapsed]);
   const [notifOpen, setNotifOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -357,97 +366,41 @@ export function PortalLayout(): ReactElement {
     (sheetsItem ? isActive(sheetsItem) : false) ||
     (notificationsItem ? isActive(notificationsItem) : false);
 
-  const navContent = (
-    <SidebarNav className="space-y-0.5">
-      {dashboardItem ? (
-        <PortalSidebarLink
-          item={dashboardItem}
-          active={isActive(dashboardItem)}
-          isArabic={isArabic}
-          onNavigate={go}
-        />
-      ) : null}
-      {omsItems.length > 0 ? (
-        <SidebarSection label={isArabic ? 'المتجر' : 'Store'} defaultOpen={omsOpen || true}>
-          {omsItems.map((item) => (
-            <PortalSidebarLink
-              key={item.to}
-              item={item}
-              active={isActive(item)}
-              isArabic={isArabic}
-              onNavigate={go}
-            />
-          ))}
-        </SidebarSection>
-      ) : null}
-      {wmsItems.length > 0 ? (
-        <SidebarSection label={isArabic ? 'المستودع' : 'Warehouse'} defaultOpen={wmsOpen || true}>
-          {wmsItems.map((item) => (
-            <PortalSidebarLink
-              key={item.to}
-              item={item}
-              active={isActive(item)}
-              isArabic={isArabic}
-              onNavigate={go}
-            />
-          ))}
-        </SidebarSection>
-      ) : null}
-      {financesItem || billingItem || invoicesItem || notificationsItem || apisItem || sheetsItem ? (
-        <SidebarSection label={isArabic ? 'المالية والحساب' : 'Finances & Account'} defaultOpen={accountOpen || true}>
-          {financesItem ? (
-            <PortalSidebarLink
-              item={financesItem}
-              active={isActive(financesItem)}
-              isArabic={isArabic}
-              onNavigate={go}
-            />
-          ) : null}
-          {billingItem ? (
-            <PortalSidebarLink
-              item={billingItem}
-              active={isActive(billingItem)}
-              isArabic={isArabic}
-              onNavigate={go}
-            />
-          ) : null}
-          {invoicesItem ? (
-            <PortalSidebarLink
-              item={invoicesItem}
-              active={isActive(invoicesItem)}
-              isArabic={isArabic}
-              onNavigate={go}
-            />
-          ) : null}
-          {notificationsItem ? (
-            <PortalSidebarLink
-              item={notificationsItem}
-              active={isActive(notificationsItem)}
-              isArabic={isArabic}
-              badge={notifications.unreadCount || undefined}
-              onNavigate={go}
-            />
-          ) : null}
-          {sheetsItem ? (
-            <PortalSidebarLink
-              item={sheetsItem}
-              active={isActive(sheetsItem)}
-              isArabic={isArabic}
-              onNavigate={go}
-            />
-          ) : null}
-          {apisItem ? (
-            <PortalSidebarLink
-              item={apisItem}
-              active={isActive(apisItem)}
-              isArabic={isArabic}
-              onNavigate={go}
-            />
-          ) : null}
-        </SidebarSection>
-      ) : null}
-    </SidebarNav>
-  );
+  function buildNavContent(collapsed?: boolean) {
+    return (
+      <SidebarNav className="space-y-0.5">
+        {dashboardItem ? (
+          <PortalSidebarLink item={dashboardItem} active={isActive(dashboardItem)} isArabic={isArabic} onNavigate={go} collapsed={collapsed} />
+        ) : null}
+        {omsItems.length > 0 ? (
+          <SidebarSection label={isArabic ? 'المتجر' : 'Store'} defaultOpen={omsOpen || true}>
+            {omsItems.map((item) => (
+              <PortalSidebarLink key={item.to} item={item} active={isActive(item)} isArabic={isArabic} onNavigate={go} collapsed={collapsed} />
+            ))}
+          </SidebarSection>
+        ) : null}
+        {wmsItems.length > 0 ? (
+          <SidebarSection label={isArabic ? 'المستودع' : 'Warehouse'} defaultOpen={wmsOpen || true}>
+            {wmsItems.map((item) => (
+              <PortalSidebarLink key={item.to} item={item} active={isActive(item)} isArabic={isArabic} onNavigate={go} collapsed={collapsed} />
+            ))}
+          </SidebarSection>
+        ) : null}
+        {financesItem || billingItem || invoicesItem || notificationsItem || apisItem || sheetsItem ? (
+          <SidebarSection label={isArabic ? 'المالية والحساب' : 'Finances & Account'} defaultOpen={accountOpen || true}>
+            {financesItem ? <PortalSidebarLink item={financesItem} active={isActive(financesItem)} isArabic={isArabic} onNavigate={go} collapsed={collapsed} /> : null}
+            {billingItem ? <PortalSidebarLink item={billingItem} active={isActive(billingItem)} isArabic={isArabic} onNavigate={go} collapsed={collapsed} /> : null}
+            {invoicesItem ? <PortalSidebarLink item={invoicesItem} active={isActive(invoicesItem)} isArabic={isArabic} onNavigate={go} collapsed={collapsed} /> : null}
+            {notificationsItem ? <PortalSidebarLink item={notificationsItem} active={isActive(notificationsItem)} isArabic={isArabic} badge={notifications.unreadCount || undefined} onNavigate={go} collapsed={collapsed} /> : null}
+            {sheetsItem ? <PortalSidebarLink item={sheetsItem} active={isActive(sheetsItem)} isArabic={isArabic} onNavigate={go} collapsed={collapsed} /> : null}
+            {apisItem ? <PortalSidebarLink item={apisItem} active={isActive(apisItem)} isArabic={isArabic} onNavigate={go} collapsed={collapsed} /> : null}
+          </SidebarSection>
+        ) : null}
+      </SidebarNav>
+    );
+  }
+  const navContent = buildNavContent();
+  const navContentDesktop = buildNavContent(sidebarCollapsed);
 
   const brandLogo = (
     <div className="flex items-center gap-3">
@@ -492,9 +445,23 @@ export function PortalLayout(): ReactElement {
           <AppShell.SkipNav />
 
           <AppShell.Body>
-            <Sidebar>
-              <SidebarBrand className="px-5" logo={brandLogo} />
-              {navContent}
+            <Sidebar collapsed={sidebarCollapsed}>
+              <SidebarBrand collapsed={sidebarCollapsed} logo={brandLogo} />
+              {navContentDesktop}
+              <div className="mt-auto hidden border-t p-2 md:block" style={{ borderColor: 'var(--sidebar-border)' }}>
+                <button
+                  type="button"
+                  onClick={() => setSidebarCollapsed((v) => !v)}
+                  aria-label={sidebarCollapsed ? (isArabic ? 'توسيع الشريط' : 'Expand sidebar') : (isArabic ? 'طيّ الشريط' : 'Collapse sidebar')}
+                  title={sidebarCollapsed ? (isArabic ? 'توسيع الشريط' : 'Expand sidebar') : (isArabic ? 'طيّ الشريط' : 'Collapse sidebar')}
+                  className="flex h-9 w-full items-center justify-center rounded-lg text-white/70 hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-white/30"
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+                    className={sidebarCollapsed ? 'rotate-180 rtl:rotate-0' : 'rtl:rotate-180'} aria-hidden="true">
+                    <path d="m15 18-6-6 6-6" />
+                  </svg>
+                </button>
+              </div>
               <SidebarFooter className="p-3">{profileButton()}</SidebarFooter>
             </Sidebar>
 
@@ -642,14 +609,12 @@ export function PortalLayout(): ReactElement {
                 </Topbar.End>
               </Topbar>
 
-              <AppShell.Main id="main-content" noPad>
-                <div className="max-w-7xl mx-auto p-4 md:p-6 lg:p-8">
-                  <BillingRestrictionBanner />
-                  <ClientRoleAccessBanner />
-                  <Suspense fallback={<PageLoadFallback />}>
-                    <Outlet />
-                  </Suspense>
-                </div>
+              <AppShell.Main id="main-content" className="!px-3 !py-3 sm:!px-4 sm:!py-4">
+                <BillingRestrictionBanner />
+                <ClientRoleAccessBanner />
+                <Suspense fallback={<PageLoadFallback />}>
+                  <Outlet />
+                </Suspense>
               </AppShell.Main>
             </AppShell.Column>
           </AppShell.Body>
