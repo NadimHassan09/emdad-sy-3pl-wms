@@ -346,8 +346,8 @@ export class TaskInventoryEffectsService {
 
   async applyPutaway(
     tx: Prisma.TransactionClient,
-    _operatorId: string,
-    _taskId: string,
+    operatorId: string,
+    taskId: string,
     inboundOrderId: string,
     companyId: string,
     body:
@@ -447,6 +447,23 @@ export class TaskInventoryEffectsService {
         locationId: l.destination_location_id,
         lotId,
         status: quarantineBinsOnly ? StockStatus.quarantined : StockStatus.available,
+      });
+
+      // Record the dock→bin movement in the inventory ledger so location-level
+      // history can be fully reconstructed (product totals already reconcile via
+      // inbound_receive; this leg fills the missing putaway hop).
+      const idemKey = `bm:putaway:${inboundOrderId}:${src.productId}:line:${l.inbound_order_line_id}:task:${taskId}`;
+      await this.ledgerDedup.appendIfAbsent(tx, idemKey, {
+        companyId,
+        productId: src.productId,
+        lotId,
+        fromLocationId: src.locationId,
+        toLocationId: l.destination_location_id,
+        movementType: MovementType.putaway,
+        quantity: qty,
+        referenceType: 'inbound_order',
+        referenceId: inboundOrderId,
+        operatorId,
       });
     }
   }
