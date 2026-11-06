@@ -5,7 +5,7 @@ alwaysApply: true
 
 # Testing = using the real UI
 
-- UI testing must be done in a real browser through MCP (Playwright MCP `playwright-extension` driving the owner's logged-in Chrome, or Cursor's built-in browser). Open the page, take a snapshot/screenshot, scroll the whole page, click every button/tab/menu/modal, fill every field, read the result. API calls or unit tests never count as UI coverage.
+- UI testing must be done in a real browser through MCP (Browser MCP `browsermcp`, driving the owner's logged-in Chrome/Edge on his computer; it reaches the server on the VPS through port forwarding 9010 — see PLAN §4). Open the page, take a snapshot/screenshot, scroll the whole page, click every button/tab/menu/modal, fill every field, read the result. API calls or unit tests never count as UI coverage.
 - The VPS cannot reach the staging HTTPS sites; the browser runs on the owner's machine. Do not disable TLS checks.
 - Sites: admin https://staging-admin.emdadsy.com, client https://staging-client.emdadsy.com. Carrier portals only to verify data (Babel, Sena, Sila, Delivery Joud) — see the safety rule before touching anything there.
 - Three layers, all required (details in `.cursor/PLAN.md` §5):
