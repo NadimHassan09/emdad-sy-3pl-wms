@@ -139,7 +139,7 @@ export function ReportChartPanel({ report, rows, isArabic, chartKind = 'bar' }: 
         <h3 className={CHART_TITLE_CLASS}>
           {isArabic ? 'اتجاه النشاط' : 'Activity trend'}
         </h3>
-        <svg viewBox="0 0 400 170" className="h-44 w-full" role="img" aria-label={chart.title}>
+        <svg viewBox="0 0 400 175" className="h-44 w-full" role="img" aria-label={chart.title}>
           {chart.lines.length < 2 ? (
             <text x="200" y="80" textAnchor="middle" className="fill-text-faint text-xs">
               {isArabic ? 'بيانات غير كافية للرسم' : 'Insufficient points for trend'}
@@ -170,10 +170,16 @@ export function ReportChartPanel({ report, rows, isArabic, chartKind = 'bar' }: 
               {chart.lines.map((p, i) => {
                 const x = 30 + (i / Math.max(chart.lines.length - 1, 1)) * 365;
                 const y = 140 - (p.value / max) * 120;
+                const showLabel = chart.lines.length <= 10 || i % Math.ceil(chart.lines.length / 10) === 0;
                 return (
                   <g key={p.label}>
                     <circle cx={x} cy={y} r="3" fill={CHART_STROKE} />
                     <title>{`${p.label}: ${p.value}`}</title>
+                    {showLabel && (
+                      <text x={x} y="162" textAnchor="middle" fontSize="7" fill="var(--color-text-muted)">
+                        {p.label.length > 7 ? p.label.slice(0, 7) : p.label}
+                      </text>
+                    )}
                   </g>
                 );
               })}
