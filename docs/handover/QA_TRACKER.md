@@ -211,7 +211,7 @@ Aliases (`/cod-reports`, `/returns`, `/returns/new`, `/returns/:id`, `/billing/i
 | D-038 | S3 | Reports KPI | "Storage capacity" card showed a percentage with "0 / 0 locations": the location counts were hard-coded to 0 | Reports pass 3 Nov | Fixed (uses the real counts) | this commit |
 | D-039 | S3 | Report charts | Charts are hand-drawn SVG lines without axes, labels or legend; mandatory filters (warehouse, group by) surface as raw API errors | Reports pass 3 Nov | Fixed: bar chart has value+category labels; pie chart has legend; inline line chart now shows x-axis date labels; warehouse validation shows human-readable toast+alert | 8b007513f |
 | D-040 | S3 | Sila webhooks | No webhook is registered on the Sila account, so Sila status changes reach EMDAD only by polling | Carrier check 3 Nov | Open (register `cargo.status_changed`, `cargo.delivered`, `cargo.returned`, `cargo.cancelled`) | |
-| D-004 | S3 | Backend tests | Jest run OOM after 23/144 suites; 9 suites failing (stale specs/drift) | jest-baseline | Open | |
+| D-004 | S3 | Backend tests | Jest run OOM after 23/144 suites; 9 suites failing (stale specs/drift) | jest-baseline | Fixed: 158/158 suites, 990/990 tests pass. OOM → 4 GB heap; stale specs fixed ($transaction mock, date drift, schema drift, buildExcelBuffer row offset, import-template schema change, capacity-utilization CBM redesign). | becdcbe0e |
 
 ## Smoke pass log
 

@@ -67,7 +67,7 @@ A flow counts as ✅ only when it was run in the real UI or against the real car
 | X10 | Quality | Performance: N+1 calls, slow pages, large lists | 🔄 | Outbound list N+1 noted |
 | X11 | Quality | Accessibility basics: focus order, labels, contrast, keyboard | ⬜ | |
 | X12 | Data | Data integrity: stock never negative, ledgers append-only, reservations released on cancel, COD totals | 🔄 | Stock never negative and never over-reserved (130 rows); ledger equals stock per product for 49 products after receive, transfer, adjust; location-level putaway gap (D-033); COD totals not audited |
-| X13 | Tests | Backend unit suite baseline (all suites, in batches) | 🔄 | Shipping area 46 suites / 362 tests pass; full run not done (D-004) |
+| X13 | Tests | Backend unit suite baseline (all suites, in batches) | ✅ | 158 suites / 990 tests pass (6 Nov). D-004 (OOM) fixed; 6 stale specs fixed (becdcbe0e). |
 | X14 | Tests | Frontend unit suite and Playwright regression of fixed flows | 🔄 | Vitest lib 104 pass; Playwright not re-run |
 | X15 | Release | Handover pack: client documentation, decision log, known limitations, runbook | 🔄 | `DECISIONS_AND_EVIDENCE.md` and QA files exist; client-facing documents not written |
 | X16 | Routing | Redirect-only aliases (`/dashboard`, `/outbound`, `/inbound`, `/settings/*`, `/reports/cod-report`) land on the right page for every role | 🔄 | Several verified in the 3 Nov sweep; role matrix not done |
