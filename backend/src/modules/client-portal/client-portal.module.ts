@@ -32,6 +32,7 @@ import { ExternalOutboundController } from './external-api/external-outbound.con
 import { ExternalOutboundService } from './external-api/external-outbound.service';
 import { ClientAuthController } from './auth/client-auth.controller';
 import { ClientAuthService } from './auth/client-auth.service';
+import { ClientGoogleSignInService } from './auth/client-google-sign-in.service';
 import { JwtClientAuthGuard } from './auth/jwt-client-auth.guard';
 import { JwtClientStrategy } from './auth/strategies/jwt-client.strategy';
 import { ClientInboundOrdersController } from './inbound/client-inbound-orders.controller';
@@ -122,6 +123,7 @@ import { SettingsModule } from '../settings/settings.module';
   providers: [
     ClientWebhooksService,
     ClientAuthService,
+    ClientGoogleSignInService,
     ClientStockService,
     ClientProductsService,
     ClientInboundOrdersService,

@@ -219,10 +219,31 @@ export class InboundOrdersCsvService {
       return rowObj;
     });
 
+    const statusCounts = items.reduce<Record<string, number>>((acc, o) => {
+      const s = String(o.status ?? '—');
+      acc[s] = (acc[s] ?? 0) + 1;
+      return acc;
+    }, {});
+    const statusSummary = Object.entries(statusCounts)
+      .sort((a, b) => b[1] - a[1])
+      .map(([s, n]) => `${s}: ${n}`)
+      .join('  |  ');
+    const totalQtyAll = items.reduce(
+      (sum, o) => sum + (o.lines ?? []).reduce((s, l) => s + Number(l.expectedQuantity ?? 0), 0),
+      0,
+    );
+
     const buffer = await buildExcelBuffer({
       sheetName: 'Inbound Orders',
+      title: 'Inbound Orders Export',
       columns,
       rows,
+      summary: [
+        { label: 'Total Orders', value: items.length },
+        { label: 'By Status', value: statusSummary || '—' },
+        { label: 'Total Expected Qty', value: totalQtyAll },
+        { label: 'Export Date', value: new Date().toISOString().slice(0, 10) },
+      ],
     });
 
     const stamp = new Date().toISOString().slice(0, 10);

@@ -7,6 +7,8 @@ import {
   HttpCode,
   Patch,
   Post,
+  Query,
+  Redirect,
   Req,
   Res,
   UploadedFile,
@@ -23,6 +25,7 @@ import { ClientPrincipal } from '../../../common/auth/client-principal.types';
 import { PasswordResetService } from '../../../common/password-reset/password-reset.service';
 import { ClientUser } from './client-user.decorator';
 import { ClientAuthService } from './client-auth.service';
+import { ClientGoogleSignInService } from './client-google-sign-in.service';
 import { ClientChangePasswordDto } from './dto/client-change-password.dto';
 import { ClientLoginDto } from './dto/client-login.dto';
 import { ClientRequestPasswordResetDto } from './dto/client-request-password-reset.dto';
@@ -54,6 +57,7 @@ export class ClientAuthController {
   constructor(
     private readonly auth: ClientAuthService,
     private readonly passwordReset: PasswordResetService,
+    private readonly googleSignIn: ClientGoogleSignInService,
   ) {}
 
   @Public()
@@ -139,5 +143,57 @@ export class ClientAuthController {
   async resetPassword(@Body() dto: ClientResetPasswordDto) {
     await this.passwordReset.resetPassword(dto.email, dto.code, dto.newPassword);
     return { message: 'Password updated successfully.' };
+  }
+
+  // ── Google Sign-In ────────────────────────────────────────────────────────
+
+  @Public()
+  @Get('google/status')
+  googleStatus() {
+    return this.googleSignIn.getStatus();
+  }
+
+  @Public()
+  @Get('google/login')
+  googleLogin(@Query('rememberMe') rememberMe: string, @Res() res: import('express').Response) {
+    const url = this.googleSignIn.buildLoginUrl({ rememberMe: rememberMe === '1' || rememberMe === 'true' });
+    res.redirect(url);
+  }
+
+  @Public()
+  @Get('google/callback')
+  async googleCallback(
+    @Query('code') code: string,
+    @Query('state') state: string,
+    @Query('error') error: string,
+    @Res() res: import('express').Response,
+  ) {
+    await this.googleSignIn.handleCallback(code, state, error, res);
+  }
+
+  @Public()
+  @Get('google/link')
+  @UseGuards(JwtClientAuthGuard)
+  async googleLink(@ClientUser() user: ClientPrincipal, @Res() res: import('express').Response) {
+    const url = await this.googleSignIn.linkGoogle(user.id);
+    res.redirect(url);
+  }
+
+  @Public()
+  @Get('google/link-callback')
+  async googleLinkCallback(
+    @Query('code') code: string,
+    @Query('state') state: string,
+    @Query('error') error: string,
+    @Res() res: import('express').Response,
+  ) {
+    await this.googleSignIn.handleLinkCallback(code, state, error, res);
+  }
+
+  @Post('google/unlink')
+  @HttpCode(200)
+  @UseGuards(JwtClientAuthGuard)
+  unlinkGoogle(@ClientUser() user: ClientPrincipal) {
+    return this.googleSignIn.unlink(user.id);
   }
 }

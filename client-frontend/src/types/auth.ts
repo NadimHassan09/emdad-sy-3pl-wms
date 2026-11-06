@@ -8,6 +8,8 @@ export interface ClientUser {
   companyId: string;
   companyName: string;
   avatarUrl?: string | null;
+  googleLinked?: boolean;
+  googleEmail?: string | null;
 }
 
 export interface ClientLoginPayload {

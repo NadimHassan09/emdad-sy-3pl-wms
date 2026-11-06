@@ -141,6 +141,8 @@ let ClientAuthService = class ClientAuthService {
                 role: true,
                 companyId: true,
                 avatarPath: true,
+                googleSub: true,
+                googleEmail: true,
                 company: { select: { name: true } },
             },
         });
@@ -155,6 +157,8 @@ let ClientAuthService = class ClientAuthService {
             companyId: row.companyId,
             companyName: row.company?.name ?? '',
             avatarUrl: (0, avatar_url_1.toAvatarPublicUrl)(row.avatarPath),
+            googleLinked: Boolean(row.googleSub),
+            googleEmail: row.googleEmail ?? null,
         };
     }
     async uploadAvatar(user, file) {

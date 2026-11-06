@@ -1,5 +1,5 @@
 import type { FormEvent, ReactElement } from 'react';
-import { useLayoutEffect, useMemo, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useState } from 'react';
 import { Navigate, useLocation, useNavigate } from 'react-router-dom';
 
 import { LoginScreen, applyUiTheme } from '@ds';
@@ -14,6 +14,7 @@ import {
 } from '../services/authStorage';
 import { getLoginErrorMessage } from '../utils/loginError';
 import { apiClient } from '../services/apiClient';
+import { getClientApiBaseUrl } from '../services/apiBaseUrl';
 
 const LANG_KEY = 'client-ui-language';
 const LANG_EVENT = 'client-ui-language-changed';
@@ -251,7 +252,15 @@ export function LoginPage(): ReactElement {
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [showForgot, setShowForgot] = useState(false);
+  const [googleEnabled, setGoogleEnabled] = useState(false);
   const isArabic = useClientArabic();
+
+  useEffect(() => {
+    apiClient
+      .get<{ enabled: boolean }>('/auth/google/status')
+      .then((r) => setGoogleEnabled(r.data.enabled))
+      .catch(() => {/* Google Sign-In status check failed — silently disable */});
+  }, []);
   // Login pages should not follow user/browser dark-mode preferences.
   // Force light theme to keep the login UI consistent on every environment.
   useLayoutEffect(() => {
@@ -344,15 +353,35 @@ export function LoginPage(): ReactElement {
       }
     : null;
 
-  const forgotPasswordSlot = (
-    <div className="pt-1 text-center">
-      <button
-        type="button"
-        onClick={() => setShowForgot(true)}
-        className="text-xs text-brand-600 hover:underline"
-      >
-        {t('Forgot password?', 'نسيت كلمة المرور؟')}
-      </button>
+  const googleLoginUrl = `${getClientApiBaseUrl()}/auth/google/login${rememberFor30Days ? '?rememberMe=1' : ''}`;
+
+  const oauthAndForgotSlot = (
+    <div className="space-y-2">
+      {googleEnabled && (
+        <button
+          type="button"
+          disabled={submitting}
+          onClick={() => window.location.assign(googleLoginUrl)}
+          className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl border border-border-strong bg-white text-sm font-semibold text-text-strong shadow-sm transition hover:bg-surface-sunken disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          <svg viewBox="0 0 24 24" className="h-4 w-4" aria-hidden>
+            <path fill="#EA4335" d="M12 10.2v3.6h5.1c-.2 1.2-.9 2.2-1.9 2.9l3.1 2.4c1.8-1.7 2.8-4.1 2.8-7 0-.7-.1-1.3-.2-1.9H12z"/>
+            <path fill="#34A853" d="M6.6 14.3l-.5.4-2.2 1.7C5.5 19.2 8.5 21 12 21c2.4 0 4.4-.8 5.9-2.1l-3.1-2.4c-.8.6-1.9.9-2.8.9-2.2 0-4-1.5-4.7-3.4z"/>
+            <path fill="#4A90E2" d="M4 9c-.6 1.1-.9 2.3-.9 3.6s.3 2.5.9 3.6c0 .1 2.7-2.1 2.7-2.1-.2-.5-.3-1-.3-1.5s.1-1 .3-1.5L4 9z"/>
+            <path fill="#FBBC05" d="M12 4.5c1.3 0 2.5.5 3.4 1.3l2.6-2.6C16.4 1.7 14.4 1 12 1 8.5 1 5.5 2.8 4 5.7L6.7 7.8C7.9 5.9 9.8 4.5 12 4.5z"/>
+          </svg>
+          {t('Sign in with Google', 'تسجيل الدخول عبر Google')}
+        </button>
+      )}
+      <div className="pt-1 text-center">
+        <button
+          type="button"
+          onClick={() => setShowForgot(true)}
+          className="text-xs text-brand-600 hover:underline"
+        >
+          {t('Forgot password?', 'نسيت كلمة المرور؟')}
+        </button>
+      </div>
     </div>
   );
 
@@ -387,7 +416,7 @@ export function LoginPage(): ReactElement {
         rememberedAccount={rememberedForUi}
         onSelectRememberedAccount={() => void selectRememberedAccount()}
         onClearRememberedAccount={clearRemembered}
-        oauthSlot={forgotPasswordSlot}
+        oauthSlot={oauthAndForgotSlot}
         bootSlot={
           !bootstrapped ? (
             <div className="flex flex-col items-center gap-3">

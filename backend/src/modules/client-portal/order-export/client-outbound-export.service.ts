@@ -113,10 +113,25 @@ export class ClientOutboundExportService {
       return rowObj;
     });
 
+    const statusCounts = items.reduce<Record<string, number>>((acc, o) => {
+      const s = String(o.status ?? '—');
+      acc[s] = (acc[s] ?? 0) + 1;
+      return acc;
+    }, {});
+    const statusSummary = Object.entries(statusCounts)
+      .sort((a, b) => b[1] - a[1])
+      .map(([s, n]) => `${s}: ${n}`)
+      .join('  |  ');
     const buffer = await buildExcelBuffer({
       sheetName: 'Outbound Orders',
+      title: 'Outbound Orders Export',
       columns,
       rows,
+      summary: [
+        { label: 'Total Orders', value: items.length },
+        { label: 'By Status', value: statusSummary || '—' },
+        { label: 'Export Date', value: new Date().toISOString().slice(0, 10) },
+      ],
     });
     const stamp = new Date().toISOString().slice(0, 10);
     return {

@@ -13,6 +13,7 @@ const jwt_1 = require("@nestjs/jwt");
 const passport_1 = require("@nestjs/passport");
 const audit_module_1 = require("../../common/audit/audit.module");
 const crypto_module_1 = require("../../common/crypto/crypto.module");
+const password_reset_module_1 = require("../../common/password-reset/password-reset.module");
 const prisma_module_1 = require("../../common/prisma/prisma.module");
 const inbound_module_1 = require("../inbound/inbound.module");
 const inventory_module_1 = require("../inventory/inventory.module");
@@ -39,6 +40,7 @@ const external_outbound_controller_1 = require("./external-api/external-outbound
 const external_outbound_service_1 = require("./external-api/external-outbound.service");
 const client_auth_controller_1 = require("./auth/client-auth.controller");
 const client_auth_service_1 = require("./auth/client-auth.service");
+const client_google_sign_in_service_1 = require("./auth/client-google-sign-in.service");
 const jwt_client_auth_guard_1 = require("./auth/jwt-client-auth.guard");
 const jwt_client_strategy_1 = require("./auth/strategies/jwt-client.strategy");
 const client_inbound_orders_controller_1 = require("./inbound/client-inbound-orders.controller");
@@ -93,6 +95,7 @@ exports.ClientPortalModule = ClientPortalModule = __decorate([
             }),
             prisma_module_1.PrismaModule,
             crypto_module_1.CryptoModule,
+            password_reset_module_1.PasswordResetModule,
             settings_module_1.SettingsModule,
             inventory_module_1.InventoryModule,
             products_module_1.ProductsModule,
@@ -130,6 +133,7 @@ exports.ClientPortalModule = ClientPortalModule = __decorate([
         providers: [
             client_webhooks_service_1.ClientWebhooksService,
             client_auth_service_1.ClientAuthService,
+            client_google_sign_in_service_1.ClientGoogleSignInService,
             client_stock_service_1.ClientStockService,
             client_products_service_1.ClientProductsService,
             client_inbound_orders_service_1.ClientInboundOrdersService,

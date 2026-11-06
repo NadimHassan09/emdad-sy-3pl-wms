@@ -12,6 +12,8 @@ function mapUser(row: ClientLoginPayload['user'] | ClientUser): ClientUser {
     companyId: row.companyId,
     companyName: row.companyName ?? '',
     avatarUrl: 'avatarUrl' in row ? row.avatarUrl ?? null : null,
+    googleLinked: 'googleLinked' in row ? row.googleLinked : undefined,
+    googleEmail: 'googleEmail' in row ? row.googleEmail ?? null : undefined,
   };
 }
 
@@ -68,4 +70,8 @@ export async function changeClientPassword(body: {
 }): Promise<{ changed: boolean }> {
   const { data } = await apiClient.post<{ changed: boolean }>('/auth/change-password', body);
   return data;
+}
+
+export async function unlinkGoogleAccount(): Promise<void> {
+  await apiClient.post('/auth/google/unlink', {});
 }

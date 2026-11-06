@@ -149,11 +149,26 @@ export class ClientOmsExportService {
     });
 
     const stamp = new Date().toISOString().slice(0, 10);
+    const statusCounts = items.reduce<Record<string, number>>((acc, o) => {
+      const s = String(o.status ?? '—');
+      acc[s] = (acc[s] ?? 0) + 1;
+      return acc;
+    }, {});
+    const statusSummary = Object.entries(statusCounts)
+      .sort((a, b) => b[1] - a[1])
+      .map(([s, n]) => `${s}: ${n}`)
+      .join('  |  ');
     const buffer = await buildExcelBuffer({
       sheetName: 'Online Orders',
+      title: 'Online Orders Export',
       columns: columnIds.map((id, idx) => ({ header: headers[idx] ?? id, key: id })),
       rows,
       isRtl: arabic,
+      summary: [
+        { label: 'Total Orders', value: items.length },
+        { label: 'By Status', value: statusSummary || '—' },
+        { label: 'Export Date', value: stamp },
+      ],
     });
 
     return {

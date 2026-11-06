@@ -20,9 +20,12 @@ const class_validator_1 = require("class-validator");
 const multer_1 = require("multer");
 const current_user_decorator_1 = require("../../common/auth/current-user.decorator");
 const public_decorator_1 = require("../../common/auth/public.decorator");
+const password_reset_service_1 = require("../../common/password-reset/password-reset.service");
 const auth_service_1 = require("./auth.service");
 const change_password_dto_1 = require("./dto/change-password.dto");
 const login_dto_1 = require("./dto/login.dto");
+const request_password_reset_dto_1 = require("./dto/request-password-reset.dto");
+const reset_password_dto_1 = require("./dto/reset-password.dto");
 const update_profile_dto_1 = require("./dto/update-profile.dto");
 const google_oauth_service_1 = require("./google-oauth.service");
 class LogoutDto {
@@ -46,9 +49,11 @@ function assertUploadedImage(file) {
 let AuthController = class AuthController {
     auth;
     googleOAuth;
-    constructor(auth, googleOAuth) {
+    passwordReset;
+    constructor(auth, googleOAuth, passwordReset) {
         this.auth = auth;
         this.googleOAuth = googleOAuth;
+        this.passwordReset = passwordReset;
     }
     login(dto, req, res) {
         return this.auth.login(dto, req, res);
@@ -92,6 +97,14 @@ let AuthController = class AuthController {
     }
     changePassword(user, dto, req, res) {
         return this.auth.changePassword(user, dto, req, res);
+    }
+    async requestPasswordReset(dto) {
+        await this.passwordReset.requestReset(dto.email);
+        return { message: 'If an account with that email exists, a reset code has been sent.' };
+    }
+    async resetPassword(dto) {
+        await this.passwordReset.resetPassword(dto.email, dto.code, dto.newPassword);
+        return { message: 'Password updated successfully.' };
     }
 };
 exports.AuthController = AuthController;
@@ -222,9 +235,28 @@ __decorate([
     __metadata("design:paramtypes", [Object, change_password_dto_1.ChangePasswordDto, Object, Object]),
     __metadata("design:returntype", void 0)
 ], AuthController.prototype, "changePassword", null);
+__decorate([
+    (0, public_decorator_1.Public)(),
+    (0, common_1.Post)('request-reset'),
+    (0, common_1.HttpCode)(200),
+    __param(0, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [request_password_reset_dto_1.RequestPasswordResetDto]),
+    __metadata("design:returntype", Promise)
+], AuthController.prototype, "requestPasswordReset", null);
+__decorate([
+    (0, public_decorator_1.Public)(),
+    (0, common_1.Post)('reset-password'),
+    (0, common_1.HttpCode)(200),
+    __param(0, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [reset_password_dto_1.ResetPasswordDto]),
+    __metadata("design:returntype", Promise)
+], AuthController.prototype, "resetPassword", null);
 exports.AuthController = AuthController = __decorate([
     (0, common_1.Controller)('auth'),
     __metadata("design:paramtypes", [auth_service_1.AuthService,
-        google_oauth_service_1.GoogleOAuthService])
+        google_oauth_service_1.GoogleOAuthService,
+        password_reset_service_1.PasswordResetService])
 ], AuthController);
 //# sourceMappingURL=auth.controller.js.map

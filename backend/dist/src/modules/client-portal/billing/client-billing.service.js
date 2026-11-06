@@ -200,10 +200,23 @@ let ClientBillingService = class ClientBillingService {
             totalAmount: row.totalAmount.toString(),
             issuedAt: row.issuedAt ? row.issuedAt.toISOString().slice(0, 10) : '—',
         }));
+        const totalAmount = items.reduce((sum, i) => sum + Number(i.totalAmount), 0);
+        const totalVat = items.reduce((sum, i) => sum + Number(i.vatAmount), 0);
+        const paidCount = items.filter((i) => i.status === 'paid').length;
+        const unpaidCount = items.filter((i) => i.status === 'unpaid').length;
         return (0, excel_export_util_1.buildExcelBuffer)({
             sheetName: 'Invoices',
+            title: 'Invoices Export',
             columns,
             rows,
+            summary: [
+                { label: 'Total Invoices', value: items.length },
+                { label: 'Paid', value: paidCount },
+                { label: 'Unpaid', value: unpaidCount },
+                { label: 'Total Amount (USD)', value: totalAmount.toFixed(2) },
+                { label: 'Total VAT (USD)', value: totalVat.toFixed(2) },
+                { label: 'Export Date', value: new Date().toISOString().slice(0, 10) },
+            ],
         });
     }
     async listInvoices(client) {

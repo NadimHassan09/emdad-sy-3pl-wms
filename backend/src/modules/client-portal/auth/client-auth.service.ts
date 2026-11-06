@@ -144,7 +144,7 @@ export class ClientAuthService {
     };
   }
 
-  async getMe(user: ClientPrincipal): Promise<ClientPrincipal & { avatarUrl: string | null }> {
+  async getMe(user: ClientPrincipal): Promise<ClientPrincipal & { avatarUrl: string | null; googleLinked: boolean; googleEmail: string | null }> {
     const row = await this.prisma.user.findUnique({
       where: { id: user.id },
       select: {
@@ -154,6 +154,8 @@ export class ClientAuthService {
         role: true,
         companyId: true,
         avatarPath: true,
+        googleSub: true,
+        googleEmail: true,
         company: { select: { name: true } },
       },
     });
@@ -168,6 +170,8 @@ export class ClientAuthService {
       companyId: row.companyId,
       companyName: row.company?.name ?? '',
       avatarUrl: toAvatarPublicUrl(row.avatarPath),
+      googleLinked: Boolean(row.googleSub),
+      googleEmail: row.googleEmail ?? null,
     };
   }
 
