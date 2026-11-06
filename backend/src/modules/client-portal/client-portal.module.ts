@@ -5,6 +5,7 @@ import { PassportModule } from '@nestjs/passport';
 
 import { AuditModule } from '../../common/audit/audit.module';
 import { CryptoModule } from '../../common/crypto/crypto.module';
+import { PasswordResetModule } from '../../common/password-reset/password-reset.module';
 import { PrismaModule } from '../../common/prisma/prisma.module';
 import { InboundModule } from '../inbound/inbound.module';
 import { InventoryModule } from '../inventory/inventory.module';
@@ -83,6 +84,7 @@ import { SettingsModule } from '../settings/settings.module';
     }),
     PrismaModule,
     CryptoModule,
+    PasswordResetModule,
     SettingsModule,
     InventoryModule,
     ProductsModule,

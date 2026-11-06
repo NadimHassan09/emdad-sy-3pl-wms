@@ -22,9 +22,12 @@ import type { Request, Response } from 'express';
 import { CurrentUser } from '../../common/auth/current-user.decorator';
 import { AuthPrincipal } from '../../common/auth/current-user.types';
 import { Public } from '../../common/auth/public.decorator';
+import { PasswordResetService } from '../../common/password-reset/password-reset.service';
 import { AuthService } from './auth.service';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { LoginDto } from './dto/login.dto';
+import { RequestPasswordResetDto } from './dto/request-password-reset.dto';
+import { ResetPasswordDto } from './dto/reset-password.dto';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 import { GoogleOAuthService } from './google-oauth.service';
 
@@ -66,6 +69,7 @@ export class AuthController {
   constructor(
     private readonly auth: AuthService,
     private readonly googleOAuth: GoogleOAuthService,
+    private readonly passwordReset: PasswordResetService,
   ) {}
 
   @Public()
@@ -189,5 +193,21 @@ export class AuthController {
     @Res({ passthrough: true }) res: Response,
   ) {
     return this.auth.changePassword(user, dto, req, res);
+  }
+
+  @Public()
+  @Post('request-reset')
+  @HttpCode(200)
+  async requestPasswordReset(@Body() dto: RequestPasswordResetDto) {
+    await this.passwordReset.requestReset(dto.email);
+    return { message: 'If an account with that email exists, a reset code has been sent.' };
+  }
+
+  @Public()
+  @Post('reset-password')
+  @HttpCode(200)
+  async resetPassword(@Body() dto: ResetPasswordDto) {
+    await this.passwordReset.resetPassword(dto.email, dto.code, dto.newPassword);
+    return { message: 'Password updated successfully.' };
   }
 }

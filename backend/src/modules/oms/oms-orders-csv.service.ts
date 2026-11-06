@@ -252,11 +252,27 @@ export class OmsOrdersCsvService {
     });
 
     const stamp = new Date().toISOString().slice(0, 10);
+    const statusCounts = rows.reduce<Record<string, number>>((acc, r) => {
+      const s = String(r['status'] ?? '—');
+      acc[s] = (acc[s] ?? 0) + 1;
+      return acc;
+    }, {});
+    const statusSummary = Object.entries(statusCounts)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 4)
+      .map(([s, n]) => `${s}: ${n}`)
+      .join('  |  ');
     const buffer = await buildExcelBuffer({
       sheetName: 'OMS Orders',
+      title: 'OMS Orders Export',
       columns: columnIds.map((id, idx) => ({ header: headers[idx] ?? id, key: id })),
       rows,
       isRtl: arabic,
+      summary: [
+        { label: 'Total Orders', value: rows.length },
+        { label: 'By Status', value: statusSummary || '—' },
+        { label: 'Export Date', value: stamp },
+      ],
     });
 
     return {

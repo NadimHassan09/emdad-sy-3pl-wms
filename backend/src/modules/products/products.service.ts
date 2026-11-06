@@ -445,10 +445,28 @@ export class ProductsService {
         { header: 'Created At', key: 'createdAt', width: 20 },
       ];
 
+      const totalOnHand = rows.reduce((acc, r) => acc + Number(r.onHand ?? 0), 0);
+      const totalReserved = rows.reduce((acc, r) => acc + Number(r.reserved ?? 0), 0);
+      const activeCount = rows.filter((r) => String(r.status) === 'ACTIVE').length;
+      const topSkus = [...rows]
+        .sort((a, b) => Number(b.onHand ?? 0) - Number(a.onHand ?? 0))
+        .slice(0, 3)
+        .map((r) => `${String(r.sku)} (${String(r.onHand)})`)
+        .join(', ');
+
       return buildExcelBuffer({
         sheetName: 'Products',
+        title: 'Products Export',
         columns,
         rows,
+        summary: [
+          { label: 'Total SKUs', value: rows.length },
+          { label: 'Active SKUs', value: activeCount },
+          { label: 'Total On Hand', value: totalOnHand },
+          { label: 'Total Reserved', value: totalReserved },
+          { label: 'Top SKUs by Stock', value: topSkus || '—' },
+          { label: 'Export Date', value: new Date().toLocaleDateString('en-GB') },
+        ],
       });
     });
   }

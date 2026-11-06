@@ -6,6 +6,7 @@ import { PassportModule } from '@nestjs/passport';
 import { AuditModule } from '../../common/audit/audit.module';
 import { CompanyAccessModule } from '../../common/company-access/company-access.module';
 import { CryptoModule } from '../../common/crypto/crypto.module';
+import { PasswordResetModule } from '../../common/password-reset/password-reset.module';
 import { PrismaModule } from '../../common/prisma/prisma.module';
 import { MediaModule } from '../media/media.module';
 import { AuthController } from './auth.controller';
@@ -35,6 +36,7 @@ import { UserActivityService } from './user-activity.service';
     PrismaModule,
     CryptoModule,
     MediaModule,
+    PasswordResetModule,
   ],
   controllers: [AuthController],
   providers: [

@@ -1135,6 +1135,7 @@ model User {
   shippingFxSettingsUpdated    ShippingFxSettings[]         @relation("ShippingFxSettingsUpdatedBy")
   googleOAuthSettings          GoogleOAuthSettings[]        @relation("GoogleOAuthSettingsUpdatedBy")
   clientGoogleToken            ClientGoogleToken?           @relation("ClientGoogleToken")
+  passwordResetTokens          PasswordResetToken[]         @relation("PasswordResetTokens")
   bulkShippingJobsTriggered    BulkShippingJob[]            @relation("BulkShippingTriggeredBy")
   apiCredentialsCreated        ApiCredential[]              @relation("ApiCredentialCreatedBy")
   apiCredentialsRevoked        ApiCredential[]              @relation("ApiCredentialRevokedBy")
@@ -3106,6 +3107,20 @@ model GoogleOAuthSettings {
   updatedBy User? @relation("GoogleOAuthSettingsUpdatedBy", fields: [updatedByUserId], references: [id], onDelete: SetNull)
 
   @@map("google_oauth_settings")
+}
+
+model PasswordResetToken {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  code      String   @db.VarChar(6)
+  expiresAt DateTime @map("expires_at") @db.Timestamptz(6)
+  used      Boolean  @default(false)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  user User @relation("PasswordResetTokens", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("password_reset_tokens")
 }
 
 model ClientGoogleToken {

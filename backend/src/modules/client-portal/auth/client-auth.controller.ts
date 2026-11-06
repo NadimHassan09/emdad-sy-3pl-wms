@@ -20,10 +20,13 @@ import type { Request, Response } from 'express';
 
 import { Public } from '../../../common/auth/public.decorator';
 import { ClientPrincipal } from '../../../common/auth/client-principal.types';
+import { PasswordResetService } from '../../../common/password-reset/password-reset.service';
 import { ClientUser } from './client-user.decorator';
 import { ClientAuthService } from './client-auth.service';
 import { ClientChangePasswordDto } from './dto/client-change-password.dto';
 import { ClientLoginDto } from './dto/client-login.dto';
+import { ClientRequestPasswordResetDto } from './dto/client-request-password-reset.dto';
+import { ClientResetPasswordDto } from './dto/client-reset-password.dto';
 import { ClientUpdateProfileDto } from './dto/client-update-profile.dto';
 import { JwtClientAuthGuard } from './jwt-client-auth.guard';
 
@@ -48,7 +51,10 @@ function assertUploadedImage(file?: Express.Multer.File): Express.Multer.File {
  */
 @Controller('client/auth')
 export class ClientAuthController {
-  constructor(private readonly auth: ClientAuthService) {}
+  constructor(
+    private readonly auth: ClientAuthService,
+    private readonly passwordReset: PasswordResetService,
+  ) {}
 
   @Public()
   @SkipThrottle()
@@ -117,5 +123,21 @@ export class ClientAuthController {
   @UseGuards(JwtClientAuthGuard)
   changePassword(@ClientUser() user: ClientPrincipal, @Body() dto: ClientChangePasswordDto) {
     return this.auth.changePassword(user, dto);
+  }
+
+  @Public()
+  @Post('request-reset')
+  @HttpCode(200)
+  async requestPasswordReset(@Body() dto: ClientRequestPasswordResetDto) {
+    await this.passwordReset.requestReset(dto.email);
+    return { message: 'If an account with that email exists, a reset code has been sent.' };
+  }
+
+  @Public()
+  @Post('reset-password')
+  @HttpCode(200)
+  async resetPassword(@Body() dto: ClientResetPasswordDto) {
+    await this.passwordReset.resetPassword(dto.email, dto.code, dto.newPassword);
+    return { message: 'Password updated successfully.' };
   }
 }
