@@ -71,6 +71,10 @@ describe('FinanceReportsRunner', () => {
   });
 
   it('builds receivables aging rows with bucket filter', async () => {
+    // issue 105 days ago → due 75 days ago → "61–90 days" bucket
+    const issuedAt1 = new Date(Date.now() - (30 + 75) * 24 * 60 * 60 * 1000);
+    // issue 158 days ago → due 128 days ago → "90+ days" bucket
+    const issuedAt2 = new Date(Date.now() - (30 + 128) * 24 * 60 * 60 * 1000);
     const prisma = {
       invoice: {
         findMany: jest.fn().mockResolvedValue([
@@ -79,7 +83,7 @@ describe('FinanceReportsRunner', () => {
             invoiceNumber: 'INV-001',
             status: 'overdue',
             totalAmount: { toString: () => '500.00' },
-            issuedAt: new Date('2026-03-01T00:00:00Z'),
+            issuedAt: issuedAt1,
             company: { name: 'Acme', paymentTermsDays: 30 },
           },
           {
@@ -87,7 +91,7 @@ describe('FinanceReportsRunner', () => {
             invoiceNumber: 'INV-002',
             status: 'open',
             totalAmount: { toString: () => '200.00' },
-            issuedAt: new Date('2026-06-01T00:00:00Z'),
+            issuedAt: issuedAt2,
             company: { name: 'Beta', paymentTermsDays: 30 },
           },
         ]),

@@ -137,10 +137,12 @@ describe('OmsOrdersCsvService import grouping', () => {
     const tpl = svc.getImportTemplate();
     expect(tpl.filename).toBe('oms-orders-import-template.csv');
     const lines = tpl.body.replace(/^\uFEFF/, '').trim().split('\n');
-    expect(lines[0]).toContain('external_reference');
+    // Admin template now delegates to client-portal format (order_number, not external_reference)
+    expect(lines[0]).toContain('order_number');
     expect(lines.length).toBeGreaterThanOrEqual(3);
-    expect(lines[1]).toContain('ORD-IMPORT-001');
-    expect(lines[2]).toContain('ORD-IMPORT-001');
+    // Two rows with the same order number (multi-line order)
+    expect(lines[1]).toContain('WA-20260901-001');
+    expect(lines[2]).toContain('WA-20260901-001');
   });
 
   it('builds CSV header list matching import contract', () => {

@@ -96,6 +96,10 @@ describe('InventoryIntelligenceReportsRunner', () => {
   });
 
   it('filters lot expiry by aging bucket', async () => {
+    // 15 days from now → "0–30 days" bucket
+    const expiryNear = new Date(Date.now() + 15 * 24 * 60 * 60 * 1000);
+    // 200 days from now → "180+ days" bucket
+    const expiryFar = new Date(Date.now() + 200 * 24 * 60 * 60 * 1000);
     const inventory = {
       stock: jest.fn().mockResolvedValue({
         items: [
@@ -104,14 +108,14 @@ describe('InventoryIntelligenceReportsRunner', () => {
             quantityOnHand: 5,
             product: { sku: 'SKU-2', name: 'Perishable' },
             location: { fullPath: 'B-02' },
-            lot: { lotNumber: 'L-1', expiryDate: new Date('2026-06-20T00:00:00Z') },
+            lot: { lotNumber: 'L-1', expiryDate: expiryNear },
           },
           {
             id: 's2',
             quantityOnHand: 3,
             product: { sku: 'SKU-3', name: 'Stable' },
             location: { fullPath: 'B-03' },
-            lot: { lotNumber: 'L-2', expiryDate: new Date('2027-01-01T00:00:00Z') },
+            lot: { lotNumber: 'L-2', expiryDate: expiryFar },
           },
         ],
         total: 2,
@@ -133,28 +137,28 @@ describe('InventoryIntelligenceReportsRunner', () => {
     });
   });
 
-  it('summarizes capacity utilization for a warehouse', async () => {
+  it('summarizes capacity utilization per company (CBM-based)', async () => {
+    // company c1: 10 × 0.5 CBM + 5 × 0.5 CBM = 7.5 CBM used, reserved = 10 CBM
     const prisma = {
-      location: {
-        count: jest
-          .fn()
-          .mockResolvedValueOnce(100)
-          .mockResolvedValueOnce(40),
-      },
       currentStock: {
         findMany: jest.fn().mockResolvedValue([
           {
-            locationId: 'loc-1',
-            productId: 'p1',
+            companyId: 'c1',
             quantityOnHand: 10,
-            location: { fullPath: 'A-01', name: 'A-01' },
+            product: { volumeCbm: '0.5' },
+            company: { id: 'c1', name: 'Acme' },
           },
           {
-            locationId: 'loc-1',
-            productId: 'p2',
+            companyId: 'c1',
             quantityOnHand: 5,
-            location: { fullPath: 'A-01', name: 'A-01' },
+            product: { volumeCbm: '0.5' },
+            company: { id: 'c1', name: 'Acme' },
           },
+        ]),
+      },
+      billingPlan: {
+        findMany: jest.fn().mockResolvedValue([
+          { companyId: 'c1', reservedVolume: '10', company: { name: 'Acme' } },
         ]),
       },
     };
@@ -166,14 +170,11 @@ describe('InventoryIntelligenceReportsRunner', () => {
       offset: 0,
     });
 
+    expect(result.total).toBeGreaterThanOrEqual(1);
     expect(result.items[0]).toMatchObject({
-      id: 'summary',
-      utilization: '40% (40 / 100 locations)',
-    });
-    expect(result.items[1]).toMatchObject({
-      location: 'A-01',
-      skuCount: '2',
-      totalQty: '15',
+      id: 'c1',
+      location: 'Acme',
+      type: 'inventory_cbm',
     });
   });
 

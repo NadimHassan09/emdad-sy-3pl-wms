@@ -50,8 +50,9 @@ describe('ReturnsService.list (server pagination)', () => {
     };
     const findMany = jest.fn().mockResolvedValue([row]);
     const count = jest.fn().mockResolvedValue(42);
-    const prisma = {
-      $transaction: jest.fn((ops: Promise<unknown>[]) => Promise.all(ops)),
+    const prisma: any = {
+      $transaction: jest.fn((cb: (tx: any) => Promise<unknown>) => cb(prisma)),
+      $executeRaw: jest.fn().mockResolvedValue(undefined),
       returnOrder: { findMany, count },
     };
     const service = buildService(prisma);
@@ -78,8 +79,9 @@ describe('ReturnsService.list (server pagination)', () => {
   it('applies status and date filters server-side', async () => {
     const findMany = jest.fn().mockResolvedValue([]);
     const count = jest.fn().mockResolvedValue(0);
-    const prisma = {
-      $transaction: jest.fn((ops: Promise<unknown>[]) => Promise.all(ops)),
+    const prisma: any = {
+      $transaction: jest.fn((cb: (tx: any) => Promise<unknown>) => cb(prisma)),
+      $executeRaw: jest.fn().mockResolvedValue(undefined),
       returnOrder: { findMany, count },
     };
     const service = buildService(prisma);
@@ -110,8 +112,9 @@ describe('ReturnsService.list (server pagination)', () => {
   it('applies orderSearch filter server-side', async () => {
     const findMany = jest.fn().mockResolvedValue([]);
     const count = jest.fn().mockResolvedValue(0);
-    const prisma = {
-      $transaction: jest.fn((ops: Promise<unknown>[]) => Promise.all(ops)),
+    const prisma: any = {
+      $transaction: jest.fn((cb: (tx: any) => Promise<unknown>) => cb(prisma)),
+      $executeRaw: jest.fn().mockResolvedValue(undefined),
       returnOrder: { findMany, count },
     };
     const service = buildService(prisma);

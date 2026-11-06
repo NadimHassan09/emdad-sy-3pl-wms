@@ -41,16 +41,17 @@ describe('excel-export.util', () => {
       await workbook.xlsx.load(buffer as any);
       const sheet = workbook.getWorksheet('Orders');
       expect(sheet).toBeDefined();
-      expect(sheet?.rowCount).toBe(3); // 1 header + 2 rows
+      // 2 branding rows (logo + meta) + 1 gap row + 1 header row + 2 data rows = 6
+      expect(sheet?.rowCount).toBe(6);
 
-      const row2 = sheet?.getRow(2);
-      expect(row2?.getCell(1).value).toBe('ORD-001');
-      expect(row2?.getCell(2).value).toBe('John Doe');
-      expect(row2?.getCell(3).value).toBe(150);
+      const row5 = sheet?.getRow(5);
+      expect(row5?.getCell(1).value).toBe('ORD-001');
+      expect(row5?.getCell(2).value).toBe('John Doe');
+      expect(row5?.getCell(3).value).toBe(150);
 
-      const row3 = sheet?.getRow(3);
+      const row6 = sheet?.getRow(6);
       // Sanitized formula
-      expect(row3?.getCell(2).value).toBe('\'=HYPERLINK("bad")');
+      expect(row6?.getCell(2).value).toBe('\'=HYPERLINK("bad")');
     });
   });
 });

@@ -43,8 +43,9 @@ describe('CycleCountService.list (server pagination)', () => {
     const item = { id: 'cc-1', status: CycleCountStatus.scheduled };
     const findMany = jest.fn().mockResolvedValue([item]);
     const count = jest.fn().mockResolvedValue(10);
-    const prisma = {
-      $transaction: jest.fn((ops: Promise<unknown>[]) => Promise.all(ops)),
+    const prisma: any = {
+      $transaction: jest.fn((cb: (tx: any) => Promise<unknown>) => cb(prisma)),
+      $executeRaw: jest.fn().mockResolvedValue(undefined),
       cycleCount: { findMany, count },
     };
     const service = buildService(prisma);
@@ -67,8 +68,9 @@ describe('CycleCountService.list (server pagination)', () => {
   it('applies worker, discrepancy, and date filters server-side', async () => {
     const findMany = jest.fn().mockResolvedValue([]);
     const count = jest.fn().mockResolvedValue(0);
-    const prisma = {
-      $transaction: jest.fn((ops: Promise<unknown>[]) => Promise.all(ops)),
+    const prisma: any = {
+      $transaction: jest.fn((cb: (tx: any) => Promise<unknown>) => cb(prisma)),
+      $executeRaw: jest.fn().mockResolvedValue(undefined),
       cycleCount: { findMany, count },
     };
     const service = buildService(prisma);
@@ -106,8 +108,9 @@ describe('CycleCountService.listProductHistory (server pagination)', () => {
     const item = { id: 'hist-1', product: { id: 'p1', sku: 'SKU', name: 'Prod' } };
     const findMany = jest.fn().mockResolvedValue([item]);
     const count = jest.fn().mockResolvedValue(5);
-    const prisma = {
-      $transaction: jest.fn((ops: Promise<unknown>[]) => Promise.all(ops)),
+    const prisma: any = {
+      $transaction: jest.fn((cb: (tx: any) => Promise<unknown>) => cb(prisma)),
+      $executeRaw: jest.fn().mockResolvedValue(undefined),
       cycleCountProductHistory: { findMany, count },
     };
     const service = buildService(prisma);
