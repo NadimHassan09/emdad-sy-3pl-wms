@@ -168,14 +168,23 @@ api.interceptors.response.use(
     }
 
     const data = err.response?.data;
-    if (data && typeof data === 'object' && 'error' in data) {
-      const wrapped = Object.assign(new Error(data.error.message), {
-        code: data.error.code,
-        details: data.error.details,
-        fields: data.error.fields,
-        status,
-      });
-      return Promise.reject(wrapped);
+    if (data && typeof data === 'object') {
+      if ('error' in data && data.error && typeof data.error === 'object') {
+        const wrapped = Object.assign(new Error(data.error.message), {
+          code: data.error.code,
+          details: data.error.details,
+          fields: data.error.fields,
+          status,
+        });
+        return Promise.reject(wrapped);
+      }
+      // NestJS standard: { statusCode, message, error }
+      if ('message' in data && data.message) {
+        const msg = Array.isArray(data.message)
+          ? (data.message as string[]).join('; ')
+          : String(data.message);
+        return Promise.reject(Object.assign(new Error(msg), { status, code: 'REQUEST_FAILED' }));
+      }
     }
     return Promise.reject(err);
   },

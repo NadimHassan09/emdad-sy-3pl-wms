@@ -235,7 +235,13 @@ export function ShippingDetailsStageCard({
             </Alert>
           ) : null}
 
-          {carrierMethod && latestShipment?.status === 'failed' ? (
+          {carrierMethod && latestShipment?.status === 'failed' &&
+          /^Manually cancelled by admin/i.test(latestShipment?.lastErrorSafe || '') ? (
+            <Alert variant="warning" title="Cancelled locally — carrier not notified">
+              {latestShipment.lastErrorSafe?.replace(/^Manually cancelled by admin:\s*/i, '') ||
+                'The order was cancelled locally. Cancel manually in the carrier portal if needed.'}
+            </Alert>
+          ) : carrierMethod && latestShipment?.status === 'failed' ? (
             <Alert variant="error" title="Carrier send failed">
               {sendError?.message || 'Submission failed. Fix details and Send again.'}
               {sendError?.requiredAction ? (

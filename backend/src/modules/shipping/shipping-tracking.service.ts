@@ -1520,7 +1520,7 @@ export class ShippingTrackingService {
           supersededAt: now,
           lastTrackingStatus: 'cancelled',
           lastTrackingAt: now,
-          lastErrorSafe: `Cancelled by ${user.role} (${user.id}): ${reason}`.slice(0, 500),
+          lastErrorSafe: `Manually cancelled by admin: ${reason}`.slice(0, 500),
           nextPollAt: null,
           rawResultMeta: cancelResult
             ? (mergeShipmentRawMeta(carrierShipment.rawResultMeta, { cancelResult, cancelledAt: now.toISOString() }) as object)
