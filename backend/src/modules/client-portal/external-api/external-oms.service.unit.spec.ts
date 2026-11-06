@@ -48,9 +48,11 @@ describe('ExternalOmsService lifecycle consistency (F-05)', () => {
   });
 
   it('creates order with waiting_for_confirmation and DOES NOT automatically call confirm()', async () => {
+    const tomorrow = new Date(Date.now() + 24 * 60 * 60 * 1000);
+    const shipDate = `${tomorrow.getFullYear()}-${String(tomorrow.getMonth() + 1).padStart(2, '0')}-${String(tomorrow.getDate()).padStart(2, '0')}`;
     const dto: ExternalCreateOmsOrderDto = {
       externalOrderId: 'EXT-ORDER-999',
-      requiredShipDate: '2026-11-01',
+      requiredShipDate: shipDate,
       recipientName: 'Omar Khaled',
       countryCode: '963',
       recipientPhone: '944123456',

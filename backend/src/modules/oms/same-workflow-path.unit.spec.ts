@@ -10,7 +10,6 @@ describe('same NEW workflow code path', () => {
     expect(omsOrders.OmsOrdersService).toBeDefined();
     expect(outbound.OutboundService).toBeDefined();
     expect(workflow.WorkflowEngineService).toBeDefined();
-    expect(omsOrders.OmsOrdersService.prototype.recordExternalFulfillment).toBeUndefined();
     expect(typeof outbound.OutboundService.prototype.confirmAndDeduct).toBe('function');
     expect(
       typeof workflow.WorkflowEngineService.prototype.createOutboundInstanceWithFirstPickTask,

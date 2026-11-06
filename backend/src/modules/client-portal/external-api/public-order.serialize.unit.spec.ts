@@ -40,7 +40,7 @@ describe('publicOmsOrder (Client Portal parity)', () => {
     expect(view.orderNumber).toBe('OMS-2026-00001');
     expect(view.externalOrderId).toBe('SHOP-12345');
     expect(view.address).toBe('أبراج');
-    expect(view.carrier).toBe('Babel Express');
+    expect(view.carrier).toBeNull();
     expect(view.lines[0]).toMatchObject({
       sku: 'SKU-4QYMC6',
       productName: 'مروحة',

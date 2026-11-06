@@ -12,6 +12,7 @@ describe('OmsReturnsService - rollbackReturn', () => {
   let realtimeMock: any;
   let stockHelpersMock: any;
   let ledgerMock: any;
+  let shippingMock: any;
 
   const superAdminUser: AuthPrincipal = {
     id: 'user-admin-1',
@@ -68,8 +69,24 @@ describe('OmsReturnsService - rollbackReturn', () => {
         findFirst: jest.fn().mockResolvedValue(null),
         findMany: jest.fn(),
       },
+      carrierShipment: {
+        updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+        create: jest.fn().mockResolvedValue({ id: 'ship-new-1' }),
+      },
+      shippingProvider: {
+        findFirst: jest.fn().mockResolvedValue({ id: 'prov-1' }),
+      },
       $queryRaw: jest.fn(),
       $transaction: jest.fn((callback) => callback(prismaMock)),
+    };
+
+    shippingMock = {
+      reshipOutboundWithCarrier: jest.fn().mockResolvedValue({
+        ok: true,
+        awb: 'NEW-AWB-001',
+        providerCode: 'babel',
+        trackingNumber: 'TRK-NEW-001',
+      }),
     };
 
     companyAccessMock = {
@@ -99,6 +116,7 @@ describe('OmsReturnsService - rollbackReturn', () => {
       realtimeMock,
       stockHelpersMock,
       ledgerMock,
+      shippingMock as never,
     );
   });
 
@@ -285,6 +303,7 @@ describe('OmsReturnsService - rollbackReturn', () => {
           id: 'order-1',
           companyId: 'comp-1',
           orderNumber: 'ORD-001',
+          outboundOrderId: 'out-1',
           outboundOrder: {
             id: 'out-1',
             carrierShipments: [
@@ -332,10 +351,10 @@ describe('OmsReturnsService - rollbackReturn', () => {
         originalAmount: new Prisma.Decimal('50000'),
       });
 
-      const result = await service.rollbackReturn('ret-1', whManagerUser);
+      const result = await service.rollbackReturn('ret-1', whManagerUser, { targetStatus: 'out_for_delivery' });
 
       expect(result.restoredStatus).toBe(OmsOrderStatus.out_for_delivery);
-      expect(result.carrierReactivationStatus).toBe('active');
+      expect(result.carrierReactivationStatus).toBe('reshipped');
 
       // Verify stock helper called with quantity 3
       expect(stockHelpersMock.decrementWithMeta).toHaveBeenCalledWith(
@@ -389,7 +408,7 @@ describe('OmsReturnsService - rollbackReturn', () => {
       expect(prismaMock.omsOrderEvent.create).toHaveBeenCalledWith({
         data: expect.objectContaining({
           omsOrderId: 'order-1',
-          eventType: 'return.rollback_completed',
+          eventType: 'return.rollback_to_out_for_delivery',
         }),
       });
     });

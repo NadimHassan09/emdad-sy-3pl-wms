@@ -19,9 +19,9 @@ describe('CreateOmsOrderLineDto numeric rules', () => {
     expect(errors).toHaveLength(0);
   });
 
-  it('rejects decimal quantity', async () => {
+  it('accepts decimal quantity up to 4 decimal places', async () => {
     const errors = await validateLine({ requestedQuantity: 404.6555, unitPrice: 10 });
-    expect(errors.some((e) => e.property === 'requestedQuantity')).toBe(true);
+    expect(errors.some((e) => e.property === 'requestedQuantity')).toBe(false);
   });
 
   it('rejects zero and negative quantity', async () => {
@@ -37,12 +37,12 @@ describe('CreateOmsOrderLineDto numeric rules', () => {
     ).toBe(true);
   });
 
-  it('rejects decimal and negative price', async () => {
+  it('accepts decimal price up to 4 decimal places and rejects negative price', async () => {
     expect(
       (await validateLine({ requestedQuantity: 1, unitPrice: 10.5 })).some(
         (e) => e.property === 'unitPrice',
       ),
-    ).toBe(true);
+    ).toBe(false);
     expect(
       (await validateLine({ requestedQuantity: 1, unitPrice: -5 })).some(
         (e) => e.property === 'unitPrice',

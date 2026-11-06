@@ -27,6 +27,7 @@ function buildService(prisma: unknown): WarehouseTasksService {
     companyAccessMock(),
     { log: jest.fn(), fromPrincipal: jest.fn((_u, p) => p) } as never,
     {} as never,
+    {} as never,
   );
 }
 
