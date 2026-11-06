@@ -68,7 +68,7 @@ export function useClientSystemVersionSync(socket: Socket | null): void {
             try {
               const origin = socketHttpOrigin();
               const token = getStoredBearer();
-              const res = await fetch(`${origin}/api/auth/me`, {
+              const res = await fetch(`${origin}/api/client/auth/me`, {
                 headers: token ? { Authorization: `Bearer ${token}` } : {},
                 credentials: 'include',
               });

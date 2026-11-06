@@ -109,8 +109,10 @@ export class BillingAccessService {
   constructor(private readonly prisma: PrismaService) {}
 
   /**
-   * Ensures the client has an active billing plan and a non-expired billing cycle.
-   * Also rejects companies in `restricted` status (set on cycle expiry).
+   * Operational access for the client portal banner and create gates.
+   * Under Financial Management cutover (`cutover_active`), on-demand billing
+   * replaces fixed cycles — do not surface "billing cycle expiring" or block
+   * on missing/expired legacy cycles when the financial account is active.
    */
   async getOperationalAccess(companyId: string): Promise<{
     operationalAllowed: boolean;
@@ -126,6 +128,24 @@ export class BillingAccessService {
     }
     if (BILLING_BLOCKED_STATUSES.includes(company.status)) {
       return { operationalAllowed: false, accountStatus: 'restricted', daysRemaining: null };
+    }
+
+    const cutoverPolicy = await this.prisma.financialPolicy.findUnique({
+      where: { key: 'cutover_active' },
+      select: { value: true },
+    });
+    if (cutoverPolicy?.value === 'true') {
+      const financialAccount = await this.prisma.clientFinancialAccount.findUnique({
+        where: { companyId },
+        select: { status: true },
+      });
+      if (financialAccount) {
+        if (financialAccount.status === 'active') {
+          return { operationalAllowed: true, accountStatus: 'active', daysRemaining: null };
+        }
+        return { operationalAllowed: false, accountStatus: 'restricted', daysRemaining: null };
+      }
+      // No financial account row yet — fall through to legacy cycle checks.
     }
 
     const plan = await this.prisma.billingPlan.findFirst({

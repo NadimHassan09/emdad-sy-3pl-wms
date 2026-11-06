@@ -227,6 +227,14 @@ interface SidebarLinkProps extends HTMLAttributes<HTMLAnchorElement> {
   icon?: ReactNode;
   collapsed?: boolean;
   nested?: boolean;
+  /** Plain-text label for collapsed title/aria-label (never String(children) — that yields "[object Object]"). */
+  label?: string;
+}
+
+function plainLabel(label: string | undefined, children: ReactNode): string | undefined {
+  if (label && label.trim()) return label.trim();
+  if (typeof children === 'string' || typeof children === 'number') return String(children);
+  return undefined;
 }
 
 export function SidebarLink({
@@ -235,6 +243,7 @@ export function SidebarLink({
   icon,
   collapsed,
   nested,
+  label,
   children,
   className,
   onClick,
@@ -260,11 +269,14 @@ export function SidebarLink({
       }
     : {};
 
+  const accessibleName = plainLabel(label, children);
+
   return (
     <a
       href={href}
       aria-current={isActive ? 'page' : undefined}
-      title={collapsed ? String(children) : undefined}
+      aria-label={collapsed ? accessibleName : undefined}
+      title={collapsed ? accessibleName : undefined}
       className={base}
       style={
         isActive

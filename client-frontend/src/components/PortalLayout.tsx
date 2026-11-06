@@ -85,19 +85,21 @@ function PortalSidebarLink({
   onNavigate: (to: string) => void;
   collapsed?: boolean;
 }): ReactElement {
+  const text = isArabic ? item.labelAr : item.label;
   return (
     <SidebarLink
       href={item.to}
       isActive={active}
       icon={<NavIcon path={item.to} />}
       collapsed={collapsed}
+      label={text}
       onClick={(e) => {
         e.preventDefault();
         onNavigate(item.to);
       }}
     >
       <span className="flex min-w-0 flex-1 items-center gap-2">
-        <span className="truncate">{isArabic ? item.labelAr : item.label}</span>
+        <span className="truncate">{text}</span>
         {badge ? (
           <span className="bg-brand-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full shrink-0">
             {badge}

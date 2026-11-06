@@ -141,6 +141,7 @@ function renderNavLink(
       href={item.to}
       isActive={active}
       collapsed={collapsed}
+      label={item.label}
       icon={renderSidebarNavIcon(item.iconKey)}
       onClick={(e) => {
         e.preventDefault();

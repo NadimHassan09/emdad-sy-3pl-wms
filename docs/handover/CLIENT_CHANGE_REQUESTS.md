@@ -1,5 +1,7 @@
 # Client change requests and billing redesign (3 Nov 2026)
 
+> **Superseded.** This file is historical. Current checklists are `OWNER_CHANGE_REQUESTS.md` and `CLIENT_WHATSAPP_REQUESTS.md`. Do not treat rows here as the live backlog.
+
 Status: ✅ built and deployed on staging on staging (migration applied 3 Nov, owner approved) · ⬜ not started · 🔴 hard or blocked (reason given).
 
 ## Finance and billing

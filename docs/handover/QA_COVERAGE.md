@@ -1,14 +1,14 @@
 # EMDAD QA Coverage (generated)
 
-Generated 2026-11-03 by `qa_progress.py` from `QA_TRACKER.md` and `QA_FLOWS.md`. Do not edit by hand.
+Generated 2026-11-06 by `qa_progress.py` from `QA_TRACKER.md` and `QA_FLOWS.md`. Do not edit by hand.
 
-## Overall: 26.9% tested, 73.1% remaining
+## Overall: 27.5% tested, 72.5% remaining
 
 | Layer | Weight | Done | Items |
 |---|---|---|---|
-| Route checks (functional, validation, roles, consistency, mobile) | 40% | 8.0% | 660 checks on 132 routes |
+| Route checks (functional, validation, roles, consistency, mobile) | 40% | 8.0% | 665 checks on 133 routes |
 | Business flows | 40% | 40.5% | 42 flows |
-| Cross-cutting (security, errors, responsive, data, tests, release) | 20% | 37.5% | 16 checks |
+| Cross-cutting (security, errors, responsive, data, tests, release) | 20% | 40.6% | 16 checks |
 
 ## Routes by module
 
@@ -53,13 +53,14 @@ Generated 2026-11-03 by `qa_progress.py` from `QA_TRACKER.md` and `QA_FLOWS.md`.
 | my-profits | 1 | 10% | 90% |
 | notifications | 1 | 10% | 90% |
 | profile | 1 | 10% | 90% |
+| sheets | 1 | 10% | 90% |
 | inbound-orders | 3 | 7% | 93% |
 | outbound-orders | 6 | 7% | 93% |
 | invoices | 2 | 5% | 95% |
 | products | 4 | 5% | 95% |
 | account-inactive | 1 | 0% | 100% |
 | login | 1 | 0% | 100% |
-| **Total** | 30 | **7.3%** | **92.7%** |
+| **Total** | 31 | **7.4%** | **92.6%** |
 
 ## Flows and cross-cutting checks
 
@@ -68,7 +69,7 @@ Generated 2026-11-03 by `qa_progress.py` from `QA_TRACKER.md` and `QA_FLOWS.md`.
 | F01 | Orders | Create an OMS order in the admin UI (all fields, validation, Arabic and English, duplicates) | 🔄 |
 | F02 | Orders | Create an order in the client portal (e-commerce order) | 🔄 |
 | F03 | Orders | Import orders (validate, import, tolerant phone/Arabic letters/dates, row errors) | ⬜ |
-| F04 | Orders | Confirm then approve (shipping-fee group coverage, stock gate, reservation) | ❌ |
+| F04 | Orders | Confirm then approve (shipping-fee group coverage, stock gate, reservation) | 🔄 |
 | F05 | Outbound | Execution by admin: plan, approve, pick, pack, shipping method, send, details complete, dispatch | ✅ |
 | F06 | Outbound | Execution by workers (tasks) | ⬜ |
 | F07 | Shipping | Bulk shipping modal on a batch of orders | 🔄 |
@@ -94,7 +95,7 @@ Generated 2026-11-03 by `qa_progress.py` from `QA_TRACKER.md` and `QA_FLOWS.md`.
 | F27 | Master data | Products (create, edit, images, lot tracking, dimensions) | 🔄 |
 | F28 | Master data | Clients (create, edit, suspend, contract) and client users | 🔄 |
 | F29 | Master data | Warehouses and locations hierarchy (zones, racks, shelves, packing and dock) | 🔄 |
-| F30 | Master data | Shipping companies, fee groups and fee rates per governorate | ⬜ |
+| F30 | Master data | Shipping companies, fee groups and fee rates per governorate | 🔄 |
 | F31 | Finance | Accounts, transactions (append-only), policies, carrier costs, payouts, statements | ⬜ |
 | F32 | Finance | Optional "Fulfillment Services" billing, invoices, plans (legacy billing) | 🔄 |
 | F33 | Reports | The ~25 admin reports (filters, totals vs source data, export) | 🔄 |
@@ -119,14 +120,14 @@ Generated 2026-11-03 by `qa_progress.py` from `QA_TRACKER.md` and `QA_FLOWS.md`.
 | X10 | Quality | Performance: N+1 calls, slow pages, large lists | 🔄 |
 | X11 | Quality | Accessibility basics: focus order, labels, contrast, keyboard | ⬜ |
 | X12 | Data | Data integrity: stock never negative, ledgers append-only, reservations released on cancel, COD totals | 🔄 |
-| X13 | Tests | Backend unit suite baseline (all suites, in batches) | 🔄 |
+| X13 | Tests | Backend unit suite baseline (all suites, in batches) | ✅ |
 | X14 | Tests | Frontend unit suite and Playwright regression of fixed flows | 🔄 |
 | X15 | Release | Handover pack: client documentation, decision log, known limitations, runbook | 🔄 |
 | X16 | Routing | Redirect-only aliases (`/dashboard`, `/outbound`, `/inbound`, `/settings/*`, `/reports/cod-report`) land on the right page for every role | 🔄 |
 
 ## Status counts (flows + cross-cutting)
 
-⛔ 2 · ✅ 7 · ❌ 1 · ⬜ 18 · 🔄 30
+⛔ 2 · ✅ 8 · ⬜ 17 · 🔄 31
 
 ## Definition of done (hand over to the client)
 

@@ -11,7 +11,7 @@ A flow counts as ✅ only when it was run in the real UI or against the real car
 | F01 | Orders | Create an OMS order in the admin UI (all fields, validation, Arabic and English, duplicates) | 🔄 | Orders created through the API for E2E; the form itself is not exercised field by field |
 | F02 | Orders | Create an order in the client portal (e-commerce order) | 🔄 | API validation sweep done (D-024, D-025); UI form not run |
 | F03 | Orders | Import orders (validate, import, tolerant phone/Arabic letters/dates, row errors) | ⬜ | |
-| F04 | Orders | Confirm then approve (shipping-fee group coverage, stock gate, reservation) | ❌ | Works for Aleppo; other governorates blocked by missing fee groups (D-012) |
+| F04 | Orders | Confirm then approve (shipping-fee group coverage, stock gate, reservation) | 🔄 | D-012 fixed (fee-rates sidebar + coverage warning + templates, 98400f638). Re-test confirm/approve across governorates once All-Syria (or per-governorate) rate groups exist on staging. |
 | F05 | Outbound | Execution by admin: plan, approve, pick, pack, shipping method, send, details complete, dispatch | ✅ | OUT-2026-04463 (Sena) and OUT-2026-04464 (Babel, Sila up to send) |
 | F06 | Outbound | Execution by workers (tasks) | ⬜ | |
 | F07 | Shipping | Bulk shipping modal on a batch of orders | 🔄 | Opened on one order; D-009 open |
@@ -37,7 +37,7 @@ A flow counts as ✅ only when it was run in the real UI or against the real car
 | F27 | Master data | Products (create, edit, images, lot tracking, dimensions) | 🔄 | D-005 missing images; no CRUD pass |
 | F28 | Master data | Clients (create, edit, suspend, contract) and client users | 🔄 | Required-field messages only |
 | F29 | Master data | Warehouses and locations hierarchy (zones, racks, shelves, packing and dock) | 🔄 | Loads; D-003 dirty data |
-| F30 | Master data | Shipping companies, fee groups and fee rates per governorate | ⬜ | D-012 |
+| F30 | Master data | Shipping companies, fee groups and fee rates per governorate | 🔄 | D-012 fixed in UI (sidebar link, amber uncovered-governorate warning, quick-start templates). Coverage CRUD + templates still need a full browser pass. |
 | F31 | Finance | Accounts, transactions (append-only), policies, carrier costs, payouts, statements | ⬜ | |
 | F32 | Finance | Optional "Fulfillment Services" billing, invoices, plans (legacy billing) | 🔄 | On-demand invoice end to end by API on staging: rules, preview (numbers checked by hand), draft, issue, settle against balance (partial), no double billing, cancel returns the deduction; new pages load; the UI forms were not clicked; legacy cycle billing not re-tested |
 | F33 | Reports | The ~25 admin reports (filters, totals vs source data, export) | 🔄 | All 21 report endpoints run and export; one KPI bug fixed (D-038); totals vs source data and chart quality not done (D-039) |

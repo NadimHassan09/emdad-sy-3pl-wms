@@ -100,7 +100,7 @@ One row per route. Defects are logged below with ID, severity (S1 blocker, S2 ma
 | `/returns/:id` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
 | `/returns/:id/process` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
 | `/shipping/companies` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load sweep 3 Nov: no API error, no console error, no crash |
-| `/shipping/fee-rates` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load sweep 3 Nov: no API error, no console error, no crash |
+| `/shipping/fee-rates` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load sweep 3 Nov. 6 Nov: sidebar link + amber uncovered warning verified; created Global Default group **All Syria / جميع أنحاء سوريا** ($5, all 14 governorates, id `d16723ee-…`, reassign=true) for F04 coverage tests |
 | `/tasks` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load check only (3 Nov smoke pass) |
 | `/tasks/:id` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
 | `/tasks/:id/execute` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
@@ -144,6 +144,7 @@ Aliases (redirect-only routes such as `/dashboard`, `/outbound`, `/inventory`, `
 | `/invoices` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load sweep 3 Nov (Acme client_admin): no API error, no console error |
 | `/invoices/:id` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |  |
 | `/apis` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load sweep 3 Nov (Acme client_admin): no API error, no console error |
+| `/sheets` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Added 6 Nov (was missing). Load + OMS sheet rows; Google status 401 fixed as D-043; sidebar labels D-041 |
 | `/notifications` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load sweep 3 Nov (Acme client_admin): no API error, no console error |
 | `/profile` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load sweep 3 Nov (Acme client_admin): no API error, no console error |
 
@@ -212,6 +213,9 @@ Aliases (`/cod-reports`, `/returns`, `/returns/new`, `/returns/:id`, `/billing/i
 | D-039 | S3 | Report charts | Charts are hand-drawn SVG lines without axes, labels or legend; mandatory filters (warehouse, group by) surface as raw API errors | Reports pass 3 Nov | Fixed: bar chart has value+category labels; pie chart has legend; inline line chart now shows x-axis date labels; warehouse validation shows human-readable toast+alert | 8b007513f |
 | D-040 | S3 | Sila webhooks | No webhook is registered on the Sila account, so Sila status changes reach EMDAD only by polling | Carrier check 3 Nov | Pending (needs owner action): registerWebhook API and UI exist. Owner must go to Shipping Companies → Sila → Register Webhook button, or call POST /shipping/providers/sila-sy/register-webhook with webhookUrl=https://staging-admin.emdadsy.com/api/shipping/webhooks/sila-sy | |
 | D-004 | S3 | Backend tests | Jest run OOM after 23/144 suites; 9 suites failing (stale specs/drift) | jest-baseline | Fixed: 158/158 suites, 990/990 tests pass. OOM → 4 GB heap; stale specs fixed ($transaction mock, date drift, schema drift, buildExcelBuffer row offset, import-template schema change, capacity-utilization CBM redesign). | becdcbe0e |
+| D-041 | S3 | Client portal sidebar | Collapsed sidebar link accessible names render as `[object Object]` because `SidebarLink` used `String(children)` on a React element | Browser readiness 6 Nov | Fixed: `label` prop + plain-text title/aria-label; PortalLayout + admin Layout pass string labels | this commit |
+| D-042 | S3 | Client billing banner | "Billing cycle expiring soon" / "دورة الفوترة تنتهي قريبًا" shown although billing is on-demand (no fixed cycle) | Browser readiness 6 Nov | Fixed: `getOperationalAccess` respects `cutover_active` + active financial account; frontend hides cycle-expiry banner | this commit |
+| D-043 | S3 | Client `/sheets` | `GET /api/client/sheets/google/status` returned 401 (missing `@Public()` so global admin JwtAuthGuard rejected the client session). Expected unlinked state must be 200 `{ connected: false }` | Browser network 6 Nov | Fixed: `@Public()` on Google Sheets controller; callback returns to client portal `/sheets` | this commit |
 
 ## Smoke pass log
 

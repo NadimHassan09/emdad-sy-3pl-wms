@@ -12,7 +12,7 @@ export type BillingRestrictionCopy = {
 
 export function buildBillingRestrictionCopy(
   accountStatus: ClientBillingAccess['accountStatus'],
-  daysRemaining: number | null,
+  _daysRemaining: number | null,
   isArabic: boolean,
 ): BillingRestrictionCopy {
   if (accountStatus === 'restricted') {
@@ -21,16 +21,16 @@ export function buildBillingRestrictionCopy(
           variant: 'error',
           title: 'الحساب مقيّد',
           description:
-            'انتهت دورة الفوترة. لا يمكن إنشاء طلبات أو منتجات جديدة. تواصل مع المالية أو مدير حسابك لتجديد الاشتراك واستعادة الوصول.',
-          actionBlockedReason: 'الحساب مقيّد — جدّد الفوترة لإنشاء طلبات أو منتجات.',
+            'لا يمكن إنشاء طلبات أو منتجات جديدة. تواصل مع المالية أو مدير حسابك لاستعادة الوصول.',
+          actionBlockedReason: 'الحساب مقيّد — تواصل مع المالية لإنشاء طلبات أو منتجات.',
           showBanner: true,
         }
       : {
           variant: 'error',
           title: 'Account restricted',
           description:
-            'Your billing cycle has expired. You cannot create new orders or products. Contact finance or your account manager to renew and restore operational access.',
-          actionBlockedReason: 'Account restricted — renew billing to create orders or products.',
+            'You cannot create new orders or products. Contact finance or your account manager to restore operational access.',
+          actionBlockedReason: 'Account restricted — contact finance to create orders or products.',
           showBanner: true,
         };
   }
@@ -39,39 +39,32 @@ export function buildBillingRestrictionCopy(
     return isArabic
       ? {
           variant: 'error',
-          title: 'لا توجد خطة فوترة',
+          title: 'الحساب غير جاهز للتشغيل',
           description:
-            'لا توجد خطة فوترة نشطة. تواصل مع مدير حسابك لإعداد الفوترة قبل إنشاء الطلبات أو المنتجات.',
-          actionBlockedReason: 'لا توجد خطة فوترة — تواصل مع مدير حسابك.',
+            'حسابك غير مفعّل للطلبات بعد. تواصل مع مدير حسابك قبل إنشاء الطلبات أو المنتجات.',
+          actionBlockedReason: 'الحساب غير جاهز — تواصل مع مدير حسابك.',
           showBanner: true,
         }
       : {
           variant: 'error',
-          title: 'No billing plan',
+          title: 'Account not ready',
           description:
-            'There is no active billing plan on file. Contact your account manager to set up billing before creating orders or products.',
-          actionBlockedReason: 'No billing plan — contact your account manager.',
+            'Your account is not set up for operations yet. Contact your account manager before creating orders or products.',
+          actionBlockedReason: 'Account not ready — contact your account manager.',
           showBanner: true,
         };
   }
 
+  // Legacy cycle "expiring soon" banner — EMDAD billing is on-demand (no fixed cycle).
+  // Keep the status for older UI pages, but do not show a cycle-expiry alert.
   if (accountStatus === 'expiring') {
-    const days = daysRemaining ?? 0;
-    return isArabic
-      ? {
-          variant: 'warning',
-          title: 'دورة الفوترة تنتهي قريبًا',
-          description: `تبقى ${days} يوم على انتهاء دورة الفوترة. جدّد في الوقت المناسب لتجنب تقييد الحساب.`,
-          actionBlockedReason: '',
-          showBanner: true,
-        }
-      : {
-          variant: 'warning',
-          title: 'Billing cycle expiring soon',
-          description: `Your billing cycle ends in ${days} day${days === 1 ? '' : 's'}. Renew on time to avoid account restrictions.`,
-          actionBlockedReason: '',
-          showBanner: true,
-        };
+    return {
+      variant: 'info',
+      title: '',
+      description: '',
+      actionBlockedReason: '',
+      showBanner: false,
+    };
   }
 
   return {
