@@ -488,10 +488,19 @@ export function AdminOutboundOrderSummary({ order }: Props) {
                   '—'
                 }
               />
-              {latestCarrierShipment?.lastErrorSafe ? (
+              {latestCarrierShipment?.lastErrorSafe &&
+              !/^Manually cancelled by admin/i.test(latestCarrierShipment.lastErrorSafe) ? (
                 <DetailRow
                   label="Error"
                   value={latestCarrierShipment.lastErrorSafe}
+                  className="sm:col-span-2"
+                  preWrap
+                />
+              ) : latestCarrierShipment?.lastErrorSafe &&
+                /^Manually cancelled by admin/i.test(latestCarrierShipment.lastErrorSafe) ? (
+                <DetailRow
+                  label="Note"
+                  value={latestCarrierShipment.lastErrorSafe.replace(/^Manually cancelled by admin:\s*/i, '')}
                   className="sm:col-span-2"
                   preWrap
                 />

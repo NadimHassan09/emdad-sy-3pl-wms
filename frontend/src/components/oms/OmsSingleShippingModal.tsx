@@ -300,14 +300,22 @@ export function OmsSingleShippingModal({
             ) : null}
 
             {/* Carrier Error Alert */}
-            {latestShipment?.status === 'failed' && (
+            {latestShipment?.status === 'failed' &&
+            /^Manually cancelled by admin/i.test(latestShipment?.lastErrorSafe || '') ? (
+              <Alert variant="warning" title={isArabic ? 'تم فك الربط محلياً — لم يُبلَّغ شركة الشحن' : 'Cancelled locally — carrier not notified'}>
+                {latestShipment.lastErrorSafe?.replace(/^Manually cancelled by admin:\s*/i, '').trim() ||
+                  (isArabic
+                    ? 'تم فك ربط الشحنة في النظام. يرجى إلغاؤها يدوياً في بوابة شركة الشحن.'
+                    : 'The shipment was unlinked locally. Cancel it manually in the carrier portal if needed.')}
+              </Alert>
+            ) : latestShipment?.status === 'failed' ? (
               <Alert variant="error" title={isArabic ? 'فشل إرسال الشحنة لشركة الشحن' : 'Carrier Send Failed'}>
                 {latestShipment.lastErrorSafe?.trim() ||
                   (isArabic
                     ? 'تعذر إرسال الشحنة. يرجى مراجعة الحقول وإعادة المحاولة.'
                     : 'Submission failed. Please verify the shipping details and send again.')}
               </Alert>
-            )}
+            ) : null}
 
             {/* The Real Full-Featured Form */}
             {form ? (
