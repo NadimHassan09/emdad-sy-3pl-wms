@@ -10,7 +10,9 @@ var __metadata = (this && this.__metadata) || function (k, v) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.CodRecordsService = void 0;
+const currency_1 = require("../../common/money/currency");
 const common_1 = require("@nestjs/common");
+const account_currency_1 = require("../financial/account-currency");
 const config_1 = require("@nestjs/config");
 const client_1 = require("@prisma/client");
 const company_read_scope_1 = require("../../common/auth/company-read-scope");
@@ -264,6 +266,10 @@ let CodRecordsService = class CodRecordsService {
         if (amount.isZero()) {
             throw new common_1.BadRequestException('COD amount is zero; cannot generate COD record.');
         }
+        const accountAmount = (0, account_currency_1.toAccountAmount)(amount, order.currency, await (0, account_currency_1.readManagedUsdToSypRate)(this.prisma));
+        if (!accountAmount) {
+            throw new common_1.BadRequestException('No USD/SYP exchange rate is available, so this SYP COD cannot be added to the client account. Set the rate on Shipping Companies first.');
+        }
         try {
             const created = await (0, tenant_rls_1.withTenantRls)(this.prisma, user, async (tx) => {
                 const row = await tx.codRecord.create({
@@ -274,6 +280,9 @@ let CodRecordsService = class CodRecordsService {
                         currency: order.currency ?? 'USD',
                         status: client_1.CodRecordStatus.pending,
                         createdBy: user.id,
+                        accountAmount: accountAmount.amount,
+                        accountFxRate: accountAmount.fxRate,
+                        accountFxSource: accountAmount.fxSource,
                     },
                     include: INCLUDE,
                 });
@@ -281,11 +290,11 @@ let CodRecordsService = class CodRecordsService {
                     where: { companyId: order.companyId },
                     create: {
                         companyId: order.companyId,
-                        pendingBalance: amount,
-                        currency: order.currency ?? 'USD',
+                        pendingBalance: accountAmount.amount,
+                        currency: 'USD',
                     },
                     update: {
-                        pendingBalance: { increment: amount },
+                        pendingBalance: { increment: accountAmount.amount },
                     },
                 });
                 await tx.omsOrder.update({
@@ -361,7 +370,10 @@ let CodRecordsService = class CodRecordsService {
                 await tx.clientFinancialAccount.updateMany({
                     where: { companyId: existing.companyId },
                     data: {
-                        pendingBalance: { decrement: existing.originalAmount },
+                        pendingBalance: {
+                            decrement: existing.accountAmount ??
+                                ((0, currency_1.isSyrianPound)(existing.currency) ? new client_1.Prisma.Decimal(0) : existing.originalAmount),
+                        },
                     },
                 });
             }

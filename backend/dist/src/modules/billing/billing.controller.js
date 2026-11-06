@@ -24,6 +24,8 @@ const billing_invoices_service_1 = require("./billing-invoices.service");
 const billing_plans_service_1 = require("./billing-plans.service");
 const billing_preview_service_1 = require("./billing-preview.service");
 const order_manual_charges_service_1 = require("./order-manual-charges.service");
+const billing_on_demand_service_1 = require("./on-demand/billing-on-demand.service");
+const on_demand_invoice_dto_1 = require("./dto/on-demand-invoice.dto");
 const update_invoice_status_dto_1 = require("./dto/update-invoice-status.dto");
 const create_billing_plan_dto_1 = require("./dto/create-billing-plan.dto");
 const create_invoice_line_dto_1 = require("./dto/create-invoice-line.dto");
@@ -41,7 +43,8 @@ let BillingController = class BillingController {
     preview;
     orderCharges;
     invoicePdf;
-    constructor(plans, cycles, invoices, dashboard, preview, orderCharges, invoicePdf) {
+    onDemand;
+    constructor(plans, cycles, invoices, dashboard, preview, orderCharges, invoicePdf, onDemand) {
         this.plans = plans;
         this.cycles = cycles;
         this.invoices = invoices;
@@ -49,6 +52,7 @@ let BillingController = class BillingController {
         this.preview = preview;
         this.orderCharges = orderCharges;
         this.invoicePdf = invoicePdf;
+        this.onDemand = onDemand;
     }
     capacitySummary() {
         return this.plans.getCapacitySummary();
@@ -89,6 +93,24 @@ let BillingController = class BillingController {
     }
     createAdHocInvoice(user, dto) {
         return this.invoices.createAdHoc(user, dto);
+    }
+    getChargeRules(user, companyId) {
+        return this.onDemand.getRules(user, companyId);
+    }
+    saveChargeRules(user, companyId, dto) {
+        return this.onDemand.saveRules(user, companyId, dto.rules);
+    }
+    previewOnDemand(user, dto) {
+        return this.onDemand.preview(user, dto);
+    }
+    createOnDemand(user, dto) {
+        return this.onDemand.createOnDemand(user, dto);
+    }
+    settleInvoice(user, id) {
+        return this.onDemand.settleFromBalance(user, id);
+    }
+    invoiceBreakdown(user, id) {
+        return this.onDemand.breakdown(user, id, 'admin');
     }
     dashboardSummary(user) {
         return this.dashboard.getSummary(user);
@@ -265,6 +287,60 @@ __decorate([
     __metadata("design:returntype", void 0)
 ], BillingController.prototype, "createAdHocInvoice", null);
 __decorate([
+    (0, common_1.Get)('charge-rules/:companyId'),
+    (0, common_1.UseGuards)(internal_admin_guard_1.InternalAdminGuard),
+    __param(0, (0, current_user_decorator_1.CurrentUser)()),
+    __param(1, (0, common_1.Param)('companyId', parse_uuid_loose_pipe_1.ParseUuidLoosePipe)),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, String]),
+    __metadata("design:returntype", void 0)
+], BillingController.prototype, "getChargeRules", null);
+__decorate([
+    (0, common_1.Put)('charge-rules/:companyId'),
+    (0, common_1.UseGuards)(internal_admin_guard_1.InternalAdminGuard),
+    __param(0, (0, current_user_decorator_1.CurrentUser)()),
+    __param(1, (0, common_1.Param)('companyId', parse_uuid_loose_pipe_1.ParseUuidLoosePipe)),
+    __param(2, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, String, on_demand_invoice_dto_1.SaveChargeRulesDto]),
+    __metadata("design:returntype", void 0)
+], BillingController.prototype, "saveChargeRules", null);
+__decorate([
+    (0, common_1.Post)('invoices/on-demand/preview'),
+    (0, common_1.UseGuards)(internal_admin_guard_1.InternalAdminGuard),
+    __param(0, (0, current_user_decorator_1.CurrentUser)()),
+    __param(1, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, on_demand_invoice_dto_1.OnDemandInvoiceDto]),
+    __metadata("design:returntype", void 0)
+], BillingController.prototype, "previewOnDemand", null);
+__decorate([
+    (0, common_1.Post)('invoices/on-demand'),
+    (0, common_1.UseGuards)(internal_admin_guard_1.InternalAdminGuard),
+    __param(0, (0, current_user_decorator_1.CurrentUser)()),
+    __param(1, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, on_demand_invoice_dto_1.OnDemandInvoiceDto]),
+    __metadata("design:returntype", void 0)
+], BillingController.prototype, "createOnDemand", null);
+__decorate([
+    (0, common_1.Post)('invoices/:id/settle'),
+    (0, common_1.UseGuards)(internal_admin_guard_1.InternalAdminGuard),
+    __param(0, (0, current_user_decorator_1.CurrentUser)()),
+    __param(1, (0, common_1.Param)('id', parse_uuid_loose_pipe_1.ParseUuidLoosePipe)),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, String]),
+    __metadata("design:returntype", void 0)
+], BillingController.prototype, "settleInvoice", null);
+__decorate([
+    (0, common_1.Get)('invoices/:id/breakdown'),
+    __param(0, (0, current_user_decorator_1.CurrentUser)()),
+    __param(1, (0, common_1.Param)('id', parse_uuid_loose_pipe_1.ParseUuidLoosePipe)),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, String]),
+    __metadata("design:returntype", void 0)
+], BillingController.prototype, "invoiceBreakdown", null);
+__decorate([
     (0, common_1.Get)('dashboard/summary'),
     __param(0, (0, current_user_decorator_1.CurrentUser)()),
     __metadata("design:type", Function),
@@ -432,6 +508,7 @@ exports.BillingController = BillingController = __decorate([
         billing_dashboard_service_1.BillingDashboardService,
         billing_preview_service_1.BillingPreviewService,
         order_manual_charges_service_1.OrderManualChargesService,
-        invoice_pdf_service_1.InvoicePdfService])
+        invoice_pdf_service_1.InvoicePdfService,
+        billing_on_demand_service_1.BillingOnDemandService])
 ], BillingController);
 //# sourceMappingURL=billing.controller.js.map

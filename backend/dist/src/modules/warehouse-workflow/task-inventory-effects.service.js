@@ -13,6 +13,7 @@ var __param = (this && this.__param) || function (paramIndex, decorator) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.TaskInventoryEffectsService = void 0;
+const execution_plan_util_1 = require("../orders/execution-plan.util");
 const common_1 = require("@nestjs/common");
 const core_1 = require("@nestjs/core");
 const client_1 = require("@prisma/client");
@@ -304,8 +305,7 @@ let TaskInventoryEffectsService = class TaskInventoryEffectsService {
                 }
             }
             else {
-                const allowedSellablePutaway = new Set(['internal', 'fridge', 'quarantine', 'scrap']);
-                if (!allowedSellablePutaway.has(String(dest.type))) {
+                if (!(0, execution_plan_util_1.isPutawayDestinationType)(String(dest.type))) {
                     throw new domain_exceptions_1.InvalidLocationTypeException('Putaway destination must be storage (internal), fridge, quarantine, or scrap.');
                 }
             }

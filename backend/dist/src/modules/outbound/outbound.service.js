@@ -13,6 +13,7 @@ var __param = (this && this.__param) || function (paramIndex, decorator) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.OutboundService = void 0;
+const currency_1 = require("../../common/money/currency");
 const common_1 = require("@nestjs/common");
 const config_1 = require("@nestjs/config");
 const client_1 = require("@prisma/client");
@@ -1262,7 +1263,7 @@ let OutboundService = class OutboundService {
                         : {}),
                     ...(body.currency !== undefined
                         ? {
-                            currency: body.currency?.trim().toUpperCase() === 'SYP' ? 'SYP' : 'USD',
+                            currency: (0, currency_1.normalizeCurrency)(body.currency),
                         }
                         : {}),
                     ...(body.shippingPackages !== undefined
@@ -1292,7 +1293,7 @@ let OutboundService = class OutboundService {
                     data: {
                         ...(body.currency !== undefined
                             ? {
-                                currency: body.currency?.trim().toUpperCase() === 'SYP' ? 'SYP' : 'USD',
+                                currency: (0, currency_1.normalizeCurrency)(body.currency),
                             }
                             : {}),
                         ...(body.shippingPayer ? { shippingPayer: body.shippingPayer } : {}),
@@ -1432,7 +1433,7 @@ let OutboundService = class OutboundService {
                         : {}),
                     ...(dto.currency !== undefined
                         ? {
-                            currency: dto.currency?.trim().toUpperCase() === 'SYP' ? 'SYP' : 'USD',
+                            currency: (0, currency_1.normalizeCurrency)(dto.currency),
                         }
                         : {}),
                     ...(dto.codAmount !== undefined && dto.codAmount != null
@@ -1477,7 +1478,7 @@ let OutboundService = class OutboundService {
                     data: {
                         ...(dto.currency !== undefined
                             ? {
-                                currency: dto.currency?.trim().toUpperCase() === 'SYP' ? 'SYP' : 'USD',
+                                currency: (0, currency_1.normalizeCurrency)(dto.currency),
                             }
                             : {}),
                         ...(dto.shippingPayer ? { shippingPayer: dto.shippingPayer } : {}),

@@ -2,6 +2,7 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.annotateRateQuotes = annotateRateQuotes;
 const currency_conversion_1 = require("./currency-conversion");
+const carrier_currency_1 = require("./carrier-currency");
 function annotateRateQuotes(quotes, options = {}) {
     const snapshot = options.snapshot ?? (0, currency_conversion_1.getFxRateSnapshot)();
     const preferred = options.preferredCurrency ?? null;
@@ -17,6 +18,7 @@ function annotateRateQuotes(quotes, options = {}) {
             currency: q.currency,
             prices: q.prices,
             preferredCurrency: preferred,
+            sypUnit: q.sypUnit ?? (0, carrier_currency_1.carrierSypUnit)(q.carrierId),
         }, snapshot);
         return {
             ...q,

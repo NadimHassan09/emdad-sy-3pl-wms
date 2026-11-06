@@ -36,6 +36,7 @@ __decorate([
 __decorate([
     (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsString)(),
+    (0, class_validator_1.MaxLength)(500, { message: 'Notes must be at most 500 characters.' }),
     __metadata("design:type", String)
 ], UpdateInboundPlanDto.prototype, "notes", void 0);
 //# sourceMappingURL=update-inbound-plan.dto.js.map

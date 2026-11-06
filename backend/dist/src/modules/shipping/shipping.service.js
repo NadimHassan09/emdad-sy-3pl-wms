@@ -11,6 +11,7 @@ var __metadata = (this && this.__metadata) || function (k, v) {
 var ShippingService_1;
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.ShippingService = void 0;
+const carrier_constraints_1 = require("./carrier-constraints");
 const common_1 = require("@nestjs/common");
 const client_1 = require("@prisma/client");
 const encryption_service_1 = require("../../common/crypto/encryption.service");
@@ -19,6 +20,7 @@ const realtime_service_1 = require("../realtime/realtime.service");
 const oms_order_mapper_1 = require("../oms/oms-order.mapper");
 const babel_address_adapter_1 = require("./providers/babel-express/babel-address.adapter");
 const address_resolve_service_1 = require("./address-resolve.service");
+const carrier_currency_1 = require("./carrier-currency");
 const cod_collection_1 = require("./cod-collection");
 const shipping_fx_service_1 = require("./shipping-fx.service");
 const babel_express_http_client_1 = require("./providers/babel-express/babel-express.http-client");
@@ -49,6 +51,9 @@ function safeErrorMessage(err) {
             ? err.message
             : 'Shipping provider request failed.';
     const msg = raw.slice(0, 500);
+    if (/no neighbourhood id and no coordinates/i.test(msg)) {
+        return 'The address needs a neighbourhood so this carrier can price it. Complete the neighbourhood and try again.';
+    }
     if (/no shipping service available/i.test(msg)) {
         return `${msg} Usually the package weight is too high (use real kg, max ~200), or the pin is outside Babel coverage, or delivery/pickup type is wrong.`;
     }
@@ -487,17 +492,30 @@ let ShippingService = class ShippingService {
                     if (res.shippable === false)
                         continue;
                     const quotedDeliveryType = res.effectiveDeliveryType ?? dto.deliveryType;
+                    const constraintReason = (0, carrier_constraints_1.carrierConstraintViolation)({
+                        serviceName: res.serviceName,
+                        carrierName: res.providerName ?? row.name,
+                        weightKg: dto.weightKg,
+                        maxPartWeightKg: dto.parts?.length
+                            ? Math.max(...dto.parts.map((p) => Number(p.weight) || 0))
+                            : null,
+                        codAmount: dto.codAmount,
+                        codCurrency: dto.currency,
+                        collectionMode: dto.collectionMode ?? 'explicit',
+                    });
                     quotes.push({
                         carrierId: row.code,
                         carrierName: row.name,
                         serviceId: res.serviceId ?? `${row.code}:${quotedDeliveryType}`,
                         serviceName: res.serviceName ?? deliveryTypeLabel(quotedDeliveryType),
-                        available: true,
+                        available: constraintReason == null,
+                        ...(constraintReason ? { unavailableReason: constraintReason } : {}),
                         price: res.price,
-                        currency: res.currency || 'USD',
-                        prices: res.prices && res.prices.length > 0
+                        currency: (0, carrier_currency_1.carrierPriceCurrency)(row.code, res.currency),
+                        sypUnit: (0, carrier_currency_1.carrierSypUnit)(row.code),
+                        prices: (res.prices && res.prices.length > 0
                             ? res.prices
-                            : [{ price: res.price, currency: res.currency || 'USD' }],
+                            : [{ price: res.price, currency: res.currency || 'USD' }]).map((p) => ({ ...p, currency: (0, carrier_currency_1.carrierPriceCurrency)(row.code, p.currency) })),
                         estimatedDeliveryMin: res.estimatedDeliveryMin,
                         estimatedDeliveryMax: res.estimatedDeliveryMax,
                         deliveryType: quotedDeliveryType,

@@ -25,5 +25,11 @@ function assertCalendarDateNotBeforeToday(value, fieldName) {
     if (ymd < today) {
         throw new common_1.BadRequestException(`${fieldName} cannot be before today.`);
     }
+    const limit = new Date(`${today}T00:00:00Z`);
+    limit.setUTCDate(limit.getUTCDate() + MAX_PLANNING_DAYS_AHEAD);
+    if (ymd > limit.toISOString().slice(0, 10)) {
+        throw new common_1.BadRequestException(`${fieldName} cannot be more than 2 years from today.`);
+    }
 }
+const MAX_PLANNING_DAYS_AHEAD = 730;
 //# sourceMappingURL=order-planning-date.js.map

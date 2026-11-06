@@ -61,6 +61,9 @@ import { ClientReturnsService } from './returns/client-returns.service';
 import { ClientOmsReturnsController } from './oms-returns/client-oms-returns.controller';
 import { ClientOmsReturnsService } from './oms-returns/client-oms-returns.service';
 import { ClientShippingController } from './shipping/client-shipping.controller';
+import { ClientSheetsGoogleController } from './sheets/client-sheets-google.controller';
+import { ClientSheetsGoogleService } from './sheets/client-sheets-google.service';
+import { SettingsModule } from '../settings/settings.module';
 
 @Module({
   imports: [
@@ -80,6 +83,7 @@ import { ClientShippingController } from './shipping/client-shipping.controller'
     }),
     PrismaModule,
     CryptoModule,
+    SettingsModule,
     InventoryModule,
     ProductsModule,
     MediaModule,
@@ -111,6 +115,7 @@ import { ClientShippingController } from './shipping/client-shipping.controller'
     ExternalInboundController,
     ExternalOutboundController,
     ClientShippingController,
+    ClientSheetsGoogleController,
   ],
   providers: [
     ClientWebhooksService,
@@ -139,6 +144,7 @@ import { ClientShippingController } from './shipping/client-shipping.controller'
     ExternalOmsService,
     ExternalInboundService,
     ExternalOutboundService,
+    ClientSheetsGoogleService,
   ],
   exports: [
     ClientAuthService,

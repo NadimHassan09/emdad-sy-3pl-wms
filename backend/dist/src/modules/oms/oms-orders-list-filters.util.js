@@ -2,6 +2,7 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.parseOmsTotalFilterValue = parseOmsTotalFilterValue;
 exports.appendOmsOrderFieldFilters = appendOmsOrderFieldFilters;
+const oms_search_terms_util_1 = require("./oms-search-terms.util");
 const client_1 = require("@prisma/client");
 const shipping_carrier_resolver_1 = require("../shipping/shipping-carrier-resolver");
 const oms_order_number_range_util_1 = require("./oms-order-number-range.util");
@@ -29,32 +30,36 @@ function appendOmsOrderFieldFilters(query, where, andParts) {
     if (rangeCondition) {
         andParts.push(rangeCondition);
     }
-    if (query.orderSearch?.trim()) {
-        const t = query.orderSearch.trim();
-        const orParts = [
-            { orderNumber: { contains: t, mode: 'insensitive' } },
-            { trackingNumber: { contains: t, mode: 'insensitive' } },
-            { recipientName: { contains: t, mode: 'insensitive' } },
-            { recipientPhone: { contains: t, mode: 'insensitive' } },
-            { carrier: { contains: t, mode: 'insensitive' } },
-            { externalReference: { contains: t, mode: 'insensitive' } },
-            { clientReference: { contains: t, mode: 'insensitive' } },
-            {
-                outboundOrder: {
-                    carrierShipments: {
-                        some: {
-                            OR: [
-                                { externalAwb: { contains: t, mode: 'insensitive' } },
-                                { trackingNumber: { contains: t, mode: 'insensitive' } },
-                            ],
+    const searchTerms = (0, oms_search_terms_util_1.splitOrderSearchTerms)(query.orderSearch);
+    if (searchTerms.length > 0) {
+        const termMatches = [];
+        for (const t of searchTerms) {
+            const orParts = [
+                { orderNumber: { contains: t, mode: 'insensitive' } },
+                { trackingNumber: { contains: t, mode: 'insensitive' } },
+                { recipientName: { contains: t, mode: 'insensitive' } },
+                { recipientPhone: { contains: t, mode: 'insensitive' } },
+                { carrier: { contains: t, mode: 'insensitive' } },
+                { externalReference: { contains: t, mode: 'insensitive' } },
+                { clientReference: { contains: t, mode: 'insensitive' } },
+                {
+                    outboundOrder: {
+                        carrierShipments: {
+                            some: {
+                                OR: [
+                                    { externalAwb: { contains: t, mode: 'insensitive' } },
+                                    { trackingNumber: { contains: t, mode: 'insensitive' } },
+                                ],
+                            },
                         },
                     },
                 },
-            },
-        ];
-        if (FULL_UUID.test(t))
-            orParts.push({ id: t });
-        andParts.push({ OR: orParts });
+            ];
+            if (FULL_UUID.test(t))
+                orParts.push({ id: t });
+            termMatches.push(...orParts);
+        }
+        andParts.push({ OR: termMatches });
     }
     if (query.orderId?.trim()) {
         const t = query.orderId.trim();

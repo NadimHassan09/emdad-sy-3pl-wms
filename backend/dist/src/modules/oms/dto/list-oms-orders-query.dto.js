@@ -50,7 +50,7 @@ __decorate([
     (0, query_transform_1.EmptyToUndefined)(),
     (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsString)(),
-    (0, class_validator_1.MaxLength)(120),
+    (0, class_validator_1.MaxLength)(4000),
     __metadata("design:type", String)
 ], ListOmsOrdersQueryDto.prototype, "orderSearch", void 0);
 __decorate([

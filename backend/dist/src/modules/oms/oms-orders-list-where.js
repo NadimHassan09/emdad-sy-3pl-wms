@@ -1,6 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.buildOmsOrdersListWhere = buildOmsOrdersListWhere;
+const oms_search_terms_util_1 = require("./oms-search-terms.util");
 const company_read_scope_1 = require("../../common/auth/company-read-scope");
 const FULL_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 function buildOmsOrdersListWhere(companyAccess, user, query) {
@@ -18,31 +19,35 @@ function buildOmsOrdersListWhere(companyAccess, user, query) {
         where.outboundOrderId = { not: null };
     if (query.linkStatus === 'unlinked')
         where.outboundOrderId = null;
-    if (query.orderSearch?.trim()) {
-        const t = query.orderSearch.trim();
-        const orParts = [
-            { orderNumber: { contains: t, mode: 'insensitive' } },
-            { trackingNumber: { contains: t, mode: 'insensitive' } },
-            { recipientName: { contains: t, mode: 'insensitive' } },
-            { recipientPhone: { contains: t, mode: 'insensitive' } },
-            { externalReference: { contains: t, mode: 'insensitive' } },
-            { clientReference: { contains: t, mode: 'insensitive' } },
-            {
-                outboundOrder: {
-                    carrierShipments: {
-                        some: {
-                            OR: [
-                                { externalAwb: { contains: t, mode: 'insensitive' } },
-                                { trackingNumber: { contains: t, mode: 'insensitive' } },
-                            ],
+    const searchTerms = (0, oms_search_terms_util_1.splitOrderSearchTerms)(query.orderSearch);
+    if (searchTerms.length > 0) {
+        const termMatches = [];
+        for (const t of searchTerms) {
+            const orParts = [
+                { orderNumber: { contains: t, mode: 'insensitive' } },
+                { trackingNumber: { contains: t, mode: 'insensitive' } },
+                { recipientName: { contains: t, mode: 'insensitive' } },
+                { recipientPhone: { contains: t, mode: 'insensitive' } },
+                { externalReference: { contains: t, mode: 'insensitive' } },
+                { clientReference: { contains: t, mode: 'insensitive' } },
+                {
+                    outboundOrder: {
+                        carrierShipments: {
+                            some: {
+                                OR: [
+                                    { externalAwb: { contains: t, mode: 'insensitive' } },
+                                    { trackingNumber: { contains: t, mode: 'insensitive' } },
+                                ],
+                            },
                         },
                     },
                 },
-            },
-        ];
-        if (FULL_UUID.test(t))
-            orParts.push({ id: t });
-        andParts.push({ OR: orParts });
+            ];
+            if (FULL_UUID.test(t))
+                orParts.push({ id: t });
+            termMatches.push(...orParts);
+        }
+        andParts.push({ OR: termMatches });
     }
     if (query.createdFrom || query.createdTo) {
         const createdAt = {};

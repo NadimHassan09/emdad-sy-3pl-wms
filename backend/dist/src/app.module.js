@@ -9,6 +9,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.AppModule = void 0;
 const common_1 = require("@nestjs/common");
 const core_1 = require("@nestjs/core");
+const read_only_role_guard_1 = require("./common/auth/read-only-role.guard");
 const config_1 = require("@nestjs/config");
 const schedule_1 = require("@nestjs/schedule");
 const throttler_1 = require("@nestjs/throttler");
@@ -48,6 +49,7 @@ const final_contracts_module_1 = require("./modules/final-contracts/final-contra
 const oms_module_1 = require("./modules/oms/oms.module");
 const cod_module_1 = require("./modules/cod/cod.module");
 const oms_returns_module_1 = require("./modules/oms-returns/oms-returns.module");
+const settings_module_1 = require("./modules/settings/settings.module");
 const shipping_module_1 = require("./modules/shipping/shipping.module");
 const pdf_module_1 = require("./pdf/pdf.module");
 const financial_module_1 = require("./modules/financial/financial.module");
@@ -107,12 +109,14 @@ exports.AppModule = AppModule = __decorate([
             cod_module_1.CodModule,
             oms_returns_module_1.OmsReturnsModule,
             shipping_module_1.ShippingModule,
+            settings_module_1.SettingsModule,
             pdf_module_1.PdfModule,
             financial_module_1.FinancialModule,
         ],
         providers: [
             { provide: core_1.APP_GUARD, useClass: throttler_1.ThrottlerGuard },
             { provide: core_1.APP_GUARD, useClass: jwt_auth_guard_1.JwtAuthGuard },
+            { provide: core_1.APP_GUARD, useClass: read_only_role_guard_1.ReadOnlyRoleGuard },
         ],
     })
 ], AppModule);

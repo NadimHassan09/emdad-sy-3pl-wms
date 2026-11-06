@@ -18,10 +18,13 @@ const public_decorator_1 = require("../../../common/auth/public.decorator");
 const client_user_decorator_1 = require("../auth/client-user.decorator");
 const jwt_client_auth_guard_1 = require("../auth/jwt-client-auth.guard");
 const client_billing_service_1 = require("./client-billing.service");
+const billing_on_demand_service_1 = require("../../billing/on-demand/billing-on-demand.service");
 let ClientBillingController = class ClientBillingController {
     billing;
-    constructor(billing) {
+    onDemand;
+    constructor(billing, onDemand) {
         this.billing = billing;
+        this.onDemand = onDemand;
     }
     access(client) {
         return this.billing.getAccess(client);
@@ -46,6 +49,9 @@ let ClientBillingController = class ClientBillingController {
         res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
         res.setHeader('Content-Disposition', 'attachment; filename="invoices-report.xlsx"');
         res.send(buffer);
+    }
+    invoiceBreakdown(client, id) {
+        return this.onDemand.breakdown({ companyId: client.companyId }, id, 'client');
     }
     getInvoice(client, id) {
         return this.billing.getInvoice(client, id);
@@ -86,6 +92,14 @@ __decorate([
     __metadata("design:returntype", Promise)
 ], ClientBillingController.prototype, "exportInvoices", null);
 __decorate([
+    (0, common_1.Get)('invoices/:id/breakdown'),
+    __param(0, (0, client_user_decorator_1.ClientUser)()),
+    __param(1, (0, common_1.Param)('id')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, String]),
+    __metadata("design:returntype", void 0)
+], ClientBillingController.prototype, "invoiceBreakdown", null);
+__decorate([
     (0, common_1.Get)('invoices/:id'),
     __param(0, (0, client_user_decorator_1.ClientUser)()),
     __param(1, (0, common_1.Param)('id')),
@@ -97,6 +111,7 @@ exports.ClientBillingController = ClientBillingController = __decorate([
     (0, public_decorator_1.Public)(),
     (0, common_1.UseGuards)(jwt_client_auth_guard_1.JwtClientAuthGuard),
     (0, common_1.Controller)('client/billing'),
-    __metadata("design:paramtypes", [client_billing_service_1.ClientBillingService])
+    __metadata("design:paramtypes", [client_billing_service_1.ClientBillingService,
+        billing_on_demand_service_1.BillingOnDemandService])
 ], ClientBillingController);
 //# sourceMappingURL=client-billing.controller.js.map

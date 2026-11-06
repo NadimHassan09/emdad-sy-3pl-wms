@@ -11,6 +11,7 @@ const common_1 = require("@nestjs/common");
 const config_1 = require("@nestjs/config");
 const jwt_1 = require("@nestjs/jwt");
 const passport_1 = require("@nestjs/passport");
+const audit_module_1 = require("../../common/audit/audit.module");
 const crypto_module_1 = require("../../common/crypto/crypto.module");
 const prisma_module_1 = require("../../common/prisma/prisma.module");
 const inbound_module_1 = require("../inbound/inbound.module");
@@ -24,6 +25,8 @@ const oms_returns_module_1 = require("../oms-returns/oms-returns.module");
 const returns_module_1 = require("../returns/returns.module");
 const shipping_module_1 = require("../shipping/shipping.module");
 const pdf_module_1 = require("../../pdf/pdf.module");
+const client_webhooks_controller_1 = require("./webhooks/client-webhooks.controller");
+const client_webhooks_service_1 = require("./webhooks/client-webhooks.service");
 const api_credentials_controller_1 = require("./api-credentials/api-credentials.controller");
 const api_credentials_service_1 = require("./api-credentials/api-credentials.service");
 const api_docs_service_1 = require("./external-api/api-docs.service");
@@ -66,12 +69,16 @@ const client_returns_service_1 = require("./returns/client-returns.service");
 const client_oms_returns_controller_1 = require("./oms-returns/client-oms-returns.controller");
 const client_oms_returns_service_1 = require("./oms-returns/client-oms-returns.service");
 const client_shipping_controller_1 = require("./shipping/client-shipping.controller");
+const client_sheets_google_controller_1 = require("./sheets/client-sheets-google.controller");
+const client_sheets_google_service_1 = require("./sheets/client-sheets-google.service");
+const settings_module_1 = require("../settings/settings.module");
 let ClientPortalModule = class ClientPortalModule {
 };
 exports.ClientPortalModule = ClientPortalModule;
 exports.ClientPortalModule = ClientPortalModule = __decorate([
     (0, common_1.Module)({
         imports: [
+            audit_module_1.AuditModule,
             config_1.ConfigModule,
             passport_1.PassportModule.register({}),
             jwt_1.JwtModule.registerAsync({
@@ -86,6 +93,7 @@ exports.ClientPortalModule = ClientPortalModule = __decorate([
             }),
             prisma_module_1.PrismaModule,
             crypto_module_1.CryptoModule,
+            settings_module_1.SettingsModule,
             inventory_module_1.InventoryModule,
             products_module_1.ProductsModule,
             media_module_1.MediaModule,
@@ -99,6 +107,7 @@ exports.ClientPortalModule = ClientPortalModule = __decorate([
             pdf_module_1.PdfModule,
         ],
         controllers: [
+            client_webhooks_controller_1.ClientWebhooksController,
             client_auth_controller_1.ClientAuthController,
             client_stock_controller_1.ClientStockController,
             client_products_controller_1.ClientProductsController,
@@ -116,8 +125,10 @@ exports.ClientPortalModule = ClientPortalModule = __decorate([
             external_inbound_controller_1.ExternalInboundController,
             external_outbound_controller_1.ExternalOutboundController,
             client_shipping_controller_1.ClientShippingController,
+            client_sheets_google_controller_1.ClientSheetsGoogleController,
         ],
         providers: [
+            client_webhooks_service_1.ClientWebhooksService,
             client_auth_service_1.ClientAuthService,
             client_stock_service_1.ClientStockService,
             client_products_service_1.ClientProductsService,
@@ -143,6 +154,7 @@ exports.ClientPortalModule = ClientPortalModule = __decorate([
             external_oms_service_1.ExternalOmsService,
             external_inbound_service_1.ExternalInboundService,
             external_outbound_service_1.ExternalOutboundService,
+            client_sheets_google_service_1.ClientSheetsGoogleService,
         ],
         exports: [
             client_auth_service_1.ClientAuthService,

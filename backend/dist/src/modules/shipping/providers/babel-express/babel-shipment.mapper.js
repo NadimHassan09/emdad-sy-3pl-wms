@@ -7,6 +7,7 @@ exports.resolveBabelCodCurrency = resolveBabelCodCurrency;
 exports.mapCreateShipmentPayload = mapCreateShipmentPayload;
 exports.mapCalculatePricePayload = mapCalculatePricePayload;
 exports.parsePhoneForBabel = parsePhoneForBabel;
+const currency_1 = require("../../../../common/money/currency");
 const shipping_config_util_1 = require("../../shipping-config.util");
 var babel_quote_util_1 = require("./babel-quote.util");
 Object.defineProperty(exports, "isBabelAddressDeliveryAvailable", { enumerable: true, get: function () { return babel_quote_util_1.isBabelAddressDeliveryAvailable; } });
@@ -20,8 +21,10 @@ function resolveBabelPayer(payer) {
 }
 function resolveBabelCodCurrency(currency) {
     const normalized = currency?.trim().toUpperCase();
-    if (normalized === 'USD' || normalized === 'SYP')
-        return normalized;
+    if (normalized === 'USD')
+        return 'USD';
+    if (normalized === 'SYP' || normalized === 'SYP_NEW' || normalized === 'SYP_OLD')
+        return 'SYP';
     return 'USD';
 }
 function resolveParts(input) {
@@ -96,6 +99,7 @@ function mapCreateShipmentPayload(input) {
             cod: {
                 amount: input.codAmount,
                 currency: resolveBabelCodCurrency(input.currency),
+                ...((0, currency_1.isSyrianPound)(input.currency) ? { isNewSYP: (0, currency_1.normalizeCurrency)(input.currency) === 'SYP_NEW' } : {}),
             },
             payer: resolveBabelPayer(input.payer),
             ...(input.reference ? { reference: input.reference } : {}),

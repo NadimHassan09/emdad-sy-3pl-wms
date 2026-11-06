@@ -34,6 +34,8 @@ const INTERNAL_ROLES = new Set([
     'wh_manager',
     'wh_operator',
     'finance',
+    'viewer',
+    'inventory_controller',
 ]);
 let ProductsService = class ProductsService {
     prisma;

@@ -1,10 +1,12 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.PUTAWAY_DESTINATION_LOCATION_TYPES = void 0;
 exports.normalizeExecutionMode = normalizeExecutionMode;
 exports.parseInboundExecutionPlan = parseInboundExecutionPlan;
 exports.assertInboundAdminPlanComplete = assertInboundAdminPlanComplete;
 exports.parseOutboundExecutionPlan = parseOutboundExecutionPlan;
 exports.assertOutboundAdminPlanComplete = assertOutboundAdminPlanComplete;
+exports.isPutawayDestinationType = isPutawayDestinationType;
 const common_1 = require("@nestjs/common");
 function isRecord(v) {
     return !!v && typeof v === 'object' && !Array.isArray(v);
@@ -142,5 +144,9 @@ function assertOutboundAdminPlanComplete(plan) {
     if (plan.requiresPacking !== false && !plan.packingLocationId?.trim()) {
         throw new common_1.BadRequestException('Admin plan requires packingLocationId when packing is required.');
     }
+}
+exports.PUTAWAY_DESTINATION_LOCATION_TYPES = ['internal', 'fridge', 'quarantine', 'scrap'];
+function isPutawayDestinationType(type) {
+    return !!type && exports.PUTAWAY_DESTINATION_LOCATION_TYPES.includes(type);
 }
 //# sourceMappingURL=execution-plan.util.js.map

@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Alert, Button, Skeleton } from '@ds';
 
 import { listCities, listDistricts, listNeighborhoods } from '../../data/syria-address';
+import { SearchableSelect, type SelectOption } from './SearchableSelect';
 import {
   cancelClientOmsOrder,
   createClientOmsOrder,
@@ -232,42 +233,48 @@ export function OmsSheet({ isArabic }: { isArabic: boolean }) {
                   <td className={cell}><input className={input} value={r.recipientName} onChange={(e) => patch(r.key, { recipientName: e.target.value })} /></td>
                   <td className={cell}><input className={input} value={r.recipientPhone} inputMode="tel" onChange={(e) => patch(r.key, { recipientPhone: e.target.value })} /></td>
                   <td className={cell}>
-                    <select className={input} value={r.city} onChange={(e) => patch(r.key, { city: e.target.value, district: '', addressLine1: '' })}>
-                      <option value="">—</option>
-                      {r.city && !cities.includes(r.city) ? <option value={r.city}>{r.city}</option> : null}
-                      {cities.map((c) => <option key={c} value={c}>{c}</option>)}
-                    </select>
+                    <SearchableSelect
+                      value={r.city}
+                      options={cities.map((c): SelectOption => ({ value: c, label: c }))}
+                      onChange={(v) => patch(r.key, { city: v, district: '', addressLine1: '' })}
+                    />
                   </td>
                   <td className={cell}>
-                    <select className={input} value={r.district} disabled={!r.city} onChange={(e) => patch(r.key, { district: e.target.value, addressLine1: '' })}>
-                      <option value="">—</option>
-                      {r.district && !districts.includes(r.district) ? <option value={r.district}>{r.district}</option> : null}
-                      {districts.map((c) => <option key={c} value={c}>{c}</option>)}
-                    </select>
+                    <SearchableSelect
+                      value={r.district}
+                      disabled={!r.city}
+                      options={districts.map((c): SelectOption => ({ value: c, label: c }))}
+                      onChange={(v) => patch(r.key, { district: v, addressLine1: '' })}
+                    />
                   </td>
                   <td className={cell}>
-                    <select className={input} value={r.addressLine1} disabled={!r.district} onChange={(e) => patch(r.key, { addressLine1: e.target.value })}>
-                      <option value="">—</option>
-                      {r.addressLine1 && !hoods.includes(r.addressLine1) ? <option value={r.addressLine1}>{r.addressLine1}</option> : null}
-                      {hoods.map((c) => <option key={c} value={c}>{c}</option>)}
-                    </select>
+                    <SearchableSelect
+                      value={r.addressLine1}
+                      disabled={!r.district}
+                      options={hoods.map((c): SelectOption => ({ value: c, label: c }))}
+                      onChange={(v) => patch(r.key, { addressLine1: v })}
+                    />
                   </td>
                   <td className={cell}><input className={input} value={r.addressLine2} onChange={(e) => patch(r.key, { addressLine2: e.target.value })} /></td>
                   <td className={cell}>
-                    <select className={input} value={r.paymentMethod} onChange={(e) => patch(r.key, { paymentMethod: e.target.value as ClientOmsPaymentMethod })}>
-                      <option value="">—</option>
-                      <option value="COD">COD</option>
-                      <option value="PREPAID">{t('Prepaid', 'مدفوع مسبقًا')}</option>
-                      <option value="CREDIT">{t('Credit', 'آجل')}</option>
-                    </select>
+                    <SearchableSelect
+                      value={r.paymentMethod}
+                      options={[
+                        { value: 'COD', label: 'COD' },
+                        { value: 'PREPAID', label: t('Prepaid', 'مدفوع مسبقًا') },
+                        { value: 'CREDIT', label: t('Credit', 'آجل') },
+                      ]}
+                      onChange={(v) => patch(r.key, { paymentMethod: v as ClientOmsPaymentMethod })}
+                    />
                   </td>
                   {isNew ? (
                     <>
                       <td className={cell}>
-                        <select className={input} value={r.productId} onChange={(e) => patch(r.key, { productId: e.target.value })}>
-                          <option value="">—</option>
-                          {products.map((p) => <option key={p.id} value={p.id}>{p.sku} · {p.name}</option>)}
-                        </select>
+                        <SearchableSelect
+                          value={r.productId}
+                          options={products.map((p): SelectOption => ({ value: p.id, label: `${p.sku} · ${p.name}` }))}
+                          onChange={(v) => patch(r.key, { productId: v })}
+                        />
                       </td>
                       <td className={cell}><input className={input} type="number" min="1" value={r.quantity} onChange={(e) => patch(r.key, { quantity: e.target.value })} /></td>
                       <td className={cell}><input className={input} type="number" min="0" step="1" value={r.unitPrice} onChange={(e) => patch(r.key, { unitPrice: e.target.value })} /></td>
@@ -279,9 +286,13 @@ export function OmsSheet({ isArabic }: { isArabic: boolean }) {
                   )}
                   <td className={cell}><input className={input} value={r.notes} onChange={(e) => patch(r.key, { notes: e.target.value })} /></td>
                   <td className={`${cell} whitespace-nowrap px-1`}>
-                    <Button type="button" variant="ghost" onClick={() => void removeRow(r)}>
-                      {isNew ? t('Remove', 'إزالة') : r.status && DELETABLE.includes(r.status) ? t('Delete', 'حذف') : t('Cancel order', 'إلغاء الطلب')}
-                    </Button>
+                    {isNew ? (
+                      <Button type="button" variant="ghost" onClick={() => void removeRow(r)}>{t('Remove', 'إزالة')}</Button>
+                    ) : r.status && DELETABLE.includes(r.status) ? (
+                      <Button type="button" variant="danger" onClick={() => void removeRow(r)}>{t('Delete', 'حذف')}</Button>
+                    ) : (
+                      <Button type="button" variant="ghost" onClick={() => void removeRow(r)} className="text-orange-600 hover:text-orange-700">{t('Cancel order', 'إلغاء الطلب')}</Button>
+                    )}
                     {r.error ? <div className="max-w-[14rem] whitespace-normal px-1 pb-1 text-xs text-red-600">{r.error}</div> : null}
                   </td>
                 </tr>

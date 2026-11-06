@@ -66,11 +66,13 @@ __decorate([
 __decorate([
     (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsString)(),
+    (0, class_validator_1.MaxLength)(100, { message: 'Client reference must be at most 100 characters.' }),
     __metadata("design:type", String)
 ], CreateInboundOrderDto.prototype, "clientReference", void 0);
 __decorate([
     (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsString)(),
+    (0, class_validator_1.MaxLength)(500, { message: 'Notes must be at most 500 characters.' }),
     __metadata("design:type", String)
 ], CreateInboundOrderDto.prototype, "notes", void 0);
 __decorate([

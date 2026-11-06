@@ -131,6 +131,11 @@ let InboundService = class InboundService {
                 seenProductIds.add(l.productId);
             }
             (0, order_planning_date_1.assertCalendarDateNotBeforeToday)(dto.expectedArrivalDate, 'Expected arrival date');
+            for (const line of dto.lines) {
+                if (line.expectedExpiryDate) {
+                    (0, order_planning_date_1.assertCalendarDateNotBeforeToday)(line.expectedExpiryDate, 'Expected expiry date');
+                }
+            }
             const clientSubmission = !!opts?.pendingClientApproval;
             const executionMode = clientSubmission
                 ? 'admin'
@@ -140,8 +145,10 @@ let InboundService = class InboundService {
                 const parsed = (0, execution_plan_util_1.parseInboundExecutionPlan)(dto.executionPlan);
                 if (!parsed)
                     throw new common_1.BadRequestException('Invalid executionPlan.');
-                if (executionMode === 'admin')
+                if (executionMode === 'admin') {
                     (0, execution_plan_util_1.assertInboundAdminPlanComplete)(parsed);
+                    await this.assertPutawayDestinationsUsable(parsed);
+                }
                 executionPlan = parsed;
             }
             else if (executionMode === 'admin' && !clientSubmission) {
@@ -461,10 +468,55 @@ let InboundService = class InboundService {
             return order;
         });
     }
+    async updatePutawayDestinations(user, order, dto) {
+        const existing = (0, execution_plan_util_1.parseInboundExecutionPlan)(order.executionPlan);
+        const next = (0, execution_plan_util_1.parseInboundExecutionPlan)(dto.executionPlan);
+        if (!existing || !next)
+            throw new common_1.BadRequestException('Invalid executionPlan.');
+        if (next.warehouseId !== existing.warehouseId ||
+            next.receivingDockId !== existing.receivingDockId ||
+            dto.notes !== undefined ||
+            dto.expectedArrivalDate !== undefined ||
+            dto.executionMode !== undefined) {
+            throw new domain_exceptions_1.InvalidStateException('During putaway only the putaway destinations can be changed.');
+        }
+        const qtyByProduct = (p) => JSON.stringify(p.lines.map((l) => [l.orderLineId ?? l.productId, l.productId, l.expectedQty]).sort());
+        const withIds = {
+            ...next,
+            lines: next.lines.map((pl) => ({
+                ...pl,
+                orderLineId: pl.orderLineId ?? order.lines.find((l) => l.productId === pl.productId)?.id ?? undefined,
+            })),
+        };
+        if (qtyByProduct(withIds) !== qtyByProduct(existing)) {
+            throw new domain_exceptions_1.InvalidStateException('During putaway only the putaway destinations can be changed.');
+        }
+        (0, execution_plan_util_1.assertInboundAdminPlanComplete)(withIds);
+        await this.assertPutawayDestinationsUsable(withIds);
+        withIds.planUpdatedAt = new Date().toISOString();
+        return (0, tenant_rls_1.withTenantRls)(this.prisma, user, (tx) => tx.inboundOrder.update({
+            where: { id: order.id },
+            data: { executionPlan: withIds },
+            include: ORDER_INCLUDE,
+        }));
+    }
     async updatePlan(user, id, dto) {
         const order = await this.findById(id, user);
         if (!isInboundPlanEditable(order.status, order.lines)) {
-            throw new domain_exceptions_1.InvalidStateException(`Plan can only be updated before receiving starts (current: ${order.status}).`);
+            const putawayOpen = await this.prisma.warehouseTask.findFirst({
+                where: {
+                    taskType: client_1.WarehouseTaskType.putaway,
+                    status: {
+                        in: [client_1.WarehouseTaskStatus.pending, client_1.WarehouseTaskStatus.assigned, client_1.WarehouseTaskStatus.in_progress],
+                    },
+                    workflowInstance: { referenceType: 'inbound_order', referenceId: id },
+                },
+                select: { id: true },
+            });
+            if (!putawayOpen || (0, execution_plan_util_1.normalizeExecutionMode)(order.executionMode) !== 'admin' || !dto.executionPlan) {
+                throw new domain_exceptions_1.InvalidStateException(`Plan can only be updated before receiving starts (current: ${order.status}).`);
+            }
+            return this.updatePutawayDestinations(user, order, dto);
         }
         const executionMode = (0, execution_plan_util_1.normalizeExecutionMode)(dto.executionMode ?? order.executionMode);
         let executionPlan = undefined;
@@ -487,8 +539,10 @@ let InboundService = class InboundService {
                 return { ...pl, orderLineId };
             });
             parsed.planUpdatedAt = new Date().toISOString();
-            if (executionMode === 'admin')
+            if (executionMode === 'admin') {
                 (0, execution_plan_util_1.assertInboundAdminPlanComplete)(parsed);
+                await this.assertPutawayDestinationsUsable(parsed);
+            }
             executionPlan = parsed;
         }
         else if (executionMode === 'admin') {
@@ -516,6 +570,30 @@ let InboundService = class InboundService {
             return updated;
         });
     }
+    async assertPutawayDestinationsUsable(plan) {
+        const ids = [...new Set(plan.lines.flatMap((l) => (l.putaway ?? []).map((p) => p.locationId)))];
+        if (ids.length === 0)
+            return;
+        const rows = await this.prisma.location.findMany({
+            where: { id: { in: ids } },
+            select: { id: true, fullPath: true, type: true, status: true, warehouseId: true },
+        });
+        const byId = new Map(rows.map((r) => [r.id, r]));
+        for (const id of ids) {
+            const loc = byId.get(id);
+            if (!loc)
+                throw new common_1.BadRequestException('A putaway location in the plan was not found.');
+            if (loc.warehouseId !== plan.warehouseId) {
+                throw new common_1.BadRequestException(`Putaway location ${loc.fullPath} is not in the plan's warehouse.`);
+            }
+            if (String(loc.status) !== 'active') {
+                throw new common_1.BadRequestException(`Putaway location ${loc.fullPath} is not active.`);
+            }
+            if (!(0, execution_plan_util_1.isPutawayDestinationType)(String(loc.type))) {
+                throw new common_1.BadRequestException(`Putaway location ${loc.fullPath} is a ${String(loc.type)} location. Choose a storage, fridge, quarantine or scrap location.`);
+            }
+        }
+    }
     async approveAdmin(user, orderId) {
         const order = await this.findById(orderId, user);
         if ((0, execution_plan_util_1.normalizeExecutionMode)(order.executionMode) !== 'admin') {
@@ -529,6 +607,7 @@ let InboundService = class InboundService {
         if (!plan)
             throw new common_1.BadRequestException('Approve requires a saved executionPlan.');
         (0, execution_plan_util_1.assertInboundAdminPlanComplete)(plan);
+        await this.assertPutawayDestinationsUsable(plan);
         const stagingByLineId = {};
         for (const line of order.lines) {
             stagingByLineId[line.id] = plan.receivingDockId;

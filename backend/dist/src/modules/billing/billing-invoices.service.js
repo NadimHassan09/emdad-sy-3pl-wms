@@ -17,6 +17,7 @@ const prisma_service_1 = require("../../common/prisma/prisma.service");
 const realtime_service_1 = require("../realtime/realtime.service");
 const billing_audit_service_1 = require("./billing-audit.service");
 const billing_invoice_calculation_service_1 = require("./billing-invoice-calculation.service");
+const billing_on_demand_service_1 = require("./on-demand/billing-on-demand.service");
 exports.INVOICE_SELECT = {
     id: true,
     companyId: true,
@@ -73,12 +74,14 @@ let BillingInvoicesService = class BillingInvoicesService {
     billingAudit;
     invoiceCalc;
     realtime;
-    constructor(prisma, companyAccess, billingAudit, invoiceCalc, realtime) {
+    onDemand;
+    constructor(prisma, companyAccess, billingAudit, invoiceCalc, realtime, onDemand) {
         this.prisma = prisma;
         this.companyAccess = companyAccess;
         this.billingAudit = billingAudit;
         this.invoiceCalc = invoiceCalc;
         this.realtime = realtime;
+        this.onDemand = onDemand;
     }
     emitInvoice(invoice, action) {
         this.realtime.emitInvoiceUpdated(invoice.companyId, {
@@ -114,6 +117,9 @@ let BillingInvoicesService = class BillingInvoicesService {
             data,
             select: exports.INVOICE_SELECT,
         });
+        if (status === 'cancelled') {
+            await this.onDemand.onInvoiceCancelled(user, id);
+        }
         const action = status === 'paid'
             ? billing_audit_service_1.BILLING_AUDIT_ACTIONS.INVOICE_PAID
             : status === 'cancelled'
@@ -409,6 +415,7 @@ exports.BillingInvoicesService = BillingInvoicesService = __decorate([
         company_access_service_1.CompanyAccessService,
         billing_audit_service_1.BillingAuditService,
         billing_invoice_calculation_service_1.BillingInvoiceCalculationService,
-        realtime_service_1.RealtimeService])
+        realtime_service_1.RealtimeService,
+        billing_on_demand_service_1.BillingOnDemandService])
 ], BillingInvoicesService);
 //# sourceMappingURL=billing-invoices.service.js.map

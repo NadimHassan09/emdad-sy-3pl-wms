@@ -63,7 +63,7 @@ __decorate([
 ], CreateUserDto.prototype, "clientRole", void 0);
 __decorate([
     (0, class_validator_1.ValidateIf)((o) => o.kind === 'system'),
-    (0, class_validator_1.IsIn)(['super_admin', 'admin', 'worker']),
+    (0, class_validator_1.IsIn)(['super_admin', 'admin', 'worker', 'accountant', 'viewer', 'inventory']),
     __metadata("design:type", String)
 ], CreateUserDto.prototype, "systemRole", void 0);
 __decorate([

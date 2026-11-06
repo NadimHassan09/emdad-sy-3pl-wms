@@ -13,9 +13,12 @@ var __param = (this && this.__param) || function (paramIndex, decorator) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.DocumentsController = void 0;
+const node_crypto_1 = require("node:crypto");
 const promises_1 = require("node:fs/promises");
 const common_1 = require("@nestjs/common");
+const config_1 = require("@nestjs/config");
 const current_user_decorator_1 = require("../common/auth/current-user.decorator");
+const public_decorator_1 = require("../common/auth/public.decorator");
 const company_access_service_1 = require("../common/company-access/company-access.service");
 const parse_uuid_loose_pipe_1 = require("../common/pipes/parse-uuid-loose.pipe");
 const prisma_service_1 = require("../common/prisma/prisma.service");
@@ -36,7 +39,8 @@ let DocumentsController = class DocumentsController {
     slotOverrides;
     prisma;
     companyAccess;
-    constructor(documents, grn, dn, finalContract, slotOverrides, prisma, companyAccess) {
+    config;
+    constructor(documents, grn, dn, finalContract, slotOverrides, prisma, companyAccess, config) {
         this.documents = documents;
         this.grn = grn;
         this.dn = dn;
@@ -44,6 +48,7 @@ let DocumentsController = class DocumentsController {
         this.slotOverrides = slotOverrides;
         this.prisma = prisma;
         this.companyAccess = companyAccess;
+        this.config = config;
     }
     listCatalog(user, query) {
         return this.documents.listCatalog(user, query);
@@ -58,6 +63,52 @@ let DocumentsController = class DocumentsController {
     async updateSlot(user, taskId, dto) {
         await this.assertTaskTenant(user, taskId);
         return this.slotOverrides.upsert(taskId, dto);
+    }
+    async downloadName(doc) {
+        const company = await this.prisma.company.findUnique({
+            where: { id: doc.companyId },
+            select: { name: true, tradeName: true },
+        });
+        const client = (company?.tradeName || company?.name || '').trim();
+        const raw = `${doc.documentNumber}${client ? ` - ${client}` : ''}${doc.language === 'ar' ? ' (AR)' : ''}`;
+        const safe = raw.replace(/[\\/:*?"<>|\r\n]+/g, ' ').replace(/\s+/g, ' ').trim();
+        return `${safe || doc.fileName.replace(/\.pdf$/i, '')}.pdf`;
+    }
+    signLink(id, exp) {
+        const secret = this.config.get('JWT_SECRET') ?? 'dev-only-change-in-production';
+        return (0, node_crypto_1.createHmac)('sha256', secret).update(`${id}.${exp}`).digest('hex');
+    }
+    async link(user, id) {
+        const doc = await this.documents.getForDownload(user, id);
+        const name = await this.downloadName(doc);
+        const exp = Date.now() + 5 * 60_000;
+        return {
+            url: `/api/documents/public/${id}/${encodeURIComponent(name)}?exp=${exp}&sig=${this.signLink(id, exp)}`,
+            fileName: name,
+        };
+    }
+    async publicFile(id, exp, sig, res) {
+        const expNum = Number(exp);
+        const expected = this.signLink(id, expNum);
+        const ok = Number.isFinite(expNum) &&
+            expNum > Date.now() &&
+            typeof sig === 'string' &&
+            sig.length === expected.length &&
+            (0, node_crypto_1.timingSafeEqual)(Buffer.from(sig), Buffer.from(expected));
+        if (!ok)
+            throw new common_1.ForbiddenException('This link has expired. Open the document again.');
+        const doc = await this.prisma.document.findUnique({ where: { id } });
+        if (!doc)
+            throw new common_1.NotFoundException('Document not found.');
+        const buffer = await (0, promises_1.readFile)(doc.filePath).catch(() => null);
+        if (!buffer)
+            throw new common_1.NotFoundException('Document file is no longer available on disk.');
+        const name = await this.downloadName(doc);
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(name)}"; filename*=UTF-8''${encodeURIComponent(name)}`);
+        res.setHeader('Content-Length', buffer.byteLength.toString());
+        res.setHeader('Cache-Control', 'private, no-store');
+        res.end(buffer);
     }
     async file(user, id, res) {
         const doc = await this.documents.getForDownload(user, id);
@@ -138,6 +189,25 @@ __decorate([
     __metadata("design:returntype", Promise)
 ], DocumentsController.prototype, "updateSlot", null);
 __decorate([
+    (0, common_1.Post)(':id/link'),
+    __param(0, (0, current_user_decorator_1.CurrentUser)()),
+    __param(1, (0, common_1.Param)('id', parse_uuid_loose_pipe_1.ParseUuidLoosePipe)),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, String]),
+    __metadata("design:returntype", Promise)
+], DocumentsController.prototype, "link", null);
+__decorate([
+    (0, public_decorator_1.Public)(),
+    (0, common_1.Get)('public/:id/:filename'),
+    __param(0, (0, common_1.Param)('id', parse_uuid_loose_pipe_1.ParseUuidLoosePipe)),
+    __param(1, (0, common_1.Query)('exp')),
+    __param(2, (0, common_1.Query)('sig')),
+    __param(3, (0, common_1.Res)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, String, String, Object]),
+    __metadata("design:returntype", Promise)
+], DocumentsController.prototype, "publicFile", null);
+__decorate([
     (0, common_1.Get)(':id/file'),
     __param(0, (0, current_user_decorator_1.CurrentUser)()),
     __param(1, (0, common_1.Param)('id', parse_uuid_loose_pipe_1.ParseUuidLoosePipe)),
@@ -181,6 +251,7 @@ exports.DocumentsController = DocumentsController = __decorate([
         final_contract_pdf_service_1.FinalContractPdfService,
         document_slot_overrides_service_1.DocumentSlotOverridesService,
         prisma_service_1.PrismaService,
-        company_access_service_1.CompanyAccessService])
+        company_access_service_1.CompanyAccessService,
+        config_1.ConfigService])
 ], DocumentsController);
 //# sourceMappingURL=documents.controller.js.map

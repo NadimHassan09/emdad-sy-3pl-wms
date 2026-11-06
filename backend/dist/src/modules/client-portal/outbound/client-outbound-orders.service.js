@@ -13,8 +13,11 @@ exports.ClientOutboundOrdersService = void 0;
 const common_1 = require("@nestjs/common");
 const client_1 = require("@prisma/client");
 const client_auth_principal_1 = require("../../../common/auth/client-auth-principal");
+const audit_log_service_1 = require("../../../common/audit/audit-log.service");
 const prisma_service_1 = require("../../../common/prisma/prisma.service");
 const tenant_rls_1 = require("../../../common/prisma/tenant-rls");
+const order_planning_date_1 = require("../../../common/utils/order-planning-date");
+const client_order_lock_1 = require("../shared/client-order-lock");
 const outbound_service_1 = require("../../outbound/outbound.service");
 const client_list_outbound_query_dto_1 = require("./dto/client-list-outbound-query.dto");
 function toProductImageUrl(imagePath) {
@@ -25,9 +28,11 @@ function toProductImageUrl(imagePath) {
 let ClientOutboundOrdersService = class ClientOutboundOrdersService {
     outbound;
     prisma;
-    constructor(outbound, prisma) {
+    audit;
+    constructor(outbound, prisma, audit) {
         this.outbound = outbound;
         this.prisma = prisma;
+        this.audit = audit;
     }
     async findOne(client, id) {
         const order = await this.outbound.findById(id, (0, client_auth_principal_1.clientAuthPrincipal)(client));
@@ -110,6 +115,51 @@ let ClientOutboundOrdersService = class ClientOutboundOrdersService {
     async create(client, dto) {
         return this.outbound.create((0, client_auth_principal_1.clientAuthPrincipal)(client), { ...dto, executionMode: 'admin', executionPlan: undefined }, { pendingClientApproval: true });
     }
+    async updateEditable(client, id, dto) {
+        const principal = (0, client_auth_principal_1.clientAuthPrincipal)(client);
+        const updated = await (0, tenant_rls_1.withTenantRls)(this.prisma, principal, async (tx) => {
+            const order = await tx.outboundOrder.findFirst({
+                where: { id, companyId: client.companyId },
+                select: { id: true, status: true, companyId: true, omsOrder: { select: { id: true } } },
+            });
+            if (!order)
+                throw new common_1.NotFoundException('Outbound order not found.');
+            if (order.omsOrder) {
+                throw new common_1.BadRequestException('This order belongs to an online (OMS) order. Edit it from the OMS sheet.');
+            }
+            (0, client_order_lock_1.assertClientMayChangeWmsOrder)(order.status);
+            if (dto.requiredShipDate)
+                (0, order_planning_date_1.assertCalendarDateNotBeforeToday)(dto.requiredShipDate, 'Required ship date');
+            return tx.outboundOrder.update({
+                where: { id },
+                data: {
+                    destinationAddress: dto.destinationAddress,
+                    requiredShipDate: dto.requiredShipDate ? new Date(dto.requiredShipDate) : undefined,
+                    clientReference: dto.clientReference,
+                    notes: dto.notes,
+                    updatedAt: new Date(),
+                },
+                select: { id: true, status: true, companyId: true },
+            });
+        });
+        await this.audit.log(this.audit.fromPrincipal(principal, {
+            action: 'OUTBOUND_CLIENT_EDITED',
+            resourceType: 'outbound_order',
+            resourceId: updated.id,
+            companyId: updated.companyId,
+            newState: { status: updated.status },
+        }));
+        return this.findOne(client, id);
+    }
+    async removeUnapproved(client, id) {
+        const principal = (0, client_auth_principal_1.clientAuthPrincipal)(client);
+        const order = await this.outbound.findById(id, principal);
+        if (order.companyId !== client.companyId)
+            throw new common_1.NotFoundException('Outbound order not found.');
+        (0, client_order_lock_1.assertClientMayChangeWmsOrder)(order.status);
+        await this.outbound.cancel(id, principal);
+        return this.outbound.remove(id, principal);
+    }
     async findByExternalReference(client, externalReference) {
         return this.outbound.findByExternalReference((0, client_auth_principal_1.clientAuthPrincipal)(client), client.companyId, externalReference);
     }
@@ -121,6 +171,7 @@ exports.ClientOutboundOrdersService = ClientOutboundOrdersService;
 exports.ClientOutboundOrdersService = ClientOutboundOrdersService = __decorate([
     (0, common_1.Injectable)(),
     __metadata("design:paramtypes", [outbound_service_1.OutboundService,
-        prisma_service_1.PrismaService])
+        prisma_service_1.PrismaService,
+        audit_log_service_1.AuditLogService])
 ], ClientOutboundOrdersService);
 //# sourceMappingURL=client-outbound-orders.service.js.map

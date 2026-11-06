@@ -8,6 +8,8 @@ const INTERNAL_ROLES = new Set([
     'wh_manager',
     'wh_operator',
     'finance',
+    'viewer',
+    'inventory_controller',
 ]);
 async function setTenantRlsContext(tx, user) {
     const isInternal = INTERNAL_ROLES.has(user.role);

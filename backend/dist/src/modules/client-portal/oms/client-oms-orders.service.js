@@ -19,10 +19,12 @@ const oms_order_mapper_1 = require("../../oms/oms-order.mapper");
 const oms_orders_service_1 = require("../../oms/oms-orders.service");
 const oms_order_status_filter_util_1 = require("../../oms/oms-order-status-filter.util");
 const excel_export_util_1 = require("../../../common/utils/excel-export.util");
+const client_oms_order_lock_1 = require("./client-oms-order-lock");
 const portal_cod_status_util_1 = require("./portal-cod-status.util");
 function stripClientCarrierCosts(order) {
     const linked = order.linkedOutboundOrder;
     const next = { ...order };
+    delete next.lastCarrierEvent;
     delete next.clientShippingRateBreakdown;
     delete next.clientShippingRateGroupId;
     delete next.carrier;
@@ -257,6 +259,22 @@ let ClientOmsOrdersService = class ClientOmsOrdersService {
             });
         }
         return map;
+    }
+    async updateEditable(client, id, dto) {
+        const user = (0, client_auth_principal_1.clientAuthPrincipal)(client);
+        const existing = await this.omsOrders.findById(id, user);
+        if (!client_oms_order_lock_1.CLIENT_EDITABLE_OMS_STATUSES.has(String(existing.status))) {
+            throw new common_1.ForbiddenException((0, client_oms_order_lock_1.clientLockMessage)(String(existing.status)));
+        }
+        return this.omsOrders.update(id, user, dto);
+    }
+    async removeUnconfirmed(client, id) {
+        const user = (0, client_auth_principal_1.clientAuthPrincipal)(client);
+        const existing = await this.omsOrders.findById(id, user);
+        if (!client_oms_order_lock_1.CLIENT_DELETABLE_OMS_STATUSES.has(String(existing.status))) {
+            throw new common_1.ForbiddenException('Only orders that are not confirmed yet can be deleted. Use Cancel for a confirmed order.');
+        }
+        return this.omsOrders.delete(id, user);
     }
     async confirm(client, id) {
         const user = (0, client_auth_principal_1.clientAuthPrincipal)(client);

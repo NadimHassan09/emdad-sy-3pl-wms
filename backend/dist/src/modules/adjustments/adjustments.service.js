@@ -198,6 +198,18 @@ let AdjustmentsService = class AdjustmentsService {
                 throw new common_1.BadRequestException('lotId must not be set for non-lot-tracked products.');
             }
             (0, discrete_uom_quantity_1.assertDiscreteUomPositiveIntegerQuantity)(product.uom, dto.quantityAfter, 'Quantity after');
+            const duplicate = await tx.stockAdjustmentLine.findFirst({
+                where: {
+                    adjustmentId,
+                    productId: dto.productId,
+                    locationId: dto.locationId,
+                    lotId: dto.lotId ?? null,
+                },
+                select: { id: true },
+            });
+            if (duplicate) {
+                throw new domain_exceptions_1.InvalidStateException('This product, location and lot is already in the adjustment. Edit that line instead of adding another.');
+            }
             const before = await this.stock.readOnHandForUpdate(tx, {
                 companyId: adj.companyId,
                 productId: dto.productId,
@@ -281,6 +293,14 @@ let AdjustmentsService = class AdjustmentsService {
                 }
                 if (adj.lines.length === 0) {
                     throw new common_1.BadRequestException('Cannot approve an adjustment with no lines.');
+                }
+                const seenBins = new Set();
+                for (const line of adj.lines) {
+                    const key = `${line.productId}|${line.locationId}|${line.lotId ?? ''}`;
+                    if (seenBins.has(key)) {
+                        throw new common_1.BadRequestException('The adjustment has two lines for the same product, location and lot. Remove one before approving.');
+                    }
+                    seenBins.add(key);
                 }
                 for (const line of adj.lines) {
                     const actual = await this.stock.readOnHandForUpdate(tx, {

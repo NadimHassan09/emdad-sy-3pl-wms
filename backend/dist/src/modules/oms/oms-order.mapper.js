@@ -112,6 +112,21 @@ function serializeOmsOrderListItem(order) {
         importBatchId: order.importBatchId ?? null,
         externalReference: order.externalReference ?? null,
         clientReference: order.clientReference ?? null,
+        contents: (order.lines ?? []).map((l) => ({
+            sku: l.product?.sku ?? null,
+            name: l.product?.name ?? null,
+            quantity: dec(l.requestedQuantity),
+        })),
+        lastCarrierEvent: (() => {
+            const ev = activeShipment?.events?.[0];
+            if (!ev)
+                return null;
+            return {
+                text: ev.eventDescription || ev.originalCarrierStatus || ev.normalizedStatus || null,
+                at: ev.eventTimestamp ?? null,
+                location: ev.locationText ?? null,
+            };
+        })(),
         linkedOutboundOrder: order.outboundOrder
             ? {
                 id: order.outboundOrder.id,

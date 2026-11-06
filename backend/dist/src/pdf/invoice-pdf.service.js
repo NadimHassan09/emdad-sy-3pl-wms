@@ -28,6 +28,11 @@ const LINE_TYPE_LABELS = {
     excess_weight: 'Excess weight',
     manual: 'Manual charge',
     order_charge: 'Order charge (VAS)',
+    fulfillment_inbound: 'Inbound order fulfillment',
+    fulfillment_outbound: 'Outbound order fulfillment',
+    fulfillment_oms: 'Online order fulfillment',
+    emdad_shipping: 'Shipping fees',
+    storage_fee: 'Storage',
 };
 let InvoicePdfService = InvoicePdfService_1 = class InvoicePdfService {
     prisma;

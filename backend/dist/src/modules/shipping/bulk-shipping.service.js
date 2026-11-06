@@ -11,6 +11,11 @@ var __metadata = (this && this.__metadata) || function (k, v) {
 var BulkShippingService_1;
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.BulkShippingService = void 0;
+const currency_1 = require("../../common/money/currency");
+const account_currency_1 = require("../financial/account-currency");
+const carrier_currency_1 = require("./carrier-currency");
+const currency_conversion_1 = require("./currency-conversion");
+const carrier_constraints_1 = require("./carrier-constraints");
 const common_1 = require("@nestjs/common");
 const client_1 = require("@prisma/client");
 const prisma_service_1 = require("../../common/prisma/prisma.service");
@@ -149,10 +154,16 @@ let BulkShippingService = BulkShippingService_1 = class BulkShippingService {
             });
         }
         const priced = lines.filter((l) => l.recommendedPrice != null);
-        const currency = priced.find((l) => l.recommendedCurrency)?.recommendedCurrency ?? null;
-        const estimatedTotalCost = priced.length > 0
-            ? priced.reduce((sum, l) => sum + (l.recommendedPrice ?? 0), 0)
-            : null;
+        const managedRate = await (0, account_currency_1.readManagedUsdToSypRate)(this.prisma);
+        const fxSnapshot = { usdToSypRate: managedRate?.rate ?? 0, source: managedRate?.source ?? 'none', timestamp: new Date().toISOString() };
+        const canTotalInUsd = priced.every((l) => !(0, currency_1.isSyrianPound)(l.recommendedCurrency) || fxSnapshot.usdToSypRate > 0);
+        const currency = canTotalInUsd ? 'USD' : (priced.find((l) => l.recommendedCurrency)?.recommendedCurrency ?? null);
+        const estimatedTotalCost = priced.length === 0
+            ? null
+            : canTotalInUsd
+                ? Math.round(priced.reduce((sum, l) => sum +
+                    (0, currency_conversion_1.toComparableUsd)(l.recommendedPrice ?? 0, l.recommendedCurrency ?? 'USD', fxSnapshot, (0, carrier_currency_1.carrierSypUnit)(l.recommendedProviderCode)), 0) * 100) / 100
+                : priced.reduce((sum, l) => sum + (l.recommendedPrice ?? 0), 0);
         return {
             lines,
             estimatedTotalCost,
@@ -205,7 +216,7 @@ let BulkShippingService = BulkShippingService_1 = class BulkShippingService {
                     quotedCurrency: item.quotedCurrency ?? null,
                 });
                 const collection = item.codCollectionCurrency?.trim().toUpperCase();
-                if (collection === 'USD' || collection === 'SYP') {
+                if (collection === 'USD' || collection === 'SYP' || collection === 'SYP_NEW') {
                     await this.shipping.saveCodCollection(item.outboundOrderId, collection);
                 }
                 else {
@@ -807,6 +818,8 @@ let BulkShippingService = BulkShippingService_1 = class BulkShippingService {
             });
             if (!Number.isFinite(result.price))
                 return null;
+            if ((0, carrier_constraints_1.carrierConstraintViolation)({ serviceName: result.serviceName, weightKg }))
+                return null;
             const provider = await this.prisma.shippingProvider.findUnique({
                 where: { code: providerCode },
                 select: { name: true },
@@ -816,7 +829,7 @@ let BulkShippingService = BulkShippingService_1 = class BulkShippingService {
                 providerCode,
                 providerName: provider?.name ?? providerCode,
                 price: result.price,
-                currency: result.currency || 'USD',
+                currency: (0, carrier_currency_1.carrierPriceCurrency)(providerCode, result.currency),
                 serviceId: result.serviceId ?? null,
                 serviceName: result.serviceName ?? null,
                 deliveryType,

@@ -19,6 +19,8 @@ const GLOBAL_TENANT_ROLES = new Set([
     client_1.UserRole.super_admin,
     client_1.UserRole.wh_manager,
     client_1.UserRole.finance,
+    client_1.UserRole.viewer,
+    client_1.UserRole.inventory_controller,
 ]);
 let CompanyAccessService = class CompanyAccessService {
     prisma;

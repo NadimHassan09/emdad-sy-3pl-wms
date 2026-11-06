@@ -1134,6 +1134,7 @@ model User {
   shippingOriginAddressUpdated ShippingOriginAddress[]      @relation("ShippingOriginAddressUpdatedBy")
   shippingFxSettingsUpdated    ShippingFxSettings[]         @relation("ShippingFxSettingsUpdatedBy")
   googleOAuthSettings          GoogleOAuthSettings[]        @relation("GoogleOAuthSettingsUpdatedBy")
+  clientGoogleToken            ClientGoogleToken?           @relation("ClientGoogleToken")
   bulkShippingJobsTriggered    BulkShippingJob[]            @relation("BulkShippingTriggeredBy")
   apiCredentialsCreated        ApiCredential[]              @relation("ApiCredentialCreatedBy")
   apiCredentialsRevoked        ApiCredential[]              @relation("ApiCredentialRevokedBy")
@@ -3105,4 +3106,21 @@ model GoogleOAuthSettings {
   updatedBy User? @relation("GoogleOAuthSettingsUpdatedBy", fields: [updatedByUserId], references: [id], onDelete: SetNull)
 
   @@map("google_oauth_settings")
+}
+
+model ClientGoogleToken {
+  id           String   @id @default(uuid()) @db.Uuid
+  userId       String   @unique @map("user_id") @db.Uuid
+  accessToken  String   @map("access_token") @db.Text
+  refreshToken String?  @map("refresh_token") @db.Text
+  expiresAt    DateTime @map("expires_at") @db.Timestamptz(6)
+  scope        String?  @db.Text
+  sheetId      String?  @map("sheet_id") @db.Text
+  sheetUrl     String?  @map("sheet_url") @db.Text
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  user User @relation("ClientGoogleToken", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("client_google_tokens")
 }

@@ -111,15 +111,24 @@ let ShippingController = class ShippingController {
     getFx() {
         return this.fx.getSettings();
     }
-    saveFx(body, user) {
+    async saveFx(body, user) {
         if (user.role !== 'super_admin') {
             throw new common_1.ForbiddenException('Only a super admin can set the USD/SYP rate.');
         }
-        if (body.mode === 'automatic')
+        const thresholds = {
+            refreshHours: body.refreshHours,
+            staleHours: body.staleHours,
+            minChangePercent: body.minChangePercent,
+        };
+        if (body.mode === 'automatic') {
+            await this.fx.saveThresholds(thresholds, user);
             return this.fx.saveAutomatic(user);
+        }
         if (body.manualRate == null) {
+            await this.fx.saveThresholds(thresholds, user);
             throw new common_1.BadRequestException('Enter the manual USD to SYP rate.');
         }
+        await this.fx.saveThresholds(thresholds, user);
         return this.fx.saveManual(body.manualRate, user);
     }
     testFxSource(user) {
@@ -353,7 +362,7 @@ __decorate([
     __param(1, (0, current_user_decorator_1.CurrentUser)()),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [upsert_shipping_fx_dto_1.UpsertShippingFxDto, Object]),
-    __metadata("design:returntype", void 0)
+    __metadata("design:returntype", Promise)
 ], ShippingController.prototype, "saveFx", null);
 __decorate([
     (0, common_1.Post)('fx/test-source'),

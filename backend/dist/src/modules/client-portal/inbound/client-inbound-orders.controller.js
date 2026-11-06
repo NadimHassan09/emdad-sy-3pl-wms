@@ -24,6 +24,7 @@ const client_user_decorator_1 = require("../auth/client-user.decorator");
 const jwt_client_auth_guard_1 = require("../auth/jwt-client-auth.guard");
 const client_inbound_export_service_1 = require("../order-export/client-inbound-export.service");
 const inbound_client_import_service_1 = require("../order-import/inbound-client-import.service");
+const update_client_inbound_order_dto_1 = require("./dto/update-client-inbound-order.dto");
 const client_inbound_orders_service_1 = require("./client-inbound-orders.service");
 const client_inbound_export_dto_1 = require("./dto/client-inbound-export.dto");
 const client_list_inbound_query_dto_1 = require("./dto/client-list-inbound-query.dto");
@@ -75,6 +76,12 @@ let ClientInboundOrdersController = class ClientInboundOrdersController {
     }
     create(client, body) {
         return this.inbound.create(client, body);
+    }
+    update(client, id, body) {
+        return this.inbound.updateEditable(client, id, body);
+    }
+    remove(client, id) {
+        return this.inbound.removeUnapproved(client, id);
     }
 };
 exports.ClientInboundOrdersController = ClientInboundOrdersController;
@@ -140,6 +147,23 @@ __decorate([
     __metadata("design:paramtypes", [Object, create_inbound_dto_1.CreateInboundOrderDto]),
     __metadata("design:returntype", void 0)
 ], ClientInboundOrdersController.prototype, "create", null);
+__decorate([
+    (0, common_1.Patch)(':id'),
+    __param(0, (0, client_user_decorator_1.ClientUser)()),
+    __param(1, (0, common_1.Param)('id', parse_uuid_loose_pipe_1.ParseUuidLoosePipe)),
+    __param(2, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, String, update_client_inbound_order_dto_1.UpdateClientInboundOrderDto]),
+    __metadata("design:returntype", void 0)
+], ClientInboundOrdersController.prototype, "update", null);
+__decorate([
+    (0, common_1.Delete)(':id'),
+    __param(0, (0, client_user_decorator_1.ClientUser)()),
+    __param(1, (0, common_1.Param)('id', parse_uuid_loose_pipe_1.ParseUuidLoosePipe)),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, String]),
+    __metadata("design:returntype", void 0)
+], ClientInboundOrdersController.prototype, "remove", null);
 exports.ClientInboundOrdersController = ClientInboundOrdersController = __decorate([
     (0, public_decorator_1.Public)(),
     (0, common_1.UseGuards)(jwt_client_auth_guard_1.JwtClientAuthGuard),

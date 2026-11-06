@@ -20,6 +20,8 @@ exports.ROLE_RANK = {
     [client_1.UserRole.super_admin]: 100,
     [client_1.UserRole.wh_manager]: 80,
     [client_1.UserRole.finance]: 60,
+    [client_1.UserRole.viewer]: 55,
+    [client_1.UserRole.inventory_controller]: 50,
     [client_1.UserRole.wh_operator]: 40,
     [client_1.UserRole.client_admin]: 30,
     [client_1.UserRole.client_staff]: 20,

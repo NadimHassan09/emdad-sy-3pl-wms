@@ -9,7 +9,7 @@ var AuthGroup;
     AuthGroup["OPERATOR"] = "OPERATOR";
 })(AuthGroup || (exports.AuthGroup = AuthGroup = {}));
 function userRoleToAuthGroup(role) {
-    if (role === client_1.UserRole.wh_operator)
+    if (role === client_1.UserRole.wh_operator || role === client_1.UserRole.inventory_controller)
         return AuthGroup.OPERATOR;
     return AuthGroup.ADMIN;
 }

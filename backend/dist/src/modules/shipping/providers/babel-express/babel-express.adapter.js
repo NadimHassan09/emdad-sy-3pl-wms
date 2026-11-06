@@ -162,7 +162,7 @@ let BabelExpressAdapter = BabelExpressAdapter_1 = class BabelExpressAdapter {
             ...input,
             deliveryType,
             pickupType: (0, babel_shipment_mapper_1.resolveBabelPickupType)(input.pickupType),
-            currency: (0, babel_shipment_mapper_1.resolveBabelCodCurrency)(input.currency),
+            currency: input.currency,
             receiver: {
                 ...input.receiver,
                 neighbourhoodId,
@@ -212,7 +212,12 @@ let BabelExpressAdapter = BabelExpressAdapter_1 = class BabelExpressAdapter {
         if (!Number.isFinite(price)) {
             throw new babel_express_http_client_1.BabelApiError('Babel Express calculatePrice missing price.', undefined, raw);
         }
-        const currency = typeof raw?.currency === 'string' ? raw.currency : 'SYP';
+        const rawCurrency = typeof raw?.currency === 'string' ? raw.currency : 'SYP';
+        const currency = rawCurrency.trim().toUpperCase() === 'SYP' && typeof raw?.isNewSYP === 'boolean'
+            ? raw.isNewSYP
+                ? 'SYP_NEW'
+                : 'SYP_OLD'
+            : rawCurrency;
         return {
             price,
             currency,

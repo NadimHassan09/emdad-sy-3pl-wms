@@ -120,6 +120,18 @@ const ORDER_INCLUDE = {
                     providerCode: true,
                     rawResultMeta: true,
                     supersededAt: true,
+                    events: {
+                        where: { isCarrierEvent: true },
+                        orderBy: [{ eventTimestamp: 'desc' }, { createdAt: 'desc' }],
+                        take: 1,
+                        select: {
+                            eventDescription: true,
+                            originalCarrierStatus: true,
+                            normalizedStatus: true,
+                            eventTimestamp: true,
+                            locationText: true,
+                        },
+                    },
                 },
                 orderBy: { createdAt: 'desc' },
                 take: 1,

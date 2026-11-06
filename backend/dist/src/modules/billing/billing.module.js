@@ -27,12 +27,15 @@ const billing_plans_service_1 = require("./billing-plans.service");
 const billing_usage_processor_service_1 = require("./billing-usage-processor.service");
 const billing_usage_service_1 = require("./billing-usage.service");
 const order_manual_charges_service_1 = require("./order-manual-charges.service");
+const billing_on_demand_service_1 = require("./on-demand/billing-on-demand.service");
+const financial_module_1 = require("../financial/financial.module");
+const company_access_module_1 = require("../../common/company-access/company-access.module");
 let BillingModule = class BillingModule {
 };
 exports.BillingModule = BillingModule;
 exports.BillingModule = BillingModule = __decorate([
     (0, common_1.Module)({
-        imports: [audit_module_1.AuditModule, realtime_module_1.RealtimeModule, pdf_module_1.PdfModule],
+        imports: [audit_module_1.AuditModule, realtime_module_1.RealtimeModule, pdf_module_1.PdfModule, financial_module_1.FinancialModule, company_access_module_1.CompanyAccessModule],
         controllers: [billing_controller_1.BillingController],
         providers: [
             billing_audit_service_1.BillingAuditService,
@@ -51,6 +54,7 @@ exports.BillingModule = BillingModule = __decorate([
             billing_notifications_service_1.BillingNotificationsService,
             billing_expiry_reminder_service_1.BillingExpiryReminderService,
             order_manual_charges_service_1.OrderManualChargesService,
+            billing_on_demand_service_1.BillingOnDemandService,
         ],
         exports: [
             billing_access_service_1.BillingAccessService,
@@ -61,6 +65,7 @@ exports.BillingModule = BillingModule = __decorate([
             billing_invoices_service_1.BillingInvoicesService,
             billing_usage_service_1.BillingUsageService,
             order_manual_charges_service_1.OrderManualChargesService,
+            billing_on_demand_service_1.BillingOnDemandService,
         ],
     })
 ], BillingModule);

@@ -2,6 +2,8 @@ import { useCallback, useEffect, useState } from 'react';
 
 import { Alert, Button, Skeleton } from '@ds';
 
+import { SearchableSelect, type SelectOption } from './SearchableSelect';
+
 import {
   createClientInboundOrder,
   deleteClientInboundOrder,
@@ -224,17 +226,22 @@ export function WmsOrdersSheet({ kind, isArabic }: { kind: WmsSheetKind; isArabi
                 ) : (
                   <>
                     <td className={cell}>
-                      <select className={input} value={r.productId} onChange={(e) => patch(r.key, { productId: e.target.value })}>
-                        <option value="">—</option>
-                        {products.map((p) => <option key={p.id} value={p.id}>{p.sku} · {p.name}</option>)}
-                      </select>
+                      <SearchableSelect
+                        value={r.productId}
+                        options={products.map((p): SelectOption => ({ value: p.id, label: `${p.sku} · ${p.name}` }))}
+                        onChange={(v) => patch(r.key, { productId: v })}
+                      />
                     </td>
                     <td className={cell}><input className={input} type="number" min="1" value={r.quantity} onChange={(e) => patch(r.key, { quantity: e.target.value })} /></td>
                   </>
                 )}
                 <td className={cell}><input className={input} value={r.notes} onChange={(e) => patch(r.key, { notes: e.target.value })} /></td>
                 <td className={`${cell} whitespace-nowrap px-1`}>
-                  <Button type="button" variant="ghost" onClick={() => void removeRow(r)}>{r.id ? t('Delete', 'حذف') : t('Remove', 'إزالة')}</Button>
+                  {r.id ? (
+                    <Button type="button" variant="danger" onClick={() => void removeRow(r)}>{t('Delete', 'حذف')}</Button>
+                  ) : (
+                    <Button type="button" variant="ghost" onClick={() => void removeRow(r)}>{t('Remove', 'إزالة')}</Button>
+                  )}
                   {r.error ? <div className="max-w-[14rem] whitespace-normal px-1 pb-1 text-xs text-red-600">{r.error}</div> : null}
                 </td>
               </tr>

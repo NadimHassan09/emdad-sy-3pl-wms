@@ -26,6 +26,7 @@ const oms_client_import_service_1 = require("../order-import/oms-client-import.s
 const client_oms_orders_service_1 = require("./client-oms-orders.service");
 const bulk_confirm_client_oms_orders_dto_1 = require("./dto/bulk-confirm-client-oms-orders.dto");
 const create_client_oms_order_dto_1 = require("./dto/create-client-oms-order.dto");
+const update_client_oms_order_dto_1 = require("./dto/update-client-oms-order.dto");
 const client_cod_report_query_dto_1 = require("./dto/client-cod-report-query.dto");
 const client_oms_status_summary_query_dto_1 = require("./dto/client-oms-status-summary-query.dto");
 const list_client_oms_orders_query_dto_1 = require("./dto/list-client-oms-orders-query.dto");
@@ -78,6 +79,12 @@ let ClientOmsOrdersController = class ClientOmsOrdersController {
         res.setHeader('X-Export-Row-Count', String(result.rowCount));
         res.setHeader('X-Export-Truncated', result.truncated ? 'true' : 'false');
         return result.body;
+    }
+    update(client, id, dto) {
+        return this.oms.updateEditable(client, id, dto);
+    }
+    remove(client, id) {
+        return this.oms.removeUnconfirmed(client, id);
     }
     confirm(client, id) {
         return this.oms.confirm(client, id);
@@ -196,6 +203,23 @@ __decorate([
     __metadata("design:paramtypes", [Object, bulk_confirm_client_oms_orders_dto_1.ClientOmsOrdersExportDto, Object]),
     __metadata("design:returntype", Promise)
 ], ClientOmsOrdersController.prototype, "exportOrders", null);
+__decorate([
+    (0, common_1.Patch)('orders/:id'),
+    __param(0, (0, client_user_decorator_1.ClientUser)()),
+    __param(1, (0, common_1.Param)('id', parse_uuid_loose_pipe_1.ParseUuidLoosePipe)),
+    __param(2, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, String, update_client_oms_order_dto_1.UpdateClientOmsOrderDto]),
+    __metadata("design:returntype", void 0)
+], ClientOmsOrdersController.prototype, "update", null);
+__decorate([
+    (0, common_1.Delete)('orders/:id'),
+    __param(0, (0, client_user_decorator_1.ClientUser)()),
+    __param(1, (0, common_1.Param)('id', parse_uuid_loose_pipe_1.ParseUuidLoosePipe)),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, String]),
+    __metadata("design:returntype", void 0)
+], ClientOmsOrdersController.prototype, "remove", null);
 __decorate([
     (0, common_1.Post)('orders/:id/confirm'),
     __param(0, (0, client_user_decorator_1.ClientUser)()),
