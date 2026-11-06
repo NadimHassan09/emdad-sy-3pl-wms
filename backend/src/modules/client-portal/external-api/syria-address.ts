@@ -1,3 +1,4 @@
+import { normalizeArabicCompare } from '../../../common/utils/arabic-text-normalize';
 import hierarchyJson from './syria-address-hierarchy.json';
 
 export type SyriaAddressHierarchy = Record<string, Record<string, string[]>>;
@@ -189,7 +190,7 @@ const LOCATION_ALIASES: Record<string, string> = {
 };
 
 function norm(value: string): string {
-  return value.trim().replace(/\s+/g, ' ').toLowerCase();
+  return normalizeArabicCompare(value);
 }
 
 function findKey(keys: string[], raw: string): string | null {
@@ -197,7 +198,9 @@ function findKey(keys: string[], raw: string): string | null {
   if (!n) return null;
   const match = keys.find((k) => norm(k) === n);
   if (match) return match;
-  const aliased = LOCATION_ALIASES[n];
+  // Also try plain lowercase alias keys (English spellings in LOCATION_ALIASES).
+  const plain = raw.trim().replace(/\s+/g, ' ').toLowerCase();
+  const aliased = LOCATION_ALIASES[n] ?? LOCATION_ALIASES[plain];
   if (aliased) {
     const aliasMatch = keys.find((k) => norm(k) === norm(aliased));
     if (aliasMatch) return aliasMatch;

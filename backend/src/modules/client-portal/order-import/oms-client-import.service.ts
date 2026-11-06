@@ -17,6 +17,7 @@ import {
   OMS_LEGACY_REJECTED_HEADERS,
   OMS_ORDER_LEVEL_FIELDS,
 } from './oms-client-import.schema';
+import { buildOmsImportTemplateXlsx } from './import-template-xlsx';
 import { assertDiscreteUomPositiveIntegerQuantity } from '../../../common/utils/discrete-uom-quantity';
 import {
   parseImportShipDateMdY,
@@ -45,6 +46,10 @@ export class OmsClientImportService {
 
   getImportTemplate() {
     return getOmsClientImportTemplate();
+  }
+
+  getImportTemplateXlsx() {
+    return buildOmsImportTemplateXlsx();
   }
 
   async importFile(

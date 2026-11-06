@@ -39,6 +39,7 @@ import {
 import { OutboundBulkService } from './outbound-bulk.service';
 import { OutboundOrdersCsvService } from './outbound-orders-csv.service';
 import { OutboundService } from './outbound.service';
+import { sendImportTemplateResponse } from '../client-portal/order-import/import-template-xlsx';
 import { OutboundClientImportService } from '../client-portal/order-import/outbound-client-import.service';
 
 @Controller('outbound-orders')
@@ -117,11 +118,16 @@ export class OutboundController {
 
   @Get('import/template')
   @Header('Cache-Control', 'no-store')
-  importTemplate(@Res({ passthrough: true }) res: Response) {
-    const result = this.clientImport.getImportTemplate();
-    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
-    res.setHeader('Content-Disposition', `attachment; filename="${result.filename}"`);
-    return result.body;
+  async importTemplate(
+    @Query('format') format: string | undefined,
+    @Res() res: Response,
+  ) {
+    await sendImportTemplateResponse(
+      res,
+      format,
+      () => this.clientImport.getImportTemplate(),
+      () => this.clientImport.getImportTemplateXlsx(),
+    );
   }
 
   @Post('import/validate')

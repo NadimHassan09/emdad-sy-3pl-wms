@@ -56,17 +56,18 @@ describe('oms client import validation', () => {
     expect(validateImportOrderNumber('WA-1&^%').ok).toBe(false);
   });
 
-  it('accepts ISO YYYY-MM-DD and legacy M/DD/YYYY ship dates with English digits', () => {
+  it('accepts ISO YYYY-MM-DD, M/DD/YYYY, unambiguous DD/MM/YYYY, and Arabic-Indic digits', () => {
     expect(parseImportShipDateMdY('2026-09-01')).toEqual({ ok: true, ymd: '2026-09-01' });
     expect(parseImportShipDateMdY('9/01/2026')).toEqual({ ok: true, ymd: '2026-09-01' });
     expect(parseImportShipDateMdY('09/29/2026')).toEqual({ ok: true, ymd: '2026-09-29' });
-    expect(parseImportShipDateMdY('29/10/2026').ok).toBe(false);
-    expect(parseImportShipDateMdY('٠١/٠٩/٢٠٢٦').ok).toBe(false);
+    expect(parseImportShipDateMdY('29/10/2026')).toEqual({ ok: true, ymd: '2026-10-29' });
+    expect(parseImportShipDateMdY('٠١/٠٩/٢٠٢٦')).toEqual({ ok: true, ymd: '2026-01-09' });
   });
 
-  it('requires ASCII digit country codes without +', () => {
+  it('accepts country codes with optional + and ISO hints', () => {
     expect(validateImportCountryCode('963').ok).toBe(true);
-    expect(validateImportCountryCode('+963').ok).toBe(false);
+    expect(validateImportCountryCode('+963').ok).toBe(true);
+    expect(validateImportCountryCode('SY').ok).toBe(true);
     expect(validateImportCountryCode('plus963').ok).toBe(false);
   });
 

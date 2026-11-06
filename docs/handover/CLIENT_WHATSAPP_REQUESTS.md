@@ -73,10 +73,10 @@ Status: ✅ built · 🔍 built, must be verified in the browser · ⬜ not buil
 | B12 | In-transit float, carrier reconciliation, client shield | ❓ | Owner said 2 Nov these are not agreed; must be modular settings, disabled by default. Verify what exists; build behind flags only if the owner confirms. | |
 | B13 | "Ready to ship" status, carrier chosen after | ✅ | `ready_to_ship` exists; carrier chosen there. Verify in UI. | |
 | B15 | COD due moment / liquidity / prep fee | ❓ | Owner decision pending with the company owner. | |
-| B16/B22 | Simpler import template with instructions; tolerant import (format problems) | ⬜ | Add an "Instructions" sheet, tolerant phone/date/Arabic letter parsing, row-level error report, fix-and-retry. | |
+| B16/B22 | Simpler import template with instructions; tolerant import (format problems) | 🔍 | xlsx template with Instructions (AR+EN); tolerant phone/date/Arabic fold. CSV via `?format=csv`. | 6 Nov — client download `oms-orders-import-template.xlsx` (ZIP magic, 132800 B); tolerant import created OMS-2026-03727 (`+963`/`09…`/`اتارب`) |
 | B17 | Picking list | ✅ | Redesigned 6 Nov (45828e197). Owner must approve the look. | |
 | B18 | Company selector resets to "Acme Import" (phone) | 🔍 | Fixed on desktop (D-001). Re-test at phone width on products, inbound, outbound, stock forms. | |
 | B19 | Contents column + copy buttons | ✅ | OMS list contents column; copy shipment info on order details. Verify copy of address, name, phone, order number individually. | |
 | B20 | Group-by like Olivery | ✅ partly | Group by city/client/product/carrier/status on the current page. Whole-result grouping needs a server query. | |
 | B21 | Delivery Joud integration | ⬜ | No adapter. Build from the Postman docs (summary in DECISIONS). First live shipment needs owner approval. | |
-| B23 | Template drop-downs: all governorates + cities + areas | ⬜ | No Excel data validation in the code yet. Build with the full hierarchy (14 governorates). | |
+| B23 | Template drop-downs: all governorates + cities + areas | 🔍 | Hidden Lists/Areas sheets + named ranges; city depends on governorate; area flat list for typo guard. | 6 Nov — template endpoint returns xlsx; unit test meta 14 govs / 286+ cities / 8k areas |

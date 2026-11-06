@@ -22,6 +22,17 @@ describe('resolveSyriaAddress', () => {
     }
   });
 
+  it('tolerates Arabic letter variants (ى/ي, ة/ه, أ/ا)', () => {
+    const result = resolveSyriaAddress({
+      governorate: 'حلب',
+      city: 'اتارب', // أ → ا
+    });
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.value.city).toBe('أتارب');
+    }
+  });
+
   it('rejects an unknown neighborhood', () => {
     const result = resolveSyriaAddress({
       governorate: 'حلب',

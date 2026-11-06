@@ -13,6 +13,7 @@ import {
   INBOUND_CLIENT_IMPORT_REQUIRED_COLUMNS,
   INBOUND_ORDER_LEVEL_FIELDS,
 } from './inbound-client-import.schema';
+import { buildInboundImportTemplateXlsx } from './import-template-xlsx';
 import { assertDiscreteUomPositiveIntegerQuantity } from '../../../common/utils/discrete-uom-quantity';
 import {
   parseImportMdYDate,
@@ -33,6 +34,10 @@ export class InboundClientImportService {
 
   getImportTemplate() {
     return getInboundClientImportTemplate();
+  }
+
+  getImportTemplateXlsx() {
+    return buildInboundImportTemplateXlsx();
   }
 
   async importFile(

@@ -31,6 +31,7 @@ import { ReceiveLineDto } from './dto/receive-line.dto';
 import { UpdateInboundPlanDto } from './dto/update-inbound-plan.dto';
 import { InboundOrdersCsvService } from './inbound-orders-csv.service';
 import { InboundService } from './inbound.service';
+import { sendImportTemplateResponse } from '../client-portal/order-import/import-template-xlsx';
 import { InboundClientImportService } from '../client-portal/order-import/inbound-client-import.service';
 
 @Controller('inbound-orders')
@@ -103,11 +104,16 @@ export class InboundController {
 
   @Get('import/template')
   @Header('Cache-Control', 'no-store')
-  importTemplate(@Res({ passthrough: true }) res: Response) {
-    const result = this.clientImport.getImportTemplate();
-    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
-    res.setHeader('Content-Disposition', `attachment; filename="${result.filename}"`);
-    return result.body;
+  async importTemplate(
+    @Query('format') format: string | undefined,
+    @Res() res: Response,
+  ) {
+    await sendImportTemplateResponse(
+      res,
+      format,
+      () => this.clientImport.getImportTemplate(),
+      () => this.clientImport.getImportTemplateXlsx(),
+    );
   }
 
   @Post('import/validate')

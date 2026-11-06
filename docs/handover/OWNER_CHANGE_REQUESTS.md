@@ -35,7 +35,7 @@ Commit hashes are on branch `staging`.
 | 17 | Forgot password: emailed verification code → enter code → set new password | ✅ / 🔍 | 286463056. Verify email actually arrives (SMTP config on staging). |
 | 18 | Searchable drop-downs everywhere; colour-coded action buttons | ✅ / 🔍 | e20c94893. Audit all pages. |
 | 19 | Export: CSV **and** branded Excel (EMDAD identity, styled table, analytics/overview block above the table, e.g. top SKUs) on every list | ✅ partly | 286463056 (buildExcelBuffer with logo + meta). Audit every list (also client request B4). |
-| 20 | Import template + sheets with drop-down lists (country code, governorate, city, area) | ⬜ | Not built (no Excel data validation in code). |
+| 20 | Import template + sheets with drop-down lists (country code, governorate, city, area) | 🔍 | Backend xlsx builder (`import-template-xlsx.ts`); OMS/inbound/outbound. Verified client download 6 Nov. |
 | 21 | Sidebar collapse; less table padding; full-width pages | ✅ | 9345798d2 and earlier |
 | 22 | Real-browser QA scripts (Playwright) that drive the UI like a user, run on the owner's machine with his logged-in browser; carrier-portal lookups guarded (type order code, stop unless exactly one row) | ✅ | 523a6745f, `qa-scripts/` |
 | 23 | Picking list and packing list: same data, simpler layout like the reference image, EMDAD identity | ✅ / ❓ | 45828e197. Owner must approve visually. |

@@ -43,7 +43,12 @@ function parseXlsx(buffer: Buffer): string[][] {
     );
   }
   const workbook = XLSX.read(buffer, { type: 'buffer', cellDates: true });
-  const sheetName = workbook.SheetNames[0];
+  const preferred = ['Orders', 'Data', 'Sheet1'];
+  const skip = new Set(['instructions', 'lists', 'areas']);
+  const sheetName =
+    preferred.find((n) => workbook.SheetNames.includes(n)) ??
+    workbook.SheetNames.find((n) => !skip.has(String(n).toLowerCase())) ??
+    workbook.SheetNames[0];
   if (!sheetName) {
     throw new BadRequestException('The Excel file does not contain a worksheet.');
   }

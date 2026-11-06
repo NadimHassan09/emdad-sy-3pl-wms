@@ -27,6 +27,7 @@ import { ParseUuidLoosePipe } from '../../../common/pipes/parse-uuid-loose.pipe'
 import { ClientUser } from '../auth/client-user.decorator';
 import { JwtClientAuthGuard } from '../auth/jwt-client-auth.guard';
 import { ClientInboundExportService } from '../order-export/client-inbound-export.service';
+import { sendImportTemplateResponse } from '../order-import/import-template-xlsx';
 import { InboundClientImportService } from '../order-import/inbound-client-import.service';
 import { UpdateClientInboundOrderDto } from './dto/update-client-inbound-order.dto';
 import { ClientInboundOrdersService } from './client-inbound-orders.service';
@@ -50,11 +51,16 @@ export class ClientInboundOrdersController {
 
   @Get('import/template')
   @Header('Cache-Control', 'no-store')
-  importTemplate(@Res({ passthrough: true }) res: Response) {
-    const result = this.importSvc.getImportTemplate();
-    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
-    res.setHeader('Content-Disposition', `attachment; filename="${result.filename}"`);
-    return result.body;
+  async importTemplate(
+    @Query('format') format: string | undefined,
+    @Res() res: Response,
+  ) {
+    await sendImportTemplateResponse(
+      res,
+      format,
+      () => this.importSvc.getImportTemplate(),
+      () => this.importSvc.getImportTemplateXlsx(),
+    );
   }
 
   @Post('import')

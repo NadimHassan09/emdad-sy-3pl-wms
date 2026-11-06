@@ -14,6 +14,7 @@ import {
   OUTBOUND_CLIENT_IMPORT_REQUIRED_COLUMNS,
   OUTBOUND_ORDER_LEVEL_FIELDS,
 } from './outbound-client-import.schema';
+import { buildOutboundImportTemplateXlsx } from './import-template-xlsx';
 import {
   assertImportTable,
   groupRowsByOrderNumber,
@@ -31,6 +32,10 @@ export class OutboundClientImportService {
 
   getImportTemplate() {
     return getOutboundClientImportTemplate();
+  }
+
+  getImportTemplateXlsx() {
+    return buildOutboundImportTemplateXlsx();
   }
 
   async importFile(

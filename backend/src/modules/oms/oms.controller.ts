@@ -46,6 +46,7 @@ import { OmsOrdersExportDto } from './dto/oms-orders-export.dto';
 import { ExportWaybillsDto } from './dto/export-waybills.dto';
 import { OmsWaybillService } from './oms-waybill.service';
 import { OmsInstructionPdfService } from './oms-instruction-pdf.service';
+import { sendImportTemplateResponse } from '../client-portal/order-import/import-template-xlsx';
 import { OmsClientImportService } from '../client-portal/order-import/oms-client-import.service';
 import { OmsShippingScanService } from './oms-shipping-scan.service';
 import { ScanShippingTransitionDto } from './dto/scan-shipping-transition.dto';
@@ -149,11 +150,16 @@ export class OmsController {
 
   @Get('orders/import/template')
   @Header('Cache-Control', 'no-store')
-  importTemplate(@Res({ passthrough: true }) res: Response) {
-    const result = this.clientImport.getImportTemplate();
-    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
-    res.setHeader('Content-Disposition', `attachment; filename="${result.filename}"`);
-    return result.body;
+  async importTemplate(
+    @Query('format') format: string | undefined,
+    @Res() res: Response,
+  ) {
+    await sendImportTemplateResponse(
+      res,
+      format,
+      () => this.clientImport.getImportTemplate(),
+      () => this.clientImport.getImportTemplateXlsx(),
+    );
   }
 
   @Post('orders/import/validate')
