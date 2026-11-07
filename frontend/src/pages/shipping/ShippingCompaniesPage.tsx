@@ -195,13 +195,17 @@ function ProviderCard({
 
   const isSila = provider.code === 'SILA_SY';
   const isSena = provider.code === 'SENA_EXPRESS';
+  const isFatih = provider.code === 'FATIH_CARGO';
+  const usesApiKeyAuth = isSila || isSena || isFatih;
+  const supportsManualWebhookSecret = isSena || isFatih;
 
   const connectMutation = useMutation({
     mutationFn: () =>
       ShippingApi.connectProvider(provider.code, {
         username,
-        password: isSila || isSena ? 'N/A' : password,
-        webhookSecret: isSena && webhookSecret.trim() ? webhookSecret.trim() : undefined,
+        password: usesApiKeyAuth ? (password.trim() || 'N/A') : password,
+        webhookSecret:
+          supportsManualWebhookSecret && webhookSecret.trim() ? webhookSecret.trim() : undefined,
       }),
     onSuccess: () => {
       setUsername('');
@@ -300,9 +304,9 @@ function ProviderCard({
 
   const onConnect = (e: FormEvent) => {
     e.preventDefault();
-    if (!username.trim() || (!isSila && !isSena && !password)) {
+    if (!username.trim() || (!usesApiKeyAuth && !password)) {
       toast.error(
-        isSila || isSena
+        usesApiKeyAuth
           ? t(['API Key is required.', 'مفتاح API مطلوب.'])
           : t(['Username and password are required.', 'اسم المستخدم وكلمة المرور مطلوبان.']),
       );
@@ -346,7 +350,7 @@ function ProviderCard({
                 {t(['Register webhook', 'تسجيل الويب هوك'])}
               </Button>
             ) : null}
-            {isSena ? (
+            {supportsManualWebhookSecret ? (
               <Button
                 variant="secondary"
                 onClick={() => {
@@ -383,7 +387,7 @@ function ProviderCard({
 
         <div className="rounded-xl border border-border bg-surface-card p-4">
           <p className="text-xs font-medium uppercase tracking-wide text-text-muted">
-            {isSila || isSena ? t(['API Key', 'مفتاح API']) : t(['Username', 'اسم المستخدم'])}
+            {usesApiKeyAuth ? t(['API Key', 'مفتاح API']) : t(['Username', 'اسم المستخدم'])}
           </p>
           <p className="mt-1 font-mono text-sm font-semibold text-text-strong">
             {provider.connected
@@ -391,7 +395,7 @@ function ProviderCard({
               : t(['Not saved', 'غير محفوظ'])}
           </p>
           <p className="mt-1 text-xs text-text-muted">
-            {isSila || isSena
+            {usesApiKeyAuth
               ? t(['API key is stored encrypted.', 'يتم تخزين مفتاح API مشفراً.'])
               : t([
                   'Password is never shown after save.',
@@ -419,22 +423,28 @@ function ProviderCard({
       {canMutate && !provider.connected ? (
         <form onSubmit={onConnect} className="mt-4 grid gap-3 md:grid-cols-2">
           <TextField
-            label={isSila || isSena ? t(['API Key', 'مفتاح API']) : t(['Username', 'اسم المستخدم'])}
+            label={usesApiKeyAuth ? t(['API Key', 'مفتاح API']) : t(['Username', 'اسم المستخدم'])}
             value={username}
             autoComplete="off"
-            placeholder={isSila ? 'sila_live_...' : isSena ? 'e.g. sena_api_key_...' : ''}
+            placeholder={
+              isSila ? 'sila_live_...' : isSena ? 'e.g. sena_api_key_...' : isFatih ? 'fc_live_...' : ''
+            }
             onChange={(e) => setUsername(e.target.value)}
           />
-          {isSena ? (
+          {supportsManualWebhookSecret ? (
             <TextField
               label={t(['Webhook Secret (Optional)', 'سر الويب هوك (اختياري)'])}
               type="password"
               value={webhookSecret}
               autoComplete="new-password"
-              placeholder={t(['Webhook secret from SENA settings', 'سر الويب هوك من إعدادات سينا'])}
+              placeholder={
+                isFatih
+                  ? t(['Webhook secret from Fatih store portal', 'سر الويب هوك من لوحة متجر الفاتح'])
+                  : t(['Webhook secret from SENA settings', 'سر الويب هوك من إعدادات سينا'])
+              }
               onChange={(e) => setWebhookSecret(e.target.value)}
             />
-          ) : !isSila ? (
+          ) : !usesApiKeyAuth ? (
             <TextField
               label={t(['Password', 'كلمة المرور'])}
               type="password"
@@ -457,7 +467,7 @@ function ProviderCard({
             <p className="text-xs font-medium uppercase tracking-wide text-text-muted">
               {t(['Webhook receive URL', 'عنوان استقبال الويب هوك'])}
             </p>
-            {isSena && (
+            {supportsManualWebhookSecret && (
               <span
                 className={`inline-flex items-center rounded px-2 py-0.5 text-xs font-medium ${
                   provider.webhookRegistered
@@ -473,22 +483,27 @@ function ProviderCard({
           </div>
           <p className="mt-1 break-all font-mono text-xs text-text-strong">{stagingWebhookUrl}</p>
           <p className="mt-1 text-xs text-text-muted">
-            {isSena
+            {isFatih
               ? t([
-                  'Copy this URL and configure it in SENA merchant dashboard under Settings > API / Webhooks along with your Webhook Secret.',
-                  'انسخ هذا الرابط واضبطه في لوحة تحكم تاجر SENA تحت إعدادات الربط والـ Webhook مع سر التوقيع الخاص بك.',
+                  'Copy this URL into Fatih store Webhooks, then save the whsec_ signing secret here.',
+                  'انسخ هذا الرابط إلى إشعارات لوحة متجر الفاتح، ثم احفظ سر التوقيع whsec_ هنا.',
                 ])
-              : provider.webhookRegistered
-                ? t(['Signing secret is stored on the server.', 'سر التوقيع محفوظ على الخادم.'])
-                : isSila
-                  ? t([
-                      'Not registered at Sila yet. Register writes the URL to Sila and stores the secret here.',
-                      'غير مسجّل عند صلة بعد. التسجيل يكتب العنوان عند صلة ويحفظ السر هنا.',
-                    ])
-                  : t([
-                      'Babel webhook registration is disabled until dummy receive and signature checks pass.',
-                      'تسجيل ويب هوك بابل متوقف حتى نجاح الاستقبال الوهمي والتحقق من التوقيع.',
-                    ])}
+              : isSena
+                ? t([
+                    'Copy this URL and configure it in SENA merchant dashboard under Settings > API / Webhooks along with your Webhook Secret.',
+                    'انسخ هذا الرابط واضبطه في لوحة تحكم تاجر SENA تحت إعدادات الربط والـ Webhook مع سر التوقيع الخاص بك.',
+                  ])
+                : provider.webhookRegistered
+                  ? t(['Signing secret is stored on the server.', 'سر التوقيع محفوظ على الخادم.'])
+                  : isSila
+                    ? t([
+                        'Not registered at Sila yet. Register writes the URL to Sila and stores the secret here.',
+                        'غير مسجّل عند صلة بعد. التسجيل يكتب العنوان عند صلة ويحفظ السر هنا.',
+                      ])
+                    : t([
+                        'Babel webhook registration is disabled until dummy receive and signature checks pass.',
+                        'تسجيل ويب هوك بابل متوقف حتى نجاح الاستقبال الوهمي والتحقق من التوقيع.',
+                      ])}
           </p>
         </div>
       ) : null}
@@ -510,10 +525,14 @@ function ProviderCard({
         </ConfirmModal>
       ) : null}
 
-      {canMutate && isSena ? (
+      {canMutate && supportsManualWebhookSecret ? (
         <ConfirmModal
           open={senaSecretModalOpen}
-          title={t(['Configure SENA Webhook Secret', 'ضبط سر ويب هوك SENA'])}
+          title={
+            isFatih
+              ? t(['Configure Fatih Webhook Secret', 'ضبط سر ويب هوك الفاتح'])
+              : t(['Configure SENA Webhook Secret', 'ضبط سر ويب هوك SENA'])
+          }
           confirmLabel={t(['Save Secret', 'حفظ السر'])}
           cancelLabel={t(['Cancel', 'إلغاء'])}
           loading={updateSenaSecretMutation.isPending}
@@ -522,16 +541,21 @@ function ProviderCard({
         >
           <div className="space-y-3">
             <p className="text-sm text-text-muted">
-              {t([
-                'Enter the Webhook Secret provided by SENA merchant settings. This will be used to verify the x-sena-signature HMAC on incoming events.',
-                'أدخل سر الويب هوك المتاح في إعدادات تاجر SENA للتحقق من توقيع HMAC x-sena-signature على الإشعارات الواردة.',
-              ])}
+              {isFatih
+                ? t([
+                    'Paste the whsec_ signing secret shown once when you add the webhook URL in the Fatih store portal.',
+                    'الصق سر التوقيع whsec_ الذي يظهر مرة واحدة عند إضافة رابط الويب هوك في لوحة متجر الفاتح.',
+                  ])
+                : t([
+                    'Enter the Webhook Secret provided by SENA merchant settings. This will be used to verify the x-sena-signature HMAC on incoming events.',
+                    'أدخل سر الويب هوك المتاح في إعدادات تاجر SENA للتحقق من توقيع HMAC x-sena-signature على الإشعارات الواردة.',
+                  ])}
             </p>
             <TextField
               label={t(['Webhook Secret', 'سر الويب هوك'])}
               type="password"
               value={updatedSecret}
-              placeholder="e.g. sena_sec_..."
+              placeholder={isFatih ? 'whsec_...' : 'e.g. sena_sec_...'}
               onChange={(e) => setUpdatedSecret(e.target.value)}
             />
           </div>

@@ -37,7 +37,7 @@ import { ResolveAddressFromPinDto } from './dto/resolve-address-from-pin.dto';
 import { ResolveAddressFromNamesDto } from './dto/resolve-address-from-names.dto';
 import { BabelExpressAdapter } from './providers/babel-express/babel-express.adapter';
 import { BabelGeoSyncService } from './providers/babel-express/babel-geo-sync.service';
-import { BABEL_EXPRESS_CODE, SENA_EXPRESS_CODE } from './shipping.constants';
+import { BABEL_EXPRESS_CODE, FATIH_CARGO_CODE, SENA_EXPRESS_CODE } from './shipping.constants';
 import { ShippingFxService } from './shipping-fx.service';
 import { ShippingService } from './shipping.service';
 import { ShippingFeeService } from './shipping-fee.service';
@@ -290,7 +290,7 @@ export class ShippingController {
     @Body() body: RegisterShippingWebhookDto,
   ) {
     const code = providerCode.toUpperCase().trim();
-    if (code === SENA_EXPRESS_CODE) {
+    if (code === SENA_EXPRESS_CODE || code === FATIH_CARGO_CODE) {
       const secret = body.secret?.trim();
       if (!secret) {
         return { ok: false, message: 'Webhook secret is required.' };
@@ -309,7 +309,10 @@ export class ShippingController {
         ok: true,
         secretSaved: true,
         secretPrefix: `${secret.slice(0, 6)}…`,
-        message: 'SENA Express webhook secret saved successfully.',
+        message:
+          code === FATIH_CARGO_CODE
+            ? 'Fatih Cargo webhook secret saved successfully.'
+            : 'SENA Express webhook secret saved successfully.',
       };
     }
     const adapter = this.registry.get(code);

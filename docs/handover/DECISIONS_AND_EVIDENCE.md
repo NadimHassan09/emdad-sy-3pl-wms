@@ -140,6 +140,11 @@ Status values: **Verified** / **Implemented, not verified** / **Open** / **Not a
 | 2 Nov | Filters and group-by (Olivery ideas) | Open | |
 | 2 Nov | Delivery Joud integration | Adapter coded 7 Nov | Connect + first live ship need owner; no sandbox |
 | 7 Nov | Fatih Cargo (الفاتح) direct API | Adapter coded | Owner linked fatihcargo.com; not the same as Sila sub-courier "Karam" unless confirmed |
+| 7 Nov | «كرم شحن» | Clarified | Owner meant **الفاتح (Fatih Cargo)** — name mix-up; no separate Karam adapter |
+| 7 Nov | Backup storage default | Owner chose option 3 | Default policy **local_and_drive** (server + Google Drive copy) |
+| 7 Nov | Live Joud + Fatih test ships | Approved | Test company / Nadim Hassan / TEST ORDER only; after webhook check, **delete the test cargo only from the carrier portal** (never other clients' rows); keep the local OMS shipment |
+| 7 Nov | Fatih live create + cancel | Done | Created `5009241` (id 322181, ref `OMS-2026-03728-FATIH-TEST`); portal had **exactly 1** shipment then; cancelled that row only → status ملغي. Webhook `shipment.status_changed` verified on staging (HMAC OK, event `cancelled` stored; unmatched_awb because create was via adapter script not OMS send). OMS order `OMS-2026-03728` kept. |
+| 7 Nov | Delivery Joud live | Blocked | Adapter ready; connection needs portal **login + password** from owner (not obtainable from open session alone). |
 
 ---
 
