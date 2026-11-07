@@ -91,7 +91,8 @@ Evidence per carrier (read from the carrier, 3 Nov):
 - **Babel = new Syrian pound.** Babel portal, Financial operations: "تحويل رصيد ليرة سورية جديدة الى دولار امريكي بسعر تصريف 136.00" (3 Oct 2026, 92,740 SYP = 681.91 USD), final totals labelled "ليرة سورية جديدة", shipping fees of 70 to 700 SYP, and the portal banner announcing the new pound. Babel's own rate (136 new SYP per USD) is within about 5% of the EMDAD managed rate (13,000 old = 130 new).
 - **Sila = USD** for all quotes and COD (its SYP support is listed but unverified); no unit issue.
 - **Sena = SYP store currency**, unit not stated anywhere in the portal (account statement says only "SYP", environment is DEV with no movements). **Owner decision (3 Nov): treat Sena as the new pound**, recorded as unconfirmed by Sena; the owner may ask Sena to confirm and the entry is revisited then.
-- **Delivery Joud**: not integrated yet.
+- **Delivery Joud**: adapter `DELIVERY_JOUD` registered (7 Nov). Connect with portal login/password (optional `login|db`). No documented cancel/webhook on Postman — poll via `GET order`. Live create needs owner yes.
+- **Fatih Cargo (الفاتح)**: adapter `FATIH_CARGO` registered (7 Nov) against store API v2 (`Bearer fc_live_…`). Quote/create/cancel + Standard Webhooks. Webhook URL path: `POST /api/shipping/webhooks/FATIH_CARGO`. Live create needs owner yes.
 
 Implementation (commit c173d0c0): `carrier-currency.ts` records each carrier's unit with its evidence (Babel = new). The platform rate unit is read from the rate's size (about 13,000 old, 130 new; ambiguous values are not rescaled). Quote comparison and "best price" convert each carrier's SYP in that carrier's unit (Babel 300 SYP is about 2.31 USD, not 0.023). COD collected in SYP is computed in the carrier's unit (20 USD to Babel = 2,600 new SYP; to Sena also 2,600 under the owner decision; the earlier Sena sandbox COD of 260,008 SYP was in the old scale). Price comparison in the admin UI now uses the admin-managed USD/SYP rate (it used a fixed 14,500 fallback before), and the batch shipping analysis converts per carrier before summing.
 - Still open: stored `codFxRate` on the order is the platform rate (not the carrier-unit rate); the Babel SYP COD minimum (1,000 SYP) is documented but not applied; comparison still falls back to 14,500 when no managed rate is usable.
@@ -137,7 +138,8 @@ Status values: **Verified** / **Implemented, not verified** / **Open** / **Not a
 | 2 Nov | Company name reverts to Acme on mobile | Implemented, not verified on mobile | See 1.3 |
 | 2 Nov | Shipment contents column and copy buttons in OMS list | Open | |
 | 2 Nov | Filters and group-by (Olivery ideas) | Open | |
-| 2 Nov | Delivery Joud integration | Open | No adapter yet; no sandbox confirmed |
+| 2 Nov | Delivery Joud integration | Adapter coded 7 Nov | Connect + first live ship need owner; no sandbox |
+| 7 Nov | Fatih Cargo (الفاتح) direct API | Adapter coded | Owner linked fatihcargo.com; not the same as Sila sub-courier "Karam" unless confirmed |
 
 ---
 

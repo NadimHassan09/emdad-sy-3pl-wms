@@ -13,6 +13,10 @@ import { BabelAddressAdapter } from './providers/babel-express/babel-address.ada
 import { BabelExpressAdapter } from './providers/babel-express/babel-express.adapter';
 import { BabelExpressHttpClient } from './providers/babel-express/babel-express.http-client';
 import { BabelGeoSyncService } from './providers/babel-express/babel-geo-sync.service';
+import { DeliveryJoudAdapter } from './providers/delivery-joud/delivery-joud.adapter';
+import { DeliveryJoudHttpClient } from './providers/delivery-joud/delivery-joud.http-client';
+import { FatihCargoAdapter } from './providers/fatih-cargo/fatih-cargo.adapter';
+import { FatihCargoHttpClient } from './providers/fatih-cargo/fatih-cargo.http-client';
 import { MockCarrierAdapter } from './providers/mock-carrier/mock-carrier.adapter';
 import { SenaExpressAdapter } from './providers/sena-express/sena-express.adapter';
 import { SenaExpressHttpClient } from './providers/sena-express/sena-express.http-client';
@@ -51,6 +55,10 @@ import { SilaEventSyncService } from './sila-event-sync.service';
     SenaExpressAdapter,
     SilaSyHttpClient,
     SilaSyAdapter,
+    DeliveryJoudHttpClient,
+    DeliveryJoudAdapter,
+    FatihCargoHttpClient,
+    FatihCargoAdapter,
     MockCarrierAdapter,
     AddressResolveService,
     ShippingFxService,
@@ -75,6 +83,8 @@ import { SilaEventSyncService } from './sila-event-sync.service';
     BabelAddressAdapter,
     SenaExpressAdapter,
     SilaSyAdapter,
+    DeliveryJoudAdapter,
+    FatihCargoAdapter,
     AddressResolveService,
     ShippingAutoReturnService,
     ShippingTrackingService,

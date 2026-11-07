@@ -24,7 +24,14 @@ import { convertCodCollection } from './cod-collection';
 import { ShippingFxService } from './shipping-fx.service';
 import { BabelApiError } from './providers/babel-express/babel-express.http-client';
 import { parsePhoneForBabel, resolveBabelCodCurrency } from './providers/babel-express/babel-shipment.mapper';
-import { BABEL_EXPRESS_CODE, SILA_SY_CODE, SENA_EXPRESS_CODE, ShippingProviderRegistry } from './shipping-provider.registry';
+import {
+  BABEL_EXPRESS_CODE,
+  DELIVERY_JOUD_CODE,
+  FATIH_CARGO_CODE,
+  SILA_SY_CODE,
+  SENA_EXPRESS_CODE,
+  ShippingProviderRegistry,
+} from './shipping-provider.registry';
 import {
   displayNameForProviderCode,
   normalizeCourierDisplayName,
@@ -235,6 +242,8 @@ export class ShippingService implements OnModuleInit {
       { code: BABEL_EXPRESS_CODE, name: 'Babel Express' },
       { code: SILA_SY_CODE, name: 'Sila-SY.com' },
       { code: SENA_EXPRESS_CODE, name: 'شركة سينا (SENA Express)' },
+      { code: DELIVERY_JOUD_CODE, name: 'Delivery Joud (Deliveroo Joud)' },
+      { code: FATIH_CARGO_CODE, name: 'الفاتح للشحن (Fatih Cargo)' },
     ];
     for (const p of seed) {
       await this.prisma.shippingProvider.upsert({
@@ -974,7 +983,9 @@ export class ShippingService implements OnModuleInit {
       throw new BadRequestException(`Provider "${code}" is not supported.`);
     }
     const cleanUser = username.trim();
-    const cleanPass = password?.trim() || (code === SILA_SY_CODE || code === SENA_EXPRESS_CODE ? 'N/A' : '');
+    const cleanPass =
+      password?.trim() ||
+      (code === SILA_SY_CODE || code === SENA_EXPRESS_CODE || code === FATIH_CARGO_CODE ? 'N/A' : '');
     const cleanSecret = webhookSecret?.trim() || undefined;
 
     const adapter = this.registry.get(code);

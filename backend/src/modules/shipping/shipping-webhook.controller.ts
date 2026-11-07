@@ -15,11 +15,12 @@ import type { Request } from 'express';
 
 import { Public } from '../../common/auth/public.decorator';
 import { PrismaService } from '../../common/prisma/prisma.service';
+import { isFatihWebhookTest } from './providers/fatih-cargo/fatih-cargo.webhook.util';
 import { isSilaWebhookTest } from './providers/sila-sy/sila-webhook.util';
 import { isSenaWebhookTest } from './providers/sena-express/sena-express.webhook.util';
 import { ShippingProviderRegistry } from './shipping-provider.registry';
 import { ShippingTrackingService } from './shipping-tracking.service';
-import { SENA_EXPRESS_CODE, SILA_SY_CODE } from './shipping.constants';
+import { FATIH_CARGO_CODE, SENA_EXPRESS_CODE, SILA_SY_CODE } from './shipping.constants';
 import {
   buildShippingWebhookTimingLog,
   providerEventTimeIso,
@@ -65,15 +66,16 @@ export class ShippingWebhookController {
         ? process.env.SILA_WEBHOOK_SECRET?.trim()
         : code === SENA_EXPRESS_CODE
           ? process.env.SENA_WEBHOOK_SECRET?.trim()
-          : undefined;
+          : code === FATIH_CARGO_CODE
+            ? process.env.FATIH_WEBHOOK_SECRET?.trim()
+            : undefined;
     const secret =
-      code === SILA_SY_CODE
+      code === SILA_SY_CODE || code === SENA_EXPRESS_CODE || code === FATIH_CARGO_CODE
         ? envSecret || conn?.webhookSecret || undefined
-        : code === SENA_EXPRESS_CODE
-          ? envSecret || conn?.webhookSecret || undefined
-          : conn?.webhookSecret || undefined;
+        : conn?.webhookSecret || undefined;
 
-    const isRawHmacProvider = code === SILA_SY_CODE || code === SENA_EXPRESS_CODE;
+    const isRawHmacProvider =
+      code === SILA_SY_CODE || code === SENA_EXPRESS_CODE || code === FATIH_CARGO_CODE;
     if (isRawHmacProvider && !req.rawBody && typeof body !== 'string') {
       this.logger.warn(`${code} webhook rejected: raw body missing for HMAC.`);
       throw new UnauthorizedException('Invalid webhook signature or secret');
@@ -83,8 +85,10 @@ export class ShippingWebhookController {
 
     const isHandshake =
       body?.type === 'test' ||
+      body?.type === 'webhook.test' ||
       isSilaWebhookTest(headers, body) ||
-      isSenaWebhookTest(headers, body);
+      isSenaWebhookTest(headers, body) ||
+      isFatihWebhookTest(body);
 
     if (adapter.verifyWebhook) {
       const verifyPayload = isRawHmacProvider ? rawBody : body;
