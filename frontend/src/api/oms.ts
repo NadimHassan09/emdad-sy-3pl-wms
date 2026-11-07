@@ -1379,10 +1379,38 @@ export const OmsReturnsApi = {
     omsOrderId?: string;
     status?: OmsReturnStatus;
     search?: string;
+    createdFrom?: string;
+    createdTo?: string;
     limit?: number;
     offset?: number;
   } = {}): Promise<PageResult<OmsReturn>> {
     return api.get<PageResult<OmsReturn>>('/oms/returns', { params }).then((r) => r.data);
+  },
+
+  async exportExcel(params: {
+    companyId?: string;
+    status?: OmsReturnStatus;
+    search?: string;
+    createdFrom?: string;
+    createdTo?: string;
+    format?: 'xlsx' | 'csv';
+  } = {}): Promise<void> {
+    const format = params.format ?? 'xlsx';
+    const response = await api.get<Blob>('/oms/returns/export', {
+      params: { ...params, format },
+      responseType: 'blob',
+    });
+    const disposition = response.headers['content-disposition'] as string | undefined;
+    const match = disposition?.match(/filename="([^"]+)"/);
+    const filename =
+      match?.[1] ??
+      `oms-returns-${new Date().toISOString().slice(0, 10)}.${format === 'csv' ? 'csv' : 'xlsx'}`;
+    const url = URL.createObjectURL(response.data);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
   },
 
   get(id: string) {

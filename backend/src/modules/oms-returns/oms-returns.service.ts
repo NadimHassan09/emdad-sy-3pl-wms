@@ -67,8 +67,12 @@ import {
 import type { InboundExecutionPlan } from '../orders/execution-plan.types';
 import { PaginationDto } from '../../common/dto/pagination.dto';
 import { EmptyToUndefined } from '../../common/transformers/query-transform';
-import { IsOptional, IsEnum, IsString, MaxLength } from 'class-validator';
+import { IsOptional, IsEnum, IsString, Matches, MaxLength } from 'class-validator';
 import { IsUuidLoose } from '../../common/validators/is-uuid-loose';
+import { buildExcelBuffer } from '../../common/utils/excel-export.util';
+import { rowsToCsv } from '../oms/oms-orders-csv.util';
+
+const DAY = /^\d{4}-\d{2}-\d{2}$/;
 
 export class ListOmsReturnsQueryDto extends PaginationDto {
   @EmptyToUndefined()
@@ -91,6 +95,16 @@ export class ListOmsReturnsQueryDto extends PaginationDto {
   @IsString()
   @MaxLength(120)
   search?: string;
+
+  @EmptyToUndefined()
+  @IsOptional()
+  @Matches(DAY, { message: 'createdFrom must be YYYY-MM-DD' })
+  createdFrom?: string;
+
+  @EmptyToUndefined()
+  @IsOptional()
+  @Matches(DAY, { message: 'createdTo must be YYYY-MM-DD' })
+  createdTo?: string;
 }
 
 const INCLUDE = {
@@ -295,7 +309,10 @@ export class OmsReturnsService {
     });
   }
 
-  async list(user: AuthPrincipal, query: ListOmsReturnsQueryDto) {
+  private buildListWhere(
+    user: AuthPrincipal,
+    query: ListOmsReturnsQueryDto,
+  ): Prisma.OmsReturnWhereInput {
     const where: Prisma.OmsReturnWhereInput = {};
     const companyId = readCompanyIdCatalogFilter(
       this.companyAccess,
@@ -317,6 +334,21 @@ export class OmsReturnsService {
       ];
     }
 
+    if (query.createdFrom || query.createdTo) {
+      where.createdAt = {};
+      if (query.createdFrom) {
+        where.createdAt.gte = new Date(`${query.createdFrom}T00:00:00.000Z`);
+      }
+      if (query.createdTo) {
+        where.createdAt.lte = new Date(`${query.createdTo}T23:59:59.999Z`);
+      }
+    }
+    return where;
+  }
+
+  async list(user: AuthPrincipal, query: ListOmsReturnsQueryDto) {
+    const where = this.buildListWhere(user, query);
+
     return withTenantRls(this.prisma, user, async (tx) => {
       const [items, total] = await Promise.all([
         tx.omsReturn.findMany({
@@ -335,6 +367,100 @@ export class OmsReturnsService {
         offset: query.offset,
       };
     });
+  }
+
+  async listForExport(user: AuthPrincipal, query: ListOmsReturnsQueryDto, maxRows = 10_000) {
+    const where = this.buildListWhere(user, query);
+    return withTenantRls(this.prisma, user, async (tx) => {
+      const items = await tx.omsReturn.findMany({
+        where,
+        include: INCLUDE,
+        orderBy: { createdAt: 'desc' },
+        take: maxRows + 1,
+      });
+      const truncated = items.length > maxRows;
+      const slice = truncated ? items.slice(0, maxRows) : items;
+      return { items: slice.map(serialize), truncated };
+    });
+  }
+
+  async exportCsv(user: AuthPrincipal, query: ListOmsReturnsQueryDto) {
+    const { items, truncated } = await this.listForExport(user, query);
+    const headers = [
+      'return_number',
+      'status',
+      'company',
+      'oms_order',
+      'reason',
+      'notes',
+      'created_at',
+      'completed_at',
+    ];
+    const rows = items.map((r) => [
+      r.returnNumber,
+      r.status,
+      r.company?.name ?? '',
+      r.omsOrder?.orderNumber ?? '',
+      r.reason ?? '',
+      r.notes ?? '',
+      r.createdAt ? new Date(r.createdAt).toISOString() : '',
+      r.completedAt ? new Date(r.completedAt).toISOString() : '',
+    ]);
+    const stamp = new Date().toISOString().slice(0, 10);
+    return {
+      filename: `oms-returns-${stamp}.csv`,
+      body: rowsToCsv(headers, rows),
+      rowCount: items.length,
+      truncated,
+    };
+  }
+
+  async exportXlsx(user: AuthPrincipal, query: ListOmsReturnsQueryDto) {
+    const { items, truncated } = await this.listForExport(user, query);
+    const stamp = new Date().toISOString().slice(0, 10);
+    const statusCounts = items.reduce<Record<string, number>>((acc, r) => {
+      acc[r.status] = (acc[r.status] ?? 0) + 1;
+      return acc;
+    }, {});
+    const statusSummary = Object.entries(statusCounts)
+      .sort((a, b) => b[1] - a[1])
+      .map(([s, n]) => `${s}: ${n}`)
+      .join('  |  ');
+    const buffer = await buildExcelBuffer({
+      sheetName: 'OMS Returns',
+      title: 'OMS Returns Export',
+      columns: [
+        { header: 'Return #', key: 'return_number', width: 18 },
+        { header: 'Status', key: 'status', width: 14 },
+        { header: 'Company', key: 'company', width: 22 },
+        { header: 'OMS Order', key: 'oms_order', width: 18 },
+        { header: 'Reason', key: 'reason', width: 24 },
+        { header: 'Notes', key: 'notes', width: 28 },
+        { header: 'Created', key: 'created_at', width: 22 },
+        { header: 'Completed', key: 'completed_at', width: 22 },
+      ],
+      rows: items.map((r) => ({
+        return_number: r.returnNumber,
+        status: r.status,
+        company: r.company?.name ?? '',
+        oms_order: r.omsOrder?.orderNumber ?? '',
+        reason: r.reason ?? '',
+        notes: r.notes ?? '',
+        created_at: r.createdAt ? new Date(r.createdAt).toISOString() : '',
+        completed_at: r.completedAt ? new Date(r.completedAt).toISOString() : '',
+      })),
+      summary: [
+        { label: 'Total Returns', value: items.length },
+        { label: 'By Status', value: statusSummary || '—' },
+        { label: 'Export Date', value: stamp },
+      ],
+    });
+    return {
+      filename: `oms-returns-${stamp}.xlsx`,
+      buffer,
+      rowCount: items.length,
+      truncated,
+    };
   }
 
   async findById(id: string, user: AuthPrincipal) {

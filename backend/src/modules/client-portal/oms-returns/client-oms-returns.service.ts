@@ -26,4 +26,18 @@ export class ClientOmsReturnsService {
   create(client: ClientPrincipal, dto: CreateOmsReturnDto) {
     return this.omsReturns.create(clientAuthPrincipal(client), dto);
   }
+
+  exportCsv(client: ClientPrincipal, query: ListOmsReturnsQueryDto) {
+    return this.omsReturns.exportCsv(clientAuthPrincipal(client), {
+      ...query,
+      companyId: client.companyId,
+    });
+  }
+
+  exportXlsx(client: ClientPrincipal, query: ListOmsReturnsQueryDto) {
+    return this.omsReturns.exportXlsx(clientAuthPrincipal(client), {
+      ...query,
+      companyId: client.companyId,
+    });
+  }
 }

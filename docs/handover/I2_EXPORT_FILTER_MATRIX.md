@@ -14,8 +14,8 @@ Legend: ✅ present · ⚠ partial · ❌ missing · n/a
 | Products / Inventory | Client | n/a | ⚠ | ❌ | ✅ (fixed 6 Nov route order) | Was 400 `id must be a UUID` because `export` hit `:id`; added `GET /client/products/export` before `:id` |
 | COD records | Admin | ✅ | ✅ | ❌? | ✅ | Check CSV |
 | COD report | Client | n/a | ✅ | ❌ | ✅ | Excel only today |
-| Returns (OMS) | Admin | ⚠ | ⚠ | ⚠ | ⚠ | Audit next |
-| Returns | Client | n/a | ⚠ | ❌ | ❌ | Likely gap |
+| Returns (OMS) | Admin | ✅ company via search | ✅ createdFrom/To (6 Nov) | ✅ | ✅ | Export + date filters added |
+| Returns (OMS) | Client | n/a | ✅ (query) | ✅ | ✅ | `GET /client/oms/returns/export` added; UI button still pending |
 | Finance transactions | Admin | ⚠ | ⚠ | ⚠ | ⚠ | Audit next |
 | Financial account | Client | n/a | ⚠ | ⚠ | ⚠ | Audit next |
 | Invoices | Admin | ⚠ | ⚠ | ⚠ | ⚠ | Audit next |

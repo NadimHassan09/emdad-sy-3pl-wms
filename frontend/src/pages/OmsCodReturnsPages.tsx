@@ -683,16 +683,21 @@ export function OmsReturnsPage() {
     useFilters({
       search: '',
       status: '',
+      createdFrom: '',
+      createdTo: '',
     });
   const [advancedOpen, setAdvancedOpen] = useCachedState(
     'oms-returns:advanced-filters-open',
     false,
   );
+  const [exporting, setExporting] = useState(false);
 
   const listParams = useMemo(
     () => ({
       search: (appliedFilters.search ?? '').trim() || undefined,
       status: (appliedFilters.status.trim() || undefined) as OmsReturn['status'] | undefined,
+      createdFrom: appliedFilters.createdFrom || undefined,
+      createdTo: appliedFilters.createdTo || undefined,
     }),
     [appliedFilters],
   );
@@ -955,6 +960,25 @@ export function OmsReturnsPage() {
         <div className="flex flex-wrap items-center gap-2">
           <Button
             variant="secondary"
+            disabled={exporting}
+            onClick={() => {
+              setExporting(true);
+              void OmsReturnsApi.exportExcel(listParams)
+                .catch((e: Error) => toast.error(e.message))
+                .finally(() => setExporting(false));
+            }}
+          >
+            <i className="fa-solid fa-file-excel mr-1.5" aria-hidden />
+            {exporting
+              ? isArabic
+                ? 'جاري التصدير…'
+                : 'Exporting…'
+              : isArabic
+                ? 'تصدير إكسل'
+                : 'Export Excel'}
+          </Button>
+          <Button
+            variant="secondary"
             onClick={() => setScanOpen(true)}
             className="border-emerald-600/40 bg-emerald-50/50 text-emerald-800 hover:bg-emerald-100 hover:text-emerald-900 dark:border-emerald-500/30 dark:bg-emerald-950/30 dark:text-emerald-300 dark:hover:bg-emerald-900/50"
           >
@@ -1118,7 +1142,11 @@ export function OmsReturnsPage() {
         onAdvancedOpenChange={setAdvancedOpen}
         isArabic={isArabic}
         loading={pagination.isFetching}
-        activeCount={countNonEmptyFilters(appliedFilters, ['status'])}
+        activeCount={countNonEmptyFilters(appliedFilters, [
+          'status',
+          'createdFrom',
+          'createdTo',
+        ])}
         onApply={applyFilters}
         onReset={() => {
           resetFilters();
@@ -1143,6 +1171,26 @@ export function OmsReturnsPage() {
                 className={FILTER_COMPACT_SEARCH_CLASS}
               />
             </div>
+            <label className="flex items-center gap-1.5 text-xs text-text-muted">
+              <span>{isArabic ? 'من' : 'From'}</span>
+              <input
+                type="date"
+                value={draftFilters.createdFrom ?? ''}
+                onChange={(e) => setDraft({ createdFrom: e.target.value })}
+                className="rounded-lg border border-border bg-surface px-2 py-1.5 text-sm"
+                aria-label={isArabic ? 'من تاريخ' : 'Created from'}
+              />
+            </label>
+            <label className="flex items-center gap-1.5 text-xs text-text-muted">
+              <span>{isArabic ? 'إلى' : 'To'}</span>
+              <input
+                type="date"
+                value={draftFilters.createdTo ?? ''}
+                onChange={(e) => setDraft({ createdTo: e.target.value })}
+                className="rounded-lg border border-border bg-surface px-2 py-1.5 text-sm"
+                aria-label={isArabic ? 'إلى تاريخ' : 'Created to'}
+              />
+            </label>
             <select
               value={draftFilters.status}
               onChange={(e) => setDraft({ status: e.target.value })}

@@ -1,4 +1,15 @@
-import { Body, Controller, Get, Param, Patch, Post, Query } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Header,
+  Param,
+  Patch,
+  Post,
+  Query,
+  Res,
+} from '@nestjs/common';
+import type { Response } from 'express';
 
 import { CurrentUser } from '../../common/auth/current-user.decorator';
 import { AuthPrincipal } from '../../common/auth/current-user.types';
@@ -26,6 +37,34 @@ export class OmsReturnsController {
     @Query() query: ListOmsReturnsQueryDto,
   ) {
     return this.returns.list(user, query);
+  }
+
+  /** Must stay above `:id` so "export" is not parsed as a UUID. */
+  @Get('export')
+  @Header('Cache-Control', 'no-store')
+  async export(
+    @CurrentUser() user: AuthPrincipal,
+    @Query() query: ListOmsReturnsQueryDto,
+    @Query('format') format: string | undefined,
+    @Res() res: Response,
+  ) {
+    if (String(format ?? 'xlsx').toLowerCase() === 'csv') {
+      const result = await this.returns.exportCsv(user, query);
+      res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+      res.setHeader('Content-Disposition', `attachment; filename="${result.filename}"`);
+      res.setHeader('X-Export-Row-Count', String(result.rowCount));
+      res.setHeader('X-Export-Truncated', result.truncated ? 'true' : 'false');
+      return res.send(result.body);
+    }
+    const result = await this.returns.exportXlsx(user, query);
+    res.setHeader(
+      'Content-Type',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    );
+    res.setHeader('Content-Disposition', `attachment; filename="${result.filename}"`);
+    res.setHeader('X-Export-Row-Count', String(result.rowCount));
+    res.setHeader('X-Export-Truncated', result.truncated ? 'true' : 'false');
+    return res.send(result.buffer);
   }
 
   @Post()
