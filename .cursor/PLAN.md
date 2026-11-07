@@ -38,7 +38,7 @@ Each item: build it, unit-test the logic, verify in the browser, update the chec
 | I-8 | **Company selector resets to "Acme Import" on phone** | Client B18 | Re-test at 390 px width on products/new, inbound/new, outbound/new, stock forms; fix if it still resets. |
 | I-9 | **Tolerant address input** | Client B11 | Client API + import + Sheets: wrong governorate or unknown neighbourhood must give a clear message with a suggestion (fuzzy match within the hierarchy), never a raw `VALIDATION_ERROR`. |
 | I-10 | **Server-side group-by** (optional, after the rest) | Client B20 | Current group-by works on the visible page only. Only do this if time allows; say so in the report otherwise. |
-| I-11 | **Make the backend build script use 4 GB** | infra | `backend/package.json` build → `NODE_OPTIONS=--max-old-space-size=4096 nest build && node scripts/copy-pdf-assets.js` (done 6 Nov if the diff shows it). |
+| I-11 | **Make the backend build script use 4 GB** | infra | ✅ Done — `backend/package.json` build/test already use `NODE_OPTIONS=--max-old-space-size=4096`. |
 
 Items that need an owner answer before building (do not build on a guess): inbound↔OMS link (B3), custom roles / editable permissions (needs a migration), carrier reconciliation + in-transit float (B12), COD due / liquidity / prep fee (B15), return fee rule. See §3.
 

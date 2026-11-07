@@ -69,9 +69,44 @@ export async function fetchClientOmsReturns(params: {
   offset?: number;
   status?: string;
   omsOrderId?: string;
+  createdFrom?: string;
+  createdTo?: string;
 }): Promise<ClientOmsReturnsPage> {
   const { data } = await apiClient.get<ClientOmsReturnsPage>('/oms/returns', { params });
   return data;
+}
+
+export async function downloadClientOmsReturnsExcel(params: {
+  status?: string;
+  createdFrom?: string;
+  createdTo?: string;
+  format?: 'xlsx' | 'csv';
+}): Promise<void> {
+  const format = params.format ?? 'xlsx';
+  const { data } = await apiClient.get('/oms/returns/export', {
+    params: {
+      status: params.status,
+      createdFrom: params.createdFrom,
+      createdTo: params.createdTo,
+      format,
+    },
+    responseType: 'blob',
+  });
+  const isCsv = format === 'csv';
+  const blob = new Blob([data], {
+    type: isCsv
+      ? 'text/csv;charset=utf-8'
+      : 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  });
+  const url = window.URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  const day = new Date().toISOString().slice(0, 10);
+  a.download = isCsv ? `oms-returns-${day}.csv` : `oms-returns-${day}.xlsx`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  window.URL.revokeObjectURL(url);
 }
 
 export async function fetchClientOmsReturn(id: string): Promise<ClientOmsReturnRow> {

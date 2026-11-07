@@ -23,6 +23,7 @@ import { useClientOperationalAccess } from '../hooks/useClientOperationalAccess'
 import { isClientArabic } from '../lib/client-ui-language';
 import { fetchClientReturns, type ClientReturnOrderRow } from '../services/clientReturnsService';
 import {
+  downloadClientOmsReturnsExcel,
   fetchClientOmsReturns,
   type ClientOmsReturnRow,
 } from '../services/clientOmsReturnsService';
@@ -55,6 +56,10 @@ function labelText(label: string, isArabic: boolean): string {
     'No returns yet': 'لا توجد مرتجعات بعد',
     'Create a return for an online order.': 'أنشئ مرتجعاً لطلب إلكتروني.',
     'Create a return for a shipped outbound order.': 'أنشئ مرتجعاً لطلب صادر مشحون.',
+    From: 'من',
+    To: 'إلى',
+    'Export Excel': 'تصدير Excel',
+    Exporting: 'جاري التصدير…',
   };
   return ar[label] ?? label;
 }
@@ -102,6 +107,9 @@ function ReturnsListPage({ source }: Props): ReactElement {
   const t = (label: string) => labelText(label, isArabic);
   const billingAccess = useClientOperationalAccess(isArabic);
   const [status, setStatus] = useState('');
+  const [createdFrom, setCreatedFrom] = useState('');
+  const [createdTo, setCreatedTo] = useState('');
+  const [exporting, setExporting] = useState(false);
 
   const basePath = source === 'oms' ? '/ecommerce-orders/returns' : '/outbound-orders/returns';
   const title = source === 'oms' ? t('Online returns') : t('Outbound returns');
@@ -116,10 +124,21 @@ function ReturnsListPage({ source }: Props): ReactElement {
 
   const pagination = useChunkedServerPagination<ListRow>({
     chunkSize: CHUNK_SIZE_STANDARD,
-    filterKey: { source, status: status || undefined },
+    filterKey: {
+      source,
+      status: status || undefined,
+      createdFrom: createdFrom || undefined,
+      createdTo: createdTo || undefined,
+    },
     fetchChunk: async (offset, limit) => {
       if (source === 'oms') {
-        const page = await fetchClientOmsReturns({ offset, limit, status: status || undefined });
+        const page = await fetchClientOmsReturns({
+          offset,
+          limit,
+          status: status || undefined,
+          createdFrom: createdFrom || undefined,
+          createdTo: createdTo || undefined,
+        });
         return {
           items: page.items.map(mapOmsReturn),
           total: page.total,
@@ -140,8 +159,8 @@ function ReturnsListPage({ source }: Props): ReactElement {
         offset: page.offset,
       };
     },
-    rtQueryKeyPrefix: ['client', 'returns', source, status],
-    chunkQueryKeyPrefix: `client-returns-${source}-${status}-chunk`,
+    rtQueryKeyPrefix: ['client', 'returns', source, status, createdFrom, createdTo],
+    chunkQueryKeyPrefix: `client-returns-${source}-${status}-${createdFrom}-${createdTo}-chunk`,
   });
 
   const statusCards: StatusCardItem[] = useMemo(() => {
@@ -231,17 +250,39 @@ function ReturnsListPage({ source }: Props): ReactElement {
     ];
   }, [source, status, pagination.serverPagination.total, t]);
 
-  const createButton = (
-    <Button
-      variant="primary"
-      size="md"
-      disabled={!billingAccess.operationalAllowed}
-      title={billingAccess.operationalAllowed ? undefined : billingAccess.actionBlockedReason}
-      onClick={() => navigate(`${basePath}/new`)}
-      startIcon={<i className="fa-solid fa-plus text-xs" aria-hidden="true" />}
-    >
-      {t('Create return')}
-    </Button>
+  const headerActions = (
+    <div className="flex flex-wrap items-center gap-2">
+      {source === 'oms' ? (
+        <Button
+          variant="secondary"
+          size="md"
+          disabled={exporting}
+          onClick={() => {
+            setExporting(true);
+            void downloadClientOmsReturnsExcel({
+              status: status || undefined,
+              createdFrom: createdFrom || undefined,
+              createdTo: createdTo || undefined,
+            })
+              .catch(() => undefined)
+              .finally(() => setExporting(false));
+          }}
+          startIcon={<i className="fa-solid fa-file-excel text-xs" aria-hidden="true" />}
+        >
+          {exporting ? t('Exporting') : t('Export Excel')}
+        </Button>
+      ) : null}
+      <Button
+        variant="primary"
+        size="md"
+        disabled={!billingAccess.operationalAllowed}
+        title={billingAccess.operationalAllowed ? undefined : billingAccess.actionBlockedReason}
+        onClick={() => navigate(`${basePath}/new`)}
+        startIcon={<i className="fa-solid fa-plus text-xs" aria-hidden="true" />}
+      >
+        {t('Create return')}
+      </Button>
+    </div>
   );
 
   return (
@@ -250,10 +291,33 @@ function ReturnsListPage({ source }: Props): ReactElement {
         icon="fa-rotate-left"
         title={title}
         subtitle={subtitle}
-        actions={createButton}
+        actions={headerActions}
       />
 
       {source === 'oms' ? <StorePillTabs isArabic={isArabic} /> : null}
+
+      {source === 'oms' ? (
+        <div className="flex flex-wrap items-end gap-3">
+          <label className="flex flex-col gap-1 text-xs text-text-muted">
+            {t('From')}
+            <input
+              type="date"
+              className="rounded-md border border-border-subtle bg-surface-card px-3 py-2 text-sm text-text-body"
+              value={createdFrom}
+              onChange={(e) => setCreatedFrom(e.target.value)}
+            />
+          </label>
+          <label className="flex flex-col gap-1 text-xs text-text-muted">
+            {t('To')}
+            <input
+              type="date"
+              className="rounded-md border border-border-subtle bg-surface-card px-3 py-2 text-sm text-text-body"
+              value={createdTo}
+              onChange={(e) => setCreatedTo(e.target.value)}
+            />
+          </label>
+        </div>
+      ) : null}
 
       {/* Standardized Status Card Nav */}
       <StatusCardNav

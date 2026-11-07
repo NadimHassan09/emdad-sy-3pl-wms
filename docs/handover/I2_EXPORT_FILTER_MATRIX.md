@@ -15,7 +15,7 @@ Legend: ✅ present · ⚠ partial · ❌ missing · n/a
 | COD records | Admin | ✅ | ✅ | ❌? | ✅ | Check CSV |
 | COD report | Client | n/a | ✅ | ❌ | ✅ | Excel only today |
 | Returns (OMS) | Admin | ✅ company via search | ✅ createdFrom/To (6 Nov) | ✅ | ✅ | Export + date filters added |
-| Returns (OMS) | Client | n/a | ✅ (query) | ✅ | ✅ | `GET /client/oms/returns/export` added; UI button still pending |
+| Returns (OMS) | Client | n/a | ✅ From/To UI | ✅ | ✅ | Export Excel + date filters on returns list (7 Nov) |
 | Finance transactions | Admin | ⚠ | ⚠ | ⚠ | ⚠ | Audit next |
 | Financial account | Client | n/a | ⚠ | ⚠ | ⚠ | Audit next |
 | Invoices | Admin | ⚠ | ⚠ | ⚠ | ⚠ | Audit next |
