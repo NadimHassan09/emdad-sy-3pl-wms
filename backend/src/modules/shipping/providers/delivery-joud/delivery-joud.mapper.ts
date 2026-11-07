@@ -107,17 +107,33 @@ export function mapCreateOrderParams(
   };
 }
 
+/** Prefer the portal sequence/barcode (e.g. 3960023548), never an OMS reference when a better id exists. */
+export function pickJoudPortalBarcode(order: JoudOrder): string {
+  const candidates = [
+    order.barcode,
+    order.tracking_number,
+    order.tracking,
+    (order as { barcode_number?: unknown }).barcode_number,
+    (order as { sequence?: unknown }).sequence,
+    order.name,
+  ];
+  const texts = candidates.map((c) => String(c ?? '').trim()).filter(Boolean);
+  const numeric = texts.find((v) => /^\d{6,}$/.test(v));
+  if (numeric) return numeric;
+  const nonOms = texts.find((v) => !/^OMS-/i.test(v));
+  return nonOms || texts[0] || '';
+}
+
 export function mapJoudOrderToResult(order: JoudOrder | null | undefined): ShippingCreateShipmentResult {
   if (!order || typeof order !== 'object') {
     return { awb: '', raw: order };
   }
-  const barcode = String(order.barcode || order.tracking_number || order.tracking || '').trim();
-  const name = String(order.name || '').trim();
+  const barcode = pickJoudPortalBarcode(order);
   const id = order.id != null ? String(order.id) : '';
-  const awb = barcode || name || id;
+  const awb = barcode || id;
   return {
     awb,
-    trackingNumber: barcode || name || undefined,
+    trackingNumber: barcode || undefined,
     raw: order,
   };
 }

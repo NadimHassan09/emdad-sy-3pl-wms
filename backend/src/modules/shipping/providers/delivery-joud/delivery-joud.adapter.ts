@@ -116,8 +116,20 @@ export class DeliveryJoudAdapter implements ShippingProvider {
 
     const params = mapCreateOrderParams(input, joudAreaName(area), orderTypeId);
     const result = await this.http.call<unknown>('create_order', credentials, params, 'POST');
-    const order = unwrapJoudOrder(result);
-    const mapped = mapJoudOrderToResult(order);
+    let order = unwrapJoudOrder(result);
+    let mapped = mapJoudOrderToResult(order);
+
+    // create_order sometimes returns only a reference — re-fetch so we store the portal barcode.
+    const lookupKey = mapped.awb || input.reference?.trim() || '';
+    if (lookupKey && (!mapped.awb || /^OMS-/i.test(mapped.awb) || mapped.awb === input.reference?.trim())) {
+      const refreshed = await this.getOrder(credentials, lookupKey);
+      if (refreshed) {
+        order = refreshed;
+        const remapped = mapJoudOrderToResult(refreshed);
+        if (remapped.awb) mapped = remapped;
+      }
+    }
+
     if (!mapped.awb) {
       // Some Olivery installs return only a success flag — fall back to reference for follow-up poll.
       if (input.reference?.trim()) {
@@ -128,7 +140,7 @@ export class DeliveryJoudAdapter implements ShippingProvider {
       }
       throw new JoudApiError('Delivery Joud create_order returned no order identity.', undefined, result);
     }
-    return mapped;
+    return { ...mapped, raw: order ?? result };
   }
 
   async getQuote(

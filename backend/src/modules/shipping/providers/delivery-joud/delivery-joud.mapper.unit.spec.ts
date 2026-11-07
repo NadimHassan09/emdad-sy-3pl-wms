@@ -61,6 +61,12 @@ describe('delivery-joud.mapper', () => {
   it('maps order result identity', () => {
     expect(mapJoudOrderToResult({ barcode: 'JOUD-9', id: 1 }).awb).toBe('JOUD-9');
     expect(mapJoudOrderToResult({ name: 'S0001' }).awb).toBe('S0001');
+    expect(
+      mapJoudOrderToResult({ name: 'OMS-2026-08688', barcode: '3960023548', id: 9 }).awb,
+    ).toBe('3960023548');
+    expect(mapJoudOrderToResult({ name: 'OMS-2026-08688', id: 9 }).trackingNumber).toBe(
+      'OMS-2026-08688',
+    );
   });
 
   it('normalizes Arabic/English statuses', () => {

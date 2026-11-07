@@ -1385,21 +1385,21 @@
     "semantic_hash": "39c6291d49281f7c7b4f26dcf963bab5"
   },
   "backend/src/modules/client-portal/oms-returns/client-oms-returns.controller.ts": {
-    "mtime": 1787387214.0759706,
-    "seen": 1793637839.379477,
-    "ast_hash": "d0e4c916ef179370d2aa09140b450fa2",
-    "semantic_hash": "d0e4c916ef179370d2aa09140b450fa2"
+    "mtime": 1794007465.8607605,
+    "seen": 1794011089.7128763,
+    "ast_hash": "389c676049f768124a6cea14131a4ded",
+    "semantic_hash": ""
   },
   "backend/src/modules/client-portal/oms-returns/client-oms-returns.service.ts": {
-    "mtime": 1787387214.0759706,
-    "seen": 1793637839.3795462,
-    "ast_hash": "9b5c4003fe55605470825a119b8c6097",
-    "semantic_hash": "9b5c4003fe55605470825a119b8c6097"
+    "mtime": 1794007460.6037388,
+    "seen": 1794011089.7128797,
+    "ast_hash": "64a90149fc19d38e0946d4f6b9f70d4f",
+    "semantic_hash": ""
   },
   "backend/src/modules/client-portal/oms/client-oms-orders.controller.ts": {
-    "mtime": 1794006501.8895547,
-    "seen": 1794007097.6234095,
-    "ast_hash": "c17518f3ce32d151c1f75ebabe3b9f6c",
+    "mtime": 1794007178.2593865,
+    "seen": 1794011089.7129924,
+    "ast_hash": "9c271a25ec66d25ff7f92b478368571d",
     "semantic_hash": ""
   },
   "backend/src/modules/client-portal/oms/client-oms-orders.service.ts": {
@@ -1595,16 +1595,16 @@
     "semantic_hash": "ff4ad7224cfd66bc5b9b7f9667222c60"
   },
   "backend/src/modules/client-portal/products/client-products.controller.ts": {
-    "mtime": 1787387214.0789707,
-    "seen": 1793637839.3820367,
-    "ast_hash": "859cd1e377cd216a92c00c351ee7ad86",
-    "semantic_hash": "859cd1e377cd216a92c00c351ee7ad86"
+    "mtime": 1794007309.3025477,
+    "seen": 1794011089.7154744,
+    "ast_hash": "5132041f0d8668d335661ddd22f2c871",
+    "semantic_hash": ""
   },
   "backend/src/modules/client-portal/products/client-products.service.ts": {
-    "mtime": 1787387214.0789707,
-    "seen": 1793637839.3821187,
-    "ast_hash": "a7cb4c4d52655f60946219c07a27ddb4",
-    "semantic_hash": "a7cb4c4d52655f60946219c07a27ddb4"
+    "mtime": 1794007303.825541,
+    "seen": 1794011089.7154765,
+    "ast_hash": "c5d6d00e35b81368153865cbfbf65776",
+    "semantic_hash": ""
   },
   "backend/src/modules/client-portal/products/dto/client-create-product.dto.ts": {
     "mtime": 1784900868.1042373,
@@ -2471,10 +2471,10 @@
     "semantic_hash": ""
   },
   "backend/src/modules/oms-returns/oms-returns.controller.ts": {
-    "mtime": 1793494593.9425774,
-    "seen": 1793637839.3913412,
-    "ast_hash": "24a292672d7fcb81701836b9d70710a2",
-    "semantic_hash": "24a292672d7fcb81701836b9d70710a2"
+    "mtime": 1794007455.4017274,
+    "seen": 1794011089.7230651,
+    "ast_hash": "fd12795b3e9d0295364c61e20f818d18",
+    "semantic_hash": ""
   },
   "backend/src/modules/oms-returns/oms-returns.module.ts": {
     "mtime": 1793494450.8233905,
@@ -2483,10 +2483,10 @@
     "semantic_hash": "905eab9de7e6fabe8dc8cb0d81ce2270"
   },
   "backend/src/modules/oms-returns/oms-returns.service.ts": {
-    "mtime": 1793494583.637564,
-    "seen": 1793637839.391459,
-    "ast_hash": "9322ce4f159b45c0e78a99501f0066c6",
-    "semantic_hash": "9322ce4f159b45c0e78a99501f0066c6"
+    "mtime": 1794007443.8667133,
+    "seen": 1794011089.7231379,
+    "ast_hash": "4e3a5fa4c7309995eaeb040c97bc3e4a",
+    "semantic_hash": ""
   },
   "backend/src/modules/oms/admin-order-export.columns.ts": {
     "mtime": 1788117299.3640804,
@@ -4007,16 +4007,16 @@
     "semantic_hash": "1c96393626b1e31fb2cb70ab27b33927"
   },
   "backend/src/modules/shipping/providers/sila-sy/sila-identifiers.ts": {
-    "mtime": 1792602757.982436,
-    "seen": 1793637839.4070373,
-    "ast_hash": "a57bcf84d06785905e06ed147cbecdbb",
-    "semantic_hash": "a57bcf84d06785905e06ed147cbecdbb"
+    "mtime": 1794016765.1041112,
+    "seen": 1794017234.7699704,
+    "ast_hash": "71ed079d368bdcfbffd4f168ab3cb831",
+    "semantic_hash": ""
   },
   "backend/src/modules/shipping/providers/sila-sy/sila-identifiers.unit.spec.ts": {
-    "mtime": 1792593613.0769746,
-    "seen": 1793637839.4071121,
-    "ast_hash": "3f48163680d8c2a738129525e1c0af0e",
-    "semantic_hash": "3f48163680d8c2a738129525e1c0af0e"
+    "mtime": 1794016768.9081159,
+    "seen": 1794017234.7699733,
+    "ast_hash": "7a9cc7502cd33740e0e13b536a9f0423",
+    "semantic_hash": ""
   },
   "backend/src/modules/shipping/providers/sila-sy/sila-meta.util.ts": {
     "mtime": 1792666378.660573,
@@ -4223,10 +4223,10 @@
     "semantic_hash": "c505152f2356cc820d7943003c088a06"
   },
   "backend/src/modules/shipping/shipping-provider.registry.ts": {
-    "mtime": 1793223935.2454834,
-    "seen": 1793637839.4092171,
-    "ast_hash": "e01b96a887311560a625d30e22828293",
-    "semantic_hash": "e01b96a887311560a625d30e22828293"
+    "mtime": 1794010838.4458992,
+    "seen": 1794011089.7391877,
+    "ast_hash": "1989d63fc569c0a2a83c193e8fe3c304",
+    "semantic_hash": ""
   },
   "backend/src/modules/shipping/shipping-provider.registry.unit.spec.ts": {
     "mtime": 1793282491.7548263,
@@ -4277,33 +4277,33 @@
     "semantic_hash": "87684bc7f77329bb58e441c76d42d3e2"
   },
   "backend/src/modules/shipping/shipping-webhook.controller.ts": {
-    "mtime": 1793223997.3507419,
-    "seen": 1793637839.4097612,
-    "ast_hash": "f0dec4324a717a0344f4a87086603c46",
-    "semantic_hash": "f0dec4324a717a0344f4a87086603c46"
+    "mtime": 1794010861.126932,
+    "seen": 1794011089.739667,
+    "ast_hash": "b0034f6f28c87f99029b53e881711f34",
+    "semantic_hash": ""
   },
   "backend/src/modules/shipping/shipping.constants.ts": {
-    "mtime": 1793223920.3544235,
-    "seen": 1793637839.4098215,
-    "ast_hash": "7246363594fe9cc48e83cb4a8aa98ece",
-    "semantic_hash": "7246363594fe9cc48e83cb4a8aa98ece"
+    "mtime": 1794010833.3608918,
+    "seen": 1794011089.7396698,
+    "ast_hash": "1fa98abf3e0fd46efa27169a50f14c7a",
+    "semantic_hash": ""
   },
   "backend/src/modules/shipping/shipping.controller.ts": {
-    "mtime": 1793893912.0035286,
-    "seen": 1793964258.121719,
-    "ast_hash": "85a7d0cf0269d3f8c2055d1c347e36a8",
+    "mtime": 1794013083.042399,
+    "seen": 1794017234.7726383,
+    "ast_hash": "db0166e76ef9fa51b5e08f996a5c1805",
     "semantic_hash": ""
   },
   "backend/src/modules/shipping/shipping.module.ts": {
-    "mtime": 1793223954.651563,
-    "seen": 1793637839.4099598,
-    "ast_hash": "cb8d6aaa19590e66dd75d17d4e49e9ad",
-    "semantic_hash": "cb8d6aaa19590e66dd75d17d4e49e9ad"
+    "mtime": 1794010843.9389071,
+    "seen": 1794011089.739722,
+    "ast_hash": "72230660e58e888159c47e6a17e26227",
+    "semantic_hash": ""
   },
   "backend/src/modules/shipping/shipping.service.ts": {
-    "mtime": 1793726757.0652952,
-    "seen": 1793964258.12178,
-    "ast_hash": "d22b5f9fb6de73ed88be655c483ea1fa",
+    "mtime": 1794010852.4249194,
+    "seen": 1794011089.739725,
+    "ast_hash": "4b6e1810feb4166b94ba27fe503601eb",
     "semantic_hash": ""
   },
   "backend/src/modules/shipping/shipping.service.unit.spec.ts": {
@@ -5431,10 +5431,10 @@
     "semantic_hash": "61db09ff9b45f13e0f15ecb97e24d8ea"
   },
   "client-frontend/src/pages/ReturnsListPage.tsx": {
-    "mtime": 1793285855.5466628,
-    "seen": 1793637839.4204445,
-    "ast_hash": "4f4f9f9d65120e38a9b6f0167157c29f",
-    "semantic_hash": "4f4f9f9d65120e38a9b6f0167157c29f"
+    "mtime": 1794011139.3683388,
+    "seen": 1794017234.7835767,
+    "ast_hash": "2ff92e79314a87342b84cd82a3c14a62",
+    "semantic_hash": ""
   },
   "client-frontend/src/realtime/RealtimeProvider.tsx": {
     "mtime": 1787387214.209971,
@@ -5575,10 +5575,10 @@
     "semantic_hash": ""
   },
   "client-frontend/src/services/clientOmsReturnsService.ts": {
-    "mtime": 1787387214.2109709,
-    "seen": 1793637839.4216912,
-    "ast_hash": "8edb1b637d1d3137fc4943462510ce57",
-    "semantic_hash": "8edb1b637d1d3137fc4943462510ce57"
+    "mtime": 1794011125.8453188,
+    "seen": 1794017234.7849002,
+    "ast_hash": "c026071e6d63c892a11c4ae00155f17b",
+    "semantic_hash": ""
   },
   "client-frontend/src/services/clientOrderImport.ts": {
     "mtime": 1787387214.2109709,
@@ -6377,9 +6377,9 @@
     "semantic_hash": "d3d1eba8c2fb43f2287e47e9f199c8a5"
   },
   "frontend/src/api/oms.ts": {
-    "mtime": 1793725333.911127,
-    "seen": 1793964258.1399817,
-    "ast_hash": "2b65623f4368fca6a005d63363c4b7a2",
+    "mtime": 1794007468.6637719,
+    "seen": 1794011089.757019,
+    "ast_hash": "1096228634aaf832202babff1ca46e3a",
     "semantic_hash": ""
   },
   "frontend/src/api/outbound.ts": {
@@ -8341,10 +8341,10 @@
     "semantic_hash": "fa7a85569c45fa7387de70c8d6692b1b"
   },
   "frontend/src/pages/OmsCodReturnsPages.tsx": {
-    "mtime": 1793495246.4135492,
-    "seen": 1793637839.4430518,
-    "ast_hash": "5aa1324b3b70cef138bcce0fcd32d4e2",
-    "semantic_hash": "5aa1324b3b70cef138bcce0fcd32d4e2"
+    "mtime": 1794007494.2328746,
+    "seen": 1794011089.7724142,
+    "ast_hash": "f394711cb8fb2a4258a7cde6e38e0b1e",
+    "semantic_hash": ""
   },
   "frontend/src/pages/OmsDashboardPage.tsx": {
     "mtime": 1792747233.243453,
@@ -8713,9 +8713,9 @@
     "semantic_hash": "1a52f0e17db7aeeb22e078f867cc9ec3"
   },
   "frontend/src/pages/shipping/ShippingCompaniesPage.tsx": {
-    "mtime": 1793893993.5876193,
-    "seen": 1793964258.1611586,
-    "ast_hash": "45f76eb063d0646e26ee9c76da1a533f",
+    "mtime": 1794015841.652102,
+    "seen": 1794017234.8157845,
+    "ast_hash": "4620183742e49656da5c74b08a4b699e",
     "semantic_hash": ""
   },
   "frontend/src/pages/shipping/ShippingFeeRatePage.tsx": {
@@ -11044,9 +11044,9 @@
     "semantic_hash": ""
   },
   "docs/handover/DECISIONS_AND_EVIDENCE.md": {
-    "mtime": 1793725874.7858377,
-    "seen": 1793964258.1853716,
-    "ast_hash": "a7f851779621352eecf48ccb0b00bd42",
+    "mtime": 1794017075.3544962,
+    "seen": 1794017234.8424335,
+    "ast_hash": "3b5f0e2ba66011eefb25cff4aac243f4",
     "semantic_hash": ""
   },
   "docs/handover/QA_MASTER_PLAN.md": {
@@ -11098,15 +11098,15 @@
     "semantic_hash": ""
   },
   "docs/handover/QA_COVERAGE.md": {
-    "mtime": 1794006080.4230375,
-    "seen": 1794006250.5605962,
-    "ast_hash": "f1007765ba86449999c47986369dc296",
+    "mtime": 1794016184.7974372,
+    "seen": 1794017234.8424878,
+    "ast_hash": "bb13b94651271565f48f0a4d25282b5e",
     "semantic_hash": ""
   },
   "docs/handover/QA_FLOWS.md": {
-    "mtime": 1794001846.1092846,
-    "seen": 1794006250.560599,
-    "ast_hash": "a237092c448245dca588b5186ec43382",
+    "mtime": 1794010922.6480212,
+    "seen": 1794011089.8003526,
+    "ast_hash": "b553589184083d2b7c347a300ebc3ed1",
     "semantic_hash": ""
   },
   "backend/src/common/auth/read-only-role.guard.ts": {
@@ -11560,9 +11560,9 @@
     "semantic_hash": ""
   },
   ".cursor/PLAN.md": {
-    "mtime": 1794006982.628146,
-    "seen": 1794007097.707785,
-    "ast_hash": "6ff60001f43585e0772c0239e4aea1ca",
+    "mtime": 1794011160.0293694,
+    "seen": 1794017234.8306558,
+    "ast_hash": "9b27c69e525f27cf834e3c2e787e656b",
     "semantic_hash": ""
   },
   "docs/HANDOVER.md": {
@@ -12280,9 +12280,9 @@
     "semantic_hash": ""
   },
   "docs/handover/CLIENT_WHATSAPP_REQUESTS.md": {
-    "mtime": 1794006962.6281211,
-    "seen": 1794007097.7191486,
-    "ast_hash": "23fae998240b556ddfb0e564af9ecedb",
+    "mtime": 1794010915.2980106,
+    "seen": 1794011089.8002815,
+    "ast_hash": "5e482d58fae22747d3995e1d0d484db8",
     "semantic_hash": ""
   },
   "docs/handover/OWNER_CHANGE_REQUESTS.md": {
@@ -12307,6 +12307,96 @@
     "mtime": 1794006547.1346104,
     "seen": 1794007097.6243947,
     "ast_hash": "cc004cb526a97fde2be9c369ce011795",
+    "semantic_hash": ""
+  },
+  "backend/src/modules/shipping/providers/delivery-joud/delivery-joud.adapter.ts": {
+    "mtime": 1794017068.2594874,
+    "seen": 1794017234.768195,
+    "ast_hash": "6da095053971726561c18490174f85ed",
+    "semantic_hash": ""
+  },
+  "backend/src/modules/shipping/providers/delivery-joud/delivery-joud.constants.ts": {
+    "mtime": 1794010866.62094,
+    "seen": 1794011089.7359467,
+    "ast_hash": "f4398ea79b70b7f3be2f298b14843156",
+    "semantic_hash": ""
+  },
+  "backend/src/modules/shipping/providers/delivery-joud/delivery-joud.http-client.ts": {
+    "mtime": 1794010771.7248032,
+    "seen": 1794011089.7359486,
+    "ast_hash": "fbdcfe096501fdf376b5bb4307dbd914",
+    "semantic_hash": ""
+  },
+  "backend/src/modules/shipping/providers/delivery-joud/delivery-joud.mapper.ts": {
+    "mtime": 1794017064.4114826,
+    "seen": 1794017234.7683256,
+    "ast_hash": "9c1015f3b7a30e8519606a27a3810d80",
+    "semantic_hash": ""
+  },
+  "backend/src/modules/shipping/providers/delivery-joud/delivery-joud.mapper.unit.spec.ts": {
+    "mtime": 1794017072.2824924,
+    "seen": 1794017234.768329,
+    "ast_hash": "f06e2b25868fcf228551b81638ad1d29",
+    "semantic_hash": ""
+  },
+  "backend/src/modules/shipping/providers/delivery-joud/delivery-joud.types.ts": {
+    "mtime": 1794010764.4687927,
+    "seen": 1794011089.735953,
+    "ast_hash": "5d952907d2638c9d2c6f3f7431e5e7f2",
+    "semantic_hash": ""
+  },
+  "backend/src/modules/shipping/providers/fatih-cargo/fatih-cargo.adapter.ts": {
+    "mtime": 1794010758.1657836,
+    "seen": 1794011089.735955,
+    "ast_hash": "e4c510eb89f9af2675b96fd5c9953aa8",
+    "semantic_hash": ""
+  },
+  "backend/src/modules/shipping/providers/fatih-cargo/fatih-cargo.constants.ts": {
+    "mtime": 1794010865.248938,
+    "seen": 1794011089.735957,
+    "ast_hash": "6bf63ab6b2454be65eba9daf45e1a3b4",
+    "semantic_hash": ""
+  },
+  "backend/src/modules/shipping/providers/fatih-cargo/fatih-cargo.http-client.ts": {
+    "mtime": 1794010702.4697042,
+    "seen": 1794011089.7359586,
+    "ast_hash": "4e0472964fac9c5249b27840bb036dae",
+    "semantic_hash": ""
+  },
+  "backend/src/modules/shipping/providers/fatih-cargo/fatih-cargo.mapper.ts": {
+    "mtime": 1794010716.0987234,
+    "seen": 1794011089.7359602,
+    "ast_hash": "e5213d650e364ae69b8d25f9d4373693",
+    "semantic_hash": ""
+  },
+  "backend/src/modules/shipping/providers/fatih-cargo/fatih-cargo.mapper.unit.spec.ts": {
+    "mtime": 1794010817.9878697,
+    "seen": 1794011089.7359622,
+    "ast_hash": "a766b069a054f909a97b1c28ad2fe002",
+    "semantic_hash": ""
+  },
+  "backend/src/modules/shipping/providers/fatih-cargo/fatih-cargo.types.ts": {
+    "mtime": 1794010692.8766904,
+    "seen": 1794011089.7359638,
+    "ast_hash": "189bc3368959d47c98dc458806de3466",
+    "semantic_hash": ""
+  },
+  "backend/src/modules/shipping/providers/fatih-cargo/fatih-cargo.webhook.unit.spec.ts": {
+    "mtime": 1794010822.371876,
+    "seen": 1794011089.7359655,
+    "ast_hash": "79a0c2e7cbe490e5d32e3c919acdaf5c",
+    "semantic_hash": ""
+  },
+  "backend/src/modules/shipping/providers/fatih-cargo/fatih-cargo.webhook.util.ts": {
+    "mtime": 1794010726.323738,
+    "seen": 1794011089.735968,
+    "ast_hash": "b6d0827394b3898d08baaf93bff04aee",
+    "semantic_hash": ""
+  },
+  "docs/handover/I2_EXPORT_FILTER_MATRIX.md": {
+    "mtime": 1794011141.0243413,
+    "seen": 1794017234.8424368,
+    "ast_hash": "7e29d6940bb30914af6412c52eb1847f",
     "semantic_hash": ""
   },
   "backend/libs/wms-task-execution/package-lock.json": {

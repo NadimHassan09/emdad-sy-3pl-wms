@@ -4,11 +4,12 @@
  * - `id` — Sila cargo UUID. Used for GET /cargos/{id}.
  * - `tracking_token` (legacy `barcode`) — Sila public token. Webhooks and tracking pages use it.
  * - `shipments[0].tracking_number` — Sila's own waybill, shaped like `SL-XXXX`.
- * - `shipments[0].remote_label_code` — code the final carrier prints on its label (AWB).
- * - `courier_barcode` / `shipments[0].remote_barcode` — the same carrier value when the
- *   carrier uses one number for both the label and the scan. Confirmed on live Tarabut
- *   cargos (all three match). Fatih Cargo returns a distinct `remote_label_code` (`AWB…`)
- *   and a shorter `remote_barcode`; the label AWB is `remote_label_code`.
+ * - `courier.tracking_number` / `courier_barcode` / `shipments[0].remote_barcode` — number
+ *   shown in the final carrier's customer portal (e.g. Fatih numeric `5009241`).
+ * - `shipments[0].remote_label_code` — Sila-side remote label (`AWB…` for Fatih). Not the
+ *   portal tracking number; only a fallback when the portal barcode is missing.
+ *   Confirmed on live Tarabut cargos: barcode fields all match. Confirmed wrong for Fatih
+ *   when OMS stored `AWB2026…` while the Fatih portal showed the numeric tracking.
  */
 
 const SILA_WAYBILL = /^SL-[A-Z0-9]+(?:-[A-Z0-9]+)?$/i;
@@ -47,14 +48,26 @@ export function isSilaPlatformIdentifier(
   return own.some((item) => text(item) === trimmed);
 }
 
+function nestedTrackingNumber(value: unknown): string {
+  if (!value || typeof value !== 'object') return '';
+  const record = value as Record<string, unknown>;
+  return text(record.tracking_number) || text(record.trackingNumber) || text(record.barcode);
+}
+
 /**
  * Final-carrier AWB from a Sila cargo payload.
- * Prefers the carrier label code, then the courier barcode. Never returns a Sila id.
+ * Prefers the number shown in the carrier portal, then remote_label_code. Never a Sila id.
  */
 export function extractSilaCarrierAwb(cargo: Record<string, unknown> | null | undefined): string {
   if (!cargo) return '';
   const shipment = silaShipmentRow(cargo);
-  const candidates = [shipment?.remote_label_code, cargo.courier_barcode, shipment?.remote_barcode];
+  const candidates = [
+    nestedTrackingNumber(cargo.courier),
+    cargo.courier_barcode,
+    shipment?.remote_barcode,
+    nestedTrackingNumber(shipment?.courier),
+    shipment?.remote_label_code,
+  ];
   for (const candidate of candidates) {
     const value = text(candidate);
     if (value && !isSilaPlatformIdentifier(value, cargo)) return value;
@@ -114,6 +127,10 @@ export function silaMatchKeys(cargo: Record<string, unknown> | null | undefined)
     cargo.barcode,
     shipment?.id,
     shipment?.tracking_number,
+    nestedTrackingNumber(cargo.courier),
+    cargo.courier_barcode,
+    shipment?.remote_barcode,
+    shipment?.remote_label_code,
     extractSilaCarrierAwb(cargo),
   ];
   return [...new Set(keys.map((item) => text(item)).filter(Boolean))];

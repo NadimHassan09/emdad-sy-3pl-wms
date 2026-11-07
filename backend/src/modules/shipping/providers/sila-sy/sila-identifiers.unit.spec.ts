@@ -27,15 +27,33 @@ describe('Sila identifier mapping', () => {
     expect(isSilaPlatformIdentifier('100537003427', cargo)).toBe(false);
   });
 
-  it('uses Fatih remote_label_code as the AWB when it differs from the scan barcode', () => {
+  it('uses Fatih portal tracking (courier barcode), not remote_label_code AWB…', () => {
     const cargo = {
       id: '46886c7b-de43-458b-ac80-0eaae23c5c53',
       tracking_token: '03a32da3e3b54ef388b900b3bbf1eb3d',
       courier_barcode: '5004181',
+      courier: { tracking_number: '5004181' },
       shipments: [
         {
           tracking_number: 'SL-T3H9VQA6-N',
           remote_barcode: '5004181',
+          remote_label_code: 'AWB20261011023902',
+        },
+      ],
+    };
+
+    expect(extractSilaCarrierAwb(cargo)).toBe('5004181');
+  });
+
+  it('falls back to remote_label_code when portal barcode is missing', () => {
+    const cargo = {
+      id: '46886c7b-de43-458b-ac80-0eaae23c5c53',
+      tracking_token: '03a32da3e3b54ef388b900b3bbf1eb3d',
+      courier_barcode: null,
+      shipments: [
+        {
+          tracking_number: 'SL-T3H9VQA6-N',
+          remote_barcode: null,
           remote_label_code: 'AWB20261011023902',
         },
       ],
