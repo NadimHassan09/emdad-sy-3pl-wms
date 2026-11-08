@@ -62,13 +62,13 @@ export class DeliveryJoudAdapter implements ShippingProvider {
   }
 
   async getAreas(credentials: ShippingCredentials): Promise<JoudArea[]> {
-    const result = await this.http.call<unknown>('get_areas', credentials, {}, 'GET');
+    const result = await this.http.call<unknown>('get_areas', credentials, {}, 'POST');
     return unwrapJoudList<JoudArea>(result);
   }
 
   async getOrderTypes(credentials: ShippingCredentials): Promise<Array<{ id?: number | string; name?: string }>> {
     try {
-      const result = await this.http.call<unknown>('order_types', credentials, {}, 'GET');
+      const result = await this.http.call<unknown>('order_types', credentials, {}, 'POST');
       return unwrapJoudList(result);
     } catch {
       return [];
@@ -189,7 +189,7 @@ export class DeliveryJoudAdapter implements ShippingProvider {
         'order',
         credentials,
         { order_id: trimmed, id: trimmed, name: trimmed, barcode: trimmed },
-        'GET',
+        'POST',
       );
       return unwrapJoudOrder(result);
     } catch (err) {
@@ -264,7 +264,7 @@ export class DeliveryJoudAdapter implements ShippingProvider {
         'order',
         credentials,
         { reference_id: ref },
-        'GET',
+        'POST',
       );
       const order = unwrapJoudOrder(result);
       if (!order) return null;

@@ -65,14 +65,17 @@ export class DeliveryJoudHttpClient {
 
     let res: Response;
     try {
-      res = await fetch(url, {
+      const fetchOptions: RequestInit = {
         method,
         headers: {
           'Content-Type': 'application/json',
           Accept: 'application/json',
         },
-        body: JSON.stringify(body),
-      });
+      };
+      if (method !== 'GET') {
+        fetchOptions.body = JSON.stringify(body);
+      }
+      res = await fetch(url, fetchOptions);
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Network error';
       this.logger.warn(`Delivery Joud ${method} ${cleanPath} network error: ${msg}`);
