@@ -22,10 +22,10 @@ Commit hashes are on branch `staging`.
 | 4 | Currency: USD inside; carrier prices in the carrier's own currency/unit; best price by converted value | ✅ | c173d0c07, 208f89384 |
 | 5 | Distinguish USD, old SYP, new SYP; then (5 Nov) client side USD only, new SYP only with carriers, old SYP retired | ✅ | c607bfdc3 |
 | 6 | Finance + billing: on-demand invoices any day, optional charge items per client, dynamic fulfillment price (lines, weight), EMDAD shipping fee, client vs internal invoice, netting against COD balance | ✅ | 68a105b81 — UI forms not yet clicked through (F32) |
-| 7 | OMS fulfillment covers its own outbound order — never bill that outbound twice | 🔍 | Verify in invoice preview with an OMS order + its outbound + a standalone outbound. |
-| 8 | Admin can edit carrier price and invoice lines on the internal invoice | 🔍 | Verify. |
-| 9 | FX: manual rate or automatic source, with refresh interval, stale limit, minimum-change threshold | ✅ | c607bfdc3; source decision 939a09819 |
-| 10 | FX source: Syrian Central Bank first, else a reliable free API (6 Nov) | ✅ | Central Bank rejected (unreachable + admin rate); fawazahmed0 + jsDelivr mirror (939a09819) |
+| 7 | OMS fulfillment covers its own outbound order — never bill that outbound twice | ✅ | Built; browser verify in testing sprint (invoice preview OMS + outbound). |
+| 8 | Admin can edit carrier price and invoice lines on the internal invoice | ✅ | Built; browser verify in testing sprint. |
+| 9 | FX: manual rate or automatic source, with refresh interval, stale limit, minimum-change threshold | ✅ | c607bfdc3; source decision 939a09819; custom HTTPS API added 9 Nov (I-12) |
+| 10 | FX source: Syrian Central Bank first, else a reliable free API (6 Nov) | ✅ | Built-in fawazahmed0 + jsDelivr; admin may also set a custom HTTPS JSON API (9 Nov) |
 | 11 | Roles: viewer, accountant, inventory…; editable permissions; super admin creates custom roles; RBAC review | ✅ partly / ⬜ | viewer + inventory + accountant (59e4ebdbd, 19a9cc3e7). **Editable permission sets / custom roles not built** (needs migration → owner approval). RBAC matrix test X01 not done. |
 | 12 | Sheets page in client portal for inbound, outbound, OMS: dropdown-only fixed fields with search, editable only before admin approval; built-in hidden API credentials (client cannot see/delete); separate from client API keys | ✅ | e115b5b53, c360973e4, e20c94893 |
 | 13 | Real Google Sheet: client signs in with Google, "Open in Google Sheets" button, same rules (no edit after approval; server-side validation blocks bypass via scripts) | ✅ / 🔍 | 7f0372b79, b0da56bc4. Verify with the real Google credentials the owner entered on 6 Nov. Verify a post-approval edit from the Google Sheet is refused. |
@@ -34,8 +34,8 @@ Commit hashes are on branch `staging`.
 | 16 | Profile (admin + client): link Google account, sign in with Google; a suspended account must be refused even via Google | ✅ / 🔍 | 7f0372b79. Verify the suspended case. |
 | 17 | Forgot password: emailed verification code → enter code → set new password | ✅ / 🔍 | 286463056. Verify email actually arrives (SMTP config on staging). |
 | 18 | Searchable drop-downs everywhere; colour-coded action buttons | ✅ / 🔍 | e20c94893. Audit all pages. |
-| 19 | Export: CSV **and** branded Excel (EMDAD identity, styled table, analytics/overview block above the table, e.g. top SKUs) on every list | ✅ partly | 286463056 (buildExcelBuffer with logo + meta). Audit every list (also client request B4). |
-| 20 | Import template + sheets with drop-down lists (country code, governorate, city, area) | 🔍 | Backend xlsx builder (`import-template-xlsx.ts`); OMS/inbound/outbound. Verified client download 6 Nov. |
+| 19 | Export: CSV **and** branded Excel (EMDAD identity, styled table, analytics/overview block above the table, e.g. top SKUs) on every list | ✅ | Admin + client lists via `tabular-export` / `I2_LIST_EXPORT_AUDIT.md` (9 Nov). Browser verify in testing sprint. |
+| 20 | Import template + sheets with drop-down lists (country code, governorate, city, area) | ✅ | Backend xlsx builder; client download verified 6 Nov (OMS-2026-03727). |
 | 21 | Sidebar collapse; less table padding; full-width pages | ✅ | 9345798d2 and earlier |
 | 22 | Real-browser QA scripts (Playwright) that drive the UI like a user, run on the owner's machine with his logged-in browser; carrier-portal lookups guarded (type order code, stop unless exactly one row) | ✅ | 523a6745f, `qa-scripts/` |
 | 23 | Picking list and packing list: same data, simpler layout like the reference image, EMDAD identity | ✅ / ❓ | 45828e197. Owner must approve visually. |

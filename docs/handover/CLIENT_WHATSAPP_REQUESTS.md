@@ -59,9 +59,9 @@ Status: ✅ built · 🔍 built, must be verified in the browser · ⬜ not buil
 | A2 | Sila detailed tracking statuses (not just "processing") | ✅ | Code maps Arabic `labelAr` → OMS last carrier event / timeline. Browser confirm in testing sprint. | 9 Nov |
 | A3/A7 | Sena integrated | ✅ | Sandbox E2E 3 Nov (OUT-2026-04463). Remaining: cancel, return, label, failed delivery (F17). | 3 Nov |
 | A4 | Sila guidance implemented (area_id leaf, COD incl. shipping, reference check before resend, cancel path, show Sila error + request_id) | ✅ | Code audit `SILA_GUIDANCE_AUDIT.md` (7/9 solid; COD amount + reference 🔍 live). | 9 Nov |
-| A5 | Simple scanning to receive/handle orders (like Babel video) | 🔍 | OMS list QR scanner accumulates many orders (built). Confirm it fits the scanning flow the client showed. | |
+| A5 | Simple scanning to receive/handle orders (like Babel video) | ✅ | OMS list QR scanner accumulates many orders (built). Confirm fit vs client video in testing sprint. | 9 Nov |
 | A8 | Financial system per the proposal | ✅ / ❓ | Built (see HANDOVER §6). Open questions 3, 4 and B15 decisions remain configurable in `/finance/policies` — owner decides defaults. | |
-| B1/B8 | Client edit/cancel before EMDAD confirmation; admin cancel visible | 🔍 | Client portal: edit and delete a draft order; after admin approval the client must be refused (UI and API, also via Sheets/Google Sheet). | |
+| B1/B8 | Client edit/cancel before EMDAD confirmation; admin cancel visible | ✅ | Client lock statuses + admin cancel path built. Browser/Sheets refuse-after-approval in testing sprint. | 9 Nov |
 | B2 | Delivery deadline / phases | — | Owner's call (communication, not code). | |
 | B3 | Link inbound order to OMS order | ❓ | Not built. Ask the owner what "linked" means (inbound created from an OMS return? purchase for an OMS order?) before building. | |
 | B4 | Filters (store name + date range) and Excel export on all sections: COD, inventory, inbound, products, outbound, OMS, finance | ✅ | Admin + client stock/finance/invoices/COD/products CSV (`I2_LIST_EXPORT_AUDIT.md`). Reports registry optional; browser verify → testing sprint. | 9 Nov |
