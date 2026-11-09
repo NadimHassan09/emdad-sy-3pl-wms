@@ -271,6 +271,8 @@ export const router = createBrowserRouter([
       { path: 'billing/templates', element: <BillingPlanTemplatesPage /> },
       { path: 'billing/invoices', element: <BillingInvoicesPage /> },
       { path: 'billing/invoices/on-demand', element: <BillingOnDemandInvoicePage /> },
+      // Spec alias: INVOICE_REDESIGN_SPEC §5 treats /new as the on-demand create flow.
+      { path: 'billing/invoices/new', element: <Navigate to="/billing/invoices/on-demand" replace /> },
       { path: 'billing/charge-rules', element: <BillingChargeRulesPage /> },
       { path: 'billing/invoices/:id', element: <BillingInvoiceDetailPage /> },
       { path: 'users', element: <Navigate to="/users/warehouse_users" replace /> },

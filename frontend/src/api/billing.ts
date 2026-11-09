@@ -280,6 +280,8 @@ export type CreateManualInvoiceLinePayload = {
   description: string;
   quantity: number;
   unitPrice: number;
+  /** Optional: storage calculator uses storage_fee; incentive / misc stay manual. */
+  type?: 'manual' | 'storage_fee' | 'order_charge';
 };
 
 export type CreateAdHocInvoicePayload = {

@@ -486,10 +486,23 @@ export class BillingInvoicesService {
     const unitPrice = new Prisma.Decimal(dto.unitPrice);
     const totalPrice = quantity.mul(unitPrice).toDecimalPlaces(2);
 
+    // Prefer typed storage_fee when the storage calculator adds a line; otherwise manual
+    // (incentive discount and misc charges). No new enum values without a migration.
+    const requested =
+      'type' in dto && dto.type != null ? dto.type : BillingInvoiceLineType.manual;
+    const allowedManualTypes = new Set<BillingInvoiceLineType>([
+      BillingInvoiceLineType.manual,
+      BillingInvoiceLineType.storage_fee,
+      BillingInvoiceLineType.order_charge,
+    ]);
+    const type = allowedManualTypes.has(requested)
+      ? requested
+      : BillingInvoiceLineType.manual;
+
     return tx.invoiceLine.create({
       data: {
         invoiceId,
-        type: BillingInvoiceLineType.manual,
+        type,
         lineSource: BillingInvoiceLineSource.manual,
         description: dto.description.trim(),
         quantity,

@@ -377,6 +377,7 @@ export function InvoiceBreakdownPanel({
                       description: `Storage ${storagePreview.totalCbm.toFixed(3)} m³ @ $${storagePreview.rateUsd}/m³`,
                       quantity: storagePreview.totalCbm,
                       unitPrice: storagePreview.rateUsd,
+                      type: 'storage_fee',
                     })
                       .then(() => {
                         invalidate();
