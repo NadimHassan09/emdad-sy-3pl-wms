@@ -37,9 +37,9 @@ Each item: build it, unit-test the logic, verify in the browser, update the chec
 | I-7 | **New warehouse → add locations** | Client B5 | Locations UI is warehouse-scoped (`WarehouseLocationsPage`). **Reproduce + fix in testing sprint** if create still fails on a brand-new warehouse. |
 | I-8 | **Company selector resets to "Acme Import" on phone** | Client B18 | **Status 9 Nov: code** — never auto-pick first/default company; Combobox uses pointerdown for touch. Re-test 390px in testing sprint. |
 | I-9 | **Tolerant address input** | Client B11 | Client API + import + Sheets: wrong governorate or unknown neighbourhood must give a clear message with a suggestion (fuzzy match within the hierarchy), never a raw `VALIDATION_ERROR`. **Status 9 Nov: code — fuzzy Did-you-mean on gov/city/neighbourhood + cross-gov city hints in `syria-address.ts`.** |
-| I-10 | **Server-side group-by** (optional, after the rest) | Client B20 | Current group-by works on the visible page only. Only do this if time allows; say so in the report otherwise. |
+| I-10 | **Server-side group-by** (optional, after the rest) | Client B20 | ❓ Optional — deferred; page-scoped group-by remains. |
 | I-11 | **Make the backend build script use 4 GB** | infra | ✅ Done — `backend/package.json` build/test already use `NODE_OPTIONS=--max-old-space-size=4096`. |
-| I-12 | **Custom external FX API** on Shipping Companies | Owner (9 Nov) | Admin can use manual rate, built-in market feed, or a custom HTTPS JSON API (URL + JSON path + optional auth header + old/new SYP unit). Config on disk (`storage/config/shipping-fx-custom.json`) — no DB migration. Secret header never returned. |
+| I-12 | **Custom external FX API** on Shipping Companies | Owner (9 Nov) | ✅ Code 9 Nov — manual / built-in / custom HTTPS JSON API (URL + JSON path + optional auth; secret never returned). File store, no migration. Browser verify in testing sprint. |
 
 Items that need an owner answer before building (do not build on a guess): inbound↔OMS link (B3), custom roles / editable permissions (needs a migration), carrier reconciliation + in-transit float (B12), COD due / liquidity / prep fee (B15), return fee rule. See §3.
 
