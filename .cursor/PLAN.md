@@ -29,17 +29,17 @@ Each item: build it, unit-test the logic, verify in the browser, update the chec
 | # | Item | Source | Notes / acceptance |
 |---|---|---|---|
 | I-1 | **Import template with drop-down lists + instructions sheet** for OMS (and inbound/outbound/products imports that exist) | Client B16, B22, B23; owner #20 | ✅ Done 6 Nov — xlsx with Instructions + Lists/Areas dropdowns; tolerant phone/date/Arabic fold; CSV via `?format=csv`. Evidence: client xlsx download; OMS-2026-03727 tolerant import. |
-| I-2 | **Filters + exports on every list** | Client B4; owner #19 | **Status 9 Nov: code complete** for admin + client stock/finance/invoices/COD/products CSV (`I2_LIST_EXPORT_AUDIT.md`). Browser verification + reports registry → testing sprint. |
-| I-3 | **Super admin edits everything at any stage** | Client B9, B14 | **Status 9 Nov: code** — edit modal warns when carrier shipment exists; timeline/audit records `localOnly` + cancel/resend note. After-delivery money rules still need owner answer (§3). Browser verify in testing sprint. |
+| I-2 | **Filters + exports on every list** | Client B4; owner #19 | 🔍 Code complete 9 Nov — admin + client stock/finance/invoices/COD/products CSV (`I2_LIST_EXPORT_AUDIT.md`). **Do not ✅ until browser.** |
+| I-3 | **Super admin edits everything at any stage** | Client B9, B14 | 🔍 Code 9 Nov — edit modal warns when carrier shipment exists; timeline/audit records `localOnly` + cancel/resend note. After-delivery money rules still need owner answer (§3). **Do not ✅ until browser.** |
 | I-4 | **Delivery Joud (Olivery) carrier adapter** | Client B21; F20 | ✅ Live TEST 9 Nov — OMS-2026-03728 → portal Sequence **3960023822** (exactly 1 row). GET→POST + Sequence mapper + payer map fixed (fd132eba8 / d5b2647f7 / 3c54d530b). Fatih adapter also live-tested earlier. SYP unit evidence still open for both. |
-| I-5 | **Sila detailed tracking statuses visible** | Client A2 | **Status 9 Nov: code** — `mapSilaStatus` Arabic labels → `eventDescription` / OMS `lastCarrierEvent`. Browser confirm in testing sprint. |
-| I-6 | **Sila integration guidance audit** | Client A4 | **Status 9 Nov: code audit** in `docs/handover/SILA_GUIDANCE_AUDIT.md` (7/9 ✅ code; COD amount + reference check 🔍 live). |
-| I-7 | **New warehouse → add locations** | Client B5 | ✅ Code 9 Nov — Warehouses list has Locations action; create warehouse navigates to `/locations/:id` for zone/bin setup. Browser confirm + inbound receive in testing sprint. |
-| I-8 | **Company selector resets to "Acme Import" on phone** | Client B18 | **Status 9 Nov: code** — never auto-pick first/default company; Combobox uses pointerdown for touch. Re-test 390px in testing sprint. |
-| I-9 | **Tolerant address input** | Client B11 | Client API + import + Sheets: wrong governorate or unknown neighbourhood must give a clear message with a suggestion (fuzzy match within the hierarchy), never a raw `VALIDATION_ERROR`. **Status 9 Nov: code — fuzzy Did-you-mean on gov/city/neighbourhood + cross-gov city hints in `syria-address.ts`.** |
+| I-5 | **Sila detailed tracking statuses visible** | Client A2 | 🔍 Code 9 Nov — `mapSilaStatus` Arabic labels → `eventDescription` / OMS `lastCarrierEvent`. **Do not ✅ until browser.** |
+| I-6 | **Sila integration guidance audit** | Client A4 | 🔍 Code audit in `docs/handover/SILA_GUIDANCE_AUDIT.md` (7/9 code; COD amount + reference check still need live confirm). |
+| I-7 | **New warehouse → add locations** | Client B5 | 🔍 Code 9 Nov — Warehouses list has Locations action; create warehouse navigates to `/locations/:id`. **Do not ✅ until browser + inbound putaway.** |
+| I-8 | **Company selector resets to "Acme Import" on phone** | Client B18 | 🔍 Code 9 Nov — never auto-pick first/default company; Combobox uses pointerdown for touch. **Re-test 390px before ✅.** |
+| I-9 | **Tolerant address input** | Client B11 | 🔍 Code 9 Nov — fuzzy Did-you-mean on gov/city/neighbourhood + cross-gov city hints in `syria-address.ts`. **Do not ✅ until browser/API edge check.** |
 | I-10 | **Server-side group-by** (optional, after the rest) | Client B20 | ❓ Optional — deferred; page-scoped group-by remains. |
 | I-11 | **Make the backend build script use 4 GB** | infra | ✅ Done — `backend/package.json` build/test already use `NODE_OPTIONS=--max-old-space-size=4096`. |
-| I-12 | **Custom external FX API** on Shipping Companies | Owner (9 Nov) | ✅ Code 9 Nov — manual / built-in / custom HTTPS JSON API (URL + JSON path + optional auth; secret never returned). File store, no migration. Browser verify in testing sprint. |
+| I-12 | **Custom external FX API** on Shipping Companies | Owner (9 Nov) | 🔍 Code 9 Nov — manual / built-in / custom HTTPS JSON API (URL + JSON path + optional auth; secret never returned). File store, no migration. **Do not ✅ until browser Test button.** |
 
 Items that need an owner answer before building (do not build on a guess): inbound↔OMS link (B3), custom roles / editable permissions (needs a migration), carrier reconciliation + in-transit float (B12), COD due / liquidity / prep fee (B15), return fee rule. See §3.
 

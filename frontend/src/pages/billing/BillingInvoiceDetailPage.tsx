@@ -332,6 +332,10 @@ export function BillingInvoiceDetailPage() {
             invoiceId={invoice.id}
             invoiceStatus={invoice.status}
             canSettle={canMutate}
+            canEdit={canMutate}
+            companyId={invoice.companyId}
+            periodFrom={invoice.periodStart ?? invoice.billingCycle?.startsAt}
+            periodTo={invoice.periodEnd ?? invoice.billingCycle?.endsAt}
           />
 
           <section className="rounded-xl border border-border bg-surface-card p-4 shadow-sm">

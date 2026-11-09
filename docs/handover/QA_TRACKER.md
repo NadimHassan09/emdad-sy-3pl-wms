@@ -219,6 +219,7 @@ Aliases (`/cod-reports`, `/returns`, `/returns/new`, `/returns/:id`, `/billing/i
 | D-044 | S2 | Delivery Joud adapter | Live `get_areas` returns `{ status, response:[…] }` but `unwrapJoudList` ignored `response`, so areas were empty and quotes/create would fail after a false-ok connection test | API probe 9 Nov | Fixed: unwrap `response` (list + order) | d5b2647f7 |
 | D-045 | S2 | Shipping payer map | Selecting Delivery Joud (or Fatih) threw `Unsupported carrier payer mapping: DELIVERY_JOUD` in the browser and blocked Continue | Console on OUT-2026-04465 9 Nov | Fixed: map Joud/Fatih → `sender` in `shipping-payer.ts` | d5b2647f7 |
 | D-046 | S2 | Delivery Joud AWB | create_order returns portal `Sequence` (3960023822) but mapper stored short `id` (24371); waybill would show wrong number | Live OMS-2026-03728 vs portal 9 Nov | Fixed: prefer `Sequence` / long numeric barcode; backfilled OMS-2026-03728 → 3960023822 | 3c54d530b |
+| D-047 | S2 | Inventory / cancel | Historical gap: cancelled OMS with outbound still not `allocation_status=released` — **109** rows on staging (7 `allocated` with **4 active** soft-holds / 8 units; 102 `none` hygiene only). Today's cancel path already calls `releaseAllocation`. | Read-only SQL 9 Nov | Waiting owner yes on UPDATE plan (see chat) | |
 
 ## Smoke pass log
 

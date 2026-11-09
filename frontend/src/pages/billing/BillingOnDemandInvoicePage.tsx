@@ -31,6 +31,8 @@ export function BillingOnDemandInvoicePage() {
   const [to, setTo] = useState(today());
   const [include, setInclude] = useState<OnDemandInclude>({ inbound: true, outbound: true, oms: true, storage: true, shipping: true });
   const [preview, setPreview] = useState<OnDemandPreview | null>(null);
+  const [storageNote, setStorageNote] = useState<string | null>(null);
+  const [incentiveNote, setIncentiveNote] = useState<string | null>(null);
 
   const companies = useQuery({ queryKey: QK.companies, queryFn: () => CompaniesApi.list({ includeAll: true }) });
   const input = { companyId, from, to, include };
@@ -97,9 +99,47 @@ export function BillingOnDemandInvoicePage() {
           Orders already on another invoice are skipped.
         </p>
         {invalidDates ? <p className="text-sm text-status-error-fg">The end date must not be before the start date.</p> : null}
-        <Button type="button" disabled={!companyId || invalidDates} loading={run.isPending} onClick={() => run.mutate()}>
-          Preview
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button type="button" disabled={!companyId || invalidDates} loading={run.isPending} onClick={() => run.mutate()}>
+            Preview
+          </Button>
+          <Button
+            type="button"
+            variant="secondary"
+            disabled={!companyId}
+            onClick={() => {
+              void BillingApi.getStorageUsage(companyId, to)
+                .then((r) => {
+                  setStorageNote(
+                    `${r.totalCbm.toFixed(3)} m³ × $${r.rateUsd} = $${r.amount.toFixed(2)} (${r.lines.length} SKUs)`,
+                  );
+                })
+                .catch((e: Error) => toast.error(e.message));
+            }}
+          >
+            Calculate storage
+          </Button>
+          <Button
+            type="button"
+            variant="secondary"
+            disabled={!companyId || invalidDates}
+            onClick={() => {
+              void BillingApi.getIncentiveCheck(companyId, from, to)
+                .then((r) => {
+                  setIncentiveNote(
+                    r.qualifies
+                      ? `${r.deliveredCount} delivered → discount $${r.discountAmount.toFixed(2)}`
+                      : `${r.deliveredCount} delivered — need ${r.needMore} more for ${r.discountPct}%`,
+                  );
+                })
+                .catch((e: Error) => toast.error(e.message));
+            }}
+          >
+            Check incentive
+          </Button>
+        </div>
+        {storageNote ? <p className="text-sm text-text-muted">Storage: {storageNote}</p> : null}
+        {incentiveNote ? <p className="text-sm text-text-muted">Incentive: {incentiveNote}</p> : null}
       </div>
 
       {preview ? (

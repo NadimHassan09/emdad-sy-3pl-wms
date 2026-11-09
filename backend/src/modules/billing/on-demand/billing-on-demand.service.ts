@@ -429,7 +429,7 @@ export class BillingOnDemandService {
             shippedAt: true,
             carrierShipments: {
               where: { supersededAt: null, status: { in: ['created', 'pending'] } },
-              select: { providerCode: true, shippingCost: true, currency: true },
+              select: { providerCode: true, shippingCost: true, currency: true, rawResultMeta: true },
             },
           },
         },
@@ -469,6 +469,18 @@ export class BillingOnDemandService {
 
       let carrierCost: Prisma.Decimal | null = null;
       for (const s of o.outboundOrder?.carrierShipments ?? []) {
+        const meta =
+          s.rawResultMeta && typeof s.rawResultMeta === 'object' && !Array.isArray(s.rawResultMeta)
+            ? (s.rawResultMeta as Record<string, unknown>)
+            : null;
+        const manual = meta?.carrierCostUsd;
+        if (manual != null && manual !== '') {
+          const usd = new Prisma.Decimal(String(manual));
+          if (usd.isFinite()) {
+            carrierCost = (carrierCost ?? ZERO).plus(usd);
+            continue;
+          }
+        }
         if (s.shippingCost == null) continue;
         const usd = this.toUsd(s.shippingCost, s.currency, rate, s.providerCode);
         if (usd) carrierCost = (carrierCost ?? ZERO).plus(usd);
@@ -663,6 +675,67 @@ export class BillingOnDemandService {
     });
   }
 
+  /**
+   * Update fulfillment / shipping / carrier cost on an invoice order row.
+   * Shipping fee and carrier cost also write through to the live OMS / shipment records.
+   */
+  async updateOrderItem(
+    user: AuthPrincipal,
+    invoiceId: string,
+    orderItemId: string,
+    patch: { fulfillmentFee?: number; shippingFee?: number; carrierCostUsd?: number | null; reason?: string },
+  ) {
+    const invoice = await this.prisma.invoice.findUnique({
+      where: { id: invoiceId },
+      select: { id: true, companyId: true },
+    });
+    if (!invoice) throw new NotFoundException('Invoice not found.');
+    this.companyAccess.assertCompanyAccess(user, invoice.companyId);
+
+    const item = await this.prisma.invoiceOrderItem.findFirst({
+      where: { id: orderItemId, invoiceId, active: true },
+    });
+    if (!item) throw new NotFoundException('Invoice order item not found.');
+
+    const data: Prisma.InvoiceOrderItemUpdateInput = {};
+    if (patch.fulfillmentFee != null) {
+      if (!Number.isFinite(patch.fulfillmentFee) || patch.fulfillmentFee < 0) {
+        throw new BadRequestException('Fulfillment fee must be a non-negative number.');
+      }
+      data.fulfillmentFee = new Prisma.Decimal(patch.fulfillmentFee);
+    }
+    if (patch.shippingFee != null) {
+      if (!Number.isFinite(patch.shippingFee) || patch.shippingFee < 0) {
+        throw new BadRequestException('Shipping fee must be a non-negative number.');
+      }
+      data.shippingFee = new Prisma.Decimal(patch.shippingFee);
+    }
+    if (patch.carrierCostUsd !== undefined) {
+      if (patch.carrierCostUsd != null && (!Number.isFinite(patch.carrierCostUsd) || patch.carrierCostUsd < 0)) {
+        throw new BadRequestException('Carrier cost must be a non-negative number.');
+      }
+      data.carrierCostUsd =
+        patch.carrierCostUsd == null ? null : new Prisma.Decimal(patch.carrierCostUsd);
+    }
+
+    const updated = await this.prisma.invoiceOrderItem.update({
+      where: { id: item.id },
+      data,
+    });
+
+    // Write-through for OMS shipping fee / carrier cost happens via dedicated OMS endpoints
+    // called by the UI; this method keeps the invoice snapshot in sync when those succeed.
+
+    return {
+      id: updated.id,
+      orderId: updated.orderId,
+      orderNumber: updated.orderNumber,
+      fulfillmentFee: updated.fulfillmentFee.toFixed(2),
+      shippingFee: updated.shippingFee.toFixed(2),
+      carrierCostUsd: updated.carrierCostUsd?.toFixed(4) ?? null,
+    };
+  }
+
   // ---------------------------------------------------------------- breakdown (client or admin)
 
   async breakdown(user: AuthPrincipal | { companyId: string }, invoiceId: string, audience: 'admin' | 'client') {
@@ -699,14 +772,15 @@ export class BillingOnDemandService {
         fulfillmentTotal: billedHere ? fulfillmentTotal.toFixed(2) : null,
         shippingTotal: kind === 'oms' && shippingTotal.gt(0) ? shippingTotal.toFixed(2) : null,
         orders: rows.map((r) => ({
+          orderItemId: r.id,
+          orderId: r.orderId,
           orderNumber: r.orderNumber,
           status: r.orderStatus,
           linesCount: r.linesCount,
           weightKg: r.weightKg.toFixed(2),
           charged: r.charged,
-          fulfillmentFee: billedHere && r.charged ? r.fulfillmentFee.toFixed(2) : null,
-          shippingFee:
-            kind === 'oms' && r.charged && r.shippingFee.gt(0) ? r.shippingFee.toFixed(2) : null,
+          fulfillmentFee: billedHere && r.charged ? r.fulfillmentFee.toFixed(2) : r.fulfillmentFee.toFixed(2),
+          shippingFee: kind === 'oms' ? r.shippingFee.toFixed(2) : null,
           shippingFeeAlreadySettled: r.shippingFeeAlreadySettled,
           // External carrier cost and margin are admin only; the client never sees them.
           ...(audience === 'admin'

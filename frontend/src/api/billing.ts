@@ -246,6 +246,8 @@ export type BillingInvoiceRow = {
   totalAmount: string;
   issuedAt: string | null;
   dueDate: string | null;
+  periodStart?: string | null;
+  periodEnd?: string | null;
   createdAt: string;
   updatedAt: string;
   notes?: string | null;
@@ -457,6 +459,8 @@ export type InvoiceBreakdownSection = {
   fulfillmentTotal: string | null;
   shippingTotal: string | null;
   orders: Array<{
+    orderItemId?: string;
+    orderId?: string;
     orderNumber: string;
     status: string;
     linesCount: number;
@@ -468,6 +472,53 @@ export type InvoiceBreakdownSection = {
     carrierCostUsd?: string | null;
     marginUsd?: string | null;
   }>;
+};
+
+export type StorageUsagePreview = {
+  clientId: string;
+  clientName: string;
+  totalCbm: number;
+  rateUsd: number;
+  amount: number;
+  chargeLineType: string;
+  lines: Array<{
+    productId: string;
+    sku: string;
+    name: string;
+    qty: number;
+    l: number | null;
+    w: number | null;
+    h: number | null;
+    cbm: number;
+    missingDimensions: boolean;
+    warning: string | null;
+  }>;
+};
+
+export type IncentiveCheckResult = {
+  clientId: string;
+  clientName: string;
+  from: string;
+  to: string;
+  deliveredCount: number;
+  threshold: number;
+  qualifies: boolean;
+  discountPct: number;
+  fulfillmentTotal: number;
+  discountAmount: number;
+  needMore: number;
+  chargeLineType: string;
+  chargeLineLabel: string;
+};
+
+export type InvoiceOrdersResult = {
+  clientId: string;
+  from: string;
+  to: string;
+  inbound: Array<Record<string, unknown>>;
+  outbound: Array<Record<string, unknown>>;
+  oms: Array<Record<string, unknown>>;
+  totals: Record<string, string>;
 };
 
 export type InvoiceBreakdown = {
@@ -509,6 +560,41 @@ export const BillingApi = {
   },
   async getInvoiceBreakdown(id: string): Promise<InvoiceBreakdown> {
     const { data } = await api.get<InvoiceBreakdown>(`/billing/invoices/${id}/breakdown`);
+    return data;
+  },
+
+  async updateInvoiceOrderItem(
+    invoiceId: string,
+    orderItemId: string,
+    payload: {
+      fulfillmentFee?: number;
+      shippingFee?: number;
+      carrierCostUsd?: number | null;
+      reason?: string;
+    },
+  ) {
+    const { data } = await api.patch(`/billing/invoices/${invoiceId}/order-items/${orderItemId}`, payload);
+    return data;
+  },
+
+  async getStorageUsage(clientId: string, date?: string): Promise<StorageUsagePreview> {
+    const { data } = await api.get<StorageUsagePreview>('/billing/storage-usage', {
+      params: { clientId, date },
+    });
+    return data;
+  },
+
+  async getIncentiveCheck(clientId: string, from: string, to: string): Promise<IncentiveCheckResult> {
+    const { data } = await api.get<IncentiveCheckResult>('/billing/incentive-check', {
+      params: { clientId, from, to },
+    });
+    return data;
+  },
+
+  async getInvoiceOrders(clientId: string, from: string, to: string): Promise<InvoiceOrdersResult> {
+    const { data } = await api.get<InvoiceOrdersResult>('/billing/invoice-orders', {
+      params: { clientId, from, to },
+    });
     return data;
   },
   async settleInvoice(id: string): Promise<SettleResult> {

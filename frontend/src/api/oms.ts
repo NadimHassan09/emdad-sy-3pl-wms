@@ -1049,6 +1049,10 @@ export const OmsApi = {
       .then((r) => r.data);
   },
 
+  adjustCarrierCost(id: string, input: { carrierCostUsd: number; reason?: string }) {
+    return api.post(`/oms/orders/${id}/adjust-carrier-cost`, input).then((r) => r.data);
+  },
+
   adjustShippingFeeBulk(input: {
     ids?: string[];
     shippingFee?: number;

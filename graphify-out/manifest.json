@@ -1019,15 +1019,15 @@
     "semantic_hash": "97a33d2d6276cd25f07fced432b9b282"
   },
   "backend/src/modules/billing/billing.controller.ts": {
-    "mtime": 1794188482.515393,
-    "seen": 1794189939.5666387,
-    "ast_hash": "10458c0687c90a1abd2794e4624454bf",
+    "mtime": 1794250557.3043664,
+    "seen": 1794251117.0607347,
+    "ast_hash": "4dc196fc886371cff47fb86ec5b53c97",
     "semantic_hash": ""
   },
   "backend/src/modules/billing/billing.module.ts": {
-    "mtime": 1793724447.7049935,
-    "seen": 1793964258.0884256,
-    "ast_hash": "ef00351355499fb9c60bde8462d61114",
+    "mtime": 1794250483.1361203,
+    "seen": 1794251117.0607455,
+    "ast_hash": "8a37619009f20e6c9c35aac431527b7b",
     "semantic_hash": ""
   },
   "backend/src/modules/billing/dto/create-billing-plan.dto.ts": {
@@ -1037,10 +1037,10 @@
     "semantic_hash": "0daacb3a2a198bd52ec05237d7b2dd7c"
   },
   "backend/src/modules/billing/dto/create-invoice-line.dto.ts": {
-    "mtime": 1787387214.0689707,
-    "seen": 1793637839.3752396,
-    "ast_hash": "b12cb0b89985915c162c282dc46f7f67",
-    "semantic_hash": "b12cb0b89985915c162c282dc46f7f67"
+    "mtime": 1794250521.4522462,
+    "seen": 1794251117.0608315,
+    "ast_hash": "b6edc343dc9d282b31ff6e96053b6b71",
+    "semantic_hash": ""
   },
   "backend/src/modules/billing/dto/create-order-manual-charge.dto.ts": {
     "mtime": 1787387214.0709708,
@@ -1049,10 +1049,10 @@
     "semantic_hash": "669bdba1864b4e2809a1dd48b0625596"
   },
   "backend/src/modules/billing/dto/invoice-mutations.dto.ts": {
-    "mtime": 1787387214.0709708,
-    "seen": 1793637839.3753767,
-    "ast_hash": "601a1a5de8b572c49a07e1c915c4b0da",
-    "semantic_hash": "601a1a5de8b572c49a07e1c915c4b0da"
+    "mtime": 1794250885.6411529,
+    "seen": 1794251117.0609004,
+    "ast_hash": "17f755918655af02dc416ceb3867742b",
+    "semantic_hash": ""
   },
   "backend/src/modules/billing/dto/list-billing-invoices-query.dto.ts": {
     "mtime": 1794188482.514393,
@@ -2765,9 +2765,9 @@
     "semantic_hash": "4ce39fd1b0356d5edfed7ed2e3b4a9ee"
   },
   "backend/src/modules/oms/oms-order.mapper.ts": {
-    "mtime": 1793725655.0785484,
-    "seen": 1793964258.106095,
-    "ast_hash": "7347285b8fa7187c889e5fe68050717f",
+    "mtime": 1794250266.8444626,
+    "seen": 1794251117.0799174,
+    "ast_hash": "898bfd6fe0b814198e7fd3f4e1f61b98",
     "semantic_hash": ""
   },
   "backend/src/modules/oms/oms-order.mapper.unit.spec.ts": {
@@ -2837,9 +2837,9 @@
     "semantic_hash": "a54530d6a1aab1bcbd1ca59e814ef874"
   },
   "backend/src/modules/oms/oms-orders.service.ts": {
-    "mtime": 1794243463.7815857,
-    "seen": 1794245396.7968457,
-    "ast_hash": "ee4ecd2fc500a54eaf07b7c422660cec",
+    "mtime": 1794250256.3474336,
+    "seen": 1794251117.0804882,
+    "ast_hash": "86d4377573cc3d9806a5089704fceae3",
     "semantic_hash": ""
   },
   "backend/src/modules/oms/oms-outbound-sync.service.ts": {
@@ -2921,9 +2921,9 @@
     "semantic_hash": ""
   },
   "backend/src/modules/oms/oms.controller.ts": {
-    "mtime": 1794006516.2805724,
-    "seen": 1794007097.6387103,
-    "ast_hash": "b475d8ca8fdb6a09bd03417a3784cb10",
+    "mtime": 1794250241.2673922,
+    "seen": 1794251117.0812848,
+    "ast_hash": "496f0e40c247866d0d085a684121e3bb",
     "semantic_hash": ""
   },
   "backend/src/modules/oms/oms.module.ts": {
@@ -6305,9 +6305,9 @@
     "semantic_hash": "e46f0f38a4d2d4f9aafc0158abb0695d"
   },
   "frontend/src/api/billing.ts": {
-    "mtime": 1794188519.3694396,
-    "seen": 1794189939.6323113,
-    "ast_hash": "68626f43171c11c3a0d1f779c6886277",
+    "mtime": 1794250640.6746526,
+    "seen": 1794251117.1140263,
+    "ast_hash": "a86a8bf18b97258f88287c1bd753f595",
     "semantic_hash": ""
   },
   "frontend/src/api/client.ts": {
@@ -6377,9 +6377,9 @@
     "semantic_hash": "d3d1eba8c2fb43f2287e47e9f199c8a5"
   },
   "frontend/src/api/oms.ts": {
-    "mtime": 1794188755.8077404,
-    "seen": 1794189939.6329622,
-    "ast_hash": "0dab30aeaff91966230ed87c18406d44",
+    "mtime": 1794250566.8463986,
+    "seen": 1794251117.114547,
+    "ast_hash": "ef5604b5154d06397e6b3c6d9b33b854",
     "semantic_hash": ""
   },
   "frontend/src/api/outbound.ts": {
@@ -8467,9 +8467,9 @@
     "semantic_hash": "e0dbf3740d434fec8897aae63132e29b"
   },
   "frontend/src/pages/WarehousesPage.tsx": {
-    "mtime": 1793978979.468839,
-    "seen": 1793979852.0511258,
-    "ast_hash": "099ba8aa2192a6266fe1a71180e6c315",
+    "mtime": 1794245591.3786678,
+    "seen": 1794251117.1337702,
+    "ast_hash": "99a7212c8915eacd3120c3c630a83df2",
     "semantic_hash": ""
   },
   "frontend/src/pages/billing/BillingDashboardPage.tsx": {
@@ -8479,9 +8479,9 @@
     "semantic_hash": "81e166ee52c88eea783c390b3321e031"
   },
   "frontend/src/pages/billing/BillingInvoiceDetailPage.tsx": {
-    "mtime": 1793724850.1525002,
-    "seen": 1793964258.1589239,
-    "ast_hash": "5518e78309df8b4b9fba30ce3c66a76f",
+    "mtime": 1794250632.8626254,
+    "seen": 1794251117.13391,
+    "ast_hash": "d13f0e6fb4cb395689ec204842da2241",
     "semantic_hash": ""
   },
   "frontend/src/pages/billing/BillingInvoicesPage.tsx": {
@@ -11056,9 +11056,9 @@
     "semantic_hash": ""
   },
   "docs/handover/QA_TRACKER.md": {
-    "mtime": 1794188254.0851076,
-    "seen": 1794189939.6914127,
-    "ast_hash": "7bb0091863293c41a4841dd9d056abef",
+    "mtime": 1794250302.931565,
+    "seen": 1794251117.1631658,
+    "ast_hash": "879dd051500b1dbfbe9bf2c1574cdafe",
     "semantic_hash": ""
   },
   "backend/src/common/utils/order-planning-date.unit.spec.ts": {
@@ -11098,8 +11098,8 @@
     "semantic_hash": ""
   },
   "docs/handover/QA_COVERAGE.md": {
-    "mtime": 1794245375.1019676,
-    "seen": 1794245396.87658,
+    "mtime": 1794250446.3130016,
+    "seen": 1794251117.1630645,
     "ast_hash": "96ac7bfbc612be3a15381fd01084d311",
     "semantic_hash": ""
   },
@@ -11152,9 +11152,9 @@
     "semantic_hash": ""
   },
   "backend/src/modules/billing/on-demand/billing-on-demand.service.ts": {
-    "mtime": 1793724542.3681107,
-    "seen": 1793964258.0890257,
-    "ast_hash": "6ed1b7f1ac4beafcdb2554b2a4414511",
+    "mtime": 1794250563.9413886,
+    "seen": 1794251117.0614216,
+    "ast_hash": "d1e1fe96f3c0e5985f34f11a156d19cc",
     "semantic_hash": ""
   },
   "backend/src/modules/client-portal/inbound/dto/update-client-inbound-order.dto.ts": {
@@ -11290,9 +11290,9 @@
     "semantic_hash": ""
   },
   "frontend/src/components/billing/InvoiceBreakdownPanel.tsx": {
-    "mtime": 1793724757.4173815,
-    "seen": 1793964258.1431127,
-    "ast_hash": "3a6cc8120a1280650488dbde1bee5d3c",
+    "mtime": 1794250644.6996665,
+    "seen": 1794251117.1176407,
+    "ast_hash": "cf0f4f4ba683eb4cf44218d611a6ae1c",
     "semantic_hash": ""
   },
   "frontend/src/lib/money.ts": {
@@ -11314,9 +11314,9 @@
     "semantic_hash": ""
   },
   "frontend/src/pages/billing/BillingOnDemandInvoicePage.tsx": {
-    "mtime": 1793724757.4203815,
-    "seen": 1793964258.1589282,
-    "ast_hash": "ce7a933f775bf4feaec5be6c544758dd",
+    "mtime": 1794250692.0718334,
+    "seen": 1794251117.1339686,
+    "ast_hash": "6b7939381790f0ad4dc17b78667c5ff2",
     "semantic_hash": ""
   },
   "qa-scripts/carrier-search.mjs": {
@@ -11560,9 +11560,9 @@
     "semantic_hash": ""
   },
   ".cursor/PLAN.md": {
-    "mtime": 1794245211.8144557,
-    "seen": 1794245396.8643405,
-    "ast_hash": "3e08f4b75ed2acf9d3622d56651c7384",
+    "mtime": 1794250312.2715921,
+    "seen": 1794251117.1505766,
+    "ast_hash": "36771cf89afe39dd75ce0effea92e747",
     "semantic_hash": ""
   },
   "docs/HANDOVER.md": {
@@ -12280,15 +12280,15 @@
     "semantic_hash": ""
   },
   "docs/handover/CLIENT_WHATSAPP_REQUESTS.md": {
-    "mtime": 1794245377.9939787,
-    "seen": 1794245396.8764374,
-    "ast_hash": "823841f7fe0d26779d7d9e6059beff6f",
+    "mtime": 1794250345.9886916,
+    "seen": 1794251117.1629062,
+    "ast_hash": "fd1f79969215a1f7510c813da9910f17",
     "semantic_hash": ""
   },
   "docs/handover/OWNER_CHANGE_REQUESTS.md": {
-    "mtime": 1794006964.4491234,
-    "seen": 1794007097.719213,
-    "ast_hash": "44c99f5de3662bfc96925a6d2f17e917",
+    "mtime": 1794250390.5028265,
+    "seen": 1794251117.1630619,
+    "ast_hash": "1e005796bd13493ade595057c28abbba",
     "semantic_hash": ""
   },
   "backend/src/common/utils/arabic-text-normalize.ts": {
@@ -12451,6 +12451,42 @@
     "mtime": 1794243257.0372918,
     "seen": 1794245396.8767135,
     "ast_hash": "3b5e4a3901a4dc7613ec5b68b78d861d",
+    "semantic_hash": ""
+  },
+  "backend/src/modules/billing/billing-automation.service.ts": {
+    "mtime": 1794250477.9061034,
+    "seen": 1794251117.059562,
+    "ast_hash": "5d4d6fe62b200deab09e10eb260158a5",
+    "semantic_hash": ""
+  },
+  "backend/src/modules/billing/billing-automation.unit.spec.ts": {
+    "mtime": 1794250506.7181976,
+    "seen": 1794251117.0595655,
+    "ast_hash": "0b90cde0e2653faf0c5902f41d6d9300",
+    "semantic_hash": ""
+  },
+  "backend/src/modules/oms/dto/adjust-carrier-cost.dto.ts": {
+    "mtime": 1794250227.592355,
+    "seen": 1794251117.0774045,
+    "ast_hash": "cad5b367f3a96531bea93427060c8cc8",
+    "semantic_hash": ""
+  },
+  "backend/src/modules/oms/oms-carrier-cost-adjustment.unit.spec.ts": {
+    "mtime": 1794250294.11754,
+    "seen": 1794251117.078851,
+    "ast_hash": "f60c5d4ed4689b337412cc59651c6d8e",
+    "semantic_hash": ""
+  },
+  "docs/handover/BILLING_AUTOMATION_SPEC.md": {
+    "mtime": 1794248453.838388,
+    "seen": 1794251117.1628025,
+    "ast_hash": "9bda95562b85161e585e98d244d84bf2",
+    "semantic_hash": ""
+  },
+  "docs/handover/INVOICE_REDESIGN_SPEC.md": {
+    "mtime": 1794249876.772635,
+    "seen": 1794251117.1630592,
+    "ast_hash": "6e593e77443440d3755b626b63da5532",
     "semantic_hash": ""
   },
   "backend/libs/wms-task-execution/package-lock.json": {

@@ -273,6 +273,14 @@ export function serializeOmsOrder(order: OmsOrderWithRelations) {
     destinationAddress: buildLegacyDestination(order),
     subtotal,
     shippingFee: dec(order.shippingFee),
+    /** Admin-only: manual USD override of what EMDAD pays the carrier (from shipment meta). */
+    carrierCostUsd: (() => {
+      const meta = activeShipment?.rawResultMeta;
+      if (!meta || typeof meta !== 'object' || Array.isArray(meta)) return null;
+      const raw = (meta as Record<string, unknown>).carrierCostUsd;
+      if (raw == null || raw === '') return null;
+      return String(raw);
+    })(),
     clientShippingRateAppliedAt: (order as { clientShippingRateAppliedAt?: Date | null }).clientShippingRateAppliedAt ?? null,
     clientShippingRateWeightKg: dec(
       (order as { clientShippingRateWeightKg?: Prisma.Decimal | null }).clientShippingRateWeightKg,

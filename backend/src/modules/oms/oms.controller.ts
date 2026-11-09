@@ -27,6 +27,7 @@ import {
   AdjustShippingFeeBulkDto,
   AdjustShippingFeeDto,
 } from './dto/adjust-shipping-fee.dto';
+import { AdjustCarrierCostDto } from './dto/adjust-carrier-cost.dto';
 import {
   AllocateOmsOrderDto,
   ApproveOmsOrderDto,
@@ -409,6 +410,17 @@ export class OmsController {
     @Body() dto: AdjustShippingFeeDto,
   ) {
     return this.orders.adjustShippingFee(user, id, dto, { mode: 'single' });
+  }
+
+  /** Manual override of internal carrier cost (USD). Does not notify the carrier. */
+  @Post('orders/:id/adjust-carrier-cost')
+  @UseGuards(InternalAdminGuard)
+  adjustCarrierCost(
+    @CurrentUser() user: AuthPrincipal,
+    @Param('id', ParseUuidLoosePipe) id: string,
+    @Body() dto: AdjustCarrierCostDto,
+  ) {
+    return this.orders.adjustCarrierCost(user, id, dto);
   }
 
   @Post('orders/:id/reject')

@@ -180,6 +180,8 @@ const ORDER_INCLUDE = {
           trackingNumber: true,
           externalAwb: true,
           providerCode: true,
+          shippingCost: true,
+          currency: true,
           rawResultMeta: true,
           supersededAt: true,
           // Last thing the carrier reported, shown as a quick column in the orders list.
@@ -2910,6 +2912,135 @@ export class OmsOrdersService {
 
     this.emitOms('order.updated', result.companyId, result.id, result.status);
     return result;
+  }
+
+  /**
+   * Manual override of the INTERNAL carrier cost in USD (what EMDAD pays).
+   * Admin / Super Admin only. Does not notify the carrier.
+   * Stored on the active carrier shipment as rawResultMeta.carrierCostUsd (no DB migration).
+   */
+  async adjustCarrierCost(
+    user: AuthPrincipal,
+    id: string,
+    dto: { carrierCostUsd: number; reason?: string },
+  ) {
+    if (!isInternalAdminRole(user.role)) {
+      throw new ForbiddenException('Only Admin and Super Admin users can adjust carrier cost.');
+    }
+
+    if (
+      typeof dto.carrierCostUsd !== 'number' ||
+      !Number.isFinite(dto.carrierCostUsd) ||
+      dto.carrierCostUsd < 0
+    ) {
+      throw new BadRequestException('Carrier cost must be a valid non-negative number.');
+    }
+
+    const updated = await withTenantRls(this.prisma, user, async (tx) => {
+      const order = await tx.omsOrder.findUnique({
+        where: { id },
+        include: ORDER_INCLUDE,
+      });
+
+      if (!order) {
+        throw new NotFoundException(`OMS order ${id} not found.`);
+      }
+
+      if (user.companyId && order.companyId !== user.companyId) {
+        throw new ForbiddenException('Access to company resource denied.');
+      }
+
+      const shipment = pickActiveCarrierShipment(order.outboundOrder?.carrierShipments ?? []);
+      if (!shipment) {
+        throw new BadRequestException('Order has no active carrier shipment to adjust.');
+      }
+
+      // Re-read full shipment row (list include may omit fields used for audit).
+      const full = await tx.carrierShipment.findUnique({
+        where: { id: shipment.id },
+        select: {
+          id: true,
+          providerCode: true,
+          shippingCost: true,
+          currency: true,
+          rawResultMeta: true,
+        },
+      });
+      if (!full) {
+        throw new BadRequestException('Order has no active carrier shipment to adjust.');
+      }
+
+      const prevMeta =
+        full.rawResultMeta && typeof full.rawResultMeta === 'object' && !Array.isArray(full.rawResultMeta)
+          ? { ...(full.rawResultMeta as Record<string, unknown>) }
+          : {};
+      const previousRaw = prevMeta.carrierCostUsd;
+      const previousCostUsd =
+        previousRaw != null && previousRaw !== ''
+          ? new Prisma.Decimal(String(previousRaw))
+          : null;
+      const newCost = new Prisma.Decimal(dto.carrierCostUsd);
+
+      const nextMeta: Record<string, unknown> = {
+        ...prevMeta,
+        carrierCostUsd: newCost.toFixed(4),
+        carrierCostUsdManual: true,
+        carrierCostUsdAdjustedAt: new Date().toISOString(),
+        carrierCostUsdAdjustedByUserId: user.id,
+        carrierCostUsdAdjustmentReason: dto.reason?.trim() || null,
+      };
+
+      await tx.carrierShipment.update({
+        where: { id: full.id },
+        data: {
+          rawResultMeta: nextMeta as Prisma.InputJsonValue,
+          shippingCostSource: 'manual',
+        },
+      });
+
+      await tx.carrierCostChange.create({
+        data: {
+          carrierShipmentId: full.id,
+          previousAmount: previousCostUsd ?? full.shippingCost,
+          previousCurrency: previousCostUsd != null ? 'USD' : full.currency,
+          amount: newCost,
+          currency: 'USD',
+          providerCode: full.providerCode,
+          eventAt: new Date(),
+          source: 'manual',
+          applied: true,
+          skipReason: dto.reason?.trim() || null,
+        },
+      });
+
+      await this.events.record(tx, {
+        omsOrderId: order.id,
+        outboundOrderId: order.outboundOrderId ?? undefined,
+        companyId: order.companyId,
+        eventType: 'oms.carrier_cost_adjusted',
+        createdBy: user.id,
+        payload: {
+          orderId: order.id,
+          orderNumber: order.orderNumber,
+          carrierShipmentId: full.id,
+          previousCarrierCostUsd: previousCostUsd?.toFixed(4) ?? null,
+          newCarrierCostUsd: newCost.toFixed(4),
+          reason: dto.reason?.trim() || null,
+          actorUserId: user.id,
+          timestamp: new Date().toISOString(),
+        },
+      });
+
+      const refreshed = await tx.omsOrder.findUnique({
+        where: { id: order.id },
+        include: ORDER_INCLUDE,
+      });
+      if (!refreshed) throw new NotFoundException(`OMS order ${id} not found.`);
+      return serializeOmsOrder(refreshed as any);
+    });
+
+    this.emitOms('order.updated', updated.companyId, updated.id, String(updated.status));
+    return updated;
   }
 
   private emitOms(

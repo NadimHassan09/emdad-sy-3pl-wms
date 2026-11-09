@@ -23,6 +23,7 @@ import { BillingUsageProcessorService } from './billing-usage-processor.service'
 import { BillingUsageService } from './billing-usage.service';
 import { OrderManualChargesService } from './order-manual-charges.service';
 import { BillingOnDemandService } from './on-demand/billing-on-demand.service';
+import { BillingAutomationService } from './billing-automation.service';
 import { FinancialModule } from '../financial/financial.module';
 import { CompanyAccessModule } from '../../common/company-access/company-access.module';
 
@@ -47,6 +48,7 @@ import { CompanyAccessModule } from '../../common/company-access/company-access.
     BillingExpiryReminderService,
     OrderManualChargesService,
     BillingOnDemandService,
+    BillingAutomationService,
   ],
   exports: [
     BillingAccessService,
@@ -58,6 +60,7 @@ import { CompanyAccessModule } from '../../common/company-access/company-access.
     BillingUsageService,
     OrderManualChargesService,
     BillingOnDemandService,
+    BillingAutomationService,
   ],
 })
 export class BillingModule {}

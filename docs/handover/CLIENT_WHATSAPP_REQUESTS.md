@@ -56,26 +56,26 @@ Status: ✅ built · 🔍 built, must be verified in the browser · ⬜ not buil
 | A1 | Waybill printing works | 🔍 | `/orders/oms/:id/waybill`, batch waybills PDF/Excel (F08). Print one Test company order. | |
 | A1 | Excel import works | 🔍 | `/orders/oms` → Import; client portal import. Use the template, then a messy file (F03). | |
 | A1 | Babel integration works | ✅ | Live E2E 3 Nov (OUT-2026-04464). Re-check quote + create on one test order only after owner approval. | 3 Nov |
-| A2 | Sila detailed tracking statuses (not just "processing") | ✅ | Code maps Arabic `labelAr` → OMS last carrier event / timeline. Browser confirm in testing sprint. | 9 Nov |
+| A2 | Sila detailed tracking statuses (not just "processing") | 🔍 | Code maps Arabic `labelAr` → OMS last carrier event / timeline. Browser confirm required before ✅. | |
 | A3/A7 | Sena integrated | ✅ | Sandbox E2E 3 Nov (OUT-2026-04463). Remaining: cancel, return, label, failed delivery (F17). | 3 Nov |
-| A4 | Sila guidance implemented (area_id leaf, COD incl. shipping, reference check before resend, cancel path, show Sila error + request_id) | ✅ | Code audit `SILA_GUIDANCE_AUDIT.md` (7/9 solid; COD amount + reference 🔍 live). | 9 Nov |
+| A4 | Sila guidance implemented (area_id leaf, COD incl. shipping, reference check before resend, cancel path, show Sila error + request_id) | 🔍 | Code audit `SILA_GUIDANCE_AUDIT.md` (7/9 solid; COD amount + reference still need live confirm). | |
 | A5 | Simple scanning to receive/handle orders (like Babel video) | ✅ | OMS list QR scanner accumulates many orders (built). Confirm fit vs client video in testing sprint. | 9 Nov |
 | A8 | Financial system per the proposal | ✅ / ❓ | Built (see HANDOVER §6). Open questions 3, 4 and B15 decisions remain configurable in `/finance/policies` — owner decides defaults. | |
 | B1/B8 | Client edit/cancel before EMDAD confirmation; admin cancel visible | ✅ | Client lock statuses + admin cancel path built. Browser/Sheets refuse-after-approval in testing sprint. | 9 Nov |
 | B2 | Delivery deadline / phases | — | Owner's call (communication, not code). | |
 | B3 | Link inbound order to OMS order | ❓ | Not built. Ask the owner what "linked" means (inbound created from an OMS return? purchase for an OMS order?) before building. | |
-| B4 | Filters (store name + date range) and Excel export on all sections: COD, inventory, inbound, products, outbound, OMS, finance | ✅ | Admin + client stock/finance/invoices/COD/products CSV (`I2_LIST_EXPORT_AUDIT.md`). Reports registry optional; browser verify → testing sprint. | 9 Nov |
-| B5 | Add storage locations in a newly created warehouse | ✅ | Warehouses → Locations action; create warehouse opens `/locations/:id`. Browser + inbound receive in testing sprint. | 9 Nov |
+| B4 | Filters (store name + date range) and Excel export on all sections: COD, inventory, inbound, products, outbound, OMS, finance | 🔍 | Admin + client stock/finance/invoices/COD/products CSV (`I2_LIST_EXPORT_AUDIT.md`). Browser verify required before ✅. | |
+| B5 | Add storage locations in a newly created warehouse | 🔍 | Warehouses → Locations action; create warehouse opens `/locations/:id`. Browser + inbound putaway required before ✅. | |
 | B6 | Stock shown per warehouse in an order | ❓ | Answer from code (which warehouse's stock the order form shows), write the answer in DECISIONS. | |
-| B9/B14 | Super admin edits everything at any stage (COD amount, qty, price, shipment details) | ✅ | Edit allowed; post-shipment UI warning + audit `localOnly` / cancel+resend note. After-delivery money rules still need owner. Browser in testing sprint. | 9 Nov |
+| B9/B14 | Super admin edits everything at any stage (COD amount, qty, price, shipment details) | 🔍 | Edit allowed; post-shipment UI warning + audit `localOnly` / cancel+resend note. After-delivery money rules still need owner. Browser required before ✅. | |
 | B10 | Raqqa orders fail | ✅ (not a defect) | Babel does not serve Raqqa/Deir ez-Zor/Hasakah/Suwayda; EMDAD keeps them and routes to other carriers or Manual. Evidence DECISIONS §1.1. | 2 Nov |
-| B11 | Tolerant address matching (wrong governorate, unknown neighbourhood) | ✅ | Fuzzy Did-you-mean + cross-gov city hints in `syria-address.ts` (unit-tested). | 9 Nov |
+| B11 | Tolerant address matching (wrong governorate, unknown neighbourhood) | 🔍 | Fuzzy Did-you-mean + cross-gov city hints in `syria-address.ts` (unit-tested). Browser/API confirm required before ✅. | |
 | B12 | In-transit float, carrier reconciliation, client shield | ❓ | Owner said 2 Nov these are not agreed; must be modular settings, disabled by default. Verify what exists; build behind flags only if the owner confirms. | |
 | B13 | "Ready to ship" status, carrier chosen after | ✅ | `ready_to_ship` exists; carrier chosen there. Verify in UI. | |
 | B15 | COD due moment / liquidity / prep fee | ❓ | Owner decision pending with the company owner. | |
 | B16/B22 | Simpler import template with instructions; tolerant import (format problems) | ✅ | xlsx template with Instructions (AR+EN); tolerant phone/date/Arabic fold. CSV via `?format=csv`. | 6 Nov — OMS-2026-03727 tolerant import |
 | B17 | Picking list | ✅ | Redesigned 6 Nov (45828e197). Owner must approve the look. | |
-| B18 | Company selector resets to "Acme Import" (phone) | ✅ | Never auto-pick first/default company; Combobox pointerdown for touch. Re-test 390px in testing sprint. | 9 Nov |
+| B18 | Company selector resets to "Acme Import" (phone) | 🔍 | Never auto-pick first/default company; Combobox pointerdown for touch. Re-test 390px required before ✅. | |
 | B19 | Contents column + copy buttons | ✅ | OMS list contents column; copy shipment info on order details. Verify copy of address, name, phone, order number individually. | |
 | B20 | Group-by like Olivery | ✅ partly | Group by city/client/product/carrier/status on the current page. Whole-result grouping needs a server query. | |
 | B21 | Delivery Joud integration | ✅ | Live TEST 9 Nov OMS-2026-03728 → Sequence 3960023822. Fatih also live-tested. | 9 Nov |

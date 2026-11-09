@@ -17,8 +17,8 @@ export class CreateInvoiceLineDto {
   @Min(0)
   quantity!: number;
 
+  /** May be negative for credit / incentive discount lines. */
   @Type(() => Number)
   @IsNumber()
-  @Min(0)
   unitPrice!: number;
 }

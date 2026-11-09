@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Delete,
@@ -26,6 +27,7 @@ import { BillingPlansService } from './billing-plans.service';
 import { BillingPreviewService } from './billing-preview.service';
 import { OrderManualChargesService } from './order-manual-charges.service';
 import { BillingOnDemandService } from './on-demand/billing-on-demand.service';
+import { BillingAutomationService } from './billing-automation.service';
 import { OnDemandInvoiceDto, SaveChargeRulesDto } from './dto/on-demand-invoice.dto';
 import { UpdateInvoiceStatusDto } from './dto/update-invoice-status.dto';
 import { CreateBillingPlanDto } from './dto/create-billing-plan.dto';
@@ -57,7 +59,46 @@ export class BillingController {
     private readonly orderCharges: OrderManualChargesService,
     private readonly invoicePdf: InvoicePdfService,
     private readonly onDemand: BillingOnDemandService,
+    private readonly automation: BillingAutomationService,
   ) {}
+
+  /** CBM snapshot for storage fee calculator (BILLING_AUTOMATION_SPEC §1). */
+  @Get('storage-usage')
+  @UseGuards(InternalAdminGuard)
+  storageUsage(
+    @CurrentUser() user: AuthPrincipal,
+    @Query('clientId') clientId: string,
+    @Query('date') date?: string,
+  ) {
+    if (!clientId) throw new BadRequestException('clientId is required.');
+    return this.automation.storageUsage(user, clientId, date);
+  }
+
+  /** Incentive discount eligibility (BILLING_AUTOMATION_SPEC §2). */
+  @Get('incentive-check')
+  @UseGuards(InternalAdminGuard)
+  incentiveCheck(
+    @CurrentUser() user: AuthPrincipal,
+    @Query('clientId') clientId: string,
+    @Query('from') from: string,
+    @Query('to') to: string,
+  ) {
+    if (!clientId) throw new BadRequestException('clientId is required.');
+    return this.automation.incentiveCheck(user, clientId, from, to);
+  }
+
+  /** Order tables for redesigned invoice page (INVOICE_REDESIGN_SPEC §4). */
+  @Get('invoice-orders')
+  @UseGuards(InternalAdminGuard)
+  invoiceOrders(
+    @CurrentUser() user: AuthPrincipal,
+    @Query('clientId') clientId: string,
+    @Query('from') from: string,
+    @Query('to') to: string,
+  ) {
+    if (!clientId) throw new BadRequestException('clientId is required.');
+    return this.automation.invoiceOrders(user, clientId, from, to);
+  }
 
   @Get('capacity')
   @UseGuards(InternalAdminGuard)
@@ -199,6 +240,23 @@ export class BillingController {
   @Get('invoices/:id/breakdown')
   invoiceBreakdown(@CurrentUser() user: AuthPrincipal, @Param('id', ParseUuidLoosePipe) id: string) {
     return this.onDemand.breakdown(user, id, 'admin');
+  }
+
+  @Patch('invoices/:id/order-items/:orderItemId')
+  @UseGuards(InternalAdminGuard)
+  updateInvoiceOrderItem(
+    @CurrentUser() user: AuthPrincipal,
+    @Param('id', ParseUuidLoosePipe) id: string,
+    @Param('orderItemId', ParseUuidLoosePipe) orderItemId: string,
+    @Body()
+    body: {
+      fulfillmentFee?: number;
+      shippingFee?: number;
+      carrierCostUsd?: number | null;
+      reason?: string;
+    },
+  ) {
+    return this.onDemand.updateOrderItem(user, id, orderItemId, body);
   }
 
   @Get('dashboard/summary')

@@ -23,9 +23,9 @@ export class CreateManualInvoiceLineDto {
   @Min(0)
   quantity!: number;
 
+  /** May be negative for incentive / credit lines. */
   @Type(() => Number)
   @IsNumber()
-  @Min(0)
   unitPrice!: number;
 }
 
@@ -44,7 +44,6 @@ export class UpdateManualInvoiceLineDto {
   @IsOptional()
   @Type(() => Number)
   @IsNumber()
-  @Min(0)
   unitPrice?: number;
 }
 
