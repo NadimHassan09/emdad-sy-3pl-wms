@@ -93,7 +93,7 @@ function OptionsList({
               key={o.value}
               role="option"
               aria-selected={isSelected}
-              onMouseDown={(e) => {
+              onPointerDown={(e) => {
                 e.preventDefault();
                 onPick(o.value);
               }}
@@ -220,7 +220,7 @@ export function Combobox({
   }, [open, dropdownInFlow, filtered.length, query]);
 
   useEffect(() => {
-    function onDocClick(e: MouseEvent) {
+    function onDocPointerDown(e: PointerEvent) {
       const t = e.target as Node;
       if (wrapperRef.current?.contains(t)) return;
       if (listRef.current?.contains(t)) return;
@@ -231,8 +231,9 @@ export function Combobox({
         onSearchQueryChange?.('');
       }
     }
-    if (open) document.addEventListener('mousedown', onDocClick);
-    return () => document.removeEventListener('mousedown', onDocClick);
+    // pointerdown covers mouse + touch; avoids mobile taps closing before select.
+    if (open) document.addEventListener('pointerdown', onDocPointerDown);
+    return () => document.removeEventListener('pointerdown', onDocPointerDown);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- commit uses latest query/value via closure when open
   }, [open, allowCustomValue, query, value]);
 

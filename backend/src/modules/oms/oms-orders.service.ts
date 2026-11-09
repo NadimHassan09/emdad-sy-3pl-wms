@@ -86,6 +86,7 @@ import { SILA_SY_CODE } from '../shipping/shipping.constants';
 import {
   ACTIVE_CARRIER_SHIPMENT_WHERE,
   isAwbPendingReassignment,
+  pickActiveCarrierShipment,
 } from '../shipping/shipping-lifecycle.util';
 import { resolveShippingCarrierName } from '../shipping/shipping-carrier-resolver';
 import { resolveOmsDeliveryLocation } from './oms-delivery-resolution';
@@ -1776,16 +1777,33 @@ export class OmsOrdersService {
         }
       }
 
+      const activeCarrierShipment = pickActiveCarrierShipment(
+        existing.outboundOrder?.carrierShipments ?? [],
+      );
       await this.events.record(tx, {
         omsOrderId: row.id,
         outboundOrderId: row.outboundOrderId ?? undefined,
         companyId: row.companyId,
         eventType: dto.outboundOrderId === null ? 'warehouse.unlinked' : 'order.updated',
         createdBy: user.id,
-        payload:
-          dto.outboundOrderId !== undefined
+        payload: {
+          ...(dto.outboundOrderId !== undefined
             ? { outboundOrderId: dto.outboundOrderId }
-            : undefined,
+            : {}),
+          ...(activeCarrierShipment
+            ? {
+                localOnly: true,
+                carrierNotSynced: true,
+                carrierProviderCode: activeCarrierShipment.providerCode ?? null,
+                carrierAwb:
+                  activeCarrierShipment.externalAwb ??
+                  activeCarrierShipment.trackingNumber ??
+                  null,
+                note:
+                  'Order fields updated in EMDAD only. Babel/Sila/Sena have no edit API — cancel the carrier shipment and resend if the carrier must see the change. Delivery Joud supports edit_order separately.',
+              }
+            : {}),
+        },
       });
       return refreshed ?? row;
     });

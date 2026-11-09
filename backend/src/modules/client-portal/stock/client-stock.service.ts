@@ -3,6 +3,7 @@ import { Injectable } from '@nestjs/common';
 import { clientAuthPrincipal } from '../../../common/auth/client-auth-principal';
 import { ClientPrincipal } from '../../../common/auth/client-principal.types';
 import { PrismaService } from '../../../common/prisma/prisma.service';
+import type { TabularExportFormat } from '../../../common/utils/tabular-export.util';
 import { StockQueryDto } from '../../inventory/dto/stock-query.dto';
 import { InventoryService } from '../../inventory/inventory.service';
 
@@ -69,6 +70,15 @@ export class ClientStockService {
         expiryDate: minExpiry.get(row.productId) ?? null,
       })),
     };
+  }
+
+  /** Same filters as the list; always scoped to the signed-in client. */
+  export(client: ClientPrincipal, query: StockQueryDto, format: TabularExportFormat) {
+    return this.inventory.exportStockByProduct(
+      clientAuthPrincipal(client),
+      { ...query, companyId: client.companyId },
+      format,
+    );
   }
 
   /** Earliest expiry date per product among on-hand rows that have a lot with an expiry. */

@@ -449,11 +449,22 @@ export function isShippingConfigLocked(outboundStatus: string | null | undefined
   return SHIPPING_LOCKED_OUTBOUND_STATUSES.has(outboundStatus);
 }
 
+export type ShippingFxCustomPublic = {
+  enabled: boolean;
+  url: string;
+  jsonPath: string;
+  rateUnit: 'old_syp' | 'new_syp';
+  authHeaderName: string | null;
+  authConfigured: boolean;
+};
+
 export type ShippingFxSettings = {
   mode: 'manual' | 'automatic';
   direction: string;
   manualRate: number | null;
   autoSource: string | null;
+  autoSourceKind: 'builtin' | 'custom';
+  custom: ShippingFxCustomPublic;
   activeRate: number | null;
   activeSource: string | null;
   lastSuccessfulAt: string | null;
@@ -466,24 +477,46 @@ export type ShippingFxSettings = {
   updatedAt: string | null;
 };
 
+export type ShippingFxSaveBody = {
+  mode: 'manual' | 'automatic';
+  manualRate?: number;
+  autoSourceKind?: 'builtin' | 'custom';
+  customUrl?: string;
+  customJsonPath?: string;
+  customRateUnit?: 'old_syp' | 'new_syp';
+  customAuthHeaderName?: string;
+  customAuthHeaderValue?: string;
+  refreshHours?: number;
+  staleHours?: number;
+  minChangePercent?: number;
+};
+
+export type ShippingFxTestBody = {
+  autoSourceKind?: 'builtin' | 'custom';
+  customUrl?: string;
+  customJsonPath?: string;
+  customRateUnit?: 'old_syp' | 'new_syp';
+  customAuthHeaderName?: string;
+  customAuthHeaderValue?: string;
+};
+
 export const ShippingApi = {
   getFx(): Promise<ShippingFxSettings> {
     return api.get<ShippingFxSettings>('/shipping/fx').then((r) => r.data);
   },
 
-  saveFx(body: {
-    mode: 'manual' | 'automatic';
-    manualRate?: number;
-    refreshHours?: number;
-    staleHours?: number;
-    minChangePercent?: number;
-  }): Promise<ShippingFxSettings> {
+  saveFx(body: ShippingFxSaveBody): Promise<ShippingFxSettings> {
     return api.put<ShippingFxSettings>('/shipping/fx', body).then((r) => r.data);
   },
 
-  testFxSource(): Promise<{ ok: boolean; rate?: number; source?: string; error?: string }> {
+  testFxSource(
+    body: ShippingFxTestBody = {},
+  ): Promise<{ ok: boolean; rate?: number; source?: string; error?: string }> {
     return api
-      .post<{ ok: boolean; rate?: number; source?: string; error?: string }>('/shipping/fx/test-source')
+      .post<{ ok: boolean; rate?: number; source?: string; error?: string }>(
+        '/shipping/fx/test-source',
+        body,
+      )
       .then((r) => r.data);
   },
 

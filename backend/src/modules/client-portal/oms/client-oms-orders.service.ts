@@ -10,7 +10,11 @@ import { CreateOmsOrderDto } from '../../oms/dto/oms-order.dto';
 import { serializeOmsOrder } from '../../oms/oms-order.mapper';
 import { OmsOrdersService } from '../../oms/oms-orders.service';
 import { buildOmsOrderStatusDateFilter } from '../../oms/oms-order-status-filter.util';
-import { buildExcelBuffer, ExcelExportColumn } from '../../../common/utils/excel-export.util';
+import { ExcelExportColumn } from '../../../common/utils/excel-export.util';
+import {
+  buildTabularExport,
+  type TabularExportFormat,
+} from '../../../common/utils/tabular-export.util';
 import { CreateClientOmsOrderDto } from './dto/create-client-oms-order.dto';
 import { UpdateClientOmsOrderDto } from './dto/update-client-oms-order.dto';
 import {
@@ -717,7 +721,11 @@ export class ClientOmsOrdersService {
     });
   }
 
-  async exportCodReportXlsx(client: ClientPrincipal, query: ClientCodReportQueryDto) {
+  async exportCodReport(
+    client: ClientPrincipal,
+    query: ClientCodReportQueryDto,
+    format: TabularExportFormat = 'xlsx',
+  ) {
     const report = await this.codReport(client, {
       ...query,
       offset: 0,
@@ -748,17 +756,23 @@ export class ClientOmsOrdersService {
       codRemittedAt: r.codRemittedAt ? new Date(r.codRemittedAt).toISOString() : '',
     }));
 
-    const buffer = await buildExcelBuffer({
+    return buildTabularExport({
+      format,
+      baseName: 'cod-report',
       sheetName: 'COD Report',
+      title: 'COD Report',
       columns,
       rows,
     });
+  }
 
-    const stamp = new Date().toISOString().slice(0, 10);
+  /** @deprecated prefer exportCodReport(format) */
+  async exportCodReportXlsx(client: ClientPrincipal, query: ClientCodReportQueryDto) {
+    const result = await this.exportCodReport(client, query, 'xlsx');
     return {
-      filename: `cod-report-${stamp}.xlsx`,
-      buffer,
-      rowCount: report.items.length,
+      filename: result.filename,
+      buffer: Buffer.isBuffer(result.body) ? result.body : Buffer.from(String(result.body)),
+      rowCount: result.rowCount,
     };
   }
 }

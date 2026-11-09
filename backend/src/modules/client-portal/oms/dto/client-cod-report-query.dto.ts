@@ -37,4 +37,9 @@ export class ClientCodReportQueryDto extends PaginationDto {
   @IsString()
   @MaxLength(80)
   storeChannel?: string;
+
+  @EmptyToUndefined()
+  @IsOptional()
+  @IsIn(['xlsx', 'csv'])
+  format?: 'xlsx' | 'csv';
 }

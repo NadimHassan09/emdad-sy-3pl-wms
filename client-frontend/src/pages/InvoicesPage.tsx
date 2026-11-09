@@ -129,10 +129,10 @@ export function InvoicesPage(): ReactElement {
     navigate(`/invoices/${id}?print=1`);
   }
 
-  const handleExport = async () => {
+  const handleExport = async (format: 'xlsx' | 'csv' = 'xlsx') => {
     try {
       setIsExporting(true);
-      await downloadClientInvoicesExcel(statusFilter || undefined);
+      await downloadClientInvoicesExcel(statusFilter || undefined, format);
     } catch (e) {
       console.error('Invoice export failed', e);
     } finally {
@@ -152,20 +152,31 @@ export function InvoicesPage(): ReactElement {
             <p className="text-xs text-text-muted">{t('Invoice history and payment status')}</p>
           </div>
         </div>
-        <Button
-          variant="secondary"
-          size="sm"
-          onClick={() => void handleExport()}
-          disabled={isExporting}
-          startIcon={
-            <i
-              className={`fa-solid ${isExporting ? 'fa-spinner fa-spin' : 'fa-file-excel'} text-emerald-600`}
-              aria-hidden="true"
-            />
-          }
-        >
-          {isExporting ? t('Exporting') : t('Export Excel')}
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() => void handleExport('xlsx')}
+            disabled={isExporting}
+            startIcon={
+              <i
+                className={`fa-solid ${isExporting ? 'fa-spinner fa-spin' : 'fa-file-excel'} text-emerald-600`}
+                aria-hidden="true"
+              />
+            }
+          >
+            {isExporting ? t('Exporting') : t('Export Excel')}
+          </Button>
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() => void handleExport('csv')}
+            disabled={isExporting}
+            startIcon={<i className="fa-solid fa-file-csv" aria-hidden="true" />}
+          >
+            {isArabic ? 'تصدير CSV' : 'Export CSV'}
+          </Button>
+        </div>
       </div>
 
       <StatusCardNav

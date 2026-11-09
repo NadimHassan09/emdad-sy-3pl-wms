@@ -4,11 +4,17 @@ import {
   Get,
   Post,
   Query,
+  Res,
   UseGuards,
 } from '@nestjs/common';
+import type { Response } from 'express';
 
 import { Public } from '../../common/auth/public.decorator';
 import { ClientPrincipal } from '../../common/auth/client-principal.types';
+import {
+  parseExportFormat,
+  sendTabularExport,
+} from '../../common/utils/tabular-export.util';
 import { ClientUser } from '../client-portal/auth/client-user.decorator';
 import { JwtClientAuthGuard } from '../client-portal/auth/jwt-client-auth.guard';
 import { FinancialAccountsService } from './financial-accounts.service';
@@ -17,6 +23,7 @@ import { FinancialPayoutsService } from './financial-payouts.service';
 import { FinancialCodService } from './financial-cod.service';
 import {
   CreateClientPayoutRequestDto,
+  ExportFinancialTransactionsQueryDto,
   ListCodFinancialQueryDto,
   ListFinancialTransactionsQueryDto,
   ListPayoutsQueryDto,
@@ -52,6 +59,20 @@ export class ClientFinancialController {
       status: acc.status,
       lastTransactionAt: acc.lastTransactionAt,
     };
+  }
+
+  @Get('transactions/export')
+  async exportTransactions(
+    @ClientUser() client: ClientPrincipal,
+    @Query() query: ExportFinancialTransactionsQueryDto,
+    @Res() res: Response,
+  ) {
+    const result = await this.transactions.exportTransactions(
+      { ...query, companyId: client.companyId },
+      parseExportFormat(query.format),
+      { companyId: client.companyId },
+    );
+    return sendTabularExport(res, result);
   }
 
   @Get('transactions')

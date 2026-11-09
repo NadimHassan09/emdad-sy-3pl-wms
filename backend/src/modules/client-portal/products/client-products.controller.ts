@@ -42,8 +42,19 @@ export class ClientProductsController {
     @Query() query: ListProductsQueryDto,
     @Res() res: Response,
   ) {
+    const stamp = new Date().toISOString().slice(0, 10);
+    if (String(query.format ?? '').toLowerCase() === 'csv') {
+      const csv = await this.products.exportCsv(client, query);
+      res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+      res.setHeader(
+        'Content-Disposition',
+        `attachment; filename="inventory-products-${stamp}.csv"`,
+      );
+      res.end(csv);
+      return;
+    }
     const buffer = await this.products.exportXlsx(client, query);
-    const filename = `inventory-products-${new Date().toISOString().slice(0, 10)}.xlsx`;
+    const filename = `inventory-products-${stamp}.xlsx`;
     res.setHeader(
       'Content-Type',
       'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',

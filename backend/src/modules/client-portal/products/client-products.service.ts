@@ -46,6 +46,14 @@ export class ClientProductsService {
     });
   }
 
+  /** CSV with the same columns/rows as the Excel export. */
+  exportCsv(client: ClientPrincipal, query: ListProductsQueryDto): Promise<string> {
+    return this.products.exportCsv(clientAuthPrincipal(client), {
+      ...query,
+      companyId: client.companyId,
+    });
+  }
+
   async findById(client: ClientPrincipal, id: string) {
     const principal = clientAuthPrincipal(client);
     const product = await this.products.findById(id, principal);

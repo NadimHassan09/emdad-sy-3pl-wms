@@ -95,6 +95,32 @@ export const ClientFinancesService = {
     return apiClient.get('/finances/transactions', { params }).then((r) => r.data);
   },
 
+  downloadTransactionsExport: async (params?: {
+    type?: string;
+    category?: string;
+    search?: string;
+    startDate?: string;
+    endDate?: string;
+    format?: 'xlsx' | 'csv';
+  }): Promise<void> => {
+    const format = params?.format ?? 'xlsx';
+    const response = await apiClient.get<Blob>('/finances/transactions/export', {
+      params: { ...params, format },
+      responseType: 'blob',
+    });
+    const disposition = response.headers['content-disposition'] as string | undefined;
+    const match = disposition?.match(/filename="([^"]+)"/);
+    const filename =
+      match?.[1] ??
+      `financial-transactions-${new Date().toISOString().slice(0, 10)}.${format}`;
+    const url = URL.createObjectURL(response.data);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
+  },
+
   getPayouts: async (params?: {
     status?: string;
     page?: number;

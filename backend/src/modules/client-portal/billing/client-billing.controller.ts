@@ -3,6 +3,10 @@ import type { Response } from 'express';
 
 import { Public } from '../../../common/auth/public.decorator';
 import { ClientPrincipal } from '../../../common/auth/client-principal.types';
+import {
+  parseExportFormat,
+  sendTabularExport,
+} from '../../../common/utils/tabular-export.util';
 import { ClientUser } from '../auth/client-user.decorator';
 import { JwtClientAuthGuard } from '../auth/jwt-client-auth.guard';
 import { ClientBillingService } from './client-billing.service';
@@ -55,17 +59,14 @@ export class ClientBillingController {
     @ClientUser() client: ClientPrincipal,
     @Res() res: Response,
     @Query('status') status?: string,
+    @Query('format') format?: string,
   ) {
-    const buffer = await this.billing.exportInvoicesXlsx(client, status);
-    res.setHeader(
-      'Content-Type',
-      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    const result = await this.billing.exportInvoices(
+      client,
+      status,
+      parseExportFormat(format),
     );
-    res.setHeader(
-      'Content-Disposition',
-      'attachment; filename="invoices-report.xlsx"',
-    );
-    res.send(buffer);
+    return sendTabularExport(res, result);
   }
 
   /** Order counts, statuses and fees for the client's own invoice. External carrier costs are never included. */

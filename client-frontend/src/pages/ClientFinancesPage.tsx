@@ -36,6 +36,7 @@ export function ClientFinancesPage(): ReactElement {
   const [codSearch, setCodSearch] = useState<string>('');
   const [codStatus, setCodStatus] = useState<string>('');
   const [codPage, setCodPage] = useState<number>(1);
+  const [exportingStatement, setExportingStatement] = useState(false);
 
   // 1. Account Summary Query
   const { data: account, isLoading: accountLoading, error: accountError } = useQuery({
@@ -321,7 +322,7 @@ export function ClientFinancesPage(): ReactElement {
                 />
               </div>
 
-              <div className="flex items-end justify-between">
+              <div className="flex flex-wrap items-end justify-between gap-2">
                 {statementType || statementStartDate || statementEndDate ? (
                   <button
                     type="button"
@@ -336,9 +337,57 @@ export function ClientFinancesPage(): ReactElement {
                     {t('Clear filters ✕', 'إلغاء الفلاتر ✕', isAr)}
                   </button>
                 ) : <span />}
-                <span className="text-xs text-text-muted">
-                  {t(`Total: ${txnsData?.total ?? 0} transactions`, `الإجمالي: ${txnsData?.total ?? 0} حركة`, isAr)}
-                </span>
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-xs text-text-muted">
+                    {t(`Total: ${txnsData?.total ?? 0} transactions`, `الإجمالي: ${txnsData?.total ?? 0} حركة`, isAr)}
+                  </span>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    disabled={exportingStatement}
+                    onClick={() => {
+                      void (async () => {
+                        setExportingStatement(true);
+                        try {
+                          await ClientFinancesService.downloadTransactionsExport({
+                            type: statementType || undefined,
+                            startDate: statementStartDate || undefined,
+                            endDate: statementEndDate || undefined,
+                            format: 'xlsx',
+                          });
+                        } finally {
+                          setExportingStatement(false);
+                        }
+                      })();
+                    }}
+                  >
+                    {t('Export Excel', 'تصدير إكسل', isAr)}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    disabled={exportingStatement}
+                    onClick={() => {
+                      void (async () => {
+                        setExportingStatement(true);
+                        try {
+                          await ClientFinancesService.downloadTransactionsExport({
+                            type: statementType || undefined,
+                            startDate: statementStartDate || undefined,
+                            endDate: statementEndDate || undefined,
+                            format: 'csv',
+                          });
+                        } finally {
+                          setExportingStatement(false);
+                        }
+                      })();
+                    }}
+                  >
+                    {t('Export CSV', 'تصدير CSV', isAr)}
+                  </Button>
+                </div>
               </div>
             </div>
           </Card>

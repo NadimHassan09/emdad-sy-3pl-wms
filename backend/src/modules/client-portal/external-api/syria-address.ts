@@ -40,7 +40,7 @@ const LOCATION_ALIASES: Record<string, string> = {
   'al-hawiqa': 'الحويقة',
   'hawiqa': 'الحويقة',
   'al-ommal': 'العمال',
-  'ommal': "العمال",
+  'ommal': 'العمال',
   "al-ba'ajeen": 'البعاجين',
   "ba'ajeen": 'البعاجين',
   'al-ordi': 'العُرَضي',
@@ -193,6 +193,67 @@ function norm(value: string): string {
   return normalizeArabicCompare(value);
 }
 
+/** Classic Levenshtein; fine for short place names. */
+function editDistance(a: string, b: string): number {
+  if (a === b) return 0;
+  if (!a.length) return b.length;
+  if (!b.length) return a.length;
+  const prev = new Array<number>(b.length + 1);
+  const cur = new Array<number>(b.length + 1);
+  for (let j = 0; j <= b.length; j++) prev[j] = j;
+  for (let i = 1; i <= a.length; i++) {
+    cur[0] = i;
+    for (let j = 1; j <= b.length; j++) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      cur[j] = Math.min(cur[j - 1] + 1, prev[j] + 1, prev[j - 1] + cost);
+    }
+    for (let j = 0; j <= b.length; j++) prev[j] = cur[j]!;
+  }
+  return prev[b.length]!;
+}
+
+function maxSuggestDistance(rawNorm: string): number {
+  // Short names: allow 1 typo; longer names: up to 2–3.
+  if (rawNorm.length <= 4) return 1;
+  if (rawNorm.length <= 8) return 2;
+  return 3;
+}
+
+/** Best fuzzy matches within the hierarchy keys (normalized compare). */
+export function suggestPlaceNames(keys: string[], raw: string, limit = 3): string[] {
+  const n = norm(raw);
+  if (!n || !keys.length) return [];
+  const maxDist = maxSuggestDistance(n);
+  const scored: { key: string; dist: number }[] = [];
+  for (const key of keys) {
+    const kn = norm(key);
+    if (!kn) continue;
+    // Prefer contains / prefix as distance 0.5 so they rank above pure edits.
+    if (kn === n) return [key];
+    if (kn.includes(n) || n.includes(kn)) {
+      scored.push({ key, dist: 0.5 });
+      continue;
+    }
+    const dist = editDistance(n, kn);
+    if (dist <= maxDist) scored.push({ key, dist });
+  }
+  scored.sort((a, b) => a.dist - b.dist || a.key.localeCompare(b.key, 'ar'));
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const s of scored) {
+    if (seen.has(s.key)) continue;
+    seen.add(s.key);
+    out.push(s.key);
+    if (out.length >= limit) break;
+  }
+  return out;
+}
+
+function withSuggestions(base: string, suggestions: string[]): string {
+  if (!suggestions.length) return base;
+  return `${base} Did you mean: ${suggestions.join(', ')}?`;
+}
+
 function findKey(keys: string[], raw: string): string | null {
   const n = norm(raw);
   if (!n) return null;
@@ -206,6 +267,43 @@ function findKey(keys: string[], raw: string): string | null {
     if (aliasMatch) return aliasMatch;
   }
   return null;
+}
+
+/**
+ * When city is unknown in the stated governorate, search other governorates
+ * for the same city name and suggest the correct pairing (B11 example:
+ * Damascus + جديدة الفضل → suggest correct governorate).
+ */
+function suggestGovernorateForCity(cityRaw: string, excludeGov: string): string[] {
+  const n = norm(cityRaw);
+  if (!n) return [];
+  const hits: string[] = [];
+  for (const [gov, districts] of Object.entries(HIERARCHY)) {
+    if (gov === excludeGov) continue;
+    const city = findKey(Object.keys(districts), cityRaw);
+    if (city) hits.push(`${gov} / ${city}`);
+    if (hits.length >= 3) break;
+  }
+  return hits;
+}
+
+/**
+ * Neighbourhood typed under the wrong city: find it elsewhere in the same governorate.
+ */
+function suggestCityForNeighborhood(
+  governorate: string,
+  neighborhoodRaw: string,
+  excludeCity: string,
+): string[] {
+  const districts = HIERARCHY[governorate] ?? {};
+  const hits: string[] = [];
+  for (const [city, neighborhoods] of Object.entries(districts)) {
+    if (city === excludeCity) continue;
+    const match = findKey(neighborhoods, neighborhoodRaw);
+    if (match) hits.push(`${city} / ${match}`);
+    if (hits.length >= 3) break;
+  }
+  return hits;
 }
 
 export type ResolvedSyriaAddress = {
@@ -237,20 +335,32 @@ export function resolveSyriaAddress(input: {
     return { ok: false, fields };
   }
 
-  const governorate = findKey(Object.keys(HIERARCHY), governorateRaw);
+  const governorateKeys = Object.keys(HIERARCHY);
+  const governorate = findKey(governorateKeys, governorateRaw);
   if (!governorate) {
+    const suggestions = suggestPlaceNames(governorateKeys, governorateRaw);
     return {
       ok: false,
-      fields: { governorate: `Unknown governorate "${governorateRaw}". Use a Syria governorate name as in the Client Portal.` },
+      fields: {
+        governorate: withSuggestions(
+          `Unknown governorate "${governorateRaw}". Use a Syria governorate name as in the Client Portal.`,
+          suggestions,
+        ),
+      },
     };
   }
 
   const districts = Object.keys(HIERARCHY[governorate] ?? {});
   const city = findKey(districts, cityRaw);
   if (!city) {
+    const local = suggestPlaceNames(districts, cityRaw);
+    const elsewhere = suggestGovernorateForCity(cityRaw, governorate);
+    const suggestions = [...local, ...elsewhere].slice(0, 3);
     return {
       ok: false,
-      fields: { city: `Unknown city/area "${cityRaw}" for ${governorate}.` },
+      fields: {
+        city: withSuggestions(`Unknown city/area "${cityRaw}" for ${governorate}.`, suggestions),
+      },
     };
   }
 
@@ -259,9 +369,17 @@ export function resolveSyriaAddress(input: {
     const neighborhoods = HIERARCHY[governorate]?.[city] ?? [];
     neighborhood = findKey(neighborhoods, neighborhoodRaw);
     if (!neighborhood) {
+      const local = suggestPlaceNames(neighborhoods, neighborhoodRaw);
+      const elsewhere = suggestCityForNeighborhood(governorate, neighborhoodRaw, city);
+      const suggestions = [...local, ...elsewhere].slice(0, 3);
       return {
         ok: false,
-        fields: { neighborhood: `Unknown neighborhood "${neighborhoodRaw}" for ${city}, ${governorate}.` },
+        fields: {
+          neighborhood: withSuggestions(
+            `Unknown neighborhood "${neighborhoodRaw}" for ${city}, ${governorate}.`,
+            suggestions,
+          ),
+        },
       };
     }
   }

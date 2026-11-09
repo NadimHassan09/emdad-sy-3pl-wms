@@ -349,6 +349,26 @@ export function OmsOrderFormModal({
           </p>
         ) : null}
 
+        {mode === 'edit' && initial?.linkedOutboundOrder?.hasCarrierShipment ? (
+          <div
+            role="status"
+            className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-950"
+          >
+            <p className="font-medium">
+              Carrier shipment already exists — this save updates EMDAD only.
+            </p>
+            <p className="mt-1 text-xs">
+              Babel, Sila, and Sena have no edit API. If the courier must see address, COD, or phone
+              changes, cancel the shipment from the order actions and resend. Delivery Joud can edit
+              via its own API when that path is used.
+            </p>
+            <p className="mt-1 text-xs" dir="rtl">
+              الشحنة موجودة عند الناقل — التعديل هنا محلي في إمداد فقط. لو لازم الناقل يشوف التغيير:
+              ألغِ الشحنة من إجراءات الطلب وأعد الإرسال.
+            </p>
+          </div>
+        ) : null}
+
         <div className="grid gap-3 md:grid-cols-2">
           <RecipientNameInput
             label="Recipient name"

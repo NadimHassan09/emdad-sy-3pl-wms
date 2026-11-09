@@ -130,18 +130,23 @@ export async function deleteClientProductImage(productId: string): Promise<void>
 export async function downloadClientProductsExcel(params: {
   search?: string;
   status?: string;
+  format?: 'xlsx' | 'csv';
 }): Promise<void> {
+  const format = params.format ?? 'xlsx';
   const { data } = await apiClient.get('/products/export', {
-    params,
+    params: { search: params.search, status: params.status, format },
     responseType: 'blob',
   });
   const blob = new Blob([data], {
-    type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    type:
+      format === 'csv'
+        ? 'text/csv;charset=utf-8'
+        : 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
   });
   const url = window.URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = `inventory-products-${new Date().toISOString().slice(0, 10)}.xlsx`;
+  a.download = `inventory-products-${new Date().toISOString().slice(0, 10)}.${format}`;
   document.body.appendChild(a);
   a.click();
   a.remove();

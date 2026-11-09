@@ -126,20 +126,26 @@ export async function fetchClientInvoicesPage(params: {
   return data;
 }
 
-export async function downloadClientInvoicesExcel(status?: string): Promise<void> {
-  const params: Record<string, string> = {};
+export async function downloadClientInvoicesExcel(
+  status?: string,
+  format: 'xlsx' | 'csv' = 'xlsx',
+): Promise<void> {
+  const params: Record<string, string> = { format };
   if (status) params.status = status;
   const res = await apiClient.get('/billing/invoices/export', {
     params,
     responseType: 'blob',
   });
   const blob = new Blob([res.data], {
-    type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    type:
+      format === 'csv'
+        ? 'text/csv;charset=utf-8'
+        : 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
   });
   const url = window.URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = `client-invoices-${new Date().toISOString().slice(0, 10)}.xlsx`;
+  a.download = `client-invoices-${new Date().toISOString().slice(0, 10)}.${format}`;
   document.body.appendChild(a);
   a.click();
   a.remove();

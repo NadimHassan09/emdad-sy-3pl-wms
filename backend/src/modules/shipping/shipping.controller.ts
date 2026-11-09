@@ -30,6 +30,7 @@ import {
 } from './dto/bulk-shipping.dto';
 import { ConnectShippingProviderDto } from './dto/connect-shipping-provider.dto';
 import { RegisterShippingWebhookDto } from './dto/register-shipping-webhook.dto';
+import { TestShippingFxDto } from './dto/test-shipping-fx.dto';
 import { UpsertShippingFxDto } from './dto/upsert-shipping-fx.dto';
 import { UpsertShippingOriginAddressDto } from './dto/upsert-shipping-origin-address.dto';
 import { QuoteShippingRatesDto } from './dto/quote-shipping-rates.dto';
@@ -121,7 +122,14 @@ export class ShippingController {
     };
     if (body.mode === 'automatic') {
       await this.fx.saveThresholds(thresholds, user);
-      return this.fx.saveAutomatic(user);
+      return this.fx.saveAutomatic(user, {
+        autoSourceKind: body.autoSourceKind,
+        customUrl: body.customUrl,
+        customJsonPath: body.customJsonPath,
+        customRateUnit: body.customRateUnit,
+        customAuthHeaderName: body.customAuthHeaderName,
+        customAuthHeaderValue: body.customAuthHeaderValue,
+      });
     }
     if (body.manualRate == null) {
       await this.fx.saveThresholds(thresholds, user);
@@ -132,11 +140,22 @@ export class ShippingController {
   }
 
   @Post('fx/test-source')
-  testFxSource(@CurrentUser() user: AuthPrincipal) {
+  testFxSource(
+    @Body() body: TestShippingFxDto | undefined,
+    @CurrentUser() user: AuthPrincipal,
+  ) {
     if (user.role !== 'super_admin') {
       throw new ForbiddenException('Only a super admin can test the exchange-rate source.');
     }
-    return this.fx.testSource();
+    const input = body ?? {};
+    return this.fx.testSource({
+      autoSourceKind: input.autoSourceKind,
+      customUrl: input.customUrl,
+      customJsonPath: input.customJsonPath,
+      customRateUnit: input.customRateUnit,
+      customAuthHeaderName: input.customAuthHeaderName,
+      customAuthHeaderValue: input.customAuthHeaderValue,
+    });
   }
 
   @Get('origin-address')

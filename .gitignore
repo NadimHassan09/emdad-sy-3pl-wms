@@ -21,6 +21,7 @@ dist/
 # Storage, uploads & exports
 backend/storage/documents/
 backend/storage/media/
+backend/storage/config/
 *.pdf
 *.xlsx
 *.csv

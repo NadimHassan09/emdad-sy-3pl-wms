@@ -19,10 +19,17 @@ All new exports share one helper (`backend/src/common/utils/tabular-export.util.
 | OMS returns | Admin | Excel + `format=csv` in controller | `format` was not declared in the query DTO (global pipe uses `forbidNonWhitelisted`); no CSV button | `format` declared in `ListOmsReturnsQueryDto`; CSV button next to Excel |
 | COD records | Admin | Excel + PDF | CSV | `?format=csv` on `/cod/records/export` (same dataset as Excel) + button |
 
-## Remaining gaps (not done)
+## Remaining gaps
 
-- Client portal: stock/inventory levels, financial statement and invoices exports (CSV; stock has no export at all) — not touched in this pass.
-- Client COD report: Excel only (no CSV).
-- Client products export: Excel only.
 - Admin reports registry: not audited.
-- No browser verification of any of the above (QA_TRACKER rows stay ⬜/🔍).
+- No browser verification of any of the above (QA_TRACKER rows stay ⬜/🔍) — scheduled in `TESTING_SPRINT.md`.
+
+## Client portal exports (closed 9 Nov — code)
+
+| List | Endpoints | UI |
+|---|---|---|
+| Stock levels | `GET /client/stock/export?format=xlsx\|csv` | Products (Inventory) → Export stock |
+| Financial statement | `GET /client/finances/transactions/export?format=xlsx\|csv` | Finances statement filters |
+| Invoices | `GET /client/billing/invoices/export?format=xlsx\|csv` | Invoices → Excel + CSV |
+| COD report | `GET /client/oms/cod-report/export?format=xlsx\|csv` | COD → Excel + CSV |
+| Products | `GET /client/products/export?format=xlsx\|csv` | Inventory → Excel + CSV |

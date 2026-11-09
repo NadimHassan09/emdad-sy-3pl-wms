@@ -159,11 +159,11 @@ export function CodReportsPage(): ReactElement {
     }, 0);
   };
 
-  const handleExportExcel = async () => {
+  const handleExport = async (format: 'xlsx' | 'csv' = 'xlsx') => {
     if (exporting) return;
     setExporting(true);
     try {
-      await downloadClientCodReportExcel(filterKey);
+      await downloadClientCodReportExcel({ ...filterKey, format });
     } catch {
       // ignore
     } finally {
@@ -178,17 +178,30 @@ export function CodReportsPage(): ReactElement {
         title={t('Cash on delivery')}
         subtitle={t('Collected and pending remittance')}
         actions={
-          <Button
-            type="button"
-            variant="secondary"
-            size="md"
-            loading={exporting}
-            onClick={() => void handleExportExcel()}
-            className="flex items-center gap-2"
-          >
-            <i className="fa-solid fa-file-excel text-emerald-600 dark:text-emerald-400" />
-            <span>{t('Export Excel')}</span>
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              variant="secondary"
+              size="md"
+              loading={exporting}
+              onClick={() => void handleExport('xlsx')}
+              className="flex items-center gap-2"
+            >
+              <i className="fa-solid fa-file-excel text-emerald-600 dark:text-emerald-400" />
+              <span>{t('Export Excel')}</span>
+            </Button>
+            <Button
+              type="button"
+              variant="secondary"
+              size="md"
+              disabled={exporting}
+              onClick={() => void handleExport('csv')}
+              className="flex items-center gap-2"
+            >
+              <i className="fa-solid fa-file-csv" />
+              <span>{isArabic ? 'تصدير CSV' : 'Export CSV'}</span>
+            </Button>
+          </div>
         }
       />
 

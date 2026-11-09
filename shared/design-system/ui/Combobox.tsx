@@ -76,12 +76,13 @@ export function Combobox({
   }, [options, query]);
 
   useEffect(() => {
-    function onDocClick(e: MouseEvent) {
+    function onDocPointerDown(e: PointerEvent) {
       if (!wrapperRef.current) return;
       if (!wrapperRef.current.contains(e.target as Node)) setOpen(false);
     }
-    if (open) document.addEventListener('mousedown', onDocClick);
-    return () => document.removeEventListener('mousedown', onDocClick);
+    // pointerdown covers mouse + touch; avoids mobile taps closing before select.
+    if (open) document.addEventListener('pointerdown', onDocPointerDown);
+    return () => document.removeEventListener('pointerdown', onDocPointerDown);
   }, [open]);
 
   useEffect(() => {
@@ -185,7 +186,7 @@ export function Combobox({
                       key={o.value}
                       role="option"
                       aria-selected={isSelected}
-                      onMouseDown={(e) => {
+                      onPointerDown={(e) => {
                         e.preventDefault();
                         onChange(o.value);
                         setOpen(false);
@@ -224,7 +225,7 @@ export function Combobox({
                       key={o.value}
                       role="option"
                       aria-selected={isSelected}
-                      onMouseDown={(e) => {
+                      onPointerDown={(e) => {
                         e.preventDefault();
                         onChange(o.value);
                         setOpen(false);

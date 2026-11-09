@@ -22,6 +22,10 @@ import { memoryStorage } from 'multer';
 import { Public } from '../../../common/auth/public.decorator';
 import { ClientPrincipal } from '../../../common/auth/client-principal.types';
 import { ParseUuidLoosePipe } from '../../../common/pipes/parse-uuid-loose.pipe';
+import {
+  parseExportFormat,
+  sendTabularExport,
+} from '../../../common/utils/tabular-export.util';
 import { ClientUser } from '../auth/client-user.decorator';
 import { JwtClientAuthGuard } from '../auth/jwt-client-auth.guard';
 import { ClientOmsExportService } from '../order-export/client-oms-export.service';
@@ -214,13 +218,12 @@ export class ClientOmsOrdersController {
     @Query() query: ClientCodReportQueryDto,
     @Res() res: Response,
   ) {
-    const { buffer, filename } = await this.oms.exportCodReportXlsx(client, query);
-    res.setHeader(
-      'Content-Type',
-      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    const result = await this.oms.exportCodReport(
+      client,
+      query,
+      parseExportFormat(query.format),
     );
-    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-    res.send(buffer);
+    return sendTabularExport(res, result);
   }
 
   @Get('cod-report')

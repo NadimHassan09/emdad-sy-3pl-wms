@@ -19,7 +19,6 @@ import type { InboundExecutionPlan, OrderExecutionMode } from '../../lib/executi
 import { inboundAdminPlanReadinessIssues } from '../../lib/execution-plan';
 import { isYmdOnOrAfterLocalToday, localCalendarDateYmd } from '../../lib/order-planning-dates';
 
-const DEFAULT_COMPANY_ID = (import.meta.env.VITE_MOCK_COMPANY_ID as string | undefined) ?? '';
 const NOTES_MAX = 500;
 
 type PutawayRow = { key: string; locationId: string; qty: string };
@@ -217,7 +216,7 @@ export function InboundCreatePage() {
       ? selectedWarehouseId
       : warehouseId) || '';
 
-  const [companyId, setCompanyId] = useState(DEFAULT_COMPANY_ID);
+  const [companyId, setCompanyId] = useState('');
   const [arrival, setArrival] = useState(() => localCalendarDateYmd());
   const [notes, setNotes] = useState('');
   const [mode, setMode] = useState<OrderExecutionMode>('admin');
@@ -280,12 +279,10 @@ export function InboundCreatePage() {
   });
 
   useEffect(() => {
-    // Pre-select only when unambiguous: the configured default, or the only client.
-    if (!companyId && companies.data?.length) {
-      const fallback =
-        companies.data.find((c) => c.id === DEFAULT_COMPANY_ID) ??
-        (companies.data.length === 1 ? companies.data[0] : undefined);
-      if (fallback) setCompanyId(fallback.id);
+    // Pre-select only when there is exactly one client — never fall back to a
+    // configured default or the first row (that caused Acme resets on mobile).
+    if (!companyId && companies.data?.length === 1) {
+      setCompanyId(companies.data[0].id);
     }
   }, [companyId, companies.data]);
 

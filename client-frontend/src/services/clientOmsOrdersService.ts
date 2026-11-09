@@ -384,14 +384,22 @@ export async function downloadClientCodReportExcel(params: {
   codStatus?: string;
   dateFrom?: string;
   dateTo?: string;
+  format?: 'xlsx' | 'csv';
 }): Promise<void> {
+  const format = params.format ?? 'xlsx';
   const response = await apiClient.get<Blob>('/oms/cod-report/export', {
-    params,
+    params: {
+      codStatus: params.codStatus,
+      dateFrom: params.dateFrom,
+      dateTo: params.dateTo,
+      format,
+    },
     responseType: 'blob',
   });
   const disposition = response.headers['content-disposition'] as string | undefined;
   const match = disposition?.match(/filename="([^"]+)"/);
-  const filename = match?.[1] ?? `cod-report-${new Date().toISOString().slice(0, 10)}.xlsx`;
+  const filename =
+    match?.[1] ?? `cod-report-${new Date().toISOString().slice(0, 10)}.${format}`;
   const url = URL.createObjectURL(response.data);
   const a = document.createElement('a');
   a.href = url;

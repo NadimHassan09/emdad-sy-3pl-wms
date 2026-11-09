@@ -24,6 +24,7 @@ import {
   fetchClientProducts,
   type ClientProductRow,
 } from '../services/clientProductsService';
+import { downloadClientStockExport } from '../services/stockService';
 import { clientMediaSrc } from '../lib/client-media';
 
 function productsLabel(label: string, isArabic: boolean): string {
@@ -144,13 +145,27 @@ export function ProductsPage(): ReactElement {
   const [statusFilter, setStatusFilter] = useState<'all' | 'in_stock' | 'low_stock' | 'out_of_stock'>('all');
   const [exporting, setExporting] = useState(false);
 
-  const handleExport = async () => {
+  const handleExport = async (format: 'xlsx' | 'csv' = 'xlsx') => {
     try {
       setExporting(true);
       await downloadClientProductsExcel({
         search: filterKey.search,
+        format,
       });
-      setActionSuccess(isArabic ? 'تم تحميل ملف الإكسل بنجاح.' : 'Export downloaded successfully.');
+      setActionSuccess(isArabic ? 'تم تحميل الملف بنجاح.' : 'Export downloaded successfully.');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Export failed';
+      setActionError(msg);
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  const handleStockExport = async (format: 'xlsx' | 'csv' = 'xlsx') => {
+    try {
+      setExporting(true);
+      await downloadClientStockExport({ search: filterKey.search, format });
+      setActionSuccess(isArabic ? 'تم تحميل ملف المخزون.' : 'Stock export downloaded.');
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Export failed';
       setActionError(msg);
@@ -245,7 +260,7 @@ export function ProductsPage(): ReactElement {
               variant="secondary"
               size="md"
               disabled={exporting}
-              onClick={handleExport}
+              onClick={() => void handleExport('xlsx')}
               startIcon={
                 exporting ? (
                   <i className="fa-solid fa-spinner fa-spin text-xs" aria-hidden="true" />
@@ -255,6 +270,24 @@ export function ProductsPage(): ReactElement {
               }
             >
               {exporting ? (isArabic ? 'جاري التصدير…' : 'Exporting…') : (isArabic ? 'تصدير إكسل' : 'Export Excel')}
+            </Button>
+            <Button
+              variant="secondary"
+              size="md"
+              disabled={exporting}
+              onClick={() => void handleExport('csv')}
+              startIcon={<i className="fa-solid fa-file-csv text-xs" aria-hidden="true" />}
+            >
+              {isArabic ? 'تصدير CSV' : 'Export CSV'}
+            </Button>
+            <Button
+              variant="secondary"
+              size="md"
+              disabled={exporting}
+              onClick={() => void handleStockExport('xlsx')}
+              startIcon={<i className="fa-solid fa-boxes-stacked text-xs" aria-hidden="true" />}
+            >
+              {isArabic ? 'تصدير المخزون' : 'Export stock'}
             </Button>
             {canManageProducts ? (
               <Button

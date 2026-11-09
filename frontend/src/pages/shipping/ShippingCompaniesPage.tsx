@@ -28,6 +28,12 @@ function FxRateCard({ canEdit }: { canEdit: boolean }) {
   const [refreshHours, setRefreshHours] = useState('6');
   const [staleHours, setStaleHours] = useState('24');
   const [minChange, setMinChange] = useState('0.5');
+  const [autoKind, setAutoKind] = useState<'builtin' | 'custom'>('builtin');
+  const [customUrl, setCustomUrl] = useState('');
+  const [customJsonPath, setCustomJsonPath] = useState('usd.syp');
+  const [customRateUnit, setCustomRateUnit] = useState<'old_syp' | 'new_syp'>('old_syp');
+  const [customAuthHeaderName, setCustomAuthHeaderName] = useState('');
+  const [customAuthHeaderValue, setCustomAuthHeaderValue] = useState('');
   const query = useQuery({
     queryKey: ['shipping', 'fx'],
     queryFn: () => ShippingApi.getFx(),
@@ -40,11 +46,38 @@ function FxRateCard({ canEdit }: { canEdit: boolean }) {
     setRefreshHours(String(query.data.refreshHours));
     setStaleHours(String(query.data.staleHours));
     setMinChange(String(query.data.minChangePercent));
-  }, [query.data?.refreshHours, query.data?.staleHours, query.data?.minChangePercent]);
+    setAutoKind(query.data.autoSourceKind ?? 'builtin');
+    setCustomUrl(query.data.custom?.url ?? '');
+    setCustomJsonPath(query.data.custom?.jsonPath || 'usd.syp');
+    setCustomRateUnit(query.data.custom?.rateUnit ?? 'old_syp');
+    setCustomAuthHeaderName(query.data.custom?.authHeaderName ?? '');
+    // Never hydrate the secret from the server — it is not returned.
+    setCustomAuthHeaderValue('');
+  }, [
+    query.data?.refreshHours,
+    query.data?.staleHours,
+    query.data?.minChangePercent,
+    query.data?.autoSourceKind,
+    query.data?.custom?.url,
+    query.data?.custom?.jsonPath,
+    query.data?.custom?.rateUnit,
+    query.data?.custom?.authHeaderName,
+  ]);
   const thresholds = () => ({
     refreshHours: Number(refreshHours),
     staleHours: Number(staleHours),
     minChangePercent: Number(minChange),
+  });
+  const customPayload = () => ({
+    autoSourceKind: autoKind,
+    customUrl: customUrl.trim() || undefined,
+    customJsonPath: customJsonPath.trim() || undefined,
+    customRateUnit,
+    customAuthHeaderName: customAuthHeaderName.trim() || undefined,
+    // Omit when blank so a previously stored secret is kept.
+    ...(customAuthHeaderValue.trim()
+      ? { customAuthHeaderValue: customAuthHeaderValue.trim() }
+      : {}),
   });
   const done = (message: string) => () => {
     toast.success(message);
@@ -57,12 +90,17 @@ function FxRateCard({ canEdit }: { canEdit: boolean }) {
     onError: (err: Error) => toast.error(err.message),
   });
   const saveAuto = useMutation({
-    mutationFn: () => ShippingApi.saveFx({ mode: 'automatic', ...thresholds() }),
-    onSuccess: done(t(['Automatic updates are on.', 'تم تشغيل التحديث التلقائي.'])),
+    mutationFn: () =>
+      ShippingApi.saveFx({ mode: 'automatic', ...thresholds(), ...customPayload() }),
+    onSuccess: done(
+      autoKind === 'custom'
+        ? t(['Custom API updates are on.', 'تم تشغيل التحديث من الـ API الخارجي.'])
+        : t(['Automatic updates are on.', 'تم تشغيل التحديث التلقائي.']),
+    ),
     onError: (err: Error) => toast.error(err.message),
   });
   const testSource = useMutation({
-    mutationFn: () => ShippingApi.testFxSource(),
+    mutationFn: () => ShippingApi.testFxSource(customPayload()),
     onSuccess: (result) => {
       if (!result.ok) {
         toast.error(result.error || t(['Source check failed.', 'فشل فحص المصدر.']));
@@ -78,8 +116,8 @@ function FxRateCard({ canEdit }: { canEdit: boolean }) {
     <SectionContainer
       title={t(['Exchange rates', 'أسعار الصرف'])}
       description={t([
-        'Clients and invoices use USD only. The pound is used with carriers. 1 new SYP = 100 old SYP is fixed. Choose a manual rate, or let the system follow an outside source with the stability limits below.',
-        'العملاء والفواتير بالدولار فقط. الليرة تُستخدم مع شركات الشحن. 1 ليرة جديدة = 100 قديمة ثابتة. اختر سعرًا يدويًا أو دع النظام يتبع مصدرًا خارجيًا بحدود الاستقرار أدناه.',
+        'Clients and invoices use USD only. The pound is used with carriers. 1 new SYP = 100 old SYP is fixed. Choose a manual rate, the built-in market feed, or your own HTTPS JSON API.',
+        'العملاء والفواتير بالدولار فقط. الليرة تُستخدم مع شركات الشحن. 1 ليرة جديدة = 100 قديمة ثابتة. اختر سعرًا يدويًا، أو المصدر المدمج، أو API خارجي HTTPS خاص بك.',
       ])}
     >
       {query.isLoading ? (
@@ -94,7 +132,11 @@ function FxRateCard({ canEdit }: { canEdit: boolean }) {
                 : '—'}
             </strong>
             {' · '}
-            {fx?.mode === 'automatic' ? t(['Automatic', 'تلقائي']) : t(['Manual', 'يدوي'])}
+            {fx?.mode === 'automatic'
+              ? fx.autoSourceKind === 'custom'
+                ? t(['Custom API', 'API خارجي'])
+                : t(['Automatic', 'تلقائي'])
+              : t(['Manual', 'يدوي'])}
             {fx?.stale ? ` · ${t(['Stale', 'قديم'])}` : ''}
             {fx?.usable ? '' : ` · ${t(['Not usable for conversion', 'غير صالح للتحويل'])}`}
           </p>
@@ -142,13 +184,101 @@ function FxRateCard({ canEdit }: { canEdit: boolean }) {
                   onChange={(e) => setMinChange(e.target.value)}
                   inputMode="decimal"
                 />
-                <Button type="button" disabled={saveAuto.isPending} onClick={() => saveAuto.mutate()}>
-                  {t(['Use automatic source', 'استخدام المصدر التلقائي'])}
-                </Button>
-                <Button type="button" disabled={testSource.isPending} onClick={() => testSource.mutate()}>
-                  {t(['Test source', 'فحص المصدر'])}
-                </Button>
               </div>
+              <fieldset className="space-y-2 rounded-md border border-border p-3">
+                <legend className="px-1 text-sm font-medium text-text-body">
+                  {t(['Automatic source', 'مصدر التحديث التلقائي'])}
+                </legend>
+                <div className="flex flex-wrap gap-4 text-sm text-text-body">
+                  <label className="inline-flex items-center gap-2">
+                    <input
+                      type="radio"
+                      name="fx-auto-kind"
+                      checked={autoKind === 'builtin'}
+                      onChange={() => setAutoKind('builtin')}
+                    />
+                    {t(['Built-in market feed', 'المصدر المدمج'])}
+                  </label>
+                  <label className="inline-flex items-center gap-2">
+                    <input
+                      type="radio"
+                      name="fx-auto-kind"
+                      checked={autoKind === 'custom'}
+                      onChange={() => setAutoKind('custom')}
+                    />
+                    {t(['Custom HTTPS JSON API', 'API خارجي (HTTPS JSON)'])}
+                  </label>
+                </div>
+                {autoKind === 'custom' ? (
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    <TextField
+                      label={t(['API URL (HTTPS)', 'رابط الـ API (HTTPS)'])}
+                      value={customUrl}
+                      onChange={(e) => setCustomUrl(e.target.value)}
+                      placeholder="https://example.com/rates.json"
+                    />
+                    <TextField
+                      label={t(['JSON path to rate', 'مسار السعر داخل الـ JSON'])}
+                      value={customJsonPath}
+                      onChange={(e) => setCustomJsonPath(e.target.value)}
+                      placeholder="usd.syp"
+                    />
+                    <label className="block text-sm text-text-body">
+                      <span className="mb-1 block text-text-muted">
+                        {t(['Rate unit in the response', 'وحدة السعر في الرد'])}
+                      </span>
+                      <select
+                        className="w-full rounded-md border border-border bg-surface-card px-3 py-2"
+                        value={customRateUnit}
+                        onChange={(e) =>
+                          setCustomRateUnit(e.target.value as 'old_syp' | 'new_syp')
+                        }
+                      >
+                        <option value="old_syp">
+                          {t(['Old SYP per 1 USD', 'ليرة قديمة لكل دولار'])}
+                        </option>
+                        <option value="new_syp">
+                          {t(['New SYP per 1 USD (×100 stored)', 'ليرة جديدة لكل دولار (×100 عند الحفظ)'])}
+                        </option>
+                      </select>
+                    </label>
+                    <TextField
+                      label={t(['Auth header name (optional)', 'اسم هيدر المصادقة (اختياري)'])}
+                      value={customAuthHeaderName}
+                      onChange={(e) => setCustomAuthHeaderName(e.target.value)}
+                      placeholder="Authorization"
+                    />
+                    <TextField
+                      label={
+                        fx?.custom?.authConfigured
+                          ? t([
+                              'Auth header value (leave blank to keep stored secret)',
+                              'قيمة هيدر المصادقة (اتركه فارغًا للإبقاء على السر المخزّن)',
+                            ])
+                          : t(['Auth header value (optional)', 'قيمة هيدر المصادقة (اختياري)'])
+                      }
+                      value={customAuthHeaderValue}
+                      onChange={(e) => setCustomAuthHeaderValue(e.target.value)}
+                      type="password"
+                      autoComplete="new-password"
+                    />
+                  </div>
+                ) : null}
+                <div className="flex flex-wrap gap-2">
+                  <Button type="button" disabled={saveAuto.isPending} onClick={() => saveAuto.mutate()}>
+                    {autoKind === 'custom'
+                      ? t(['Use custom API', 'استخدام الـ API الخارجي'])
+                      : t(['Use built-in source', 'استخدام المصدر المدمج'])}
+                  </Button>
+                  <Button
+                    type="button"
+                    disabled={testSource.isPending}
+                    onClick={() => testSource.mutate()}
+                  >
+                    {t(['Test source', 'فحص المصدر'])}
+                  </Button>
+                </div>
+              </fieldset>
             </form>
           ) : null}
         </div>

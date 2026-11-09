@@ -8,7 +8,11 @@ import { BillingAccessService } from '../../billing/billing-access.service';
 import { BillingCyclesService } from '../../billing/billing-cycles.service';
 import { BillingInvoicesService } from '../../billing/billing-invoices.service';
 import { BillingPlansService } from '../../billing/billing-plans.service';
-import { buildExcelBuffer, ExcelExportColumn } from '../../../common/utils/excel-export.util';
+import { ExcelExportColumn } from '../../../common/utils/excel-export.util';
+import {
+  buildTabularExport,
+  type TabularExportFormat,
+} from '../../../common/utils/tabular-export.util';
 
 const MS_PER_DAY = 86_400_000;
 
@@ -175,7 +179,11 @@ export class ClientBillingService {
     return { items, total, limit, offset, statusCounts };
   }
 
-  async exportInvoicesXlsx(client: ClientPrincipal, status?: string): Promise<Buffer> {
+  async exportInvoices(
+    client: ClientPrincipal,
+    status: string | undefined,
+    format: TabularExportFormat = 'xlsx',
+  ) {
     this.assertBillingAccess(client);
     const companyId = client.companyId;
     const allowedStatuses = ['draft', 'unpaid', 'paid', 'cancelled'] as const;
@@ -227,7 +235,9 @@ export class ClientBillingService {
     const paidCount = items.filter((i) => i.status === 'paid').length;
     const unpaidCount = items.filter((i) => i.status === 'unpaid').length;
 
-    return buildExcelBuffer({
+    return buildTabularExport({
+      format,
+      baseName: 'invoices-report',
       sheetName: 'Invoices',
       title: 'Invoices Export',
       columns,
@@ -241,6 +251,12 @@ export class ClientBillingService {
         { label: 'Export Date', value: new Date().toISOString().slice(0, 10) },
       ],
     });
+  }
+
+  /** @deprecated prefer exportInvoices(format) */
+  async exportInvoicesXlsx(client: ClientPrincipal, status?: string): Promise<Buffer> {
+    const result = await this.exportInvoices(client, status, 'xlsx');
+    return Buffer.isBuffer(result.body) ? result.body : Buffer.from(String(result.body));
   }
 
   async listInvoices(client: ClientPrincipal) {

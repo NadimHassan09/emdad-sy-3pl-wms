@@ -20,7 +20,6 @@ import type { OrderExecutionMode, OutboundExecutionPlan } from '../../lib/execut
 import { outboundAdminPlanReadinessIssues } from '../../lib/execution-plan';
 import { isYmdOnOrAfterLocalToday, localCalendarDateYmd } from '../../lib/order-planning-dates';
 
-const DEFAULT_COMPANY_ID = (import.meta.env.VITE_MOCK_COMPANY_ID as string | undefined) ?? '';
 const NOTES_MAX = 500;
 
 type DraftLine = {
@@ -181,7 +180,7 @@ export function OutboundCreatePage() {
     (window.localStorage.getItem('wms-ui-language') === 'AR' || document.documentElement.dir === 'rtl');
   const t = (label: string) => tLabel(label, isArabic);
 
-  const [companyId, setCompanyId] = useState(DEFAULT_COMPANY_ID);
+  const [companyId, setCompanyId] = useState('');
   const [shipDate, setShipDate] = useState(() => localCalendarDateYmd());
   const [destination, setDestination] = useState('');
   const [notes, setNotes] = useState('');
@@ -241,12 +240,10 @@ export function OutboundCreatePage() {
 
   useEffect(() => {
     if (isEdit) return;
-    // Pre-select only when unambiguous: the configured default, or the only client.
-    if (!companyId && companies.data?.length) {
-      const fallback =
-        companies.data.find((c) => c.id === DEFAULT_COMPANY_ID) ??
-        (companies.data.length === 1 ? companies.data[0] : undefined);
-      if (fallback) setCompanyId(fallback.id);
+    // Pre-select only when there is exactly one client — never fall back to a
+    // configured default or the first row (that caused Acme resets on mobile).
+    if (!companyId && companies.data?.length === 1) {
+      setCompanyId(companies.data[0].id);
     }
   }, [companyId, companies.data, isEdit]);
 
