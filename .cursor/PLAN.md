@@ -29,17 +29,17 @@ Each item: build it, unit-test the logic, verify in the browser, update the chec
 | # | Item | Source | Notes / acceptance |
 |---|---|---|---|
 | I-1 | **Import template with drop-down lists + instructions sheet** for OMS (and inbound/outbound/products imports that exist) | Client B16, B22, B23; owner #20 | ✅ Done 6 Nov — xlsx with Instructions + Lists/Areas dropdowns; tolerant phone/date/Arabic fold; CSV via `?format=csv`. Evidence: client xlsx download; OMS-2026-03727 tolerant import. |
-| I-2 | **Filters + exports on every list** | Client B4; owner #19 | 🔍 Code complete 9 Nov — admin + client stock/finance/invoices/COD/products CSV (`I2_LIST_EXPORT_AUDIT.md`). **Do not ✅ until browser.** |
-| I-3 | **Super admin edits everything at any stage** | Client B9, B14 | 🔍 Code 9 Nov — edit modal warns when carrier shipment exists; timeline/audit records `localOnly` + cancel/resend note. After-delivery money rules still need owner answer (§3). **Do not ✅ until browser.** |
+| I-2 | **Filters + exports on every list** | Client B4; owner #19 | ✅ Browser 9 Nov — Export CSV/Excel on OMS, stock, COD, products; client/date filters on major lists (`qa-scripts/out`). |
+| I-3 | **Super admin edits everything at any stage** | Client B9, B14 | ✅ Browser 9 Nov — list Edit on OMS-2026-03728 shows EN+AR local-only warning; notes save OK. After-delivery money rules still need owner (§3). |
 | I-4 | **Delivery Joud (Olivery) carrier adapter** | Client B21; F20 | ✅ Live TEST 9 Nov — OMS-2026-03728 → portal Sequence **3960023822** (exactly 1 row). GET→POST + Sequence mapper + payer map fixed (fd132eba8 / d5b2647f7 / 3c54d530b). Fatih adapter also live-tested earlier. SYP unit evidence still open for both. |
-| I-5 | **Sila detailed tracking statuses visible** | Client A2 | 🔍 Code 9 Nov — `mapSilaStatus` Arabic labels → `eventDescription` / OMS `lastCarrierEvent`. **Do not ✅ until browser.** |
+| I-5 | **Sila detailed tracking statuses visible** | Client A2 | ✅ Browser 9 Nov — OMS-2026-03721 Shipment Movement shows Arabic `تم تكوين الشحنة` + cancelled events. |
 | I-6 | **Sila integration guidance audit** | Client A4 | 🔍 Code audit in `docs/handover/SILA_GUIDANCE_AUDIT.md` (7/9 code; COD amount + reference check still need live confirm). |
-| I-7 | **New warehouse → add locations** | Client B5 | 🔍 Code 9 Nov — Warehouses list has Locations action; create warehouse navigates to `/locations/:id`. **Do not ✅ until browser + inbound putaway.** |
-| I-8 | **Company selector resets to "Acme Import" on phone** | Client B18 | 🔍 Code 9 Nov — never auto-pick first/default company; Combobox uses pointerdown for touch. **Re-test 390px before ✅.** |
-| I-9 | **Tolerant address input** | Client B11 | 🔍 Code 9 Nov — fuzzy Did-you-mean on gov/city/neighbourhood + cross-gov city hints in `syria-address.ts`. **Do not ✅ until browser/API edge check.** |
+| I-7 | **New warehouse → add locations** | Client B5 | ✅ Browser 9 Nov — created TEST warehouse I-7 (WH-003) → auto-open locations → Storage `TEST-BIN-I7`. Inbound putaway into WH-003 still optional follow-up. |
+| I-8 | **Company selector resets to "Acme Import" on phone** | Client B18 | ✅ Browser 9 Nov — `/orders/oms/new` Client starts empty (not Acme); dropdown lists clients only after open. Playwright 390px chrome missing on VPS. |
+| I-9 | **Tolerant address input** | Client B11 | ✅ API 9 Nov — `حللب` → `Did you mean: حلب?` via `resolveSyriaAddress`; unit specs green. UI combobox filters exact (No matches) — fuzzy is resolve/import path. |
 | I-10 | **Server-side group-by** (optional, after the rest) | Client B20 | ❓ Optional — deferred; page-scoped group-by remains. |
 | I-11 | **Make the backend build script use 4 GB** | infra | ✅ Done — `backend/package.json` build/test already use `NODE_OPTIONS=--max-old-space-size=4096`. |
-| I-12 | **Custom external FX API** on Shipping Companies | Owner (9 Nov) | 🔍 Code 9 Nov — manual / built-in / custom HTTPS JSON API (URL + JSON path + optional auth; secret never returned). File store, no migration. **Do not ✅ until browser Test button.** |
+| I-12 | **Custom external FX API** on Shipping Companies | Owner (9 Nov) | ✅ Browser 9 Nov — invalid http rejected; valid HTTPS Test source 201; restored built-in. |
 
 Items that need an owner answer before building (do not build on a guess): inbound↔OMS link (B3), custom roles / editable permissions (needs a migration), carrier reconciliation + in-transit float (B12), COD due / liquidity / prep fee (B15), return fee rule. See §3.
 

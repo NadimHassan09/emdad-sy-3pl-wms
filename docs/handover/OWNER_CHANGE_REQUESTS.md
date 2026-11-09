@@ -24,7 +24,7 @@ Commit hashes are on branch `staging`.
 | 6 | Finance + billing: on-demand invoices any day, optional charge items per client, dynamic fulfillment price (lines, weight), EMDAD shipping fee, client vs internal invoice, netting against COD balance | ✅ | 68a105b81 — UI forms not yet clicked through (F32) |
 | 7 | OMS fulfillment covers its own outbound order — never bill that outbound twice | ✅ | Built; browser verify in testing sprint (invoice preview OMS + outbound). |
 | 8 | Admin can edit carrier price and invoice lines on the internal invoice | ✅ | Built; browser verify in testing sprint. |
-| 9 | FX: manual rate or automatic source, with refresh interval, stale limit, minimum-change threshold | 🔍 | c607bfdc3; source decision 939a09819; custom HTTPS API added 9 Nov (I-12) — browser Test before ✅ |
+| 9 | FX: manual rate or automatic source, with refresh interval, stale limit, minimum-change threshold | ✅ | Browser 9 Nov — custom HTTPS Test OK; invalid http rejected; built-in restored (I-12). |
 | 10 | FX source: Syrian Central Bank first, else a reliable free API (6 Nov) | 🔍 | Built-in fawazahmed0 + jsDelivr; custom HTTPS JSON API (9 Nov) — browser verify custom URL before ✅ |
 | 11 | Roles: viewer, accountant, inventory…; editable permissions; super admin creates custom roles; RBAC review | ✅ partly / ⬜ | viewer + inventory + accountant (59e4ebdbd, 19a9cc3e7). **Editable permission sets / custom roles not built** (needs migration → owner approval). RBAC matrix test X01 not done. |
 | 12 | Sheets page in client portal for inbound, outbound, OMS: dropdown-only fixed fields with search, editable only before admin approval; built-in hidden API credentials (client cannot see/delete); separate from client API keys | ✅ | e115b5b53, c360973e4, e20c94893 |

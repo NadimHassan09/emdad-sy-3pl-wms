@@ -172,21 +172,27 @@ export function InvoiceBreakdownPanel({
   }, [data, storagePreview, incentivePreview]);
 
   if (query.isLoading) return <p className="text-sm text-text-muted">Loading order breakdown…</p>;
-  if (!data || data.sections.every((s) => s.orderCount === 0)) return null;
+
+  const hasOrders = Boolean(data && data.sections.some((s) => s.orderCount > 0));
+  // Still render storage / incentive tools when the invoice has no order rows yet
+  // (subscription drafts) so the redesign controls are reachable.
+  if (!data && !companyId) return null;
 
   const from =
     periodFrom?.slice(0, 10) ||
-    (typeof data.period.from === 'string' ? data.period.from.slice(0, 10) : '') ||
+    (typeof data?.period.from === 'string' ? data.period.from.slice(0, 10) : '') ||
     '';
   const to =
     periodTo?.slice(0, 10) ||
-    (typeof data.period.to === 'string' ? data.period.to.slice(0, 10) : '') ||
+    (typeof data?.period.to === 'string' ? data.period.to.slice(0, 10) : '') ||
     '';
 
   return (
     <section className="space-y-4 rounded-xl border border-border bg-surface-card p-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2 className="text-base font-semibold text-text-strong">Orders on this invoice</h2>
+        <h2 className="text-base font-semibold text-text-strong">
+          {hasOrders ? 'Orders on this invoice' : 'Invoice tools'}
+        </h2>
         <div className="flex flex-wrap gap-2">
           {canEdit && invoiceStatus !== 'draft' && !forceEdit ? (
             <Button type="button" size="sm" variant="secondary" onClick={() => setForceEdit(true)}>
@@ -198,7 +204,7 @@ export function InvoiceBreakdownPanel({
               Lock editing
             </Button>
           ) : null}
-          {canSettle && invoiceStatus === 'unpaid' && !data.statement ? (
+          {canSettle && invoiceStatus === 'unpaid' && data && !data.statement ? (
             <Button
               type="button"
               variant="secondary"
@@ -214,7 +220,7 @@ export function InvoiceBreakdownPanel({
         </div>
       </div>
 
-      {data.statement ? (
+      {data?.statement ? (
         <div className="rounded-lg bg-surface-sunken p-3 text-sm">
           <p className="font-medium text-text-strong">Balance statement</p>
           <p className="text-text-muted">
@@ -227,7 +233,7 @@ export function InvoiceBreakdownPanel({
         </div>
       ) : null}
 
-      {data.sections
+      {(data?.sections ?? [])
         .filter((s) => s.orderCount > 0)
         .map((s) => {
           const admin = s.orders.some((o) => 'carrierCostUsd' in o);
