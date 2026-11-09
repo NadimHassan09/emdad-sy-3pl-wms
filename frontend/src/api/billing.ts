@@ -670,6 +670,16 @@ export const BillingApi = {
     return data;
   },
 
+  async exportInvoices(
+    params: ListBillingInvoicesParams & { format?: 'xlsx' | 'csv' } = {},
+  ): Promise<Blob> {
+    const res = await api.get('/billing/invoices/export', {
+      params: { format: 'xlsx', ...params },
+      responseType: 'blob',
+    });
+    return res.data;
+  },
+
   async listInvoices(companyId?: string): Promise<BillingInvoiceRow[]> {
     const { data } = await api.get<PageResult<BillingInvoiceRow>>('/billing/invoices', {
       params: { companyId, limit: 200, offset: 0 },

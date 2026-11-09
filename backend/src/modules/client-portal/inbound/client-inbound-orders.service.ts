@@ -55,6 +55,8 @@ export class ClientInboundOrdersService {
       limit: query.limit,
       offset: query.offset,
       orderSearch: query.orderSearch,
+      createdFrom: query.createdFrom,
+      createdTo: query.createdTo,
       companyId: client.companyId,
     };
 
@@ -69,7 +71,7 @@ export class ClientInboundOrdersService {
 
   async listForExport(
     client: ClientPrincipal,
-    query: { orderSearch?: string; status?: string },
+    query: { orderSearch?: string; status?: string; createdFrom?: string; createdTo?: string },
     opts: { maxRows: number; ids?: string[] },
   ) {
     const principal = clientAuthPrincipal(client);
@@ -103,6 +105,8 @@ export class ClientInboundOrdersService {
 
     const base: ListQueryWithStatusIn = {
       orderSearch: query.orderSearch,
+      createdFrom: query.createdFrom,
+      createdTo: query.createdTo,
       companyId: client.companyId,
       limit: opts.maxRows,
       offset: 0,

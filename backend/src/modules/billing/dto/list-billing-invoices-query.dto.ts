@@ -64,3 +64,11 @@ export class ListBillingInvoicesQueryDto extends PaginationDto {
   @IsIn(['asc', 'desc'])
   sort_dir?: 'asc' | 'desc';
 }
+
+/** Same filters as the list; limit/offset are ignored by the export. */
+export class ExportBillingInvoicesQueryDto extends ListBillingInvoicesQueryDto {
+  @EmptyToUndefined()
+  @IsOptional()
+  @IsIn(['xlsx', 'csv'])
+  format?: 'xlsx' | 'csv';
+}

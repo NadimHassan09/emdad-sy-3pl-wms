@@ -119,9 +119,38 @@ export function InventoryPage() {
   const toast = useToast();
   const { warehouseId: warehouseIdForced } = useDefaultWarehouseId();
   const [scanOpen, setScanOpen] = useState(false);
+  const [exportingKind, setExportingKind] = useState<'xlsx' | 'csv' | null>(null);
   const [barcodePreview, setBarcodePreview] = useState<{ value: string; name: string } | null>(
     null,
   );
+
+  const downloadStockExport = async (format: 'xlsx' | 'csv') => {
+    if (exportingKind || !warehouseIdForced) return;
+    setExportingKind(format);
+    try {
+      const blob = await InventoryApi.exportStockByProduct({
+        ...summaryParams,
+        format,
+      });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `inventory-stock-${new Date().toISOString().slice(0, 10)}.${format}`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      toast.success(
+        format === 'xlsx'
+          ? t('Excel export downloaded.', 'تم تنزيل ملف Excel.')
+          : t('CSV export downloaded.', 'تم تنزيل ملف CSV.'),
+      );
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : t('Export failed.', 'فشل التصدير.'));
+    } finally {
+      setExportingKind(null);
+    }
+  };
 
   const initialInvFilters = useMemo<InvDraftFilters>(
     () => ({
@@ -299,6 +328,38 @@ export function InventoryPage() {
         'تصفح المنتجات وافتح التفاصيل لسجل المخزون.',
       )}
       isArabic={isArabic}
+      actions={
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            className="inline-flex items-center gap-2 rounded-md border border-border bg-bg-surface px-3 py-2 text-sm font-semibold text-text-strong transition hover:bg-surface-hover disabled:opacity-50"
+            disabled={!!exportingKind || !warehouseIdForced}
+            onClick={() => void downloadStockExport('xlsx')}
+          >
+            <i
+              className={`fa-solid ${exportingKind === 'xlsx' ? 'fa-spinner fa-spin' : 'fa-file-excel'} text-xs text-status-success-fg`}
+              aria-hidden
+            />
+            {exportingKind === 'xlsx'
+              ? t('Exporting…', 'جاري التصدير…')
+              : t('Export Excel', 'تصدير إكسل')}
+          </button>
+          <button
+            type="button"
+            className="inline-flex items-center gap-2 rounded-md border border-border bg-bg-surface px-3 py-2 text-sm font-semibold text-text-strong transition hover:bg-surface-hover disabled:opacity-50"
+            disabled={!!exportingKind || !warehouseIdForced}
+            onClick={() => void downloadStockExport('csv')}
+          >
+            <i
+              className={`fa-solid ${exportingKind === 'csv' ? 'fa-spinner fa-spin' : 'fa-file-csv'} text-xs`}
+              aria-hidden
+            />
+            {exportingKind === 'csv'
+              ? t('Exporting…', 'جاري التصدير…')
+              : t('Export CSV', 'تصدير CSV')}
+          </button>
+        </div>
+      }
     >
       {!warehouseIdForced && (
         <Alert

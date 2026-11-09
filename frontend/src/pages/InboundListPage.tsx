@@ -62,7 +62,8 @@ function inboundLabel(label: string, isArabic: boolean): string {
     'Inbound orders': 'طلبات الوارد',
     '+ New inbound': '+ وارد جديد',
     Import: 'استيراد',
-    'Export CSV': 'تصدير CSV',
+    'Export CSV': 'تصدير',
+    Export: 'تصدير',
     'Search order # or client…': 'ابحث برقم الطلب أو العميل…',
     Client: 'العميل',
     'Created from': 'تاريخ الإنشاء من',
@@ -490,7 +491,7 @@ export function InboundListPage() {
         disabled={exporting}
         onClick={() => setExportOpen(true)}
       >
-        {t('Export CSV')}
+        {t('Export')}
       </Button>
       {!isViewer && (
         <Button

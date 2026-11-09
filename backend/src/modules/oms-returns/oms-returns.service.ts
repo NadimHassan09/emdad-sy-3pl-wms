@@ -67,7 +67,7 @@ import {
 import type { InboundExecutionPlan } from '../orders/execution-plan.types';
 import { PaginationDto } from '../../common/dto/pagination.dto';
 import { EmptyToUndefined } from '../../common/transformers/query-transform';
-import { IsOptional, IsEnum, IsString, Matches, MaxLength } from 'class-validator';
+import { IsEnum, IsIn, IsOptional, IsString, Matches, MaxLength } from 'class-validator';
 import { IsUuidLoose } from '../../common/validators/is-uuid-loose';
 import { buildExcelBuffer } from '../../common/utils/excel-export.util';
 import { rowsToCsv } from '../oms/oms-orders-csv.util';
@@ -105,6 +105,12 @@ export class ListOmsReturnsQueryDto extends PaginationDto {
   @IsOptional()
   @Matches(DAY, { message: 'createdTo must be YYYY-MM-DD' })
   createdTo?: string;
+
+  /** Export only: `xlsx` (default) or `csv`. Declared because the global pipe forbids unknown query keys. */
+  @EmptyToUndefined()
+  @IsOptional()
+  @IsIn(['xlsx', 'csv'])
+  format?: 'xlsx' | 'csv';
 }
 
 const INCLUDE = {

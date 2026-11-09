@@ -17,6 +17,7 @@ import { CurrentUser } from '../../common/auth/current-user.decorator';
 import { AuthPrincipal } from '../../common/auth/current-user.types';
 import { InternalAdminGuard } from '../../common/auth/internal-admin.guard';
 import { ParseUuidLoosePipe } from '../../common/pipes/parse-uuid-loose.pipe';
+import { parseExportFormat, sendTabularExport } from '../../common/utils/tabular-export.util';
 import { InvoicePdfService } from '../../pdf/invoice-pdf.service';
 import { BillingCyclesService } from './billing-cycles.service';
 import { BillingDashboardService } from './billing-dashboard.service';
@@ -34,7 +35,10 @@ import {
   UpdateInvoiceDto,
   UpdateManualInvoiceLineDto,
 } from './dto/invoice-mutations.dto';
-import { ListBillingInvoicesQueryDto } from './dto/list-billing-invoices-query.dto';
+import {
+  ExportBillingInvoicesQueryDto,
+  ListBillingInvoicesQueryDto,
+} from './dto/list-billing-invoices-query.dto';
 import { ListBillingPlansQueryDto } from './dto/list-billing-plans-query.dto';
 import { UpdateBillingPlanDto } from './dto/update-billing-plan.dto';
 import {
@@ -136,6 +140,17 @@ export class BillingController {
   @Get('invoices')
   listInvoices(@CurrentUser() user: AuthPrincipal, @Query() query: ListBillingInvoicesQueryDto) {
     return this.invoices.listPage(user, query);
+  }
+
+  /** Branded Excel / CSV of the invoice list with the same filters (must stay above `invoices/:id`). */
+  @Get('invoices/export')
+  async exportInvoices(
+    @CurrentUser() user: AuthPrincipal,
+    @Query() query: ExportBillingInvoicesQueryDto,
+    @Res() res: Response,
+  ) {
+    const result = await this.invoices.exportInvoices(user, query, parseExportFormat(query.format));
+    return sendTabularExport(res, result);
   }
 
   @Post('invoices/ad-hoc')

@@ -53,6 +53,7 @@ const LocationsPage           = lazyPage(() => import('./pages/LocationsPage'), 
 const WarehouseLocationsPage  = lazyPage(() => import('./pages/WarehouseLocationsPage'),  'WarehouseLocationsPage');
 const WarehousesPage          = lazyPage(() => import('./pages/WarehousesPage'),          'WarehousesPage');
 const InventoryPage           = lazyPage(() => import('./pages/InventoryPage'),           'InventoryPage');
+const InventoryLedgerPage     = lazyPage(() => import('./pages/InventoryLedgerPage'),     'InventoryLedgerPage');
 const InventoryProductDetailPage = lazyPage(() => import('./pages/InventoryProductDetailPage'), 'InventoryProductDetailPage');
 const InventoryLedgerEntryPage = lazyPage(() => import('./pages/InventoryLedgerEntryPage'), 'InventoryLedgerEntryPage');
 const InventoryLedgerReferencePage = lazyPage(() => import('./pages/InventoryLedgerReferencePage'), 'InventoryLedgerReferencePage');
@@ -169,7 +170,7 @@ export const router = createBrowserRouter([
       { path: 'inventory', element: <Navigate to="/inventory/stock" replace /> },
       { path: 'inventory/ledger/line/:ledgerId/:createdAt', element: <InventoryLedgerEntryPage /> },
       { path: 'inventory/ledger/:referenceType/:referenceId', element: <InventoryLedgerReferencePage /> },
-      { path: 'inventory/ledger', element: <Navigate to="/inventory/stock" replace /> },
+      { path: 'inventory/ledger', element: <InventoryLedgerPage /> },
       { path: 'inventory/product/:productId', element: <InventoryProductDetailPage /> },
       { path: 'inventory/stock', element: <InventoryPage /> },
       { path: 'adjustments', element: <Navigate to="/inventory/adjustments" replace /> },

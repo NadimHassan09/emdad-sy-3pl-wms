@@ -19,6 +19,11 @@ import { assertLocationUsableForInventoryMove } from '../../common/utils/locatio
 import { AuditLogService } from '../../common/audit/audit-log.service';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { withTenantRls } from '../../common/prisma/tenant-rls';
+import {
+  buildTabularExport,
+  EXPORT_MAX_ROWS,
+  type TabularExportFormat,
+} from '../../common/utils/tabular-export.util';
 import { RealtimeService } from '../realtime/realtime.service';
 import { transferPayload } from '../realtime/realtime-ops.payload';
 import { InternalTransferDto } from './dto/internal-transfer.dto';
@@ -313,6 +318,149 @@ export class InventoryService {
       }));
 
       return { items, total, limit: query.limit, offset: query.offset };
+    });
+  }
+
+  /**
+   * Export of the stock-by-product list (same filters/tenant scope as the list, no paging).
+   * Capped at EXPORT_MAX_ROWS; `truncated` is reported to the caller.
+   */
+  async exportStockByProduct(
+    user: AuthPrincipal,
+    query: StockQueryDto,
+    format: TabularExportFormat,
+  ) {
+    const ctx = await buildStockByProductSqlContext(
+      this.prisma,
+      this.companyAccess,
+      user,
+      query,
+    );
+    const fetched = await withTenantRls(this.prisma, user, (tx) =>
+      tx.$queryRaw<StockByProductRow[]>(
+        stockByProductPageSql(ctx, EXPORT_MAX_ROWS + 1, 0),
+      ),
+    );
+    const truncated = fetched.length > EXPORT_MAX_ROWS;
+    const pageRows = truncated ? fetched.slice(0, EXPORT_MAX_ROWS) : fetched;
+
+    const rows = pageRows.map((r) => ({
+      client: r.company_name,
+      sku: r.sku,
+      name: r.name,
+      barcode: r.barcode ?? '',
+      uom: r.uom,
+      onHand: Number(r.total_quantity),
+      reserved: Number(r.reserved_quantity),
+      available: Number(r.available_quantity),
+      lastMovementAt: r.last_movement_at ?? '',
+      lastMovementQty: r.last_quantity_change != null ? Number(r.last_quantity_change) : '',
+      lastMovementType: r.last_movement_type ?? '',
+    }));
+    const totalAvailable = rows.reduce((acc, r) => acc + r.available, 0);
+    const totalOnHand = rows.reduce((acc, r) => acc + r.onHand, 0);
+    const totalReserved = rows.reduce((acc, r) => acc + r.reserved, 0);
+    const clients = new Set(pageRows.map((r) => r.company_id)).size;
+
+    return buildTabularExport({
+      format,
+      baseName: 'inventory-stock',
+      sheetName: 'Inventory Stock',
+      title: 'Inventory Stock Export',
+      truncated,
+      columns: [
+        { header: 'Client', key: 'client', width: 24 },
+        { header: 'SKU', key: 'sku', width: 18 },
+        { header: 'Product', key: 'name', width: 30 },
+        { header: 'Barcode', key: 'barcode', width: 18 },
+        { header: 'Unit', key: 'uom', width: 10 },
+        { header: 'On hand', key: 'onHand', width: 12 },
+        { header: 'Reserved', key: 'reserved', width: 12 },
+        { header: 'Available', key: 'available', width: 12 },
+        { header: 'Last movement at', key: 'lastMovementAt', width: 20 },
+        { header: 'Last movement qty', key: 'lastMovementQty', width: 16 },
+        { header: 'Last movement type', key: 'lastMovementType', width: 20 },
+      ],
+      rows,
+      summary: [
+        { label: 'Total SKUs', value: rows.length },
+        { label: 'Total available', value: totalAvailable },
+        { label: 'Total on hand', value: totalOnHand },
+        { label: 'Total reserved', value: totalReserved },
+        { label: 'Clients', value: clients },
+      ],
+    });
+  }
+
+  /** Export of the business movement ledger (same filters/tenant scope as the list, no paging). */
+  async exportLedger(
+    user: AuthPrincipal,
+    query: LedgerQueryDto,
+    format: TabularExportFormat,
+  ) {
+    const ctx = await buildLedgerListSqlContext(
+      this.prisma,
+      this.companyAccess,
+      user,
+      query,
+    );
+    const fetched = await withTenantRls(this.prisma, user, (tx) =>
+      tx.$queryRaw<LedgerGroupPageRow[]>(
+        ledgerBusinessGroupPageSql(ctx, EXPORT_MAX_ROWS + 1, 0),
+      ),
+    );
+    const truncated = fetched.length > EXPORT_MAX_ROWS;
+    const pageRows = truncated ? fetched.slice(0, EXPORT_MAX_ROWS) : fetched;
+    const mapped = pageRows.map((r) => this.mapLedgerGroupPageRow(r));
+
+    const rows = mapped.map((m) => ({
+      createdAt: m.createdAt,
+      client: m.company.name,
+      sku: m.product.sku,
+      product: m.product.name,
+      lot: m.lot?.lotNumber ?? '',
+      movementType: m.movementType,
+      quantityChange: Number(m.quantityChange),
+      referenceType: m.referenceType,
+      referenceId: m.referenceId,
+      operator: m.operator.fullName,
+      notes: m.notes ?? '',
+    }));
+    const net = rows.reduce((acc, r) => acc + r.quantityChange, 0);
+    const received = rows.filter((r) => r.quantityChange > 0).reduce((a, r) => a + r.quantityChange, 0);
+    const issued = rows.filter((r) => r.quantityChange < 0).reduce((a, r) => a + r.quantityChange, 0);
+    const clients = new Set(mapped.map((m) => m.companyId)).size;
+
+    return buildTabularExport({
+      format,
+      baseName: 'inventory-ledger',
+      sheetName: 'Inventory Ledger',
+      title: 'Inventory Ledger Export',
+      truncated,
+      columns: [
+        { header: 'Date', key: 'createdAt', width: 20 },
+        { header: 'Client', key: 'client', width: 24 },
+        { header: 'SKU', key: 'sku', width: 18 },
+        { header: 'Product', key: 'product', width: 30 },
+        { header: 'Lot', key: 'lot', width: 14 },
+        { header: 'Movement', key: 'movementType', width: 18 },
+        { header: 'Quantity change', key: 'quantityChange', width: 16 },
+        { header: 'Reference type', key: 'referenceType', width: 18 },
+        { header: 'Reference ID', key: 'referenceId', width: 38 },
+        { header: 'Operator', key: 'operator', width: 22 },
+        { header: 'Notes', key: 'notes', width: 30 },
+      ],
+      rows,
+      summary: [
+        { label: 'Movements', value: rows.length },
+        { label: 'Total received (+)', value: received },
+        { label: 'Total issued (−)', value: issued },
+        { label: 'Net change', value: net },
+        { label: 'Clients', value: clients },
+        ...(query.createdFrom || query.createdTo
+          ? [{ label: 'Date range', value: `${query.createdFrom ?? '…'} → ${query.createdTo ?? '…'}` }]
+          : []),
+      ],
     });
   }
 

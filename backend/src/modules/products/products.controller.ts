@@ -19,6 +19,7 @@ import { ParseUuidLoosePipe } from '../../common/pipes/parse-uuid-loose.pipe';
 import { CreateProductDto } from './dto/create-product.dto';
 import { ListProductsQueryDto } from './dto/list-products-query.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
+import { parseExportFormat } from '../../common/utils/tabular-export.util';
 import { ProductsService } from './products.service';
 
 @Controller('products')
@@ -42,8 +43,17 @@ export class ProductsController {
     @Query() query: ListProductsQueryDto,
     @Res() res: Response,
   ) {
+    const stamp = new Date().toISOString().slice(0, 10);
+    res.setHeader('Cache-Control', 'no-store');
+    if (parseExportFormat(query.format) === 'csv') {
+      const csv = await this.products.exportCsv(user, query);
+      res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+      res.setHeader('Content-Disposition', `attachment; filename="products-export-${stamp}.csv"`);
+      res.end(csv);
+      return;
+    }
     const buffer = await this.products.exportXlsx(user, query);
-    const filename = `products-export-${new Date().toISOString().slice(0, 10)}.xlsx`;
+    const filename = `products-export-${stamp}.xlsx`;
     res.setHeader(
       'Content-Type',
       'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',

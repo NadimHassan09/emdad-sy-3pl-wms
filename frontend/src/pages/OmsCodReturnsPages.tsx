@@ -138,7 +138,7 @@ export function OmsCodPage() {
       amountMax: '',
     });
   const [advancedOpen, setAdvancedOpen] = useCachedState('oms-cod:advanced-filters-open', false);
-  const [exportingKind, setExportingKind] = useState<'xlsx' | 'pdf' | null>(null);
+  const [exportingKind, setExportingKind] = useState<'xlsx' | 'csv' | 'pdf' | null>(null);
 
   const companiesQuery = useQuery({
     queryKey: QK.companies,
@@ -478,6 +478,25 @@ export function OmsCodPage() {
                 : isArabic
                   ? 'تصدير Excel'
                   : 'Export Excel'}
+            </button>
+            <button
+              type="button"
+              disabled={exportingKind !== null}
+              className="rounded-lg border border-border px-3 py-2 text-sm font-medium disabled:opacity-60"
+              onClick={() => {
+                setExportingKind('csv');
+                void CodApi.exportExcel({ ...listParams, format: 'csv' })
+                  .catch((err: Error) => toast.error(err.message))
+                  .finally(() => setExportingKind(null));
+              }}
+            >
+              {exportingKind === 'csv'
+                ? isArabic
+                  ? 'جاري التصدير…'
+                  : 'Exporting…'
+                : isArabic
+                  ? 'تصدير CSV'
+                  : 'Export CSV'}
             </button>
             <button
               type="button"
@@ -976,6 +995,19 @@ export function OmsReturnsPage() {
               : isArabic
                 ? 'تصدير إكسل'
                 : 'Export Excel'}
+          </Button>
+          <Button
+            variant="secondary"
+            disabled={exporting}
+            onClick={() => {
+              setExporting(true);
+              void OmsReturnsApi.exportExcel({ ...listParams, format: 'csv' })
+                .catch((e: Error) => toast.error(e.message))
+                .finally(() => setExporting(false));
+            }}
+          >
+            <i className="fa-solid fa-file-csv mr-1.5" aria-hidden />
+            {isArabic ? 'تصدير CSV' : 'Export CSV'}
           </Button>
           <Button
             variant="secondary"

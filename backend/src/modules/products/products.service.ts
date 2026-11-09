@@ -36,7 +36,12 @@ import {
 } from './product-delete-references.util';
 import { resolveProductVolumeCbmFromDims } from './product-volume.util';
 import { toAvatarPublicUrl } from '../media/avatar-url';
-import { buildExcelBuffer, ExcelExportColumn } from '../../common/utils/excel-export.util';
+import {
+  buildExcelBuffer,
+  ExcelExportColumn,
+  ExcelSummaryStat,
+} from '../../common/utils/excel-export.util';
+import { buildTabularExport } from '../../common/utils/tabular-export.util';
 
 const SKU_RETRY_LIMIT = 5;
 const BARCODE_RETRY_LIMIT = 8;
@@ -348,6 +353,38 @@ export class ProductsService {
   }
 
   async exportXlsx(user: AuthPrincipal, query: ListProductsQueryDto): Promise<Buffer> {
+    const data = await this.buildExportData(user, query);
+    return buildExcelBuffer({
+      sheetName: 'Products',
+      title: 'Products Export',
+      columns: data.columns,
+      rows: data.rows,
+      summary: data.summary,
+    });
+  }
+
+  /** CSV (UTF-8 BOM) with the same columns/rows as the Excel export; cells are formula-sanitised. */
+  async exportCsv(user: AuthPrincipal, query: ListProductsQueryDto): Promise<string> {
+    const data = await this.buildExportData(user, query);
+    const result = await buildTabularExport({
+      format: 'csv',
+      baseName: 'products-export',
+      sheetName: 'Products',
+      title: 'Products Export',
+      columns: data.columns,
+      rows: data.rows,
+    });
+    return String(result.body);
+  }
+
+  private async buildExportData(
+    user: AuthPrincipal,
+    query: ListProductsQueryDto,
+  ): Promise<{
+    columns: ExcelExportColumn[];
+    rows: Array<Record<string, unknown>>;
+    summary: ExcelSummaryStat[];
+  }> {
     const includeArchived = coerceOptionalBool(query.includeArchived) === true || query.status === 'archived';
     const where: Prisma.ProductWhereInput = {};
     if (query.status && query.status !== 'all') {
@@ -454,9 +491,7 @@ export class ProductsService {
         .map((r) => `${String(r.sku)} (${String(r.onHand)})`)
         .join(', ');
 
-      return buildExcelBuffer({
-        sheetName: 'Products',
-        title: 'Products Export',
+      return {
         columns,
         rows,
         summary: [
@@ -467,7 +502,7 @@ export class ProductsService {
           { label: 'Top SKUs by Stock', value: topSkus || '—' },
           { label: 'Export Date', value: new Date().toLocaleDateString('en-GB') },
         ],
-      });
+      };
     });
   }
 

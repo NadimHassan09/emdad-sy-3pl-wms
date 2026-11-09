@@ -1,13 +1,13 @@
 # EMDAD QA Coverage (generated)
 
-Generated 2026-11-07 by `qa_progress.py` from `QA_TRACKER.md` and `QA_FLOWS.md`. Do not edit by hand.
+Generated 2026-11-09 by `qa_progress.py` from `QA_TRACKER.md` and `QA_FLOWS.md`. Do not edit by hand.
 
-## Overall: 27.5% tested, 72.5% remaining
+## Overall: 28.5% tested, 71.5% remaining
 
 | Layer | Weight | Done | Items |
 |---|---|---|---|
 | Route checks (functional, validation, roles, consistency, mobile) | 40% | 8.0% | 665 checks on 133 routes |
-| Business flows | 40% | 40.5% | 42 flows |
+| Business flows | 40% | 42.9% | 42 flows |
 | Cross-cutting (security, errors, responsive, data, tests, release) | 20% | 40.6% | 16 checks |
 
 ## Routes by module
@@ -85,7 +85,7 @@ Generated 2026-11-07 by `qa_progress.py` from `QA_TRACKER.md` and `QA_FLOWS.md`.
 | F17 | Carriers | Sena sandbox: create, status simulation, cancel, return, label, edit | 🔄 |
 | F18 | Carriers | Babel live: create, price vs portal, cancel | ✅ |
 | F19 | Carriers | Sila live: create, price vs portal, cancel | ✅ |
-| F20 | Carriers | Delivery Joud | ⛔ |
+| F20 | Carriers | Delivery Joud | ✅ |
 | F21 | Carriers | Webhooks in both directions (valid, invalid signature, duplicate, out-of-order) | ⬜ |
 | F22 | Carriers | Coverage per governorate and the carrier eligibility rules (weight, COD currency, zone) | 🔄 |
 | F23 | Currency | Three currencies (USD, old SYP, new SYP): quotes, COD, finance, display | 🔄 |
@@ -127,7 +127,7 @@ Generated 2026-11-07 by `qa_progress.py` from `QA_TRACKER.md` and `QA_FLOWS.md`.
 
 ## Status counts (flows + cross-cutting)
 
-⛔ 2 · ✅ 8 · ⬜ 17 · 🔄 31
+⛔ 1 · ✅ 9 · ⬜ 17 · 🔄 31
 
 ## Definition of done (hand over to the client)
 

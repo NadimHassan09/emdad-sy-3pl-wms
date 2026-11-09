@@ -243,4 +243,28 @@ export const InventoryApi = {
     const { data } = await api.post<InternalTransferResult>('/inventory/internal-transfer', body);
     return data;
   },
+
+  /** Branded Excel / CSV of the stock-by-product grid (same filters as the list). */
+  async exportStockByProduct(
+    query: StockQuery & { format?: 'xlsx' | 'csv' } = {},
+  ): Promise<Blob> {
+    const { format = 'xlsx', ...params } = query;
+    const res = await api.get('/inventory/stock/by-product/export', {
+      params: { ...params, format },
+      responseType: 'blob',
+    });
+    return res.data;
+  },
+
+  /** Branded Excel / CSV of the inventory ledger (same filters as the list). */
+  async exportLedger(
+    query: LedgerQuery & { format?: 'xlsx' | 'csv' } = {},
+  ): Promise<Blob> {
+    const { format = 'xlsx', ...params } = query;
+    const res = await api.get('/inventory/ledger/export', {
+      params: { ...params, format },
+      responseType: 'blob',
+    });
+    return res.data;
+  },
 };

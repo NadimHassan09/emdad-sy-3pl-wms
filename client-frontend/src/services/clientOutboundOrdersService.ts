@@ -67,6 +67,8 @@ export async function fetchClientOutboundOrders(params: {
   offset?: number;
   orderSearch?: string;
   status?: string;
+  createdFrom?: string;
+  createdTo?: string;
 }): Promise<ClientOutboundOrdersPage> {
   const { data } = await apiClient.get<ClientOutboundOrdersPage>('/outbound-orders', { params });
   return data;

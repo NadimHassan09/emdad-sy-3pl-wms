@@ -1295,16 +1295,18 @@ export const CodApi = {
     createdTo?: string;
     amountMin?: number;
     amountMax?: number;
+    format?: 'xlsx' | 'csv';
   } = {}): Promise<void> {
+    const format = params.format ?? 'xlsx';
     const response = await api.get<Blob>('/cod/records/export', {
-      params,
+      params: { ...params, format },
       responseType: 'blob',
     });
     saveOmsBlob(
       response.data,
       filenameFromDisposition(
         response.headers['content-disposition'],
-        `COD_Report_${params.companyId ? 'Client' : 'All_Clients'}.xlsx`,
+        `COD_Report_${params.companyId ? 'Client' : 'All_Clients'}.${format}`,
       ),
     );
   },

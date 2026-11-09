@@ -11,6 +11,11 @@ import {
 import { AuthPrincipal } from '../../common/auth/current-user.types';
 import { CompanyAccessService } from '../../common/company-access/company-access.service';
 import { PrismaService } from '../../common/prisma/prisma.service';
+import {
+  buildTabularExport,
+  EXPORT_MAX_ROWS,
+  type TabularExportFormat,
+} from '../../common/utils/tabular-export.util';
 import { RealtimeService } from '../realtime/realtime.service';
 import { BillingAuditService, BILLING_AUDIT_ACTIONS } from './billing-audit.service';
 import { BillingInvoiceCalculationService } from './billing-invoice-calculation.service';
@@ -267,6 +272,101 @@ export class BillingInvoicesService {
     ]);
 
     return { items, total, limit: query.limit, offset: query.offset };
+  }
+
+  /** Export of the invoice list (same filters/tenant scope as the list, no paging; capped). */
+  async exportInvoices(
+    user: AuthPrincipal,
+    query: ListBillingInvoicesQueryDto,
+    format: TabularExportFormat,
+  ) {
+    const where = this.buildInvoiceWhere(user, query);
+    const orderBy = this.buildInvoiceOrderBy(query);
+    const fetched = await this.prisma.invoice.findMany({
+      where,
+      orderBy,
+      take: EXPORT_MAX_ROWS + 1,
+      select: {
+        invoiceNumber: true,
+        companyId: true,
+        company: { select: { name: true } },
+        invoiceSource: true,
+        status: true,
+        subtotalAmount: true,
+        discountAmount: true,
+        vatAmount: true,
+        grandTotal: true,
+        totalAmount: true,
+        issuedAt: true,
+        dueDate: true,
+        createdAt: true,
+        periodStart: true,
+        periodEnd: true,
+        billingCycle: { select: { startsAt: true, endsAt: true } },
+      },
+    });
+    const truncated = fetched.length > EXPORT_MAX_ROWS;
+    const items = truncated ? fetched.slice(0, EXPORT_MAX_ROWS) : fetched;
+    const day = (d: Date | null | undefined) => (d ? d.toISOString().slice(0, 10) : '');
+
+    const rows = items.map((i) => ({
+      invoiceNumber: i.invoiceNumber,
+      client: i.company?.name ?? i.companyId,
+      source: i.invoiceSource,
+      periodStart: day(i.billingCycle?.startsAt ?? i.periodStart),
+      periodEnd: day(i.billingCycle?.endsAt ?? i.periodEnd),
+      subtotal: i.subtotalAmount.toString(),
+      discount: i.discountAmount.toString(),
+      vat: i.vatAmount.toString(),
+      total: (i.grandTotal ?? i.totalAmount).toString(),
+      currency: 'USD',
+      status: i.status,
+      issuedAt: day(i.issuedAt),
+      dueDate: day(i.dueDate),
+      createdAt: day(i.createdAt),
+    }));
+    let total = new Prisma.Decimal(0);
+    let paid = new Prisma.Decimal(0);
+    for (const i of items) {
+      const amount = i.grandTotal ?? i.totalAmount;
+      total = total.add(amount);
+      if (i.status === BillingInvoiceStatus.paid) paid = paid.add(amount);
+    }
+    const clients = new Set(items.map((i) => i.companyId)).size;
+
+    return buildTabularExport({
+      format,
+      baseName: 'billing-invoices',
+      sheetName: 'Invoices',
+      title: 'Billing Invoices Export',
+      truncated,
+      columns: [
+        { header: 'Invoice #', key: 'invoiceNumber', width: 20 },
+        { header: 'Client', key: 'client', width: 24 },
+        { header: 'Source', key: 'source', width: 14 },
+        { header: 'Period start', key: 'periodStart', width: 14 },
+        { header: 'Period end', key: 'periodEnd', width: 14 },
+        { header: 'Subtotal', key: 'subtotal', width: 14 },
+        { header: 'Discount', key: 'discount', width: 12 },
+        { header: 'VAT', key: 'vat', width: 12 },
+        { header: 'Total', key: 'total', width: 14 },
+        { header: 'Currency', key: 'currency', width: 10 },
+        { header: 'Status', key: 'status', width: 12 },
+        { header: 'Issue date', key: 'issuedAt', width: 14 },
+        { header: 'Due date', key: 'dueDate', width: 14 },
+        { header: 'Created', key: 'createdAt', width: 14 },
+      ],
+      rows,
+      summary: [
+        { label: 'Invoices', value: rows.length },
+        { label: 'Total amount (USD)', value: total.toFixed(2) },
+        { label: 'Paid amount (USD)', value: paid.toFixed(2) },
+        { label: 'Clients', value: clients },
+        ...(query.createdFrom || query.createdTo
+          ? [{ label: 'Created range', value: `${query.createdFrom ?? '…'} → ${query.createdTo ?? '…'}` }]
+          : []),
+      ],
+    });
   }
 
   list(user: AuthPrincipal, companyId?: string) {

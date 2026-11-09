@@ -60,6 +60,8 @@ function inboundLabel(label: string, isArabic: boolean): string {
     'Expected Arrival': 'الوصول المتوقع',
     Lines: 'البنود',
     Created: 'تاريخ الإنشاء',
+    'Created from': 'تاريخ الإنشاء من',
+    'Created to': 'تاريخ الإنشاء إلى',
     Actions: 'الإجراءات',
     'No inbound orders found.': 'لا توجد طلبات وارد.',
     'Could not load inbound orders': 'تعذر تحميل طلبات الوارد',
@@ -68,7 +70,7 @@ function inboundLabel(label: string, isArabic: boolean): string {
   return ar[label] ?? label;
 }
 
-const INBOUND_LIST_FILTERS = { search: '', status: '' };
+const INBOUND_LIST_FILTERS = { search: '', status: '', createdFrom: '', createdTo: '' };
 
 export function InboundOrdersPage(): ReactElement {
   const navigate = useNavigate();
@@ -90,6 +92,8 @@ export function InboundOrdersPage(): ReactElement {
     () => ({
       orderSearch: appliedFilters.search.trim() || undefined,
       status: appliedFilters.status || undefined,
+      createdFrom: appliedFilters.createdFrom || undefined,
+      createdTo: appliedFilters.createdTo || undefined,
     }),
     [appliedFilters],
   );
@@ -108,7 +112,7 @@ export function InboundOrdersPage(): ReactElement {
 
   useEffect(() => {
     setSelectedIds(new Set());
-  }, [filterKey.orderSearch, filterKey.status, pagination.page]);
+  }, [filterKey.orderSearch, filterKey.status, filterKey.createdFrom, filterKey.createdTo, pagination.page]);
 
   const allPageSelected = pageIds.length > 0 && pageIds.every((id) => selectedIds.has(id));
   const somePageSelected = pageIds.some((id) => selectedIds.has(id)) && !allPageSelected;
@@ -144,6 +148,8 @@ export function InboundOrdersPage(): ReactElement {
         ids,
         orderSearch: ids ? undefined : filterKey.orderSearch,
         status: ids ? undefined : filterKey.status,
+        createdFrom: ids ? undefined : filterKey.createdFrom,
+        createdTo: ids ? undefined : filterKey.createdTo,
       });
       setExportOpen(false);
     } catch (err) {
@@ -321,6 +327,24 @@ export function InboundOrdersPage(): ReactElement {
             value={draftFilters.search}
             onChange={(e) => setDraft({ search: e.target.value })}
             placeholder={t('Search order number...')}
+            className={FILTER_FIELD_CONTROL_CLASS}
+          />
+        </div>
+        <div className="min-w-0">
+          <label className="mb-1 block text-xs font-semibold text-text-muted">{t('Created from')}</label>
+          <input
+            type="date"
+            value={draftFilters.createdFrom}
+            onChange={(e) => setDraft({ createdFrom: e.target.value })}
+            className={FILTER_FIELD_CONTROL_CLASS}
+          />
+        </div>
+        <div className="min-w-0">
+          <label className="mb-1 block text-xs font-semibold text-text-muted">{t('Created to')}</label>
+          <input
+            type="date"
+            value={draftFilters.createdTo}
+            onChange={(e) => setDraft({ createdTo: e.target.value })}
             className={FILTER_FIELD_CONTROL_CLASS}
           />
         </div>

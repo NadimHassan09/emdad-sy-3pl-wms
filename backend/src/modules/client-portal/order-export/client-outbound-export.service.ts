@@ -69,7 +69,12 @@ export class ClientOutboundExportService {
 
     const { items, truncated } = await this.outbound.listForExport(
       client,
-      { orderSearch: dto.orderSearch, status: dto.status },
+      {
+        orderSearch: dto.orderSearch,
+        status: dto.status,
+        createdFrom: dto.createdFrom,
+        createdTo: dto.createdTo,
+      },
       { maxRows: MAX_ROWS, ids: dto.ids },
     );
 
@@ -95,7 +100,12 @@ export class ClientOutboundExportService {
 
     const { items, truncated } = await this.outbound.listForExport(
       client,
-      { orderSearch: dto.orderSearch, status: dto.status },
+      {
+        orderSearch: dto.orderSearch,
+        status: dto.status,
+        createdFrom: dto.createdFrom,
+        createdTo: dto.createdTo,
+      },
       { maxRows: MAX_ROWS, ids: dto.ids },
     );
 

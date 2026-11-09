@@ -24,6 +24,7 @@ import { PdfService } from '../../pdf/pdf.service';
 import { CreateCodAdjustmentDto } from './dto/cod.dto';
 import { ListCodRecordsQueryDto } from './dto/list-cod-records-query.dto';
 import { RealtimeService } from '../realtime/realtime.service';
+import { buildTabularExport } from '../../common/utils/tabular-export.util';
 import { buildCodRecordWhere } from './cod-list-filter.util';
 import {
   buildCodPdfFooterTemplate,
@@ -267,6 +268,41 @@ export class CodRecordsService {
       clientLabel,
     });
     return { buffer, filename: codExportFilename(clientLabel, 'xlsx') };
+  }
+
+  /** CSV with the same dataset as the Excel report (UTF-8 BOM, formula-sanitised cells). */
+  async exportCsv(
+    user: AuthPrincipal,
+    query: ListCodRecordsQueryDto,
+  ): Promise<{ body: string; filename: string }> {
+    const { records, clientLabel } = await this.loadExportDataset(user, query);
+    const result = await buildTabularExport({
+      format: 'csv',
+      baseName: 'cod-records',
+      sheetName: 'COD',
+      title: 'COD Export',
+      columns: [
+        { header: 'Order #', key: 'orderNumber' },
+        { header: 'Outbound #', key: 'outboundOrderNumber' },
+        { header: 'Client', key: 'companyName' },
+        { header: 'Recipient', key: 'recipientName' },
+        { header: 'Tracking', key: 'trackingNumber' },
+        { header: 'Amount', key: 'currentAmount' },
+        { header: 'Currency', key: 'currency' },
+        { header: 'Status', key: 'status' },
+        { header: 'Available at', key: 'availableAt' },
+        { header: 'Paid out at', key: 'paidOutAt' },
+      ],
+      rows: records.map((r) => ({
+        ...r,
+        availableAt: r.availableAt ? new Date(r.availableAt) : null,
+        paidOutAt: r.paidOutAt ? new Date(r.paidOutAt) : null,
+      })),
+    });
+    return {
+      body: String(result.body),
+      filename: codExportFilename(clientLabel, 'xlsx').replace(/\.xlsx$/, '.csv'),
+    };
   }
 
   async exportPdf(

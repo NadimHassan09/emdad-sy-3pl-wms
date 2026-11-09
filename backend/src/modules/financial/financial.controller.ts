@@ -8,13 +8,16 @@ import {
   Post,
   Put,
   Query,
+  Res,
   UseGuards,
 } from '@nestjs/common';
+import type { Response } from 'express';
 
 import { CurrentUser } from '../../common/auth/current-user.decorator';
 import { AuthPrincipal } from '../../common/auth/current-user.types';
 import { InternalAdminGuard } from '../../common/auth/internal-admin.guard';
 import { ParseUuidLoosePipe } from '../../common/pipes/parse-uuid-loose.pipe';
+import { parseExportFormat, sendTabularExport } from '../../common/utils/tabular-export.util';
 import { FinancialAccountsService } from './financial-accounts.service';
 import { FinancialTransactionsService } from './financial-transactions.service';
 import { FinancialPoliciesService } from './financial-policies.service';
@@ -24,6 +27,7 @@ import { FinancialCarrierCostsService } from './financial-carrier-costs.service'
 import {
   ConfirmCodCollectionDto,
   ConfirmCodRemittanceDto,
+  ExportFinancialTransactionsQueryDto,
   ListCodFinancialQueryDto,
   ListFinancialTransactionsQueryDto,
   ListPayoutsQueryDto,
@@ -85,6 +89,21 @@ export class FinancialController {
     @CurrentUser() user: AuthPrincipal,
   ) {
     return this.transactions.listTransactions(query, user);
+  }
+
+  /** Branded Excel / CSV of the transaction log with the same filters as the list. */
+  @Get('transactions/export')
+  async exportTransactions(
+    @Query() query: ExportFinancialTransactionsQueryDto,
+    @CurrentUser() user: AuthPrincipal,
+    @Res() res: Response,
+  ) {
+    const result = await this.transactions.exportTransactions(
+      query,
+      parseExportFormat(query.format),
+      user,
+    );
+    return sendTabularExport(res, result);
   }
 
   @Post('transactions/adjustment')

@@ -1,8 +1,10 @@
 import { OutboundOrderStatus } from '@prisma/client';
-import { IsIn, IsOptional, IsString, MaxLength } from 'class-validator';
+import { IsIn, IsOptional, IsString, Matches, MaxLength } from 'class-validator';
 
 import { PaginationDto } from '../../../../common/dto/pagination.dto';
 import { EmptyToUndefined } from '../../../../common/transformers/query-transform';
+
+const DAY = /^\d{4}-\d{2}-\d{2}$/;
 
 /** Client-facing outbound status filter buckets. */
 export const CLIENT_OUTBOUND_STATUS_FILTERS = [
@@ -37,4 +39,14 @@ export class ClientListOutboundQueryDto extends PaginationDto {
   @IsOptional()
   @IsIn([...CLIENT_OUTBOUND_STATUS_FILTERS])
   status?: ClientOutboundStatusFilter;
+
+  @EmptyToUndefined()
+  @IsOptional()
+  @Matches(DAY, { message: 'createdFrom must be YYYY-MM-DD' })
+  createdFrom?: string;
+
+  @EmptyToUndefined()
+  @IsOptional()
+  @Matches(DAY, { message: 'createdTo must be YYYY-MM-DD' })
+  createdTo?: string;
 }

@@ -6,10 +6,13 @@ import {
   IsBoolean,
   IsOptional,
   IsString,
+  Matches,
   MaxLength,
 } from 'class-validator';
 
 import { IsUuidLoose } from '../../../../common/validators/is-uuid-loose';
+
+const DAY = /^\d{4}-\d{2}-\d{2}$/;
 
 /** Client Portal outbound CSV export — selected ids OR current list filters. */
 export class ClientOutboundOrdersExportDto {
@@ -40,6 +43,14 @@ export class ClientOutboundOrdersExportDto {
   @IsString()
   @MaxLength(64)
   status?: string;
+
+  @IsOptional()
+  @Matches(DAY, { message: 'createdFrom must be YYYY-MM-DD' })
+  createdFrom?: string;
+
+  @IsOptional()
+  @Matches(DAY, { message: 'createdTo must be YYYY-MM-DD' })
+  createdTo?: string;
 
   @IsOptional()
   @IsString()

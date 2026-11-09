@@ -1,32 +1,90 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
 import { Alert, Badge, Card, Input, Skeleton } from '@ds';
 
 import { AdminListPageShell } from '../../components/AdminListPageShell';
+import { Combobox } from '../../components/Combobox';
 import { FinanceNav } from '../../components/finance/FinanceNav';
+import { CompaniesApi } from '../../api/companies';
 import { FinanceApi } from '../../api/finance';
+import { QK } from '../../constants/query-keys';
+import { companyFilterComboboxOptions } from '../../lib/company-filter-options';
+import { useToast } from '../../components/ToastProvider';
 
 export function FinancialTransactionsPage() {
+  const toast = useToast();
   const [searchParams, setSearchParams] = useSearchParams();
-  const companyId = searchParams.get('companyId') || undefined;
+  const companyId = searchParams.get('companyId') || '';
   const [type, setType] = useState<string>('');
   const [category, setCategory] = useState<string>('');
   const [search, setSearch] = useState<string>('');
+  const [startDate, setStartDate] = useState<string>('');
+  const [endDate, setEndDate] = useState<string>('');
   const [page, setPage] = useState<number>(1);
+  const [exportingKind, setExportingKind] = useState<'xlsx' | 'csv' | null>(null);
+
+  const companies = useQuery({
+    queryKey: QK.companies,
+    queryFn: () => CompaniesApi.list({ includeAll: true }),
+    staleTime: 10 * 60_000,
+  });
+
+  const listParams = useMemo(
+    () => ({
+      companyId: companyId || undefined,
+      type: type || undefined,
+      category: category || undefined,
+      search: search || undefined,
+      startDate: startDate || undefined,
+      endDate: endDate || undefined,
+      page,
+      limit: 25,
+    }),
+    [companyId, type, category, search, startDate, endDate, page],
+  );
 
   const { data, isLoading, error } = useQuery({
-    queryKey: ['finance', 'transactions', { companyId, type, category, search, page }],
-    queryFn: () =>
-      FinanceApi.listTransactions({
-        companyId,
+    queryKey: ['finance', 'transactions', listParams],
+    queryFn: () => FinanceApi.listTransactions(listParams),
+  });
+
+  const setCompanyId = (id: string) => {
+    const next = new URLSearchParams(searchParams);
+    if (id) next.set('companyId', id);
+    else next.delete('companyId');
+    setSearchParams(next);
+    setPage(1);
+  };
+
+  const downloadExport = async (format: 'xlsx' | 'csv') => {
+    if (exportingKind) return;
+    setExportingKind(format);
+    try {
+      const blob = await FinanceApi.exportTransactions({
+        companyId: companyId || undefined,
         type: type || undefined,
         category: category || undefined,
         search: search || undefined,
-        page,
-        limit: 25,
-      }),
-  });
+        startDate: startDate || undefined,
+        endDate: endDate || undefined,
+        format,
+      });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `finance-transactions-${new Date().toISOString().slice(0, 10)}.${format}`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      toast.success(format === 'xlsx' ? 'Excel export downloaded.' : 'CSV export downloaded.');
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Export failed.');
+    } finally {
+      setExportingKind(null);
+    }
+  };
 
   return (
     <AdminListPageShell
@@ -34,12 +92,39 @@ export function FinancialTransactionsPage() {
       title="Financial Transactions"
       subtitle="Complete chronological transaction log and audit trail of all financial movements"
       showSectionNav={false}
+      actions={
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            className="inline-flex items-center gap-2 rounded-md border border-border bg-bg-surface px-3 py-2 text-sm font-semibold disabled:opacity-50"
+            disabled={!!exportingKind}
+            onClick={() => void downloadExport('xlsx')}
+          >
+            <i
+              className={`fa-solid ${exportingKind === 'xlsx' ? 'fa-spinner fa-spin' : 'fa-file-excel'} text-xs text-status-success-fg`}
+              aria-hidden
+            />
+            {exportingKind === 'xlsx' ? 'Exporting…' : 'Export Excel'}
+          </button>
+          <button
+            type="button"
+            className="inline-flex items-center gap-2 rounded-md border border-border bg-bg-surface px-3 py-2 text-sm font-semibold disabled:opacity-50"
+            disabled={!!exportingKind}
+            onClick={() => void downloadExport('csv')}
+          >
+            <i
+              className={`fa-solid ${exportingKind === 'csv' ? 'fa-spinner fa-spin' : 'fa-file-csv'} text-xs`}
+              aria-hidden
+            />
+            {exportingKind === 'csv' ? 'Exporting…' : 'Export CSV'}
+          </button>
+        </div>
+      }
     >
       <FinanceNav />
 
-      {/* Filter Card */}
       <Card padding="md" className="mb-4">
-        <div className="grid gap-3 sm:grid-cols-4">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
           <div>
             <label className="mb-1 block text-xs font-semibold text-text-muted">Search</label>
             <Input
@@ -49,6 +134,16 @@ export function FinancialTransactionsPage() {
                 setSearch(e.target.value);
                 setPage(1);
               }}
+            />
+          </div>
+
+          <div>
+            <Combobox
+              label="Client"
+              value={companyId}
+              onChange={setCompanyId}
+              options={companyFilterComboboxOptions(companies.data, 'All clients')}
+              placeholder="All clients"
             />
           </div>
 
@@ -88,23 +183,32 @@ export function FinancialTransactionsPage() {
             </select>
           </div>
 
-          <div className="flex items-end justify-between">
-            {companyId ? (
-              <button
-                type="button"
-                onClick={() => {
-                  searchParams.delete('companyId');
-                  setSearchParams(searchParams);
-                }}
-                className="text-xs text-brand-600 hover:underline"
-              >
-                Clear client filter ✕
-              </button>
-            ) : <span />}
-            <span className="text-xs text-text-muted">
-              Total: {data?.total ?? 0} transactions
-            </span>
+          <div>
+            <label className="mb-1 block text-xs font-semibold text-text-muted">From</label>
+            <Input
+              type="date"
+              value={startDate}
+              onChange={(e) => {
+                setStartDate(e.target.value);
+                setPage(1);
+              }}
+            />
           </div>
+
+          <div>
+            <label className="mb-1 block text-xs font-semibold text-text-muted">To</label>
+            <Input
+              type="date"
+              value={endDate}
+              onChange={(e) => {
+                setEndDate(e.target.value);
+                setPage(1);
+              }}
+            />
+          </div>
+        </div>
+        <div className="mt-3 flex items-center justify-between">
+          <span className="text-xs text-text-muted">Total: {data?.total ?? 0} transactions</span>
         </div>
       </Card>
 
@@ -151,7 +255,11 @@ export function FinancialTransactionsPage() {
                         {txn.transactionNumber}
                       </td>
                       <td className="whitespace-nowrap px-4 py-3 text-xs text-text-muted">
-                        {new Date(txn.createdAt).toLocaleDateString()} {new Date(txn.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        {new Date(txn.createdAt).toLocaleDateString()}{' '}
+                        {new Date(txn.createdAt).toLocaleTimeString([], {
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })}
                       </td>
                       <td className="px-4 py-3 font-medium text-text-strong">
                         {txn.company?.name ?? txn.companyId}
@@ -164,15 +272,28 @@ export function FinancialTransactionsPage() {
                       <td className="px-4 py-3 text-xs font-medium text-text-muted">
                         {txn.category.replace(/_/g, ' ')}
                       </td>
-                      <td className={`px-4 py-3 text-right font-bold tabular-nums ${isCredit ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
+                      <td
+                        className={`px-4 py-3 text-right font-bold tabular-nums ${
+                          isCredit
+                            ? 'text-emerald-600 dark:text-emerald-400'
+                            : 'text-rose-600 dark:text-rose-400'
+                        }`}
+                      >
                         {isCredit ? '+' : '-'}${Number(txn.amount).toFixed(2)}
                       </td>
                       <td className="px-4 py-3 text-xs text-text-muted">
                         {txn.referenceType ? (
-                          <span className="font-mono">{txn.referenceType}: {txn.referenceId?.slice(0, 12)}</span>
-                        ) : '—'}
+                          <span className="font-mono">
+                            {txn.referenceType}: {txn.referenceId?.slice(0, 12)}
+                          </span>
+                        ) : (
+                          '—'
+                        )}
                       </td>
-                      <td className="max-w-xs truncate px-4 py-3 text-xs text-text-strong" title={txn.description}>
+                      <td
+                        className="max-w-xs truncate px-4 py-3 text-xs text-text-strong"
+                        title={txn.description}
+                      >
                         {txn.description}
                       </td>
                     </tr>
@@ -183,7 +304,6 @@ export function FinancialTransactionsPage() {
           </table>
         </div>
 
-        {/* Pagination */}
         {data && data.totalPages > 1 ? (
           <div className="flex items-center justify-between border-t border-border-subtle px-4 py-3">
             <button

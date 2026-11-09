@@ -177,6 +177,16 @@ export const FinanceApi = {
     return res.data;
   },
 
+  exportTransactions: async (
+    params: Record<string, unknown> & { format?: 'xlsx' | 'csv' } = {},
+  ): Promise<Blob> => {
+    const res = await api.get('/finance/transactions/export', {
+      params: { format: 'xlsx', ...params },
+      responseType: 'blob',
+    });
+    return res.data;
+  },
+
   createAdjustment: async (payload: {
     companyId: string;
     type: 'credit' | 'debit';

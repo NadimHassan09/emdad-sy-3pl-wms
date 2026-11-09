@@ -58,6 +58,8 @@ function outboundLabel(label: string, isArabic: boolean): string {
     'Required Ship': 'الشحن المطلوب',
     Lines: 'البنود',
     Created: 'تاريخ الإنشاء',
+    'Created from': 'تاريخ الإنشاء من',
+    'Created to': 'تاريخ الإنشاء إلى',
     Actions: 'الإجراءات',
     'No outbound orders found.': 'لا توجد طلبات صادر.',
     'Could not load outbound orders': 'تعذر تحميل طلبات الصادر',
@@ -66,7 +68,7 @@ function outboundLabel(label: string, isArabic: boolean): string {
   return ar[label] ?? label;
 }
 
-const OUTBOUND_LIST_FILTERS = { search: '', status: '' };
+const OUTBOUND_LIST_FILTERS = { search: '', status: '', createdFrom: '', createdTo: '' };
 
 export function OutboundOrdersPage(): ReactElement {
   const navigate = useNavigate();
@@ -88,6 +90,8 @@ export function OutboundOrdersPage(): ReactElement {
     () => ({
       orderSearch: appliedFilters.search.trim() || undefined,
       status: appliedFilters.status || undefined,
+      createdFrom: appliedFilters.createdFrom || undefined,
+      createdTo: appliedFilters.createdTo || undefined,
     }),
     [appliedFilters],
   );
@@ -106,7 +110,7 @@ export function OutboundOrdersPage(): ReactElement {
 
   useEffect(() => {
     setSelectedIds(new Set());
-  }, [filterKey.orderSearch, filterKey.status, pagination.page]);
+  }, [filterKey.orderSearch, filterKey.status, filterKey.createdFrom, filterKey.createdTo, pagination.page]);
 
   const allPageSelected = pageIds.length > 0 && pageIds.every((id) => selectedIds.has(id));
   const somePageSelected = pageIds.some((id) => selectedIds.has(id)) && !allPageSelected;
@@ -142,6 +146,8 @@ export function OutboundOrdersPage(): ReactElement {
         ids,
         orderSearch: ids ? undefined : filterKey.orderSearch,
         status: ids ? undefined : filterKey.status,
+        createdFrom: ids ? undefined : filterKey.createdFrom,
+        createdTo: ids ? undefined : filterKey.createdTo,
       });
       setExportOpen(false);
     } catch (err) {
@@ -319,6 +325,24 @@ export function OutboundOrdersPage(): ReactElement {
             value={draftFilters.search}
             onChange={(e) => setDraft({ search: e.target.value })}
             placeholder={t('Search order number...')}
+            className={FILTER_FIELD_CONTROL_CLASS}
+          />
+        </div>
+        <div className="min-w-0">
+          <label className="mb-1 block text-xs font-semibold text-text-muted">{t('Created from')}</label>
+          <input
+            type="date"
+            value={draftFilters.createdFrom}
+            onChange={(e) => setDraft({ createdFrom: e.target.value })}
+            className={FILTER_FIELD_CONTROL_CLASS}
+          />
+        </div>
+        <div className="min-w-0">
+          <label className="mb-1 block text-xs font-semibold text-text-muted">{t('Created to')}</label>
+          <input
+            type="date"
+            value={draftFilters.createdTo}
+            onChange={(e) => setDraft({ createdTo: e.target.value })}
             className={FILTER_FIELD_CONTROL_CLASS}
           />
         </div>

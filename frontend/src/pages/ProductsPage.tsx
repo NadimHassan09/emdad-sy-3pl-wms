@@ -121,7 +121,7 @@ export function ProductsPage() {
   const [editProduct, setEditProduct] = useState<Product | null>(null);
   const [openActionId, setOpenActionId] = useState<string | null>(null);
   const [barcodePreview, setBarcodePreview] = useState<{ value: string; name: string } | null>(null);
-  const [exporting, setExporting] = useState(false);
+  const [exportingKind, setExportingKind] = useState<'xlsx' | 'csv' | null>(null);
 
   useEffect(() => {
     if (!openActionId) return;
@@ -423,18 +423,22 @@ export function ProductsPage() {
     [t, isArabic, openActionId, suspendMut.isPending, unsuspendMut.isPending, hardDeleteMut.isPending, archiveMut.isPending, updateMut.isPending, toast],
   );
 
-  const handleExport = async () => {
+  const handleExport = async (format: 'xlsx' | 'csv' = 'xlsx') => {
+    if (exportingKind) return;
     try {
-      setExporting(true);
-      const blob = await ProductsApi.exportExcel({
-        search: filters.search,
-        companyId: filters.companyId,
-        status: filters.status,
-      });
+      setExportingKind(format);
+      const blob = await ProductsApi.export(
+        {
+          search: filters.search,
+          companyId: filters.companyId,
+          status: filters.status,
+        },
+        format,
+      );
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `products-${new Date().toISOString().slice(0, 10)}.xlsx`;
+      a.download = `products-${new Date().toISOString().slice(0, 10)}.${format}`;
       document.body.appendChild(a);
       a.click();
       a.remove();
@@ -444,7 +448,7 @@ export function ProductsPage() {
       const msg = err instanceof Error ? err.message : t(['Failed to export products.', 'فشل تصدير المنتجات.']);
       toast.error(msg);
     } finally {
-      setExporting(false);
+      setExportingKind(null);
     }
   };
 
@@ -489,17 +493,36 @@ export function ProductsPage() {
           <DsButton
             variant="secondary"
             size="md"
-            disabled={exporting}
-            onClick={handleExport}
+            disabled={!!exportingKind}
+            onClick={() => void handleExport('xlsx')}
             startIcon={
-              exporting ? (
+              exportingKind === 'xlsx' ? (
                 <i className="fa-solid fa-spinner fa-spin text-xs" aria-hidden="true" />
               ) : (
                 <i className="fa-solid fa-file-excel text-xs text-status-success-fg" aria-hidden="true" />
               )
             }
           >
-            {exporting ? t(['Exporting…', 'جاري التصدير…']) : t(['Export Excel', 'تصدير إكسل'])}
+            {exportingKind === 'xlsx'
+              ? t(['Exporting…', 'جاري التصدير…'])
+              : t(['Export Excel', 'تصدير إكسل'])}
+          </DsButton>
+          <DsButton
+            variant="secondary"
+            size="md"
+            disabled={!!exportingKind}
+            onClick={() => void handleExport('csv')}
+            startIcon={
+              exportingKind === 'csv' ? (
+                <i className="fa-solid fa-spinner fa-spin text-xs" aria-hidden="true" />
+              ) : (
+                <i className="fa-solid fa-file-csv text-xs" aria-hidden="true" />
+              )
+            }
+          >
+            {exportingKind === 'csv'
+              ? t(['Exporting…', 'جاري التصدير…'])
+              : t(['Export CSV', 'تصدير CSV'])}
           </DsButton>
           {!isViewer && (
             <DsButton

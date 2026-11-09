@@ -1,6 +1,7 @@
 import { Type } from 'class-transformer';
 import {
   IsEnum,
+  IsIn,
   IsNumber,
   IsOptional,
   IsPositive,
@@ -153,6 +154,13 @@ export class ListFinancialTransactionsQueryDto {
   @Type(() => Number)
   @Min(1)
   limit?: number = 25;
+}
+
+/** Same filters as the list; page/limit are ignored by the export. */
+export class ExportFinancialTransactionsQueryDto extends ListFinancialTransactionsQueryDto {
+  @IsOptional()
+  @IsIn(['xlsx', 'csv'])
+  format?: 'xlsx' | 'csv';
 }
 
 export class ListPayoutsQueryDto {

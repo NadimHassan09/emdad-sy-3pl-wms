@@ -2,6 +2,7 @@ import { Type } from 'class-transformer';
 import {
   IsDateString,
   IsEnum,
+  IsIn,
   IsNumber,
   IsOptional,
   IsString,
@@ -57,6 +58,12 @@ export class ListCodRecordsQueryDto extends PaginationDto {
   @Type(() => Number)
   @IsNumber()
   amountMax?: number;
+
+  /** Export only: `xlsx` (default) or `csv`. Declared because the global pipe forbids unknown query keys. */
+  @EmptyToUndefined()
+  @IsOptional()
+  @IsIn(['xlsx', 'csv'])
+  format?: 'xlsx' | 'csv';
 }
 
 export class CreateCodAdjustmentDto {

@@ -154,7 +154,14 @@ export const ProductsApi = {
     return data;
   },
   async exportExcel(query: ProductListQuery = {}): Promise<Blob> {
-    const params: Record<string, string | number | boolean> = {};
+    return ProductsApi.export(query, 'xlsx');
+  },
+
+  async export(
+    query: ProductListQuery = {},
+    format: 'xlsx' | 'csv' = 'xlsx',
+  ): Promise<Blob> {
+    const params: Record<string, string | number | boolean> = { format };
     const companyId = query.companyId?.trim();
     if (companyId) params.companyId = companyId;
     const status = query.status?.trim();

@@ -48,10 +48,12 @@ export const SECTION_SUB_NAV_CONFIGS: SectionSubNavConfig[] = [
       {
         labelKey: 'Stock',
         to: '/inventory/stock',
-        match: (p) =>
-          p === '/inventory/stock' ||
-          p.startsWith('/inventory/product/') ||
-          p.startsWith('/inventory/ledger'),
+        match: (p) => p === '/inventory/stock' || p.startsWith('/inventory/product/'),
+      },
+      {
+        labelKey: 'Ledger',
+        to: '/inventory/ledger',
+        match: (p) => p.startsWith('/inventory/ledger'),
       },
       {
         labelKey: 'Adjustments',

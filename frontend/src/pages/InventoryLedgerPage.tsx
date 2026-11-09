@@ -10,6 +10,7 @@ import { Combobox } from '../components/Combobox';
 import { Column, DataTable } from '../components/DataTable';
 import { FilterPanel } from '../components/FilterPanel';
 import { FilterScanButton } from '../components/FilterScanButton';
+import { ListExportButtons } from '../components/ListExportButtons';
 import { SelectField } from '../components/SelectField';
 import { TextField } from '../components/TextField';
 import { useToast } from '../components/ToastProvider';
@@ -21,6 +22,7 @@ import {
 } from '../hooks/useChunkedServerPagination';
 import { useFilters } from '../hooks/useFilters';
 import { companyFilterComboboxOptions } from '../lib/company-filter-options';
+import { downloadListExport } from '../lib/download-export';
 import {
   fmtSignedDelta,
   ledgerEntryDetailPath,
@@ -186,6 +188,15 @@ export function InventoryLedgerPage() {
       icon="fa-book"
       title={t('Inventory ledger', 'سجل المخزون')}
       isArabic={isArabic}
+      actions={
+        <ListExportButtons
+          isArabic={isArabic}
+          disabled={!wid}
+          onExport={(format) =>
+            downloadListExport('/inventory/ledger/export', ledgerParams, format, 'inventory-ledger')
+          }
+        />
+      }
     >
       {!wid ? (
         <p className="text-sm text-text-body">Resolve warehouse configuration…</p>

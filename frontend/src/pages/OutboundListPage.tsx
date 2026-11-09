@@ -60,7 +60,8 @@ function outboundLabel(label: string, isArabic: boolean): string {
     'Outbound orders': 'طلبات الصادر',
     '+ New outbound': '+ صادر جديد',
     Import: 'استيراد',
-    'Export CSV': 'تصدير CSV',
+    'Export CSV': 'تصدير',
+    Export: 'تصدير',
     'Search order # or client…': 'ابحث برقم الطلب أو العميل…',
     Client: 'العميل',
     'Created from': 'تاريخ الإنشاء من',
@@ -513,7 +514,7 @@ export function OutboundListPage() {
         disabled={exporting}
         onClick={() => setExportOpen(true)}
       >
-        {t('Export CSV')}
+        {t('Export')}
       </DsButton>
       {!isViewer && (
         <DsButton

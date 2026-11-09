@@ -1,26 +1,27 @@
-# I-2 — Filters + exports matrix (work in progress)
+# I-2 — Filters + exports matrix (9 Nov 2026)
 
 Legend: ✅ present · ⚠ partial · ❌ missing · n/a
 
 | List | Portal | Store/client filter | Date range | CSV | Branded Excel | Notes |
 |---|---|---|---|---|---|---|
-| OMS / Online orders | Admin | ✅ company | ✅ createdFrom/To | ✅ | ✅ | |
-| OMS / Online orders | Client | n/a (own data) | ✅ createdFrom/To | ✅ | ✅ (wired 6 Nov) | Controller previously ignored `format=xlsx` despite service+UI |
-| Inbound | Admin | ✅ | ✅ | ✅ | ✅ | |
-| Inbound | Client | n/a | ✅ | ✅ | ✅ | |
+| OMS / Online orders | Admin | ✅ | ✅ | ✅ | ✅ | |
+| OMS / Online orders | Client | n/a | ✅ | ✅ | ✅ | |
+| Inbound | Admin | ✅ | ✅ | ✅ | ✅ | Export button label → Export (modal has both) |
+| Inbound | Client | n/a | ✅ | ✅ | ✅ | Date filters wired 9 Nov |
 | Outbound | Admin | ✅ | ✅ | ✅ | ✅ | |
-| Outbound | Client | n/a | ✅ | ✅ | ✅ | |
-| Products / Inventory | Admin | ✅ company | ⚠ | ⚠ | ✅ | Confirm date + CSV in UI |
-| Products / Inventory | Client | n/a | ⚠ | ❌ | ✅ (fixed 6 Nov route order) | Was 400 `id must be a UUID` because `export` hit `:id`; added `GET /client/products/export` before `:id` |
-| COD records | Admin | ✅ | ✅ | ❌? | ✅ | Check CSV |
-| COD report | Client | n/a | ✅ | ❌ | ✅ | Excel only today |
-| Returns (OMS) | Admin | ✅ company via search | ✅ createdFrom/To (6 Nov) | ✅ | ✅ | Export + date filters added |
-| Returns (OMS) | Client | n/a | ✅ From/To UI | ✅ | ✅ | Export Excel + date filters on returns list (7 Nov) |
-| Finance transactions | Admin | ⚠ | ⚠ | ⚠ | ⚠ | Audit next |
-| Financial account | Client | n/a | ⚠ | ⚠ | ⚠ | Audit next |
-| Invoices | Admin | ⚠ | ⚠ | ⚠ | ⚠ | Audit next |
-| Invoices | Client | n/a | ⚠ | ❌ | ✅ | Excel export exists |
-| Stock / inventory levels | Client | n/a | ⚠ | ❌ | ❌ | Likely gap |
+| Outbound | Client | n/a | ✅ | ✅ | ✅ | Date filters wired 9 Nov |
+| Products | Admin | ✅ | n/a (catalog) | ✅ | ✅ | CSV added 9 Nov |
+| Products | Client | n/a | n/a | ⚠ | ✅ | Confirm CSV in UI |
+| Stock / inventory | Admin | ✅ | n/a (snapshot) | ✅ | ✅ | GET /inventory/stock/by-product/export 9 Nov |
+| Ledger | Admin | ✅ | ✅ | ✅ | ✅ | Route restored + export 9 Nov |
+| COD records | Admin | ✅ | ✅ | ✅ | ✅ | CSV endpoint added 9 Nov |
+| COD report | Client | n/a | ✅ | ❌ | ✅ | Excel only |
+| Returns (OMS) | Admin | ✅ | ✅ | ✅ | ✅ | |
+| Returns (OMS) | Client | n/a | ✅ | ✅ | ✅ | |
+| Finance transactions | Admin | ✅ | ✅ | ✅ | ✅ | startDate/endDate + export 9 Nov |
+| Invoices | Admin | ✅ | ✅ | ✅ | ✅ | GET /billing/invoices/export 9 Nov |
+| Invoices | Client | n/a | ⚠ | ❌ | ✅ | Date filter still soft |
+| Client finances | Client | n/a | ⚠ | ❌ | ❌ | Remaining gap |
 | Reports | Admin | varies | varies | varies | varies | Per report registry |
 
-Update this table as each row is verified in the browser.
+Browser verify remaining before marking PLAN I-2 / B4 ✅.

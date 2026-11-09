@@ -59,6 +59,7 @@ export function BillingInvoicesPage() {
   const qc = useQueryClient();
   const canMutate = user?.role === 'super_admin' || user?.role === 'wh_manager';
   const [openActionId, setOpenActionId] = useState<string | null>(null);
+  const [exportingKind, setExportingKind] = useState<'xlsx' | 'csv' | null>(null);
 
   const { draftFilters, appliedFilters, setDraft, applyFilters, resetFilters } =
     useFilters<ListFilters>(INITIAL_FILTERS);
@@ -123,6 +124,27 @@ export function BillingInvoicesPage() {
     },
     onError: (err: Error) => toast.error(err.message),
   });
+
+  const downloadExport = async (format: 'xlsx' | 'csv') => {
+    if (exportingKind) return;
+    setExportingKind(format);
+    try {
+      const blob = await BillingApi.exportInvoices({ ...serverFilters, format });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `billing-invoices-${new Date().toISOString().slice(0, 10)}.${format}`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      toast.success(format === 'xlsx' ? 'Excel export downloaded.' : 'CSV export downloaded.');
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Export failed.');
+    } finally {
+      setExportingKind(null);
+    }
+  };
 
   const columns: Column<BillingInvoiceRow>[] = [
     {
@@ -237,16 +259,34 @@ export function BillingInvoicesPage() {
       title="Invoices"
       subtitle="Client billing invoices across all sources."
       actions={
-        canMutate ? (
-          <div className="flex flex-wrap gap-2">
-            <Button type="button" variant="secondary" onClick={() => navigate('/billing/charge-rules')}>
-              Charge rules
-            </Button>
-            <Button type="button" onClick={() => navigate('/billing/invoices/on-demand')}>
-              New on-demand invoice
-            </Button>
-          </div>
-        ) : undefined
+        <div className="flex flex-wrap gap-2">
+          <Button
+            type="button"
+            variant="secondary"
+            disabled={!!exportingKind}
+            onClick={() => void downloadExport('xlsx')}
+          >
+            {exportingKind === 'xlsx' ? 'Exporting…' : 'Export Excel'}
+          </Button>
+          <Button
+            type="button"
+            variant="secondary"
+            disabled={!!exportingKind}
+            onClick={() => void downloadExport('csv')}
+          >
+            {exportingKind === 'csv' ? 'Exporting…' : 'Export CSV'}
+          </Button>
+          {canMutate ? (
+            <>
+              <Button type="button" variant="secondary" onClick={() => navigate('/billing/charge-rules')}>
+                Charge rules
+              </Button>
+              <Button type="button" onClick={() => navigate('/billing/invoices/on-demand')}>
+                New on-demand invoice
+              </Button>
+            </>
+          ) : null}
+        </div>
       }
     >
       <FilterPanel

@@ -5,6 +5,7 @@ import { CodRecordStatus } from '@prisma/client';
 import { CurrentUser } from '../../common/auth/current-user.decorator';
 import { AuthPrincipal } from '../../common/auth/current-user.types';
 import { ParseUuidLoosePipe } from '../../common/pipes/parse-uuid-loose.pipe';
+import { parseExportFormat } from '../../common/utils/tabular-export.util';
 import { CodRecordsService } from './cod-records.service';
 import { codExportContentDisposition } from './cod-export.util';
 import {
@@ -38,6 +39,13 @@ export class CodController {
     @Query() query: ListCodRecordsQueryDto,
     @Res() res: Response,
   ) {
+    if (parseExportFormat(query.format) === 'csv') {
+      const csv = await this.cod.exportCsv(user, query);
+      res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+      res.setHeader('Content-Disposition', codExportContentDisposition(csv.filename));
+      res.send(csv.body);
+      return;
+    }
     const { buffer, filename } = await this.cod.exportXlsx(user, query);
     res.setHeader(
       'Content-Type',

@@ -193,3 +193,21 @@ export class LedgerQueryDto extends PaginationDto {
   @IsString()
   referenceSearch?: string;
 }
+
+const EXPORT_FORMATS_LIST = ['xlsx', 'csv'] as const;
+
+/** Stock-by-product export: same filters as the list; `limit`/`offset` are ignored. */
+export class StockExportQueryDto extends StockQueryDto {
+  @EmptyToUndefined()
+  @IsOptional()
+  @IsIn(EXPORT_FORMATS_LIST)
+  format?: 'xlsx' | 'csv';
+}
+
+/** Ledger export: same filters as the list; `limit`/`offset` are ignored. */
+export class LedgerExportQueryDto extends LedgerQueryDto {
+  @EmptyToUndefined()
+  @IsOptional()
+  @IsIn(EXPORT_FORMATS_LIST)
+  format?: 'xlsx' | 'csv';
+}

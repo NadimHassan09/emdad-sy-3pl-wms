@@ -1,5 +1,5 @@
 import { Transform } from 'class-transformer';
-import { IsBoolean, IsOptional, IsString } from 'class-validator';
+import { IsBoolean, IsIn, IsOptional, IsString } from 'class-validator';
 
 import { PaginationDto } from '../../../common/dto/pagination.dto';
 import { EmptyToUndefined, QueryBoolOptional } from '../../../common/transformers/query-transform';
@@ -53,5 +53,11 @@ export class ListProductsQueryDto extends PaginationDto {
   @IsOptional()
   @IsString()
   status?: string;
+
+  /** Export only: `xlsx` (default) or `csv`. Ignored by the list endpoint. */
+  @EmptyToUndefined()
+  @IsOptional()
+  @IsIn(['xlsx', 'csv'])
+  format?: 'xlsx' | 'csv';
 }
 
