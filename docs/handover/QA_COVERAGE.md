@@ -1,6 +1,6 @@
 # EMDAD QA Coverage (generated)
 
-Generated 2026-11-06 by `qa_progress.py` from `QA_TRACKER.md` and `QA_FLOWS.md`. Do not edit by hand.
+Generated 2026-11-07 by `qa_progress.py` from `QA_TRACKER.md` and `QA_FLOWS.md`. Do not edit by hand.
 
 ## Overall: 27.5% tested, 72.5% remaining
 

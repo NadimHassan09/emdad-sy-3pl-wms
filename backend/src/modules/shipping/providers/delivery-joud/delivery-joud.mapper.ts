@@ -109,18 +109,24 @@ export function mapCreateOrderParams(
 
 /** Prefer the portal sequence/barcode (e.g. 3960023548), never an OMS reference when a better id exists. */
 export function pickJoudPortalBarcode(order: JoudOrder): string {
+  const record = order as Record<string, unknown>;
   const candidates = [
+    // Live create_order success payload uses PascalCase Sequence (portal رقم التسلسل).
+    record.Sequence,
+    record.sequence,
     order.barcode,
     order.tracking_number,
     order.tracking,
-    (order as { barcode_number?: unknown }).barcode_number,
-    (order as { sequence?: unknown }).sequence,
+    record.barcode_number,
     order.name,
   ];
   const texts = candidates.map((c) => String(c ?? '').trim()).filter(Boolean);
+  // Prefer long numeric portal sequences over short internal ids (e.g. 3960023822 vs 24371).
+  const longNumeric = texts.find((v) => /^\d{8,}$/.test(v));
+  if (longNumeric) return longNumeric;
   const numeric = texts.find((v) => /^\d{6,}$/.test(v));
   if (numeric) return numeric;
-  const nonOms = texts.find((v) => !/^OMS-/i.test(v));
+  const nonOms = texts.find((v) => !/^OMS-/i.test(v) && !/^\d{1,5}$/.test(v));
   return nonOms || texts[0] || '';
 }
 

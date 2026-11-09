@@ -96,4 +96,15 @@ describe('delivery-joud.mapper', () => {
       '3960023609',
     );
   });
+
+  it('prefers PascalCase Sequence from create_order over short internal id', () => {
+    const mapped = mapJoudOrderToResult({
+      id: 24371,
+      Sequence: '3960023822',
+      Reference: 'OMS-2026-03728',
+      success: true,
+    } as never);
+    expect(mapped.awb).toBe('3960023822');
+    expect(mapped.trackingNumber).toBe('3960023822');
+  });
 });
