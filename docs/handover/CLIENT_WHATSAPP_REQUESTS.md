@@ -65,7 +65,7 @@ Status: ✅ built · 🔍 built, must be verified in the browser · ⬜ not buil
 | B2 | Delivery deadline / phases | — | Owner's call (communication, not code). | |
 | B3 | Link inbound order to OMS order | ❓ | Not built. Ask the owner what "linked" means (inbound created from an OMS return? purchase for an OMS order?) before building. | |
 | B4 | Filters (store name + date range) and Excel export on all sections: COD, inventory, inbound, products, outbound, OMS, finance | ✅ | Admin + client stock/finance/invoices/COD/products CSV (`I2_LIST_EXPORT_AUDIT.md`). Reports registry optional; browser verify → testing sprint. | 9 Nov |
-| B5 | Add storage locations in a newly created warehouse | 🔍 | Create warehouse → add zone/rack/shelf/bin → receive into it. Fix if it fails. | |
+| B5 | Add storage locations in a newly created warehouse | ✅ | Warehouses → Locations action; create warehouse opens `/locations/:id`. Browser + inbound receive in testing sprint. | 9 Nov |
 | B6 | Stock shown per warehouse in an order | ❓ | Answer from code (which warehouse's stock the order form shows), write the answer in DECISIONS. | |
 | B9/B14 | Super admin edits everything at any stage (COD amount, qty, price, shipment details) | ✅ | Edit allowed; post-shipment UI warning + audit `localOnly` / cancel+resend note. After-delivery money rules still need owner. Browser in testing sprint. | 9 Nov |
 | B10 | Raqqa orders fail | ✅ (not a defect) | Babel does not serve Raqqa/Deir ez-Zor/Hasakah/Suwayda; EMDAD keeps them and routes to other carriers or Manual. Evidence DECISIONS §1.1. | 2 Nov |

@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { FormEvent, useEffect, useMemo, useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 
 import {
   CreateWarehouseInput,
@@ -80,12 +81,16 @@ export function WarehousesPage() {
     [list.data, appliedFilters],
   );
 
+  const navigate = useNavigate();
+
   const createMut = useMutation({
     mutationFn: WarehousesApi.create,
-    onSuccess: () => {
-      toast.success('Warehouse created.');
+    onSuccess: (wh) => {
+      toast.success('Warehouse created. Opening locations so you can add zones/bins.');
       qc.invalidateQueries({ queryKey: QK.warehouses });
       setOpenCreate(false);
+      // B5: after creating a warehouse, take the operator straight to location setup.
+      navigate(`/locations/${wh.id}`);
     },
     onError: (err: Error) => toast.error(err.message),
   });
@@ -137,31 +142,37 @@ export function WarehousesPage() {
     },
     {
       header: 'Actions',
-      accessor: (w) =>
-        canMutate ? (
-          <div className="flex flex-wrap gap-1">
-            <Button size="sm" variant="secondary" onClick={() => setEditWh(w)}>
-              Edit
+      accessor: (w) => (
+        <div className="flex flex-wrap gap-1">
+          <Link to={`/locations/${w.id}`}>
+            <Button size="sm" variant="secondary">
+              Locations
             </Button>
-            {w.status === 'active' ? (
-              <Button size="sm" variant="secondary" onClick={() => setDeactivateWh(w)}>
-                Deactivate
+          </Link>
+          {canMutate ? (
+            <>
+              <Button size="sm" variant="secondary" onClick={() => setEditWh(w)}>
+                Edit
               </Button>
-            ) : (
-              <Button
-                size="sm"
-                variant="primary"
-                loading={statusMut.isPending && statusMut.variables?.id === w.id}
-                onClick={() => statusMut.mutate({ id: w.id, status: 'active' })}
-              >
-                Activate
-              </Button>
-            )}
-          </div>
-        ) : (
-          <span className="text-xs text-text-faint">—</span>
-        ),
-      width: '260px',
+              {w.status === 'active' ? (
+                <Button size="sm" variant="secondary" onClick={() => setDeactivateWh(w)}>
+                  Deactivate
+                </Button>
+              ) : (
+                <Button
+                  size="sm"
+                  variant="primary"
+                  loading={statusMut.isPending && statusMut.variables?.id === w.id}
+                  onClick={() => statusMut.mutate({ id: w.id, status: 'active' })}
+                >
+                  Activate
+                </Button>
+              )}
+            </>
+          ) : null}
+        </div>
+      ),
+      width: '320px',
     },
   ];
 
