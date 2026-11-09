@@ -23,7 +23,7 @@ A flow counts as ✅ only when it was run in the real UI or against the real car
 | F13 | Shipping | Failed delivery and returned-to-sender through carrier updates | 🔄 | Admin path 9 Nov on OMS-2026-03720 (Sena): Revert delivery → Field Delivery → Create return OR-2026-00456 → Confirm return receipt. Carrier webhook failed-delivery still open. |
 | F14 | Returns | OMS returns and WMS returns (plan, receive, restock, rollback rules) | 🔄 | OMS return OR-2026-00456 created + receipt confirmed (stock updated) on OMS-2026-03720. WMS returns plan/receive/restock + rollback limits still open. |
 | F15 | COD | COD record generated on delivery | ✅ | Sena E2E |
-| F16 | COD | COD collection, remittance and reconciliation with the client balance | 🔄 | Browser 9 Nov: COD list exports + status filters; detail OMS-2026-03720 Pending→Available/Paid UI present. Remittance/balance mutation not run (money — needs owner yes). |
+| F16 | COD | COD collection, remittance and reconciliation with the client balance | 🔍 | Browser 9 Nov: list+Available detail screenshots (`oms_cod_f16_*`). Pending→Available/Paid UI present. Remittance→balance mutation not run (money — needs owner yes before ✅). |
 | F17 | Carriers | Sena sandbox: create, status simulation, cancel, return, label, edit | 🔄 | Create/ship/deliver + label/waybill (OMS-2026-03720 AWB TEST-261103-4EADEF31) + local edit warning done 9 Nov. Sena cancel/return via carrier API + status simulation still open. |
 | F18 | Carriers | Babel live: create, price vs portal, cancel | ✅ | 3 Nov; D-020, D-021 open; tracking poll not tested |
 | F19 | Carriers | Sila live: create, price vs portal, cancel | ✅ | 3 Nov; D-023 open; tracking/webhook not tested |
@@ -38,8 +38,8 @@ A flow counts as ✅ only when it was run in the real UI or against the real car
 | F28 | Master data | Clients (create, edit, suspend, contract) and client users | 🔄 | Required-field messages only |
 | F29 | Master data | Warehouses and locations hierarchy (zones, racks, shelves, packing and dock) | 🔄 | Loads; D-003 dirty data |
 | F30 | Master data | Shipping companies, fee groups and fee rates per governorate | 🔄 | D-012 fixed in UI (sidebar link, amber uncovered-governorate warning, quick-start templates). Coverage CRUD + templates still need a full browser pass. |
-| F31 | Finance | Accounts, transactions (append-only), policies, carrier costs, payouts, statements | 🔄 | Browser 9 Nov: overview/accounts/transactions/policies/payouts/carrier-costs load. Statements route not found. CRUD/edge not deep. |
-| F32 | Finance | Optional "Fulfillment Services" billing, invoices, plans (legacy billing) | 🔄 | API E2E prior + UI 9 Nov: INV-2026-00025 Calculate storage ($105) Add to invoice; Check incentive (1/500). Plans/invoices list OK. Issue/settle UI click + legacy cycle still open. |
+| F31 | Finance | Accounts, transactions (append-only), policies, carrier costs, payouts, statements | 🔍 | Browser 9 Nov screenshots overview+accounts. Pages load; Manual Adjustment / payouts not mutated (money — needs owner yes before ✅). Statements route not found. |
+| F32 | Finance | Optional "Fulfillment Services" billing, invoices, plans (legacy billing) | 🔍 | UI 9 Nov: invoices/plan screenshots + INV-2026-00025 Calculate storage ($105)/incentive. Issue/settle/charge-rules mutations deferred (money — needs owner yes before ✅). |
 | F33 | Reports | The ~25 admin reports (filters, totals vs source data, export) | 🔄 | All 21 report endpoints run and export; one KPI bug fixed (D-038); totals vs source data and chart quality not done (D-039) |
 | F34 | Admin | Users and roles (create, deactivate, role change, password reset) | ⬜ | |
 | F35 | Admin | Audit logs, notifications | ⬜ | |

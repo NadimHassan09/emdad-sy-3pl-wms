@@ -3,7 +3,7 @@
 
 Usage: python3 docs/handover/qa_progress.py   (rewrites QA_COVERAGE.md and prints the summary)
 
-Scoring per check: ✅ or ❌ = 1, 🔄 = 0.5, ⬜ or ⛔ = 0, ➖ is excluded from the total.
+Scoring per check: ✅ or ❌ = 1, 🔄 or 🔍 = 0.5, ⬜ or ⛔ = 0, ➖ is excluded from the total.
 Overall = 40% routes + 40% business flows + 20% cross-cutting.
 """
 import collections
@@ -12,7 +12,7 @@ import pathlib
 import re
 
 HERE = pathlib.Path(__file__).parent
-POINTS = {'✅': 1.0, '❌': 1.0, '🔄': 0.5, '⬜': 0.0, '⛔': 0.0}
+POINTS = {'✅': 1.0, '❌': 1.0, '🔄': 0.5, '🔍': 0.5, '⬜': 0.0, '⛔': 0.0}
 WEIGHTS = {'routes': 0.4, 'flows': 0.4, 'cross': 0.2}
 
 

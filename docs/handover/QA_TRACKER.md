@@ -13,83 +13,83 @@ One row per route. Defects are logged below with ID, severity (S1 blocker, S2 ma
 | `/backups/retention` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load sweep 3 Nov: no API error, no console error, no crash |
 | `/backups/schedules` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load sweep 3 Nov: no API error, no console error, no crash |
 | `/billing/dashboard` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load sweep 3 Nov: no API error, no console error, no crash |
-| `/billing/invoices` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load sweep 3 Nov: no API error, no console error, no crash |
-| `/billing/invoices/:id` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
+| `/billing/invoices` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load + F32 🔍 9 Nov screenshot; issue/settle not clicked (money) |
+| `/billing/invoices/:id` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load 9 Nov INV-2026-00026; Calculate/incentive earlier on INV-2026-00025 |
 | `/billing/plans` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load sweep 3 Nov: no API error, no console error, no crash |
-| `/billing/plans/:clientId` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
-| `/billing/plans/:clientId/edit` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
+| `/billing/plans/:clientId` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load 9 Nov Test company plan detail (screenshot) |
+| `/billing/plans/:clientId/edit` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load 9 Nov Edit plan — Test company |
 | `/billing/plans/new` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load sweep 3 Nov: no API error, no console error, no crash |
 | `/billing/templates` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load sweep 3 Nov: no API error, no console error, no crash |
 | `/clients` | 🔄 | 🔄 | ⬜ | ⬜ | ⬜ | Load + New company required-field messages (3 Nov) |
-| `/clients/:id` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
+| `/clients/:id` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load 9 Nov Test company detail |
 | `/contracts/dn` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load sweep 3 Nov: no API error, no console error, no crash |
 | `/contracts/final-contract` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load sweep 3 Nov: no API error, no console error, no crash |
 | `/contracts/grn` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load sweep 3 Nov: no API error, no console error, no crash |
 | `/cycle-count` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load check only (3 Nov smoke pass) |
-| `/cycle-count/:id` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
-| `/cycle-count/:id/execute` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
+| `/cycle-count/:id` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load 9 Nov empty-id → "Cycle count not found" (no crash); no sessions in WH |
+| `/cycle-count/:id/execute` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | No sessions to execute; same empty-state path as :id (9 Nov) |
 | `/cycle-count/my-tasks` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load sweep 3 Nov: no API error, no console error, no crash |
 | `/dashboard/overview` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load check only (3 Nov smoke pass) |
-| `/finance/accounts` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load sweep 3 Nov: no API error, no console error, no crash |
+| `/finance/accounts` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load + F31 🔍 9 Nov screenshot; Manual Adjustment not clicked (money) |
 | `/finance/carrier-costs` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load sweep 3 Nov: no API error, no console error, no crash |
 | `/finance/cod` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load sweep 3 Nov: no API error, no console error, no crash |
-| `/finance/overview` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load sweep 3 Nov: no API error, no console error, no crash |
+| `/finance/overview` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load + F31 🔍 9 Nov screenshot (balances/COD cards); no money mutation |
 | `/finance/payouts` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load sweep 3 Nov: no API error, no console error, no crash |
 | `/finance/policies` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load sweep 3 Nov: no API error, no console error, no crash |
 | `/finance/transactions` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load sweep 3 Nov: no API error, no console error, no crash |
 | `/forms` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load sweep 3 Nov: no API error, no console error, no crash |
 | `/internal` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load sweep 3 Nov: no API error, no console error, no crash |
 | `/inventory/adjustments` | ✅ | ✅ | ⬜ | ⬜ | ⬜ | Create draft, add lines (9 validation cases), reason gate, approve, approve twice; D-030 |
-| `/inventory/adjustments/:id` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
-| `/inventory/ledger/:referenceType/:referenceId` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
-| `/inventory/ledger/line/:ledgerId/:createdAt` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
-| `/inventory/product/:productId` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
+| `/inventory/adjustments/:id` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load 9 Nov adjustment detail |
+| `/inventory/ledger/:referenceType/:referenceId` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load 9 Nov return_order ledger movement |
+| `/inventory/ledger/line/:ledgerId/:createdAt` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load 9 Nov ledger line (+1 RETURNS) |
+| `/inventory/product/:productId` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load 9 Nov SKU-CKVM2L-MRZ9P5JT |
 | `/inventory/stock` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Stock rows read through API after receive/transfer/adjust; ledger reconciles per product (49/49) |
 | `/locations` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load check only (3 Nov smoke pass) |
-| `/locations/:warehouseId` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
+| `/locations/:warehouseId` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load 9 Nov WH-001 locations hierarchy |
 | `/notifications` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load sweep 3 Nov: no API error, no console error, no crash |
 | `/oms/batches` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load sweep 3 Nov: no API error, no console error, no crash |
-| `/oms/batches/:id` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
-| `/oms/cod` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load sweep 3 Nov: no API error, no console error, no crash |
-| `/oms/cod/:id` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
+| `/oms/batches/:id` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load 9 Nov BATCH-1015 |
+| `/oms/cod` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load + F16 🔍 9 Nov: list/detail/Available UI screenshots; remittance mutation deferred (money) |
+| `/oms/cod/:id` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load 9 Nov Available COD (Madino) — remittance UI only, no money mutation |
 | `/oms/dashboard` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load sweep 3 Nov: no API error, no console error, no crash |
-| `/oms/orders/:id` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
-| `/oms/orders/:id/waybill` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
+| `/oms/orders/:id` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load 9 Nov OMS-2026-03720; warehouse status returned after D-048 |
+| `/oms/orders/:id/waybill` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load 9 Nov SHIPPING WAYBILL for OMS-2026-03720 |
 | `/oms/returns` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load sweep 3 Nov: no API error, no console error, no crash |
-| `/oms/returns/:id` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
-| `/oms/returns/:id/edit` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
+| `/oms/returns/:id` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load 9 Nov OR-2026-00456 Return Received |
+| `/oms/returns/:id/edit` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load 9 Nov completed return → Plan is locked (no crash) |
 | `/orders/inbound` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load + created orders appear |
 | `/orders/inbound/:id` | ✅ | ⬜ | ⬜ | ⬜ | ⬜ | Approve, receive (auto from plan), putaway, GRN PDF; Change putaway locations during putaway (D-029) |
-| `/orders/inbound/:id/edit` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
+| `/orders/inbound/:id/edit` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load 9 Nov Edit inbound plan INB-2026-00063 |
 | `/orders/inbound/new` | ✅ | ✅ | ⬜ | ⬜ | ⬜ | Created through the UI: client, product, dock, putaway split, required-field message; API field sweep (qty, dates, lot, duplicates); D-028, D-031 |
 | `/orders/oms` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load check only (3 Nov smoke pass) |
 | `/orders/oms/:id` | ✅ | ⬜ | ⬜ | ⬜ | ⬜ | Cancel order, Cancel shipment (API and manual), carrier switch |
-| `/orders/oms/:id/waybill` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
+| `/orders/oms/:id/waybill` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load 9 Nov SHIPPING WAYBILL alias |
 | `/orders/oms/new` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Form opened; orders created through the API for E2E |
 | `/orders/outbound` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load sweep 3 Nov: no API error, no console error, no crash |
 | `/orders/outbound/:id` | ✅ | ⬜ | ⬜ | ⬜ | ⬜ | Execution flow end to end (approve, pick, pack, shipping method, carrier send, cancel/unlink); D-019, D-021 |
 | `/orders/outbound/:id/edit` | ✅ | ⬜ | ⬜ | ⬜ | ⬜ | Plan saved (packing location + dock) |
 | `/orders/outbound/new` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load sweep 3 Nov: no API error, no console error, no crash |
 | `/products` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load sweep 3 Nov: no API error, no console error, no crash |
-| `/products/:sku` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
+| `/products/:sku` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load 9 Nov SKU-CKVM2L-MRZ9P5JT |
 | `/profile` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load sweep 3 Nov: no API error, no console error, no crash |
 | `/reports/allocation-report` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load sweep 3 Nov: no API error, no console error, no crash |
 | `/reports/capacity-utilization` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load sweep 3 Nov: no API error, no console error, no crash |
-| `/reports/cod-report` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
+| `/reports/cod-report` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load 9 Nov redirects → /oms/cod (alias) |
 | `/reports/delivery-report` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load sweep 3 Nov: no API error, no console error, no crash |
 | `/reports/inbound-accuracy` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load sweep 3 Nov: no API error, no console error, no crash |
 | `/reports/inventory` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load sweep 3 Nov: no API error, no console error, no crash |
 | `/reports/inventory-reserved` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load sweep 3 Nov: no API error, no console error, no crash |
 | `/reports/lot-expiry` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load sweep 3 Nov: no API error, no console error, no crash |
 | `/reports/merchant-orders` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load sweep 3 Nov: no API error, no console error, no crash |
-| `/reports/oms/cod` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
-| `/reports/oms/returns` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
+| `/reports/oms/cod` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load 9 Nov redirects → /oms/cod (alias) |
+| `/reports/oms/returns` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load 9 Nov redirects → /oms/returns (alias) |
 | `/reports/order-cycle-time` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load sweep 3 Nov: no API error, no console error, no crash |
 | `/reports/outbound-fill-rate` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load sweep 3 Nov: no API error, no console error, no crash |
 | `/reports/product-moves` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load sweep 3 Nov: no API error, no console error, no crash |
 | `/reports/receivables-aging` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load sweep 3 Nov: no API error, no console error, no crash |
 | `/reports/return-rate` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load sweep 3 Nov: no API error, no console error, no crash |
-| `/reports/returns-report` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
+| `/reports/returns-report` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load 9 Nov redirects → /oms/returns (alias) |
 | `/reports/revenue-by-client` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load sweep 3 Nov: no API error, no console error, no crash |
 | `/reports/sales-report` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load sweep 3 Nov: no API error, no console error, no crash |
 | `/reports/sla-compliance` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load sweep 3 Nov: no API error, no console error, no crash |
@@ -97,17 +97,17 @@ One row per route. Defects are logged below with ID, severity (S1 blocker, S2 ma
 | `/reports/warehouse-analysis` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load sweep 3 Nov: no API error, no console error, no crash |
 | `/reports/worker-productivity` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load sweep 3 Nov: no API error, no console error, no crash |
 | `/returns` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load check only (3 Nov smoke pass) |
-| `/returns/:id` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
-| `/returns/:id/process` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
+| `/returns/:id` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load 9 Nov RTN-2026-00453 Completed |
+| `/returns/:id/process` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load 9 Nov completed return process guard message |
 | `/shipping/companies` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load sweep 3 Nov. **9 Nov:** Delivery Joud Test connection → **ok** (Connected, last test ok 03:03). |
 | `/shipping/fee-rates` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load sweep 3 Nov. 6 Nov: sidebar link + amber uncovered warning verified; created Global Default group **All Syria / جميع أنحاء سوريا** ($5, all 14 governorates, id `d16723ee-…`, reassign=true) for F04 coverage tests |
 | `/tasks` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load check only (3 Nov smoke pass) |
-| `/tasks/:id` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
-| `/tasks/:id/execute` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
+| `/tasks/:id` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load 9 Nov completed pick task OUT-2026-04465 |
+| `/tasks/:id/execute` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load 9 Nov redirects to task detail when completed |
 | `/users/client_users` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load sweep 3 Nov: no API error, no console error, no crash |
-| `/users/client_users/:id` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
+| `/users/client_users/:id` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load 9 Nov plaza10@Test company |
 | `/users/warehouse_users` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load sweep 3 Nov: no API error, no console error, no crash |
-| `/users/warehouse_users/:id` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
+| `/users/warehouse_users/:id` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load 9 Nov Nadim worker |
 | `/warehouses` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load check only (3 Nov smoke pass) |
 
 Aliases (redirect-only routes such as `/dashboard`, `/outbound`, `/inventory`, `/settings/*`) are not listed; they are covered once by X16 in `QA_FLOWS.md`.
@@ -116,8 +116,8 @@ Aliases (redirect-only routes such as `/dashboard`, `/outbound`, `/inventory`, `
 
 | Route | Functional | Validation/edge | Roles/tenant | Consistency vs Admin | Mobile | Notes |
 |---|---|---|---|---|---|---|
-| `/login` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |  |
-| `/account-inactive` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |  |
+| `/login` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load 9 Nov (redirect from /dashboard when unauthenticated) |
+| `/account-inactive` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load 9 Nov — "Your account is inactive" (unauthenticated) |
 | `/dashboard` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load sweep 3 Nov (Acme client_admin): no API error, no console error |
 | `/products` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load sweep 3 Nov (Acme client_admin): no API error, no console error |
 | `/products/new` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load sweep 3 Nov (Acme client_admin): no API error, no console error |
@@ -220,7 +220,7 @@ Aliases (`/cod-reports`, `/returns`, `/returns/new`, `/returns/:id`, `/billing/i
 | D-045 | S2 | Shipping payer map | Selecting Delivery Joud (or Fatih) threw `Unsupported carrier payer mapping: DELIVERY_JOUD` in the browser and blocked Continue | Console on OUT-2026-04465 9 Nov | Fixed: map Joud/Fatih → `sender` in `shipping-payer.ts` | d5b2647f7 |
 | D-046 | S2 | Delivery Joud AWB | create_order returns portal `Sequence` (3960023822) but mapper stored short `id` (24371); waybill would show wrong number | Live OMS-2026-03728 vs portal 9 Nov | Fixed: prefer `Sequence` / long numeric barcode; backfilled OMS-2026-03728 → 3960023822 | 3c54d530b |
 | D-047 | S2 | Inventory / cancel | Historical gap: cancelled OMS with outbound still not `allocation_status=released` — **109** rows on staging (7 `allocated` with **4 active** soft-holds / 8 units; 102 `none` hygiene only). Today's cancel path already calls `releaseAllocation`. | Read-only SQL 9 Nov | Fixed staging 9 Nov (owner yes): released 4 active reservations; marked 109 OMS + 32 outbound `released`; gap→0 (spot-checked OMS-2026-02290/02606/03691/03692) | staging DB |
-| D-048 | S2 | OMS / outbound desync | Historical: OMS `returned` while outbound still `shipped` (**448**); OMS `delivered` while outbound still `shipped` (**351**). Detail still shows Rollback/Mark delivered, but Warehouse status stays `shipped`. Examples: OMS-2026-03703 / OUT-2026-02033; OMS-2026-03688 / OUT-2026-02014; OMS-2026-02605 still shipped (Acme). Test OMS-2026-03720 is correctly synced after today's return. No generic super-admin force-status UI yet (only named recovery actions). | Read-only SQL + browser 9 Nov | Open — waiting owner yes on bulk outbound status align SQL | |
+| D-048 | S2 | OMS / outbound desync | Historical: OMS `returned` while outbound still `shipped` (**448**); OMS `delivered` while outbound still `shipped` (**351**). Detail still shows Rollback/Mark delivered, but Warehouse status stays `shipped`. Examples: OMS-2026-03703 / OUT-2026-02033; OMS-2026-03688 / OUT-2026-02014; OMS-2026-02605 still shipped (Acme). Test OMS-2026-03720 is correctly synced after today's return. No generic super-admin force-status UI yet (only named recovery actions). | Read-only SQL + browser 9 Nov | Fixed staging 9 Nov (owner yes): bulk UPDATE outbound → `returned` (448) / `delivered` (351); gap→0 (spot OMS-2026-03703/03688/03684/03720) | staging DB |
 
 ## Smoke pass log
 
@@ -229,3 +229,4 @@ Aliases (`/cod-reports`, `/returns`, `/returns/new`, `/returns/:id`, `/billing/i
 - 3 Nov (later): Clients list and New company form checked (validation messages appear for empty required fields; Cancel red / Create green). OMS list filter Ready to ship + Bulk Shipping modal opened on one Sena sandbox order (nothing sent): carriers shown = Sena, Babel hub, Karam, TARABUT, Fatih, Manual.
 - 3 Nov (E2E, Sena sandbox): test order OMS-2026-03720 / OUT-2026-04463 (Test company, Nadim Hassan, TEST ORDER, Aleppo, COD 20 USD). Created -> confirmed -> approved (client fee 4 USD from Aleppo group) -> plan -> pick -> pack -> carrier Sena -> send. First send failed (D-017); after the fix COD was sent as 260,008 SYP (20 USD x 13000.418) and Sena returned AWB TEST-261103-4EADEF31. Dispatch complete -> shipped; sandbox status out_for_delivery and delivered reached EMDAD by webhook within ~8 s each; OMS Delivered, COD record generated (pending). Sena portal confirms store currency SYP and key last used at the creation time. Not yet done on Sena: cancel, return, failed delivery, label print, price/edit after shipment.
 - 9 Nov (invoice redesign + I-* browser): INV-2026-00025 Calculate storage → 3.500 m³ × $30 = $105, Add to invoice OK; Check incentive → 1/500 need 499 (button disabled). I-3 warning+save on OMS-2026-03728; I-5 Arabic Sila events on OMS-2026-03721; I-7 WH-003 + TEST-BIN-I7; I-2 exports spot-check; I-8/I-9/I-12 marked ✅. Screenshots under `qa-scripts/out/*_20261109.jpg`.
+- 9 Nov (D-048 + Layer C): bulk outbound status sync applied (gap 0). F16 COD remittance UI documented 🔍 (no Available mutation). F31/F32 forms documented 🔍. I-6 live ⛔; code points 5+8 ✅. Layer C Functional load-sweep of remaining ⬜ admin detail/report routes.

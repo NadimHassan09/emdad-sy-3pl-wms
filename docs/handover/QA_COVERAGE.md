@@ -2,12 +2,12 @@
 
 Generated 2026-11-09 by `qa_progress.py` from `QA_TRACKER.md` and `QA_FLOWS.md`. Do not edit by hand.
 
-## Overall: 28.5% tested, 71.5% remaining
+## Overall: 31.8% tested, 68.2% remaining
 
 | Layer | Weight | Done | Items |
 |---|---|---|---|
-| Route checks (functional, validation, roles, consistency, mobile) | 40% | 8.0% | 665 checks on 133 routes |
-| Business flows | 40% | 42.9% | 42 flows |
+| Route checks (functional, validation, roles, consistency, mobile) | 40% | 10.4% | 665 checks on 133 routes |
+| Business flows | 40% | 48.8% | 42 flows |
 | Cross-cutting (security, errors, responsive, data, tests, release) | 20% | 40.6% | 16 checks |
 
 ## Routes by module
@@ -16,40 +16,42 @@ Generated 2026-11-09 by `qa_progress.py` from `QA_TRACKER.md` and `QA_FLOWS.md`.
 
 | Module | Routes | Done | Remaining |
 |---|---|---|---|
-| orders | 12 | 14% | 86% |
+| orders | 12 | 16% | 84% |
+| clients | 2 | 15% | 85% |
+| inventory | 6 | 15% | 85% |
 | audit-logs | 1 | 10% | 90% |
 | backups | 4 | 10% | 90% |
-| clients | 2 | 10% | 90% |
+| billing | 8 | 10% | 90% |
 | contracts | 3 | 10% | 90% |
+| cycle-count | 4 | 10% | 90% |
 | dashboard | 1 | 10% | 90% |
 | finance | 7 | 10% | 90% |
 | forms | 1 | 10% | 90% |
 | internal | 1 | 10% | 90% |
+| locations | 2 | 10% | 90% |
 | notifications | 1 | 10% | 90% |
+| oms | 10 | 10% | 90% |
+| products | 2 | 10% | 90% |
 | profile | 1 | 10% | 90% |
+| reports | 23 | 10% | 90% |
+| returns | 3 | 10% | 90% |
 | shipping | 2 | 10% | 90% |
+| tasks | 3 | 10% | 90% |
+| users | 4 | 10% | 90% |
 | warehouses | 1 | 10% | 90% |
-| inventory | 6 | 8% | 92% |
-| reports | 23 | 8% | 92% |
-| billing | 8 | 6% | 94% |
-| cycle-count | 4 | 5% | 95% |
-| locations | 2 | 5% | 95% |
-| products | 2 | 5% | 95% |
-| users | 4 | 5% | 95% |
-| oms | 10 | 4% | 96% |
-| returns | 3 | 3% | 97% |
-| tasks | 3 | 3% | 97% |
-| **Total** | 102 | **8.1%** | **91.9%** |
+| **Total** | 102 | **11.1%** | **88.9%** |
 
 ### Client portal
 
 | Module | Routes | Done | Remaining |
 |---|---|---|---|
+| account-inactive | 1 | 10% | 90% |
 | apis | 1 | 10% | 90% |
 | billing | 1 | 10% | 90% |
 | dashboard | 1 | 10% | 90% |
 | ecommerce-orders | 6 | 10% | 90% |
 | finances | 1 | 10% | 90% |
+| login | 1 | 10% | 90% |
 | my-profits | 1 | 10% | 90% |
 | notifications | 1 | 10% | 90% |
 | profile | 1 | 10% | 90% |
@@ -58,9 +60,7 @@ Generated 2026-11-09 by `qa_progress.py` from `QA_TRACKER.md` and `QA_FLOWS.md`.
 | outbound-orders | 6 | 7% | 93% |
 | invoices | 2 | 5% | 95% |
 | products | 4 | 5% | 95% |
-| account-inactive | 1 | 0% | 100% |
-| login | 1 | 0% | 100% |
-| **Total** | 31 | **7.4%** | **92.6%** |
+| **Total** | 31 | **8.1%** | **91.9%** |
 
 ## Flows and cross-cutting checks
 
@@ -74,14 +74,14 @@ Generated 2026-11-09 by `qa_progress.py` from `QA_TRACKER.md` and `QA_FLOWS.md`.
 | F06 | Outbound | Execution by workers (tasks) | ⬜ |
 | F07 | Shipping | Bulk shipping modal on a batch of orders | 🔄 |
 | F08 | Orders | Batches (create, detail, instruction sheet, waybills PDF/Excel) | ⬜ |
-| F09 | Orders | Edit order data and edit shipping fee (before and after shipment) | ⬜ |
+| F09 | Orders | Edit order data and edit shipping fee (before and after shipment) | 🔄 |
 | F10 | Orders | Cancel an order with no shipment, and with a live shipment | ✅ |
 | F11 | Shipping | Change carrier on the same order | ✅ |
 | F12 | Shipping | Delivered through carrier webhook | ✅ |
-| F13 | Shipping | Failed delivery and returned-to-sender through carrier updates | ⬜ |
-| F14 | Returns | OMS returns and WMS returns (plan, receive, restock, rollback rules) | ⬜ |
+| F13 | Shipping | Failed delivery and returned-to-sender through carrier updates | 🔄 |
+| F14 | Returns | OMS returns and WMS returns (plan, receive, restock, rollback rules) | 🔄 |
 | F15 | COD | COD record generated on delivery | ✅ |
-| F16 | COD | COD collection, remittance and reconciliation with the client balance | ⬜ |
+| F16 | COD | COD collection, remittance and reconciliation with the client balance | 🔍 |
 | F17 | Carriers | Sena sandbox: create, status simulation, cancel, return, label, edit | 🔄 |
 | F18 | Carriers | Babel live: create, price vs portal, cancel | ✅ |
 | F19 | Carriers | Sila live: create, price vs portal, cancel | ✅ |
@@ -96,8 +96,8 @@ Generated 2026-11-09 by `qa_progress.py` from `QA_TRACKER.md` and `QA_FLOWS.md`.
 | F28 | Master data | Clients (create, edit, suspend, contract) and client users | 🔄 |
 | F29 | Master data | Warehouses and locations hierarchy (zones, racks, shelves, packing and dock) | 🔄 |
 | F30 | Master data | Shipping companies, fee groups and fee rates per governorate | 🔄 |
-| F31 | Finance | Accounts, transactions (append-only), policies, carrier costs, payouts, statements | ⬜ |
-| F32 | Finance | Optional "Fulfillment Services" billing, invoices, plans (legacy billing) | 🔄 |
+| F31 | Finance | Accounts, transactions (append-only), policies, carrier costs, payouts, statements | 🔍 |
+| F32 | Finance | Optional "Fulfillment Services" billing, invoices, plans (legacy billing) | 🔍 |
 | F33 | Reports | The ~25 admin reports (filters, totals vs source data, export) | 🔄 |
 | F34 | Admin | Users and roles (create, deactivate, role change, password reset) | ⬜ |
 | F35 | Admin | Audit logs, notifications | ⬜ |
@@ -127,7 +127,7 @@ Generated 2026-11-09 by `qa_progress.py` from `QA_TRACKER.md` and `QA_FLOWS.md`.
 
 ## Status counts (flows + cross-cutting)
 
-⛔ 1 · ✅ 9 · ⬜ 17 · 🔄 31
+⛔ 1 · ✅ 9 · ⬜ 12 · 🔄 33 · 🔍 3
 
 ## Definition of done (hand over to the client)
 

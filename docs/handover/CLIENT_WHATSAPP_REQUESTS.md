@@ -58,7 +58,7 @@ Status: ✅ built · 🔍 built, must be verified in the browser · ⬜ not buil
 | A1 | Babel integration works | ✅ | Live E2E 3 Nov (OUT-2026-04464). Re-check quote + create on one test order only after owner approval. | 3 Nov |
 | A2 | Sila detailed tracking statuses (not just "processing") | ✅ | Browser 9 Nov — OMS-2026-03721 shows Arabic `تم تكوين الشحنة` in Shipment Movement. | 9 Nov |
 | A3/A7 | Sena integrated | ✅ | Sandbox E2E 3 Nov (OUT-2026-04463). Remaining: cancel, return, label, failed delivery (F17). | 3 Nov |
-| A4 | Sila guidance implemented (area_id leaf, COD incl. shipping, reference check before resend, cancel path, show Sila error + request_id) | 🔍 | Code audit `SILA_GUIDANCE_AUDIT.md` (7/9 solid; COD amount + reference still need live confirm). | |
+| A4 | Sila guidance implemented (area_id leaf, COD incl. shipping, reference check before resend, cancel path, show Sila error + request_id) | ⛔ | Live Sila blocked (owner yes). Code 9/9 ✅ — COD+shipping via `shipping_paid_by`; `cargos?reference=` on duplicate/ambiguous. | |
 | A5 | Simple scanning to receive/handle orders (like Babel video) | ✅ | OMS list QR scanner accumulates many orders (built). Confirm fit vs client video in testing sprint. | 9 Nov |
 | A8 | Financial system per the proposal | ✅ / ❓ | Built (see HANDOVER §6). Open questions 3, 4 and B15 decisions remain configurable in `/finance/policies` — owner decides defaults. | |
 | B1/B8 | Client edit/cancel before EMDAD confirmation; admin cancel visible | ✅ | Client lock statuses + admin cancel path built. Browser/Sheets refuse-after-approval in testing sprint. | 9 Nov |
