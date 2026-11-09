@@ -80,6 +80,11 @@ describe('shipping-payer utility', () => {
         expect(mapPayerForCarrier('EMDAD_PAYS', 'SENA')).toBe('sender');
       });
 
+      it('maps Delivery Joud and Fatih Cargo to sender', () => {
+        expect(mapPayerForCarrier('EMDAD_PAYS', 'DELIVERY_JOUD')).toBe('sender');
+        expect(mapPayerForCarrier('EMDAD_PAYS', 'FATIH_CARGO')).toBe('sender');
+      });
+
       it('maps Mock Carrier to reseller', () => {
         expect(mapPayerForCarrier('EMDAD_PAYS', 'MOCK_CARRIER')).toBe('reseller');
       });

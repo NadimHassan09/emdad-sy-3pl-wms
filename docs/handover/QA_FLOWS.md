@@ -27,7 +27,7 @@ A flow counts as ✅ only when it was run in the real UI or against the real car
 | F17 | Carriers | Sena sandbox: create, status simulation, cancel, return, label, edit | 🔄 | Create/ship/deliver done; cancel, return, label, edit not done |
 | F18 | Carriers | Babel live: create, price vs portal, cancel | ✅ | 3 Nov; D-020, D-021 open; tracking poll not tested |
 | F19 | Carriers | Sila live: create, price vs portal, cancel | ✅ | 3 Nov; D-023 open; tracking/webhook not tested |
-| F20 | Carriers | Delivery Joud | ⛔ | Adapter coded 7 Nov — browser E2E blocked until owner connects credentials + approves live TEST ORDER |
+| F20 | Carriers | Delivery Joud | 🔄 | Connected 8 Nov; Test connection ok 9 Nov. Unwrapped `response` areas (D-044) + payer map (D-045). Live create in progress on OMS-2026-03728 / OUT-2026-04465 (Test company, Nadim Hassan, TEST ORDER, ريف دمشق). |
 | F21 | Carriers | Webhooks in both directions (valid, invalid signature, duplicate, out-of-order) | ⬜ | |
 | F22 | Carriers | Coverage per governorate and the carrier eligibility rules (weight, COD currency, zone) | 🔄 | Rules built and unit-tested; Babel 10 governorates confirmed; others not probed |
 | F23 | Currency | Three currencies (USD, old SYP, new SYP): quotes, COD, finance, display | 🔄 | Owner model built and unit-tested; Babel unit proven (ledger and its `isNewSYP` API flag); Sena unit assumed new by owner decision; order currency selector and carrier cards not clicked through yet |

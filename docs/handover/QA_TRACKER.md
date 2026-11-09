@@ -99,7 +99,7 @@ One row per route. Defects are logged below with ID, severity (S1 blocker, S2 ma
 | `/returns` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load check only (3 Nov smoke pass) |
 | `/returns/:id` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
 | `/returns/:id/process` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
-| `/shipping/companies` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load sweep 3 Nov: no API error, no console error, no crash |
+| `/shipping/companies` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load sweep 3 Nov. **9 Nov:** Delivery Joud Test connection → **ok** (Connected, last test ok 03:03). |
 | `/shipping/fee-rates` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load sweep 3 Nov. 6 Nov: sidebar link + amber uncovered warning verified; created Global Default group **All Syria / جميع أنحاء سوريا** ($5, all 14 governorates, id `d16723ee-…`, reassign=true) for F04 coverage tests |
 | `/tasks` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load check only (3 Nov smoke pass) |
 | `/tasks/:id` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | |
@@ -216,6 +216,8 @@ Aliases (`/cod-reports`, `/returns`, `/returns/new`, `/returns/:id`, `/billing/i
 | D-041 | S3 | Client portal sidebar | Collapsed sidebar link accessible names render as `[object Object]` because `SidebarLink` used `String(children)` on a React element | Browser readiness 6 Nov | Fixed: `label` prop + plain-text title/aria-label; PortalLayout + admin Layout pass string labels | this commit |
 | D-042 | S3 | Client billing banner | "Billing cycle expiring soon" / "دورة الفوترة تنتهي قريبًا" shown although billing is on-demand (no fixed cycle) | Browser readiness 6 Nov | Fixed: `getOperationalAccess` respects `cutover_active` + active financial account; frontend hides cycle-expiry banner | this commit |
 | D-043 | S3 | Client `/sheets` | `GET /api/client/sheets/google/status` returned 401 (missing `@Public()` so global admin JwtAuthGuard rejected the client session). Expected unlinked state must be 200 `{ connected: false }` | Browser network 6 Nov | Fixed: `@Public()` on Google Sheets controller; callback returns to client portal `/sheets` | this commit |
+| D-044 | S2 | Delivery Joud adapter | Live `get_areas` returns `{ status, response:[…] }` but `unwrapJoudList` ignored `response`, so areas were empty and quotes/create would fail after a false-ok connection test | API probe 9 Nov | Fixed: unwrap `response` (list + order) | pending commit |
+| D-045 | S2 | Shipping payer map | Selecting Delivery Joud (or Fatih) threw `Unsupported carrier payer mapping: DELIVERY_JOUD` in the browser and blocked Continue | Console on OUT-2026-04465 9 Nov | Fixed: map Joud/Fatih → `sender` in `shipping-payer.ts` | pending commit |
 
 ## Smoke pass log
 

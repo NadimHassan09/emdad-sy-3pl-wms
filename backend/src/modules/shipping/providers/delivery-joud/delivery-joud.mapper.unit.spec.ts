@@ -5,6 +5,8 @@ import {
   mapJoudStatusToNormalized,
   matchJoudArea,
   parseJoudAreaFromServiceId,
+  unwrapJoudList,
+  unwrapJoudOrder,
 } from './delivery-joud.mapper';
 
 describe('delivery-joud.mapper', () => {
@@ -73,5 +75,25 @@ describe('delivery-joud.mapper', () => {
     expect(mapJoudStatusToNormalized('تم التسليم')).toBe('delivered');
     expect(mapJoudStatusToNormalized('ملغي')).toBe('cancelled');
     expect(mapJoudStatusToNormalized('in_transit')).toBe('in_transit');
+  });
+
+  it('unwraps Olivery { status, response } list envelope from get_areas', () => {
+    const raw = {
+      status: 200,
+      response: [
+        { id: 62, name: 'دمشق' },
+        { id: 64, name: 'ريف دمشق' },
+      ],
+      message: 'Success',
+    };
+    const list = unwrapJoudList<{ id: number; name: string }>(raw);
+    expect(list).toHaveLength(2);
+    expect(list[0].name).toBe('دمشق');
+  });
+
+  it('unwraps order under response object', () => {
+    expect(unwrapJoudOrder({ status: 200, response: { barcode: '3960023609', name: 'S1' } })?.barcode).toBe(
+      '3960023609',
+    );
   });
 });

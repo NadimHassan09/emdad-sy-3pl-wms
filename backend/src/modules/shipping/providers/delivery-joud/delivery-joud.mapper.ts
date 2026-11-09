@@ -150,12 +150,21 @@ export function mapJoudStatusToNormalized(status?: string | null): NormalizedTra
   return 'unknown';
 }
 
-/** Unwrap common Olivery list shapes. */
+/** Unwrap common Olivery list shapes (`response` is the live get_areas envelope). */
 export function unwrapJoudList<T>(result: unknown): T[] {
   if (Array.isArray(result)) return result as T[];
   if (result && typeof result === 'object') {
     const obj = result as Record<string, unknown>;
-    for (const key of ['areas', 'data', 'result', 'records', 'items', 'order_types', 'statuses']) {
+    for (const key of [
+      'response',
+      'areas',
+      'data',
+      'result',
+      'records',
+      'items',
+      'order_types',
+      'statuses',
+    ]) {
       if (Array.isArray(obj[key])) return obj[key] as T[];
     }
   }
@@ -168,6 +177,13 @@ export function unwrapJoudOrder(result: unknown): JoudOrder | null {
     const obj = result as Record<string, unknown>;
     if (obj.order && typeof obj.order === 'object') return obj.order as JoudOrder;
     if (obj.data && typeof obj.data === 'object' && !Array.isArray(obj.data)) return obj.data as JoudOrder;
+    // create_order may wrap the order under `response` (object or single-element array).
+    if (obj.response && typeof obj.response === 'object' && !Array.isArray(obj.response)) {
+      return obj.response as JoudOrder;
+    }
+    if (Array.isArray(obj.response) && obj.response[0] && typeof obj.response[0] === 'object') {
+      return obj.response[0] as JoudOrder;
+    }
     return obj as JoudOrder;
   }
   if (Array.isArray(result) && result[0] && typeof result[0] === 'object') {

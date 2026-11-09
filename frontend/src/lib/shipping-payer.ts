@@ -39,6 +39,8 @@ export const CARRIER_CODES = {
   BABEL_EXPRESS: 'BABEL_EXPRESS',
   SILA_SY: 'SILA_SY',
   SENA_EXPRESS: 'SENA_EXPRESS',
+  DELIVERY_JOUD: 'DELIVERY_JOUD',
+  FATIH_CARGO: 'FATIH_CARGO',
   MOCK_CARRIER: 'MOCK_CARRIER',
   MANUAL: 'MANUAL',
 } as const;
@@ -57,6 +59,17 @@ export function normalizeCarrierCode(carrier?: string | null): string {
   }
   if (trimmed === 'SENA' || trimmed.startsWith('SENA_') || trimmed.includes('SENA')) {
     return CARRIER_CODES.SENA_EXPRESS;
+  }
+  if (
+    trimmed === 'DELIVERY_JOUD' ||
+    trimmed.includes('DELIVERY_JOUD') ||
+    trimmed.includes('JOUD') ||
+    trimmed.includes('DELIVEROO')
+  ) {
+    return CARRIER_CODES.DELIVERY_JOUD;
+  }
+  if (trimmed === 'FATIH_CARGO' || trimmed.includes('FATIH') || trimmed.includes('الفاتح')) {
+    return CARRIER_CODES.FATIH_CARGO;
   }
   if (trimmed === 'MOCK' || trimmed.startsWith('MOCK_') || trimmed.includes('MOCK')) {
     return CARRIER_CODES.MOCK_CARRIER;
@@ -92,6 +105,8 @@ export function resolvePaymentModeFromPayer(
  *     - Babel Express -> 'reseller'
  *     - Sila-SY -> 'sender'
  *     - Sena Express -> 'sender'
+ *     - Delivery Joud -> 'sender' (delivery_fee_on_sender)
+ *     - Fatih Cargo -> 'sender'
  *     - Mock Carrier -> 'reseller'
  *     - Manual / unassigned -> 'sender'
  *
@@ -115,6 +130,12 @@ export function mapPayerForCarrier(
       return 'sender';
 
     case CARRIER_CODES.SENA_EXPRESS:
+      return 'sender';
+
+    case CARRIER_CODES.DELIVERY_JOUD:
+      return 'sender';
+
+    case CARRIER_CODES.FATIH_CARGO:
       return 'sender';
 
     case CARRIER_CODES.MOCK_CARRIER:
