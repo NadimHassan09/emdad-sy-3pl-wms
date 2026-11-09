@@ -78,5 +78,5 @@ Status: ✅ built · 🔍 built, must be verified in the browser · ⬜ not buil
 | B18 | Company selector resets to "Acme Import" (phone) | 🔍 | Fixed on desktop (D-001). Re-test at phone width on products, inbound, outbound, stock forms. | |
 | B19 | Contents column + copy buttons | ✅ | OMS list contents column; copy shipment info on order details. Verify copy of address, name, phone, order number individually. | |
 | B20 | Group-by like Olivery | ✅ partly | Group by city/client/product/carrier/status on the current page. Whole-result grouping needs a server query. | |
-| B21 | Delivery Joud integration | 🔍 | Adapter `DELIVERY_JOUD` wired (create/quote via areas/track/poll). Unit mappers green. First live shipment + connect credentials need owner approval. Fatih Cargo (`FATIH_CARGO`) also added from store API v2. | 7 Nov |
+| B21 | Delivery Joud integration | ✅ partly | Adapter `DELIVERY_JOUD` wired (create/quote via areas/track/poll). Unit mappers green. First live shipment + connect credentials need owner approval. Fatih Cargo (`FATIH_CARGO`) also added from store API v2. | 7 Nov |
 | B23 | Template drop-downs: all governorates + cities + areas | 🔍 | Hidden Lists/Areas sheets + named ranges; city depends on governorate; area flat list for typo guard. | 6 Nov — template endpoint returns xlsx; unit test meta 14 govs / 286+ cities / 8k areas |
