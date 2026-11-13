@@ -185,6 +185,19 @@ export class FinancialCodService {
         return record;
       }
 
+      // B15 — optional prep fee debit when liquidity_gap_mode=prep_fee and prep_fee_enabled.
+      const prepEnabled = await this.policies.isFlagEnabled('prep_fee_enabled');
+      const gapMode = await this.policies.getPolicyValue('liquidity_gap_mode');
+      let prepFeeUsd = new Prisma.Decimal(0);
+      let prepFeePercent: string | null = null;
+      if (prepEnabled && gapMode === 'prep_fee') {
+        prepFeePercent = await this.policies.getPolicyValue('prep_fee_percent');
+        const pct = Math.min(100, Math.max(0, Number(prepFeePercent) || 0));
+        if (pct > 0) {
+          prepFeeUsd = netAmount.mul(pct).div(100).toDecimalPlaces(4);
+        }
+      }
+
       const idempotencyKey = `cod_credit_ord_${record.omsOrderId}`;
       const now = new Date();
 
@@ -210,10 +223,36 @@ export class FinancialCodService {
             originalCurrency: record.currency,
             fxRate: record.accountFxRate?.toString() ?? null,
             adjustments: record.adjustments.length,
+            prepFeeUsd: prepFeeUsd.gt(0) ? prepFeeUsd.toString() : null,
           },
         },
         tx,
       );
+
+      if (prepFeeUsd.gt(0)) {
+        await this.transactions.postTransaction(
+          {
+            companyId: record.companyId,
+            type: FinancialTransactionType.debit,
+            category: FinancialTransactionCategory.fulfillment_fee,
+            amount: prepFeeUsd,
+            currency: 'USD',
+            description: `Prep fee for COD Order ${record.omsOrder.orderNumber}`,
+            referenceType: 'oms_order',
+            referenceId: record.omsOrderId,
+            idempotencyKey: `prep_fee_ord_${record.omsOrderId}`,
+            createdBy: userId.startsWith('auto:') ? undefined : userId,
+            debitAvailable: true,
+            metadata: {
+              codRecordId: record.id,
+              omsOrderId: record.omsOrderId,
+              orderNumber: record.omsOrder.orderNumber,
+              prepFeePercent,
+            },
+          },
+          tx,
+        );
+      }
 
       // Decrement pendingBalance and mark credited
       await this.accounts.updateBalances(

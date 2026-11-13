@@ -7,6 +7,7 @@ import { FinancialPoliciesService } from './financial-policies.service';
 import { FinancialCodService } from './financial-cod.service';
 import { FinancialPayoutsService } from './financial-payouts.service';
 import { FinancialCarrierCostsService } from './financial-carrier-costs.service';
+import { FinancialFloatReconciliationService } from './financial-float-reconciliation.service';
 import { FinancialController } from './financial.controller';
 import { ClientFinancialController } from './client-financial.controller';
 
@@ -20,6 +21,7 @@ import { ClientFinancialController } from './client-financial.controller';
     FinancialCodService,
     FinancialPayoutsService,
     FinancialCarrierCostsService,
+    FinancialFloatReconciliationService,
   ],
   exports: [
     FinancialAccountsService,
@@ -28,6 +30,7 @@ import { ClientFinancialController } from './client-financial.controller';
     FinancialCodService,
     FinancialPayoutsService,
     FinancialCarrierCostsService,
+    FinancialFloatReconciliationService,
   ],
 })
 export class FinancialModule {}

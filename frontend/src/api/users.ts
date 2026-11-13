@@ -136,4 +136,47 @@ export const UsersApi = {
     );
     return data;
   },
+
+  async listCustomRoles(): Promise<CustomRoleRow[]> {
+    const { data } = await api.get<CustomRoleRow[]>('/users/custom-roles');
+    return data;
+  },
+
+  async createCustomRole(payload: UpsertCustomRolePayload): Promise<CustomRoleRow> {
+    const { data } = await api.post<CustomRoleRow>('/users/custom-roles', payload);
+    return data;
+  },
+
+  async updateCustomRole(id: string, payload: UpsertCustomRolePayload): Promise<CustomRoleRow> {
+    const { data } = await api.patch<CustomRoleRow>(`/users/custom-roles/${id}`, payload);
+    return data;
+  },
+
+  async deleteCustomRole(id: string): Promise<{ ok: boolean }> {
+    const { data } = await api.delete<{ ok: boolean }>(`/users/custom-roles/${id}`);
+    return data;
+  },
+};
+
+export type CustomRolePermission = {
+  id?: string;
+  module: string;
+  action: string;
+  allowed: boolean;
+};
+
+export type CustomRoleRow = {
+  id: string;
+  name: string;
+  description: string | null;
+  isActive: boolean;
+  permissions?: CustomRolePermission[];
+  _count?: { users: number };
+};
+
+export type UpsertCustomRolePayload = {
+  name?: string;
+  description?: string;
+  isActive?: boolean;
+  permissions?: Array<{ module: string; action: string; allowed: boolean }>;
 };

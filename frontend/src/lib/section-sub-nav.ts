@@ -239,6 +239,11 @@ export const SECTION_SUB_NAV_CONFIGS: SectionSubNavConfig[] = [
         to: '/users/client_users',
         match: (p) => p.startsWith('/users/client_users'),
       },
+      {
+        labelKey: 'Custom roles',
+        to: '/users/custom-roles',
+        match: (p) => p.startsWith('/users/custom-roles'),
+      },
     ],
   },
   {

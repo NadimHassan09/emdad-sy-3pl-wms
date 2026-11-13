@@ -21,6 +21,7 @@ import { FinancialAccountsService } from './financial-accounts.service';
 import { FinancialTransactionsService } from './financial-transactions.service';
 import { FinancialPayoutsService } from './financial-payouts.service';
 import { FinancialCodService } from './financial-cod.service';
+import { FinancialPoliciesService } from './financial-policies.service';
 import {
   CreateClientPayoutRequestDto,
   ExportFinancialTransactionsQueryDto,
@@ -42,16 +43,20 @@ export class ClientFinancialController {
     private readonly transactions: FinancialTransactionsService,
     private readonly payouts: FinancialPayoutsService,
     private readonly cod: FinancialCodService,
+    private readonly policies: FinancialPoliciesService,
   ) {}
 
   @Get('account')
   async getAccount(@ClientUser() client: ClientPrincipal) {
     const acc = await this.accounts.getAccount(client.companyId);
+    // B12 client shield: hide in-transit / liquidity gap from the client view.
+    const shield = await this.policies.isFlagEnabled('client_shield_enabled');
+    const pending = shield ? '0' : acc.pendingBalance.toString();
     return {
       companyId: acc.companyId,
       currentBalance: acc.currentBalance.toString(),
       availableBalance: acc.availableBalance.toString(),
-      pendingBalance: acc.pendingBalance.toString(),
+      pendingBalance: pending,
       payoutLocked: acc.payoutLocked.toString(),
       totalCredits: acc.totalCredits.toString(),
       totalDebits: acc.totalDebits.toString(),

@@ -146,7 +146,9 @@ const FinancialTransactionsPage = lazyPage(() => import('./pages/finance/Financi
 const CodFinancialPage          = lazyPage(() => import('./pages/finance/CodFinancialPage'), 'CodFinancialPage');
 const PayoutManagementPage      = lazyPage(() => import('./pages/finance/PayoutManagementPage'), 'PayoutManagementPage');
 const CarrierCostsPage          = lazyPage(() => import('./pages/finance/CarrierCostsPage'), 'CarrierCostsPage');
+const FloatReconciliationPage   = lazyPage(() => import('./pages/finance/FloatReconciliationPage'), 'FloatReconciliationPage');
 const FinancialSettingsPage     = lazyPage(() => import('./pages/finance/FinancialSettingsPage'), 'FinancialSettingsPage');
+const CustomRolesPage           = lazyPage(() => import('./pages/settings/CustomRolesPage'), 'CustomRolesPage');
 
 /** Data router required for `useBlocker` (task execution exit guard). */
 export const router = createBrowserRouter([
@@ -261,7 +263,9 @@ export const router = createBrowserRouter([
       { path: 'finance/cod', element: <CodFinancialPage /> },
       { path: 'finance/payouts', element: <PayoutManagementPage /> },
       { path: 'finance/carrier-costs', element: <CarrierCostsPage /> },
+      { path: 'finance/float', element: <FloatReconciliationPage /> },
       { path: 'finance/policies', element: <FinancialSettingsPage /> },
+      { path: 'users/custom-roles', element: <CustomRolesPage /> },
       { path: 'billing', element: <Navigate to="/billing/dashboard" replace /> },
       { path: 'billing/dashboard', element: <BillingDashboardPage /> },
       { path: 'billing/plans', element: <BillingPlansPage /> },

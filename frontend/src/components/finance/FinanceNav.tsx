@@ -7,6 +7,7 @@ const FINANCE_TABS = [
   { key: 'cod', label: 'COD Management', labelAr: 'إدارة الدفع عند الاستلام', to: '/finance/cod' },
   { key: 'payouts', label: 'Payouts', labelAr: 'المسحوبات', to: '/finance/payouts' },
   { key: 'carrier-costs', label: 'Carrier Costs', labelAr: 'تكاليف شركات الشحن', to: '/finance/carrier-costs' },
+  { key: 'float', label: 'Float & Recon', labelAr: 'الفلوت والتسوية', to: '/finance/float' },
   { key: 'policies', label: 'Policies', labelAr: 'السياسات المالية', to: '/finance/policies' },
   { key: 'legacy-billing', label: 'Legacy Billing', labelAr: 'الفوترة السابقة (أرشيف)', to: '/billing/invoices' },
 ];

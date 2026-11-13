@@ -24,6 +24,7 @@ import { FinancialPoliciesService } from './financial-policies.service';
 import { FinancialCodService } from './financial-cod.service';
 import { FinancialPayoutsService } from './financial-payouts.service';
 import { FinancialCarrierCostsService } from './financial-carrier-costs.service';
+import { FinancialFloatReconciliationService } from './financial-float-reconciliation.service';
 import {
   ConfirmCodCollectionDto,
   ConfirmCodRemittanceDto,
@@ -47,6 +48,7 @@ export class FinancialController {
     private readonly cod: FinancialCodService,
     private readonly payouts: FinancialPayoutsService,
     private readonly carrierCosts: FinancialCarrierCostsService,
+    private readonly floatRecon: FinancialFloatReconciliationService,
   ) {}
 
   @Get('overview')
@@ -208,5 +210,32 @@ export class FinancialController {
     @Body() body: { reference?: string; notes?: string },
   ) {
     return this.carrierCosts.markCarrierCostPaid(id, body);
+  }
+
+  /** B12 — In-transit float indicator (gated by in_transit_float_enabled). */
+  @Get('float/in-transit')
+  getInTransitFloat(
+    @Query('providerCode') providerCode?: string,
+    @Query('alertLimitUsd') alertLimitUsd?: string,
+  ) {
+    return this.floatRecon.getInTransitFloat({
+      providerCode,
+      alertLimitUsd: alertLimitUsd ? Number(alertLimitUsd) : undefined,
+    });
+  }
+
+  /** B12 — Compare carrier statement rows to EMDAD shipments (gated by carrier_reconciliation_enabled). */
+  @Post('float/reconcile')
+  reconcileCarrierStatement(
+    @Body()
+    body: {
+      providerCode?: string;
+      rows: Array<{ awb: string; amount: number; currency?: string }>;
+    },
+  ) {
+    return this.floatRecon.reconcileCarrierStatement({
+      providerCode: body?.providerCode,
+      rows: Array.isArray(body?.rows) ? body.rows : [],
+    });
   }
 }

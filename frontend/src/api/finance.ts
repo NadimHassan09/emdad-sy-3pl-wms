@@ -267,4 +267,56 @@ export const FinanceApi = {
     const res = await api.post(`/finance/carrier-costs/${id}/mark-paid`, payload);
     return res.data;
   },
+
+  getInTransitFloat: async (params?: { providerCode?: string; alertLimitUsd?: number }) => {
+    const res = await api.get<{
+      enabled: boolean;
+      message?: string;
+      totalsByCurrency: Array<{ currency: string; amount: string; shipmentCount: number }>;
+      alert: { level: string; message: string } | null;
+      itemCount?: number;
+      items: Array<{
+        id: string;
+        providerCode: string;
+        providerName: string;
+        externalAwb: string | null;
+        trackingNumber: string | null;
+        lastTrackingStatus: string | null;
+        outboundOrderNumber: string | null;
+        clientName: string | null;
+        shippingCost: string | null;
+        currency: string;
+        createdAt: string;
+      }>;
+    }>('/finance/float/in-transit', { params });
+    return res.data;
+  },
+
+  reconcileCarrierStatement: async (payload: {
+    providerCode?: string;
+    rows: Array<{ awb: string; amount: number; currency?: string }>;
+  }) => {
+    const res = await api.post<{
+      enabled: boolean;
+      summary: {
+        statementRows: number;
+        match: number;
+        amountMismatch: number;
+        missingInEmdad: number;
+        duplicateInEmdad: number;
+        dbDuplicateAwbs: number;
+      };
+      dbDuplicateAwbs: Array<{ awb: string; count: number }>;
+      matches: Array<{
+        awb: string;
+        statementAmount: number;
+        statementCurrency: string;
+        emdadAmount: string | null;
+        emdadCurrency: string | null;
+        outboundOrderNumber: string | null;
+        status: 'match' | 'amount_mismatch' | 'missing_in_emdad' | 'duplicate_in_emdad';
+      }>;
+    }>('/finance/float/reconcile', payload);
+    return res.data;
+  },
 };
