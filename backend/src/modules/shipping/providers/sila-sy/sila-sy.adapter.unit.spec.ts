@@ -390,6 +390,47 @@ describe('SilaSyAdapter', () => {
       expect(mockHttp.post.mock.calls[0][2]).not.toHaveProperty('sender');
     });
 
+    it('folds carrier shipping into COD when payer is receiver (Sila rejects receiver + non-zero COD)', async () => {
+      mockHttp.post.mockResolvedValueOnce({ couriers: [] });
+      mockHttp.post.mockResolvedValueOnce({
+        id: 'sila_cargo_rec',
+        barcode: 'SILA-REC',
+        courier_barcode: 'COURIER-REC',
+      });
+
+      await adapter.createShipment(credentials, {
+        serviceId: 'SILA_SY:cour_123:area_456',
+        reference: 'OMS-REC-1',
+        receiver: {
+          name: 'Nadim Hassan',
+          phoneCountry: '963',
+          phoneLocal: '999000111',
+          address: 'Aleppo test street',
+          lat: 0,
+          lng: 0,
+        },
+        packageType: 'box',
+        weightKg: 1,
+        contents: 'Goods',
+        deliveryType: 'address',
+        pickupType: 'hub',
+        payer: 'receiver',
+        codAmount: 20,
+        currency: 'USD',
+        carrierShippingFee: 3.5,
+      });
+
+      expect(mockHttp.post).toHaveBeenCalledWith(
+        'cargos',
+        'sila_live_testkey123',
+        expect.objectContaining({
+          pay_on_delivery: { amount: 23.5, currency: 'USD' },
+          shipping_paid_by: 'merchant',
+          merchant_pays_shipping: true,
+        }),
+      );
+    });
+
     it('sends pickup address as sender and does not use branch pickup for home delivery', async () => {
       mockHttp.post.mockResolvedValueOnce({ couriers: [] });
       mockHttp.post.mockResolvedValueOnce({

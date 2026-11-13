@@ -204,6 +204,8 @@ export type ShippingConfigPayload = {
     widthCm: number;
     heightCm: number;
   }> | null;
+  shippingQuotedPrice?: number | null;
+  shippingQuotedCurrency?: string | null;
   shippingPhoneCountry?: string | null;
   babelNeighbourhoodId?: number | null;
 };

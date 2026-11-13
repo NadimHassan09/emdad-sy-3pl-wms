@@ -368,9 +368,51 @@ export function InvoiceBreakdownPanel({
                   {storagePreview.totalCbm.toFixed(3)} m³ × ${storagePreview.rateUsd}/m³ ={' '}
                   {money(storagePreview.amount)}
                 </p>
+                <div className="max-h-56 overflow-auto rounded border border-border">
+                  <table className="w-full text-xs">
+                    <thead>
+                      <tr className="border-b border-border bg-surface-sunken text-left text-text-muted">
+                        <th className="px-2 py-1.5">SKU</th>
+                        <th className="px-2 py-1.5">Name</th>
+                        <th className="px-2 py-1.5 text-right">Qty</th>
+                        <th className="px-2 py-1.5">L×W×H</th>
+                        <th className="px-2 py-1.5 text-right">CBM</th>
+                        <th className="px-2 py-1.5 text-right">Subtotal</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {storagePreview.lines.map((l) => {
+                        const dims =
+                          l.l != null && l.w != null && l.h != null
+                            ? `${l.l}×${l.w}×${l.h}`
+                            : '—';
+                        const lineAmount = Number(l.cbm) * Number(storagePreview.rateUsd);
+                        return (
+                          <tr key={l.productId} className="border-b border-border/50">
+                            <td className="px-2 py-1 font-mono">{l.sku}</td>
+                            <td className="px-2 py-1">{l.name}</td>
+                            <td className="px-2 py-1 text-right tabular-nums">{l.qty}</td>
+                            <td className="px-2 py-1">
+                              {dims}
+                              {l.missingDimensions ? (
+                                <span className="ml-1 rounded bg-amber-100 px-1 text-amber-800">
+                                  Missing dimensions
+                                </span>
+                              ) : null}
+                            </td>
+                            <td className="px-2 py-1 text-right tabular-nums">
+                              {Number(l.cbm).toFixed(4)}
+                            </td>
+                            <td className="px-2 py-1 text-right tabular-nums">{money(lineAmount)}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
                 {storagePreview.lines.some((l) => l.missingDimensions) ? (
                   <p className="text-xs text-amber-700">
-                    Some products are missing dimensions and contribute 0 CBM.
+                    Missing dimensions — update product to include in calculation.
                   </p>
                 ) : null}
                 <Button

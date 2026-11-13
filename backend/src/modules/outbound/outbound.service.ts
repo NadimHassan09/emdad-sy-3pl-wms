@@ -1998,7 +1998,7 @@ export class OutboundService {
       acknowledgeNoExternalShipment?: boolean;
     },
   ) {
-    const order = await this.findById(orderId, user);
+    let order = await this.findById(orderId, user);
     if (order.status !== OutboundOrderStatus.waiting_for_shipping_details) {
       throw new BadRequestException(
         `Send Shipment is only available while waiting_for_shipping_details (current: ${order.status}).`,
@@ -2057,6 +2057,21 @@ export class OutboundService {
             : {}),
         },
       });
+    }
+
+    // Persist the live quote used for send so adapters (Sila COD+receiver fold) see the fee.
+    if (
+      body?.quoteFingerprint?.amount != null &&
+      Number.isFinite(Number(body.quoteFingerprint.amount))
+    ) {
+      await this.prisma.outboundOrder.update({
+        where: { id: orderId },
+        data: {
+          shippingQuotedPrice: new Prisma.Decimal(body.quoteFingerprint.amount),
+          shippingQuotedCurrency: body.quoteFingerprint.currency?.trim() || null,
+        },
+      });
+      order = await this.findById(orderId, user);
     }
 
     await this.shipping.assertLiveCarrierSelection({

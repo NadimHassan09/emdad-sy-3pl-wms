@@ -1639,6 +1639,16 @@ export class ShippingService implements OnModuleInit {
           // Non-COD: amount 0 disables COD per Babel OpenAPI. COD: business amount + currency.
           codAmount: isCod && Number.isFinite(codAmount) ? codAmount : 0,
           currency: codCurrency,
+          carrierShippingFee: (() => {
+            const fee =
+              order.shippingQuotedPrice != null ? Number(order.shippingQuotedPrice) : NaN;
+            const feeCurrency = (order.shippingQuotedCurrency ?? '').trim().toUpperCase();
+            if (!Number.isFinite(fee) || fee < 0) return null;
+            if (feeCurrency && feeCurrency !== (codCurrency ?? '').trim().toUpperCase()) {
+              return null;
+            }
+            return fee;
+          })(),
           items: (order.lines ?? []).map((line) => ({
             name: line.product?.name ?? 'item',
             quantity: Math.max(1, Number(line.requestedQuantity) || 1),
@@ -2360,6 +2370,16 @@ export class ShippingService implements OnModuleInit {
           payer: order.shippingPayer || 'sender',
           codAmount: isCod && Number.isFinite(codAmount) ? codAmount : 0,
           currency: codCurrency,
+          carrierShippingFee: (() => {
+            const fee =
+              order.shippingQuotedPrice != null ? Number(order.shippingQuotedPrice) : NaN;
+            const feeCurrency = (order.shippingQuotedCurrency ?? '').trim().toUpperCase();
+            if (!Number.isFinite(fee) || fee < 0) return null;
+            if (feeCurrency && feeCurrency !== (codCurrency ?? '').trim().toUpperCase()) {
+              return null;
+            }
+            return fee;
+          })(),
           items: (order.lines ?? []).map((line) => ({
             name: line.product?.name ?? 'item',
             quantity: Math.max(1, Number(line.requestedQuantity) || 1),

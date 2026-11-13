@@ -50,6 +50,12 @@ export type ShippingCreateShipmentInput = {
   payer: 'sender' | 'receiver' | 'reseller';
   codAmount: number;
   currency?: string;
+  /**
+   * Carrier shipping quote in the same currency as `codAmount` when known.
+   * Sila: when payer is receiver and COD > 0, the API rejects non-zero COD with
+   * shipping_paid_by=receiver — fold this fee into pay_on_delivery and use merchant.
+   */
+  carrierShippingFee?: number | null;
   /** Opaque routing token from getQuote/getServiceOptions. Provider-specific (e.g. "SILA_SY:{courier_id}"). */
   serviceId?: string;
   /** Provider hub/branch id for Hub Delivery. Ignored for home delivery. */

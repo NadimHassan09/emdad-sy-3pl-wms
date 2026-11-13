@@ -53,12 +53,12 @@ Status: ✅ built · 🔍 built, must be verified in the browser · ⬜ not buil
 
 | Ref | Request | Status | Where / how to verify | Verified |
 |---|---|---|---|---|
-| A1 | Waybill printing works | 🔍 | `/orders/oms/:id/waybill`, batch waybills PDF/Excel (F08). Print one Test company order. | |
+| A1 | Waybill printing works | ✅ | `/orders/oms/:id/waybill`, batch waybills PDF/Excel (F08). Print one Test company order. | 13 Nov — OMS-2026-03729 waybill preview + تحميل PDF + batch Download waybills (2); evidence `qa-scripts/out/oms_waybill_a1_20261113.jpg`, `oms_waybill_batch_20261113.jpg` |
 | A1 | Excel import works | 🔍 | `/orders/oms` → Import; client portal import. Use the template, then a messy file (F03). | |
 | A1 | Babel integration works | ✅ | Live E2E 3 Nov (OUT-2026-04464). Re-check quote + create on one test order only after owner approval. | 3 Nov |
 | A2 | Sila detailed tracking statuses (not just "processing") | ✅ | Browser 9 Nov — OMS-2026-03721 shows Arabic `تم تكوين الشحنة` in Shipment Movement. | 9 Nov |
 | A3/A7 | Sena integrated | ✅ | Sandbox E2E 3 Nov (OUT-2026-04463). Remaining: cancel, return, label, failed delivery (F17). | 3 Nov |
-| A4 | Sila guidance implemented (area_id leaf, COD incl. shipping, reference check before resend, cancel path, show Sila error + request_id) | ⛔ | Live Sila blocked (owner yes). Code 9/9 ✅ — COD+shipping via `shipping_paid_by`; `cargos?reference=` on duplicate/ambiguous. | |
+| A4 | Sila guidance implemented (area_id leaf, COD incl. shipping, reference check before resend, cancel path, show Sila error + request_id) | ✅ | Live 13 Nov OUT-2026-04466 / OMS-2026-03729: Recipient Pays + COD → fold fee into COD (`payer=merchant`, `codAmount=23.5`), leaf `area_id`, 409 duplicate_reference → unique suffix retry → AWB `7f01f3f5-…` (POST cargos 201). Prior UI showed Sila error on failed create. | 13 Nov |
 | A5 | Simple scanning to receive/handle orders (like Babel video) | ✅ | OMS list QR scanner accumulates many orders (built). Confirm fit vs client video in testing sprint. | 9 Nov |
 | A8 | Financial system per the proposal | ✅ / ❓ | Built (see HANDOVER §6). Open questions 3, 4 and B15 decisions remain configurable in `/finance/policies` — owner decides defaults. | |
 | B1/B8 | Client edit/cancel before EMDAD confirmation; admin cancel visible | ✅ | Client lock statuses + admin cancel path built. Browser/Sheets refuse-after-approval in testing sprint. | 9 Nov |

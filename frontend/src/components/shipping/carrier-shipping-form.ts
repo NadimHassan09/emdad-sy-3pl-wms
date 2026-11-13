@@ -475,6 +475,13 @@ export function carrierFormToSavePayload(
     addressLine1: form.addressLine1.trim() || null,
     addressLine2: form.addressLine2.trim() || null,
     codCollectionCurrency: form.collectionCurrency || form.currency || 'USD',
+    ...(form.quoteFingerprint?.amount != null &&
+    Number.isFinite(Number(form.quoteFingerprint.amount))
+      ? {
+          shippingQuotedPrice: Number(form.quoteFingerprint.amount),
+          shippingQuotedCurrency: form.quoteFingerprint.currency || form.currency || 'USD',
+        }
+      : {}),
   };
 }
 

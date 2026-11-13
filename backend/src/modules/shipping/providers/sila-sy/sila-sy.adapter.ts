@@ -1032,10 +1032,33 @@ export class SilaSyAdapter implements ShippingProvider {
 
     // Sila payload fields are observed (no checked-in OpenAPI). Do not change them from a guess.
     // shipping_paid_by accepts merchant | receiver only, so reseller cannot be encoded.
-    // Receiver + COD is not blocked here; Sila's create response is the decision.
+    // Live create 10 Nov: shipping_paid_by=receiver requires pay_on_delivery.amount 0/omitted.
+    // So COD + recipient-pays-shipping → fold carrier fee into COD and use merchant for shipping_paid_by
+    // (recipient total = merchandise COD + shipping, matching Sila guidance point 5).
     // Province area_id is narrowed with Sila's own area API.
     // Fee currency and COD currency are independent. Do not block when they differ.
     // District prefers city over neighbourhood. Branch-only couriers stay hidden for home delivery.
+    if (input.payer === 'reseller') {
+      throw new BadRequestException(
+        'Sila-SY does not support Reseller as the shipping payer. Choose Sender or Receiver and send again.',
+      );
+    }
+    const merchandiseCod = Math.max(0, Number(input.codAmount) || 0);
+    const shippingFee = Math.max(0, Number(input.carrierShippingFee) || 0);
+    const receiverPaysWithCod = input.payer === 'receiver' && merchandiseCod > 0;
+    if (receiverPaysWithCod && !(shippingFee > 0)) {
+      throw new BadRequestException(
+        'Sila-SY: Recipient Pays with COD needs a saved carrier quote so shipping can be included in the COD amount. Refresh rates, select the carrier again, Save, then Send.',
+      );
+    }
+    const payOnDeliveryAmount = receiverPaysWithCod
+      ? merchandiseCod + shippingFee
+      : merchandiseCod;
+    const shippingPaidBy = receiverPaysWithCod
+      ? 'merchant'
+      : input.payer === 'receiver'
+        ? 'receiver'
+        : 'merchant';
     const body: Record<string, unknown> = {
       recipient: {
         full_name: input.receiver.name,
@@ -1070,19 +1093,11 @@ export class SilaSyAdapter implements ShippingProvider {
       // "does not serve this area (or this service type)".
       service_type: branchId || input.deliveryType === 'hub' ? 'pickup_at_branch' : 'home_delivery',
       pay_on_delivery: {
-        amount: Math.max(0, Number(input.codAmount) || 0),
+        amount: payOnDeliveryAmount,
         currency: (input.currency ?? 'USD').toUpperCase(),
       },
-      // Sila accepts only merchant | receiver. Sender is the merchant. Reseller has no Sila value.
-      shipping_paid_by: (() => {
-        if (input.payer === 'reseller') {
-          throw new BadRequestException(
-            'Sila-SY does not support Reseller as the shipping payer. Choose Sender or Receiver and send again.',
-          );
-        }
-        return input.payer === 'receiver' ? 'receiver' : 'merchant';
-      })(),
-      merchant_pays_shipping: input.payer !== 'receiver',
+      shipping_paid_by: shippingPaidBy,
+      merchant_pays_shipping: shippingPaidBy === 'merchant',
       ...(input.reference?.trim()
         ? { reference: input.reference.trim().slice(0, 120) }
         : {}),
