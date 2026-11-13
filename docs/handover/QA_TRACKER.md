@@ -13,9 +13,9 @@ One row per route. Defects are logged below with ID, severity (S1 blocker, S2 ma
 | `/backups/retention` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load sweep 3 Nov: no API error, no console error, no crash |
 | `/backups/schedules` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load sweep 3 Nov: no API error, no console error, no crash |
 | `/billing/dashboard` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load sweep 3 Nov: no API error, no console error, no crash |
-| `/billing/invoices` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load + F32 🔍 9 Nov screenshot; issue/settle not clicked (money) |
-| `/billing/invoices/:id` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load 9 Nov INV-2026-00026; Calculate/incentive earlier on INV-2026-00025 |
-| `/billing/plans` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load sweep 3 Nov: no API error, no console error, no crash |
+| `/billing/invoices` | ✅ | ⬜ | ⬜ | ⬜ | ⬜ | 13 Nov list + open INV-2026-00025; Issue → Unpaid |
+| `/billing/invoices/:id` | ✅ | ⬜ | ⬜ | ⬜ | ⬜ | 13 Nov redesign tools: storage SKU table, incentive, Edit invoice after issue; evidence `invoice_storage_preview_20261113.jpg` |
+| `/billing/plans` | ✅ | ⬜ | ⬜ | ⬜ | ⬜ | 13 Nov load Billing plans |
 | `/billing/plans/:clientId` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load 9 Nov Test company plan detail (screenshot) |
 | `/billing/plans/:clientId/edit` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load 9 Nov Edit plan — Test company |
 | `/billing/plans/new` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load sweep 3 Nov: no API error, no console error, no crash |
