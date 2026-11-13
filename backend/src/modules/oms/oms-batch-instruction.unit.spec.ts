@@ -121,6 +121,27 @@ describe('batch instruction document', () => {
     ]);
   });
 
+  it('builds per-order pick lines for the picking list', () => {
+    expect(doc.orderPicks.length).toBeGreaterThan(0);
+    expect(doc.orderPicks.every((o) => o.lines.length > 0)).toBe(true);
+    expect(doc.orderPicks.map((o) => o.orderNumber)).toEqual(
+      expect.arrayContaining(['OMS-1', 'OMS-2', 'OMS-3', 'OMS-5']),
+    );
+  });
+
+  it('renders picking list per order and packing list separately', () => {
+    const { renderBatchInstructionByKind } = require('./oms-batch-instruction-sheet') as typeof import('./oms-batch-instruction-sheet');
+    const picking = renderBatchInstructionByKind(doc, 'picking');
+    const packing = renderBatchInstructionByKind(doc, 'packing');
+    expect(picking).toContain('قائمة التجميع');
+    expect(picking).toContain('Picking List');
+    expect(picking).toContain('OMS-1');
+    expect(picking).toContain('order-card');
+    expect(packing).toContain('قائمة التعبئة');
+    expect(packing).toContain('Packing List');
+    expect(packing).not.toContain('قائمة التجميع');
+  });
+
   it('renders one batch sheet with allocation, a single packing instruction, and checklist boxes', () => {
     const html = renderBatchInstructionHtml(doc);
     expect(html).toContain('BATCH-1025');

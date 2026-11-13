@@ -1084,6 +1084,8 @@ model User {
   role           UserRole
   status         UserStatus @default(active)
   avatarPath     String?    @map("avatar_path")
+  /// Optional custom role (O-11). Built-in `role` stays for backward-compatible guards.
+  customRoleId   String?    @map("custom_role_id") @db.Uuid
   /// Stable Google account id (`sub`). Null until the user links Google Sign-In.
   googleSub      String?    @unique @map("google_sub")
   googleEmail    String?    @map("google_email")
@@ -1095,6 +1097,7 @@ model User {
   updatedAt      DateTime   @default(now()) @map("updated_at") @db.Timestamptz(6)
 
   company                      Company?                     @relation(fields: [companyId], references: [id])
+  customRole                   CustomRole?                  @relation(fields: [customRoleId], references: [id], onDelete: SetNull)
   inboundOrdersOwned           InboundOrder[]               @relation("InboundCreatedBy")
   outboundOrdersOwned          OutboundOrder[]              @relation("OutboundCreatedBy")
   returnOrdersOwned            ReturnOrder[]                @relation("ReturnCreatedBy")
@@ -1140,7 +1143,39 @@ model User {
   apiCredentialsCreated        ApiCredential[]              @relation("ApiCredentialCreatedBy")
   apiCredentialsRevoked        ApiCredential[]              @relation("ApiCredentialRevokedBy")
 
+  @@index([customRoleId], map: "idx_users_custom_role_id")
   @@map("users")
+}
+
+/// O-11 — Super-admin–defined role with editable module×action permissions.
+model CustomRole {
+  id          String   @id @default(uuid()) @db.Uuid
+  name        String   @db.VarChar(80)
+  description String?
+  isActive    Boolean  @default(true) @map("is_active")
+  createdBy   String?  @map("created_by") @db.Uuid
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  permissions CustomRolePermission[]
+  users       User[]
+
+  @@unique([name])
+  @@map("custom_roles")
+}
+
+model CustomRolePermission {
+  id      String  @id @default(uuid()) @db.Uuid
+  roleId  String  @map("role_id") @db.Uuid
+  module  String  @db.VarChar(64)
+  action  String  @db.VarChar(32)
+  allowed Boolean @default(true)
+
+  role CustomRole @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@unique([roleId, module, action], map: "uq_custom_role_permissions_role_module_action")
+  @@index([roleId], map: "idx_custom_role_permissions_role")
+  @@map("custom_role_permissions")
 }
 
 model ApiCredential {

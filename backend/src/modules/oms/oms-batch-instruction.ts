@@ -57,6 +57,15 @@ export type BatchInstructionDocument = {
     itemCount: string;
     note: string;
   }>;
+  /** Per-order pick lines for the dedicated picking-list PDF (not SKU-aggregated). */
+  orderPicks: Array<{
+    orderNumber: string;
+    customerName: string;
+    customerPhone: string;
+    companyName: string;
+    note: string;
+    lines: Array<{ sku: string; name: string; quantity: string; location: string }>;
+  }>;
 };
 
 function qty(raw: string): Prisma.Decimal {
@@ -224,5 +233,24 @@ export function buildBatchInstructionDocument(input: {
       itemCount: order.itemCount || '0',
       note: order.note.trim() || '—',
     })),
+    orderPicks: orders
+      .filter((order) => order.includeOperations)
+      .map((order) => ({
+        orderNumber: order.orderNumber,
+        customerName: order.customerName || '—',
+        customerPhone: order.customerPhone?.trim() || '—',
+        companyName: order.companyName?.trim() || '—',
+        note: order.note.trim() || '—',
+        lines: order.picks
+          .filter((p) => qty(p.quantity).greaterThan(0))
+          .map((p) => ({
+            sku: p.sku.trim() || '—',
+            name: p.name.trim() || '—',
+            quantity: formatQty(qty(p.quantity)),
+            location:
+              [p.locationName.trim(), p.locationCode.trim()].filter(Boolean).join(' · ') || '—',
+          })),
+      }))
+      .filter((o) => o.lines.length > 0),
   };
 }

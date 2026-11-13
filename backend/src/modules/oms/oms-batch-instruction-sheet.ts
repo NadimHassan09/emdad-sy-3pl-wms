@@ -601,91 +601,168 @@ function mastHeader(doc: BatchInstructionDocument, titleAr: string, titleEn: str
   </section>`;
 }
 
-/** Picking List: simple aggregated picking table (clean reference-image style). */
-export function renderBatchPickingListHtml(doc: BatchInstructionDocument): string {
-  // Aggregate per-SKU totals across all locations.
-  const productTotals = new Map<string, { sku: string; name: string; total: number; locs: Array<{ location: string; qty: number }> }>();
-  for (const location of doc.locations) {
-    const locLabel = [location.locationName, location.locationCode].filter(Boolean).join(' · ') || '—';
-    for (const row of location.rows) {
-      const key = `${row.sku}\u0000${row.name}`;
-      const q = Number(String(row.quantity).replace(/,/g, '')) || 0;
-      const bucket = productTotals.get(key) ?? { sku: row.sku, name: row.name, total: 0, locs: [] };
-      bucket.total += q;
-      bucket.locs.push({ location: locLabel, qty: q });
-      productTotals.set(key, bucket);
-    }
+/** Infer a display group (e.g. colour) from product name for picker readability. */
+function pickGroupLabel(name: string): string {
+  const n = name.trim();
+  const rules: Array<[RegExp, string]> = [
+    [/black|أسود|الاسود/i, 'اللون الأسود'],
+    [/grey|gray|رمادي|الرمادي/i, 'اللون الرمادي'],
+    [/navy|كحلي|الكحلي/i, 'اللون الكحلي'],
+    [/olive|زيتي|الزيتي/i, 'اللون الزيتي'],
+    [/white|أبيض|الابيض/i, 'اللون الأبيض'],
+    [/red|أحمر|الاحمر/i, 'اللون الأحمر'],
+    [/blue|أزرق|الازرق/i, 'اللون الأزرق'],
+    [/green|أخضر|الاخضر/i, 'اللون الأخضر'],
+    [/beige|بيج/i, 'اللون البيج'],
+  ];
+  for (const [re, label] of rules) {
+    if (re.test(n)) return label;
   }
+  return 'أصناف أخرى';
+}
 
-  const sorted = [...productTotals.values()].sort((a, b) => a.sku.localeCompare(b.sku) || a.name.localeCompare(b.name));
-  const grandTotal = sorted.reduce((s, p) => s + p.total, 0);
+/** Picking List: one section per order (separate from packing list). */
+export function renderBatchPickingListHtml(doc: BatchInstructionDocument): string {
+  const title = doc.batchName ? `${doc.batchNumber} · ${doc.batchName}` : doc.batchNumber;
+  const orders = doc.orderPicks?.length
+    ? doc.orderPicks
+    : // Fallback for older callers that only built locations/allocations
+      (() => {
+        const byOrder = new Map<
+          string,
+          Array<{ sku: string; name: string; quantity: string; location: string }>
+        >();
+        for (const alloc of doc.allocations) {
+          for (const split of alloc.splits) {
+            const rows = byOrder.get(split.orderNumber) ?? [];
+            rows.push({ sku: alloc.sku, name: alloc.name, quantity: split.quantity, location: '—' });
+            byOrder.set(split.orderNumber, rows);
+          }
+        }
+        const meta = new Map(doc.checklist.map((c) => [c.orderNumber, c]));
+        return [...byOrder.entries()].map(([orderNumber, lines]) => {
+          const m = meta.get(orderNumber);
+          return {
+            orderNumber,
+            customerName: m?.customerName || '—',
+            customerPhone: m?.customerPhone || '—',
+            companyName: m?.companyName || '—',
+            note: m?.note || '—',
+            lines,
+          };
+        });
+      })();
 
-  let tableRows = '';
-  if (sorted.length === 0) {
-    tableRows = `<tr><td class="empty" colspan="4">لا توجد كميات للالتقاط.<span>No pick quantities found.</span></td></tr>`;
+  let grandTotal = 0;
+  let orderBlocks = '';
+  if (orders.length === 0) {
+    orderBlocks = `<p style="color:#5e7368;font-size:13px;padding:12px 0;">لا توجد كميات للالتقاط في هذه المجموعة.</p>`;
   } else {
-    sorted.forEach((product, i) => {
-      // If product is in multiple locations, show each location then a subtotal row.
-      const multiLoc = product.locs.length > 1;
-      product.locs.forEach((loc, li) => {
-        tableRows += `<tr${multiLoc && li > 0 ? ' class="loc-sub"' : ''}>
-          <td class="idx">${multiLoc && li > 0 ? '' : i + 1}</td>
-          <td class="sku-col">${multiLoc && li > 0 ? '' : esc(product.sku)}</td>
-          <td class="product">${multiLoc && li > 0 ? `<span class="loc-hint">${esc(loc.location)}</span>` : `${esc(product.name)}<div class="loc-hint">${esc(loc.location)}</div>`}</td>
-          <td class="qty">${loc.qty}</td>
-          <td class="check"><span class="box"></span></td>
-        </tr>`;
-      });
-      if (multiLoc) {
-        tableRows += `<tr class="subtotal-row">
-          <td colspan="3" style="text-align:left;padding-right:10px;">إجمالي: ${esc(product.name)}</td>
-          <td class="qty">${product.total}</td>
-          <td></td>
-        </tr>`;
+    orders.forEach((order, oi) => {
+      const orderQty = order.lines.reduce(
+        (s, l) => s + (Number(String(l.quantity).replace(/,/g, '')) || 0),
+        0,
+      );
+      grandTotal += orderQty;
+
+      const groups = new Map<string, typeof order.lines>();
+      for (const line of order.lines) {
+        const g = pickGroupLabel(line.name);
+        const rows = groups.get(g) ?? [];
+        rows.push(line);
+        groups.set(g, rows);
       }
+
+      let body = '';
+      let idx = 0;
+      for (const [groupName, lines] of groups) {
+        if (groups.size > 1) {
+          body += `<tr class="group-row"><td colspan="4">${esc(groupName)}</td></tr>`;
+        }
+        for (const line of lines) {
+          idx += 1;
+          body += `<tr>
+            <td class="sku-col">${esc(line.sku)}</td>
+            <td class="product">${esc(line.name)}<div class="loc-hint">${esc(line.location)}</div></td>
+            <td class="qty">${esc(line.quantity)}</td>
+            <td class="check"><span class="box"></span></td>
+          </tr>`;
+        }
+      }
+
+      orderBlocks += `<div class="order-card">
+        <div class="order-card-head">
+          <div class="order-num">${oi + 1}. ${esc(order.orderNumber)}</div>
+          <div class="order-meta-row">
+            <span class="order-company">${esc(order.companyName)}</span>
+            <span class="order-customer">${esc(order.customerName)}</span>
+            ${order.customerPhone && order.customerPhone !== '—' ? `<span class="order-phone">${esc(order.customerPhone)}</span>` : ''}
+            <span class="order-items">${orderQty} قطعة</span>
+          </div>
+        </div>
+        <table class="pick-tbl">
+          <thead><tr>
+            <th style="width:110px">الصنف<span>SKU</span></th>
+            <th>المنتج واللون<span>Product</span></th>
+            <th style="width:70px;text-align:center;">العدد الإجمالي<span>Qty</span></th>
+            <th style="width:44px;text-align:center;">✓</th>
+          </tr></thead>
+          <tbody>${body}</tbody>
+          <tfoot><tr class="order-total-row">
+            <td colspan="2">إجمالي الطلب</td>
+            <td class="qty">${orderQty}</td>
+            <td></td>
+          </tr></tfoot>
+        </table>
+      </div>`;
     });
   }
 
-  const title = doc.batchName ? `${doc.batchNumber} · ${doc.batchName}` : doc.batchNumber;
-
   return `<!DOCTYPE html>
-<html lang="ar"><head><meta charset="utf-8" /><title>قائمة الالتقاط ${esc(doc.batchNumber)}</title>
+<html lang="ar"><head><meta charset="utf-8" /><title>قائمة التجميع ${esc(doc.batchNumber)}</title>
 <style>${sharedStyles()}
-  .simple-header { display:flex; align-items:flex-start; justify-content:space-between; gap:16px; padding:0 0 12px; margin:0 0 14px; border-bottom:3px solid #0b5e3c; }
+  .simple-header { display:flex; align-items:flex-start; justify-content:space-between; gap:16px; padding:0 0 12px; margin:0 0 14px; border-bottom:3px solid #1e3a5f; }
   .simple-brand { display:flex; align-items:center; gap:10px; }
   .simple-brand .logo { height:52px; width:auto; display:block; }
-  .brand-block .brand-name { color:#0b5e3c; font-size:17px; font-weight:800; line-height:1.15; }
-  .brand-block .brand-sub { color:#6d8276; font-size:11px; margin-top:1px; }
+  .brand-block .brand-name { color:#1e3a5f; font-size:17px; font-weight:800; line-height:1.15; }
+  .brand-block .brand-sub { color:#6b7c93; font-size:11px; margin-top:1px; }
   .doc-info { text-align:right; }
-  .doc-info h1 { margin:0; color:#0b5e3c; font-size:28px; font-weight:800; line-height:1.05; }
-  .doc-info .doc-en { color:#6d8276; font-size:14px; margin-top:2px; }
-  .meta-bar { display:flex; gap:0; margin:0 0 14px; border:1.5px solid #c5ddd2; border-radius:12px; overflow:hidden; background:#eaf6f0; }
-  .meta-cell { flex:1; padding:9px 14px; border-left:1px solid #c5ddd2; }
+  .doc-info h1 { margin:0; color:#1e3a5f; font-size:26px; font-weight:800; line-height:1.05; }
+  .doc-info .doc-en { color:#6b7c93; font-size:14px; margin-top:2px; }
+  .meta-bar { display:flex; gap:0; margin:0 0 14px; border:1.5px solid #c5d0e0; border-radius:12px; overflow:hidden; background:#eef3fa; }
+  .meta-cell { flex:1; padding:9px 14px; border-left:1px solid #c5d0e0; }
   .meta-cell:first-child { border-left:none; }
-  .meta-label { color:#5e7368; font-size:11px; font-weight:700; line-height:1.2; }
-  .meta-label span { display:block; color:#8da699; font-size:10px; }
-  .meta-val { color:#0b5e3c; font-size:15px; font-weight:800; margin-top:2px; line-height:1.2; }
-  .tbl-wrap { margin:0 0 10px; }
-  .pick-tbl { width:100%; border-collapse:separate; border-spacing:0; border-radius:12px; overflow:hidden; border:1.5px solid #c5ddd2; }
-  .pick-tbl th { background:#d7efe4; color:#1d4d36; font-size:12px; font-weight:800; padding:8px 10px; text-align:right; border-bottom:1.5px solid #c5ddd2; }
-  .pick-tbl th:not(:last-child), .pick-tbl td:not(:last-child) { border-left:1px solid #d7e6de; }
-  .pick-tbl td { padding:7px 10px; font-size:12.5px; vertical-align:middle; border-bottom:1px solid #e8f2ec; background:#fff; }
-  .pick-tbl td.idx { width:34px; text-align:center; color:#6d8276; font-weight:700; }
-  .pick-tbl td.sku-col { width:100px; color:#245443; font-weight:800; font-family:"Segoe UI",Tahoma,sans-serif; font-size:12px; }
-  .pick-tbl td.product { font-weight:800; color:#163028; }
-  .pick-tbl td.qty { width:70px; text-align:center; color:#0b5e3c; font-size:16px; font-weight:900; }
-  .pick-tbl td.check { width:44px; text-align:center; }
-  .loc-hint { color:#5e7368; font-size:10.5px; font-weight:600; margin-top:2px; }
-  .loc-sub td { background:#fafcfb; color:#5e7368; font-size:11.5px; }
-  .subtotal-row td { background:#eaf6f0; font-weight:800; color:#0b5e3c; font-size:12px; border-bottom:1.5px solid #c5ddd2; }
-  .grand-total-row td { background:#0b5e3c; color:#fff; font-size:14px; font-weight:800; }
-  .grand-total-row td.qty { color:#fff; font-size:17px; }
-  .box { display:inline-block; width:14px; height:14px; border:1.6px solid #0b5e3c; border-radius:3px; background:#fff; }
+  .meta-label { color:#5e6d82; font-size:11px; font-weight:700; line-height:1.2; }
+  .meta-label span { display:block; color:#8a97ab; font-size:10px; }
+  .meta-val { color:#1e3a5f; font-size:15px; font-weight:800; margin-top:2px; line-height:1.2; }
+  .order-card { margin:0 0 16px; border:1.5px solid #c5d0e0; border-radius:12px; overflow:hidden; break-inside:avoid; page-break-inside:avoid; page-break-after:auto; }
+  .order-card-head { padding:10px 14px; background:#e8eef8; border-bottom:1px solid #c5d0e0; }
+  .order-num { color:#1e3a5f; font-size:16px; font-weight:800; }
+  .order-meta-row { display:flex; flex-wrap:wrap; gap:10px; align-items:center; margin-top:4px; }
+  .order-company { color:#1e3a5f; font-size:13px; font-weight:800; }
+  .order-customer { color:#163028; font-size:13px; font-weight:700; }
+  .order-phone { color:#5e6d82; font-size:12px; direction:ltr; font-family:"Segoe UI",Tahoma,sans-serif; }
+  .order-items { color:#1e3a5f; font-size:12px; font-weight:800; background:#d6e2f5; padding:1px 8px; border-radius:999px; }
+  .pick-tbl { width:100%; border-collapse:collapse; }
+  .pick-tbl th { background:#1e3a5f; color:#fff; font-size:11.5px; font-weight:800; padding:8px 10px; text-align:right; }
+  .pick-tbl th span { display:block; color:#b8c7de; font-size:10px; font-weight:600; }
+  .pick-tbl td { padding:7px 10px; font-size:12.5px; border-bottom:1px solid #e6ecf5; vertical-align:middle; background:#fff; }
+  .pick-tbl tr:nth-child(even) td { background:#f5f8fc; }
+  .pick-tbl td.sku-col { color:#1e3a5f; font-weight:800; font-family:"Segoe UI",Tahoma,sans-serif; font-size:12px; width:110px; }
+  .pick-tbl td.product { font-weight:700; color:#163028; }
+  .pick-tbl td.qty { text-align:center; color:#1e3a5f; font-size:15px; font-weight:900; width:70px; }
+  .pick-tbl td.check { text-align:center; width:44px; }
+  .group-row td { background:#4a6fa5 !important; color:#fff; font-weight:800; font-size:12px; padding:6px 10px; }
+  .order-total-row td { background:#e8eef8; font-weight:800; color:#1e3a5f; border-top:1.5px solid #c5d0e0; }
+  .order-total-row td.qty { font-size:16px; }
+  .loc-hint { color:#5e6d82; font-size:10.5px; font-weight:600; margin-top:2px; }
+  .box { display:inline-block; width:14px; height:14px; border:1.6px solid #1e3a5f; border-radius:3px; background:#fff; }
   .short-warn { margin:0 0 10px; padding:9px 14px; background:#fffbeb; border:1.5px solid #f5c842; border-radius:10px; color:#8a5a12; font-size:12.5px; font-weight:700; }
-  .sig-row { display:flex; gap:24px; margin-top:16px; }
-  .sig-box { flex:1; border-top:1.5px solid #0b5e3c; padding-top:6px; }
-  .sig-box .sig-label { color:#0b5e3c; font-size:12px; font-weight:800; }
-  .sig-box .sig-label span { display:block; color:#8da699; font-size:10px; margin-top:1px; }
+  .grand-bar { margin-top:8px; padding:10px 14px; background:#1e3a5f; color:#fff; border-radius:10px; display:flex; justify-content:space-between; font-weight:800; font-size:14px; }
+  .sig-row { display:flex; gap:24px; margin-top:18px; }
+  .sig-box { flex:1; border-top:1.5px solid #1e3a5f; padding-top:6px; }
+  .sig-box .sig-label { color:#1e3a5f; font-size:12px; font-weight:800; }
+  .sig-box .sig-label span { display:block; color:#8a97ab; font-size:10px; margin-top:1px; }
 </style></head><body style="padding:14mm 14mm 10mm;"><section class="sheet">
 
 <div class="simple-header">
@@ -697,7 +774,7 @@ export function renderBatchPickingListHtml(doc: BatchInstructionDocument): strin
     </div>
   </div>
   <div class="doc-info">
-    <h1>قائمة الالتقاط</h1>
+    <h1>قائمة التجميع</h1>
     <div class="doc-en">Picking List</div>
   </div>
 </div>
@@ -713,7 +790,7 @@ export function renderBatchPickingListHtml(doc: BatchInstructionDocument): strin
   </div>
   <div class="meta-cell">
     <div class="meta-label">الطلبات / القطع<span>Orders / Units</span></div>
-    <div class="meta-val">${doc.orderCount} · ${esc(doc.unitTotal)}</div>
+    <div class="meta-val">${orders.length || doc.orderCount} · ${esc(doc.unitTotal)}</div>
   </div>
   <div class="meta-cell">
     <div class="meta-label">بواسطة<span>Created by</span></div>
@@ -723,25 +800,9 @@ export function renderBatchPickingListHtml(doc: BatchInstructionDocument): strin
 
 ${doc.pickShort ? `<div class="short-warn">⚠ بعض الكميات غير متوفرة بالكامل في المخزون المتاح.</div>` : ''}
 
-<div class="tbl-wrap">
-  <table class="pick-tbl">
-    <thead><tr>
-      <th class="idx">#</th>
-      <th style="width:100px">الصنف<span style="display:block;color:#6d8276;font-size:10px;font-weight:600;">SKU</span></th>
-      <th>المنتج والموقع<span style="display:block;color:#6d8276;font-size:10px;font-weight:600;">Product &amp; Location</span></th>
-      <th style="width:70px;text-align:center;">العدد<span style="display:block;color:#6d8276;font-size:10px;font-weight:600;">Qty</span></th>
-      <th style="width:44px;text-align:center;">✓</th>
-    </tr></thead>
-    <tbody>
-      ${tableRows}
-      ${sorted.length > 0 ? `<tr class="grand-total-row">
-        <td colspan="3" style="text-align:right;font-weight:800;">إجمالي القطع<span style="margin-right:8px;font-size:11px;font-weight:600;opacity:.8;">Total Units</span></td>
-        <td class="qty">${grandTotal}</td>
-        <td></td>
-      </tr>` : ''}
-    </tbody>
-  </table>
-</div>
+${orderBlocks}
+
+${orders.length > 0 ? `<div class="grand-bar"><span>إجمالي القطع</span><span>${grandTotal} قطعة</span></div>` : ''}
 
 <div class="sig-row">
   <div class="sig-box">

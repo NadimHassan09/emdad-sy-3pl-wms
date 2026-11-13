@@ -3,10 +3,22 @@ import { PrismaService } from '../../common/prisma/prisma.service';
 
 export interface FinancialPoliciesMap {
   cutover_active: boolean;
+  /** B15 — COD due moment (when cash is treated as available to the client). */
   cod_eligibility: 'on_remittance' | 'on_collection' | 'on_delivered';
   cod_holding_days: number;
   shipping_fee_timing: 'at_dispatch' | 'on_delivered';
   minimum_payout_amount: number;
+  /** B12 — show in-transit COD float on finance dashboards. */
+  in_transit_float_enabled: boolean;
+  /** B12 — carrier remittance vs expected COD reconciliation module. */
+  carrier_reconciliation_enabled: boolean;
+  /** B12 — hide in-transit / carrier-gap figures from the client portal. */
+  client_shield_enabled: boolean;
+  /** B15 — how to bridge liquidity until remittance. */
+  liquidity_gap_mode: 'none' | 'float' | 'prep_fee';
+  /** B15 — charge a prep fee while COD is in flight. */
+  prep_fee_enabled: boolean;
+  prep_fee_percent: number;
 }
 
 const DEFAULT_POLICIES: Record<string, { value: string; description: string }> = {
@@ -16,7 +28,8 @@ const DEFAULT_POLICIES: Record<string, { value: string; description: string }> =
   },
   cod_eligibility: {
     value: 'on_remittance',
-    description: 'When COD is credited to available balance: on_remittance, on_collection, on_delivered',
+    description:
+      'B15 COD due moment — when COD is credited to available balance: on_remittance, on_collection, on_delivered',
   },
   cod_holding_days: {
     value: '0',
@@ -29,6 +42,30 @@ const DEFAULT_POLICIES: Record<string, { value: string; description: string }> =
   minimum_payout_amount: {
     value: '10.00',
     description: 'Minimum allowed client payout request in USD',
+  },
+  in_transit_float_enabled: {
+    value: 'false',
+    description: 'B12 — Enable in-transit COD float indicator (admin finance views)',
+  },
+  carrier_reconciliation_enabled: {
+    value: 'false',
+    description: 'B12 — Enable carrier remittance reconciliation module',
+  },
+  client_shield_enabled: {
+    value: 'true',
+    description: 'B12 — Hide in-transit / reconciliation gap figures from the client portal',
+  },
+  liquidity_gap_mode: {
+    value: 'none',
+    description: 'B15 — Liquidity bridge until remittance: none | float | prep_fee',
+  },
+  prep_fee_enabled: {
+    value: 'false',
+    description: 'B15 — Charge a prep fee while COD is outstanding',
+  },
+  prep_fee_percent: {
+    value: '0',
+    description: 'B15 — Prep fee percent of COD (0–100) when prep_fee_enabled',
   },
 };
 
@@ -119,7 +156,33 @@ export class FinancialPoliciesService {
       if (isNaN(num) || num < 0) {
         throw new BadRequestException('minimum_payout_amount must be a non-negative number');
       }
+    } else if (
+      key === 'in_transit_float_enabled' ||
+      key === 'carrier_reconciliation_enabled' ||
+      key === 'client_shield_enabled' ||
+      key === 'prep_fee_enabled'
+    ) {
+      if (value !== 'true' && value !== 'false') {
+        throw new BadRequestException(`${key} must be true or false`);
+      }
+    } else if (key === 'liquidity_gap_mode') {
+      const allowed = ['none', 'float', 'prep_fee'];
+      if (!allowed.includes(value)) {
+        throw new BadRequestException(`liquidity_gap_mode must be one of: ${allowed.join(', ')}`);
+      }
+    } else if (key === 'prep_fee_percent') {
+      const num = parseFloat(value);
+      if (isNaN(num) || num < 0 || num > 100) {
+        throw new BadRequestException('prep_fee_percent must be between 0 and 100');
+      }
+    } else if (!DEFAULT_POLICIES[key]) {
+      throw new BadRequestException(`Unknown financial policy key: ${key}`);
     }
+  }
+
+  async isFlagEnabled(key: keyof FinancialPoliciesMap): Promise<boolean> {
+    const val = await this.getPolicyValue(String(key));
+    return val === 'true';
   }
 
   async isCutoverActive(): Promise<boolean> {

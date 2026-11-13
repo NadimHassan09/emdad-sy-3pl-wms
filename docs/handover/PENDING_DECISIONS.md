@@ -1,110 +1,81 @@
 # Pending Decisions — يحتاج المالك يجاوب عليهم
 
-Generated: 13 Nov 2026
-
-## 1. B3 — ربط الـ Inbound بالـ OMS
-
-**الطلب (العميل):** "هل من الممكن ربط الـ inbound order بالـ OMS عشان مش عم نعرف ده وارد من اي طلبية"
-
-**الخيارات:**
-- A: inbound created automatically when an OMS order returns (return flow triggers inbound)
-- B: admin manually links an existing inbound to an OMS order (FK field on inbound)
-- C: inbound is created from a purchase order that the admin attached to an OMS order
-- **يحتاج المالك يوضّح** القصد الدقيق قبل البناء.
+Generated: 13 Nov 2026 · **Owner final answers recorded 14 Nov 2026**
 
 ---
 
-## 2. B12 — In-transit float & carrier reconciliation
+## Resolved by owner — 14 Nov 2026
 
-**الطلب (العميل):** in-transit float indicator + carrier reconciliation module + client shield
+### 1. B3 — ربط الـ Inbound بالـ OMS
 
-**الموقف:** المالك قال 2 Nov مش متفق عليها.
+**القرار:** المقصود = **traceability فقط**: على صفحة OMS order details، لكل منتج يظهر الـ inbound order اللي جت منه الكمية. **مش** return flow، ومش إنشاء inbound عند الـ return (الـ return بيزوّد الكمية أصلاً — inbound إضافي = double).
 
-**الخيارات:**
-- A: ابنيهم دلوقتي وراء disabled settings (يشغّلهم المالك لما يقرر)
-- B: مفيش دلوقتي، ممكن Sprint 3
-- **يحتاج قرار المالك.**
+**التنفيذ:** التأكد إن `InboundTraceability` الموجود شغّال صح في الـ UI (مش بناء feature جديد من صفر).
 
 ---
 
-## 3. B15 — COD Due Moment / Liquidity / Prep Fee
+### 2. B12 — In-transit float & carrier reconciliation (+ client shield)
 
-**الطلب:** متى يستحق الـ COD (delivered / carrier confirms collection / carrier remits)؟
-كيف تتغطى الـ liquidity gap؟
-في prep fee ولا لأ؟
-
-**الموقف:** المالك قال محتاج يتفاهم مع صاحب الشركة. لسه مقرّرش.
-
-**الأثر:** الـ COD settlement flow في الـ billing مش هيتكتمل غير بعد القرار ده.
+**القرار:** ابنِ **كل** الأنظمة دلوقتي. مش disabled ثابت — **admin/super-admin settings** يفعّل/يلغي كل جزء (in-transit float، carrier reconciliation، client shield) مع مرونة في الـ financial model.
 
 ---
 
-## 4. O-11 — Custom Roles / Editable Permissions
+### 3. B15 — COD Due Moment / Liquidity / Prep Fee
 
-**الطلب (المالك):** super admin يعمل custom roles مع editable permission sets per module × action
-
-**الموقف:** يحتاج DB migration.
-
-**خطوة المالك:** وافق على الـ design والـ migration (نعرضها عليه)؟
+**القرار:** نفس الأسلوب — **admin/super-admin settings** لاختيار: متى يستحق الـ COD، كيف تتغطى الـ liquidity gap، وفي prep fee ولا لأ.
 
 ---
 
-## 5. D-040 — Sila Webhook Registration
+### 4. O-11 — Custom Roles / Editable Permissions
 
-**المطلوب:** المالك يضغط "Register webhook" في Shipping Companies → Sila
-
-**الأثر:** بدون ده، Sila webhook events (tracking updates, delivered, failed) مش بتوصل.
+**القرار:** وافق على **DB migration على staging** وتنفيذ الـ feature. احذر من فقدان data. Production لا يُلمس.
 
 ---
 
-## 6. B17 — Picking List Visual Approval
+### 5. D-040 — Sila Webhook Registration
 
-**المطلوب:** المالك يشوف الـ picking list الجديد (commit 45828e197) ويوافق على التصميم.
-
-**الأثر:** لو مش موافق بنعمل revision.
+**القرار:** الوكيل يسجّل الـ webhook عبر **API** (مش بوابة Sila UI — عندهم bug إن الـ FE مش بيورّي التسجيل). يتحقّق إن التسجيل ناجح عبر API.
 
 ---
 
-## 7. O-13 — Google Sheet Real Credentials Verify
+### 6. B17 — Picking / Packing List Visual
 
-**المطلوب:** المالك يتأكد إن الـ Google OAuth credentials (اللي دخلها 6 Nov) شغّالة صح مع real Google Sheet.
-
-**الخطوات:** client يعمل sign-in بـ Google → ينشئ real sheet → يحاول يعدّل بعد الـ approval (المفروض يترفض).
-
----
-
-## Answered — no decision needed
-
-### S1-2 — `storage_cbm` charge-line type vs existing enum
-
-**Answer (13 Nov 2026):** Spec names the type `storage_cbm`; Prisma already has `BillingInvoiceLineType.storage_fee`. No migration — calculator writes `storage_fee` (see `billing-automation.service.ts` `chargeLineType` and `billing-invoices.service.ts` addLine). Incentive discount uses a **manual** negative line (no `incentive_discount` enum) until owner approves a migration.
-
-### B6 — Stock visibility per warehouse (OMS order form)
-
-**Answer (code, 13 Nov 2026):** On the OMS order **create/confirm** path there is **no per-warehouse stock preview** in the form. Stock is gated only at **Approve** via `OmsOrdersService.assertSufficientStockForLines` (`backend/src/modules/oms/oms-orders.service.ts`), which `groupBy`s `currentStock.quantityAvailable` by `productId` for the **whole company** (all warehouses / locations) — there is **no `warehouseId` filter**.
-
-Warehouse-scoped allocation happens later when the outbound plan runs (`order-allocation.service.ts` can filter by `warehouseId`).
-
-**Implication:** Admin approving an OMS order sees company-wide available qty, not a single warehouse. If the owner wants “stock of the selected warehouse only” on the form or at approve, that would be a product decision (see Needs owner decision below).
-
-### Needs owner decision (follow-up from B6)
-
-- Keep company-wide stock at Approve (current), or require a warehouse on the OMS order and gate stock to that warehouse only?
+**القرار:** تصميم المالك (صورة 14 Nov):
+- **Picking list** منفصلة عن **Packing list** (مش مدموجين).
+- منظمة حسب **الأوردرات** (كل أوردر ممكن صفحة أو أكتر).
+- داخل كل أوردر: بنود/منتجات، بيانات العميل، كميات، إجمالي قطع، توقيع.
+- أسلوب منظم زي الـ screenshot (أعمدة SKU / منتج / كمية، grouping واضح).
 
 ---
 
-## Blocked — needs Test company data (not a product decision)
+### 7. O-13 — Google Sheet Real Credentials
 
-### F16 — COD remittance mutation
+**القرار / الدليل:** المالك جرّب → **403 access_denied**:  
+`emdadsy.com has not completed the Google verification process` — التطبيق في **Testing** ومسموح بس لـ test users المعتمدين.
 
-Owner approved money mutation. Staging has **0** COD records for client “Test company” and **0** delivered OMS orders for that client (safety: Test company / Nadim Hassan only). Cannot remittance without fabricating another client’s COD.
-
-**Owner options:** (A) allow creating/delivering one Test company COD via Sena sandbox then remittance, or (B) name one Madino/Acme Available COD as disposable test exception.
+**التشخيص المتوقع:** إعداد Google Cloud Console (Publishing status / Test users)، مش بالضرورة bug في كود EMDAD. الوكيل يأكد ويوثّق الخطوات.
 
 ---
 
-## Answered in Sprint 1 live work
+### 8. F16 — COD remittance
+
+**القرار:** مسموح الاتنين على staging: (A) COD جديد عبر **Sena sandbox**، و/أو (B) استخدام COD موجود لـ **Madino / Acme** (staging مش production data).
+
+---
+
+### B6 follow-up
+
+لم يُذكر في جلسة 14 Nov → يبقى كما هو (company-wide عند Approve) إلا لو المالك طلب غير كده لاحقاً.
+
+---
+
+## Answered earlier (unchanged)
+
+### S1-2 — `storage_cbm` vs `storage_fee`
+Maps to existing `BillingInvoiceLineType.storage_fee` — no migration.
+
+### B6 — Stock visibility
+Company-wide `currentStock` at Approve; warehouse filter only later at allocation.
 
 ### Sila COD + Recipient Pays (I-6)
-
-**Resolved 13 Nov 2026:** Live OUT-2026-04466 / OMS-2026-03729 — Recipient Pays + COD folds carrier fee into `pay_on_delivery` (`payer=merchant`, `codAmount=23.5`), leaf `area_id`, duplicate `reference` → unique suffix retry → AWB `7f01f3f5-…`. See `qa-scripts/out/sila_live_i6_20261113.txt`.
+Resolved 13 Nov — AWB `7f01f3f5-…` on OUT-2026-04466.

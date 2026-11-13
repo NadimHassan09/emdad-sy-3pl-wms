@@ -771,4 +771,107 @@ export class UsersService {
       lastActivityAt: u.lastActivityAt,
     };
   }
+
+  /** O-11 — list custom roles (super_admin only). */
+  async listCustomRoles(actor: AuthPrincipal) {
+    assertInternalAdmin(actor);
+    if (actor.role !== UserRole.super_admin) {
+      throw new ForbiddenException('Only super admin can manage custom roles.');
+    }
+    return this.prisma.customRole.findMany({
+      include: { permissions: true, _count: { select: { users: true } } },
+      orderBy: { name: 'asc' },
+    });
+  }
+
+  async createCustomRole(
+    actor: AuthPrincipal,
+    dto: { name: string; description?: string; isActive?: boolean; permissions?: Array<{ module: string; action: string; allowed: boolean }> },
+  ) {
+    assertInternalAdmin(actor);
+    if (actor.role !== UserRole.super_admin) {
+      throw new ForbiddenException('Only super admin can manage custom roles.');
+    }
+    const name = dto.name.trim();
+    const existing = await this.prisma.customRole.findFirst({ where: { name } });
+    if (existing) throw new ConflictException(`Custom role "${name}" already exists.`);
+    return this.prisma.customRole.create({
+      data: {
+        name,
+        description: dto.description?.trim() || null,
+        isActive: dto.isActive ?? true,
+        createdBy: actor.id,
+        permissions: dto.permissions?.length
+          ? {
+              create: dto.permissions.map((p) => ({
+                module: p.module.trim(),
+                action: p.action.trim(),
+                allowed: p.allowed,
+              })),
+            }
+          : undefined,
+      },
+      include: { permissions: true },
+    });
+  }
+
+  async updateCustomRole(
+    actor: AuthPrincipal,
+    id: string,
+    dto: { name?: string; description?: string; isActive?: boolean; permissions?: Array<{ module: string; action: string; allowed: boolean }> },
+  ) {
+    assertInternalAdmin(actor);
+    if (actor.role !== UserRole.super_admin) {
+      throw new ForbiddenException('Only super admin can manage custom roles.');
+    }
+    const role = await this.prisma.customRole.findUnique({ where: { id } });
+    if (!role) throw new NotFoundException('Custom role not found.');
+    if (dto.name && dto.name.trim() !== role.name) {
+      const clash = await this.prisma.customRole.findFirst({
+        where: { name: dto.name.trim(), NOT: { id } },
+      });
+      if (clash) throw new ConflictException(`Custom role "${dto.name.trim()}" already exists.`);
+    }
+    return this.prisma.$transaction(async (tx) => {
+      if (dto.permissions) {
+        await tx.customRolePermission.deleteMany({ where: { roleId: id } });
+        if (dto.permissions.length) {
+          await tx.customRolePermission.createMany({
+            data: dto.permissions.map((p) => ({
+              roleId: id,
+              module: p.module.trim(),
+              action: p.action.trim(),
+              allowed: p.allowed,
+            })),
+          });
+        }
+      }
+      return tx.customRole.update({
+        where: { id },
+        data: {
+          ...(dto.name ? { name: dto.name.trim() } : {}),
+          ...(dto.description !== undefined ? { description: dto.description?.trim() || null } : {}),
+          ...(dto.isActive !== undefined ? { isActive: dto.isActive } : {}),
+        },
+        include: { permissions: true, _count: { select: { users: true } } },
+      });
+    });
+  }
+
+  async deleteCustomRole(actor: AuthPrincipal, id: string) {
+    assertInternalAdmin(actor);
+    if (actor.role !== UserRole.super_admin) {
+      throw new ForbiddenException('Only super admin can manage custom roles.');
+    }
+    const role = await this.prisma.customRole.findUnique({
+      where: { id },
+      include: { _count: { select: { users: true } } },
+    });
+    if (!role) throw new NotFoundException('Custom role not found.');
+    if (role._count.users > 0) {
+      throw new BadRequestException('Unassign users from this custom role before deleting it.');
+    }
+    await this.prisma.customRole.delete({ where: { id } });
+    return { ok: true };
+  }
 }

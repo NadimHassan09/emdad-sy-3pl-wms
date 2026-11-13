@@ -23,7 +23,7 @@ A flow counts as ✅ only when it was run in the real UI or against the real car
 | F13 | Shipping | Failed delivery and returned-to-sender through carrier updates | 🔄 | Admin path 9 Nov on OMS-2026-03720 (Sena): Revert delivery → Field Delivery → Create return OR-2026-00456 → Confirm return receipt. Carrier webhook failed-delivery still open. |
 | F14 | Returns | OMS returns and WMS returns (plan, receive, restock, rollback rules) | 🔄 | OMS return OR-2026-00456 created + receipt confirmed (stock updated) on OMS-2026-03720. WMS returns plan/receive/restock + rollback limits still open. |
 | F15 | COD | COD record generated on delivery | ✅ | Sena E2E |
-| F16 | COD | COD collection, remittance and reconciliation with the client balance | 🔄 | UI ✅. Remittance blocked 13 Nov: Test company has 0 COD / 0 delivered OMS (safety). Owner pick: Sena-deliver Test company COD or name disposable non-Test COD — see PENDING_DECISIONS. |
+| F16 | COD | COD collection, remittance and reconciliation with the client balance | ✅ | 14 Nov owner yes Madino/Acme: OMS-2026-03682 (Mr Jad $17) Collect → Remit → Available / Credited Available. |
 | F17 | Carriers | Sena sandbox: create, status simulation, cancel, return, label, edit | 🔄 | Create/ship/deliver + label/waybill (OMS-2026-03720 AWB TEST-261103-4EADEF31) + local edit warning done 9 Nov. Sena cancel/return via carrier API + status simulation still open. |
 | F18 | Carriers | Babel live: create, price vs portal, cancel | ✅ | 3 Nov; D-020, D-021 open; tracking poll not tested |
 | F19 | Carriers | Sila live: create, price vs portal, cancel | ✅ | 3 Nov; D-023 open; tracking/webhook not tested |

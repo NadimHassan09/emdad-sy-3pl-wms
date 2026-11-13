@@ -18,6 +18,7 @@ import { ParseUuidLoosePipe } from '../../common/pipes/parse-uuid-loose.pipe';
 import { CreateUserDto } from './dto/create-user.dto';
 import { ListUsersQueryDto } from './dto/list-users-query.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
+import { UpsertCustomRoleDto } from './dto/custom-role.dto';
 import { UpsertUserWorkerProfileDto } from './dto/upsert-user-worker-profile.dto';
 import { UsersService } from './users.service';
 
@@ -29,6 +30,38 @@ export class UsersController {
   @UseGuards(InternalAdminGuard)
   list(@CurrentUser() user: AuthPrincipal, @Query() query: ListUsersQueryDto) {
     return this.users.list(user, query);
+  }
+
+  /** O-11 — must be declared before `:id` routes. */
+  @Get('custom-roles')
+  @UseGuards(InternalAdminGuard)
+  listCustomRoles(@CurrentUser() user: AuthPrincipal) {
+    return this.users.listCustomRoles(user);
+  }
+
+  @Post('custom-roles')
+  @UseGuards(InternalAdminGuard)
+  createCustomRole(@CurrentUser() user: AuthPrincipal, @Body() dto: UpsertCustomRoleDto) {
+    return this.users.createCustomRole(user, dto);
+  }
+
+  @Patch('custom-roles/:roleId')
+  @UseGuards(InternalAdminGuard)
+  updateCustomRole(
+    @CurrentUser() user: AuthPrincipal,
+    @Param('roleId', ParseUuidLoosePipe) roleId: string,
+    @Body() dto: UpsertCustomRoleDto,
+  ) {
+    return this.users.updateCustomRole(user, roleId, dto);
+  }
+
+  @Delete('custom-roles/:roleId')
+  @UseGuards(InternalAdminGuard)
+  deleteCustomRole(
+    @CurrentUser() user: AuthPrincipal,
+    @Param('roleId', ParseUuidLoosePipe) roleId: string,
+  ) {
+    return this.users.deleteCustomRole(user, roleId);
   }
 
   @Get(':id/worker-profile')

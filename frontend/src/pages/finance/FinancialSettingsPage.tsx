@@ -188,6 +188,112 @@ export function FinancialSettingsPage() {
               </div>
             </Card>
           </div>
+
+          {/* B12 — In-transit float / reconciliation / client shield */}
+          <Card padding="md">
+            <h3 className="font-semibold text-text-strong">B12 — In-transit float &amp; carrier reconciliation</h3>
+            <p className="mt-1 text-xs text-text-muted">
+              Admin toggles. Modules stay off until you enable them; client portal respects Client Shield.
+            </p>
+            <div className="mt-4 grid gap-3 sm:grid-cols-3">
+              {(
+                [
+                  ['in_transit_float_enabled', 'In-transit float'],
+                  ['carrier_reconciliation_enabled', 'Carrier reconciliation'],
+                  ['client_shield_enabled', 'Client shield (hide gaps from clients)'],
+                ] as const
+              ).map(([key, label]) => {
+                const on = getPolicyValue(key, key === 'client_shield_enabled' ? 'true' : 'false') === 'true';
+                return (
+                  <div key={key} className="rounded-lg border border-border-subtle p-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-sm font-semibold text-text-strong">{label}</span>
+                      <Badge tone={on ? 'success' : 'neutral'}>{on ? 'On' : 'Off'}</Badge>
+                    </div>
+                    <Button
+                      className="mt-3"
+                      variant={on ? 'secondary' : 'primary'}
+                      disabled={updateMut.isPending}
+                      onClick={() => updateMut.mutate({ key, value: on ? 'false' : 'true' })}
+                    >
+                      {on ? 'Turn off' : 'Turn on'}
+                    </Button>
+                  </div>
+                );
+              })}
+            </div>
+          </Card>
+
+          {/* B15 — Liquidity / prep fee (due moment is COD Balance Availability above) */}
+          <Card padding="md">
+            <h3 className="font-semibold text-text-strong">B15 — Liquidity gap &amp; prep fee</h3>
+            <p className="mt-1 text-xs text-text-muted">
+              COD due moment is controlled by &quot;COD Balance Availability Policy&quot; above. Choose how to bridge cash until remittance.
+            </p>
+            <div className="mt-4 grid gap-3 sm:grid-cols-3">
+              {(
+                [
+                  { key: 'none', title: 'None', desc: 'No liquidity bridge.' },
+                  { key: 'float', title: 'Float', desc: 'Track in-transit float until remittance.' },
+                  { key: 'prep_fee', title: 'Prep fee', desc: 'Charge a prep fee while COD is outstanding.' },
+                ] as const
+              ).map((opt) => {
+                const isSelected = getPolicyValue('liquidity_gap_mode', 'none') === opt.key;
+                return (
+                  <div
+                    key={opt.key}
+                    onClick={() => updateMut.mutate({ key: 'liquidity_gap_mode', value: opt.key })}
+                    className={`cursor-pointer rounded-lg border p-4 transition-all ${
+                      isSelected
+                        ? 'border-brand-500 bg-brand-50/50 dark:bg-brand-950/20'
+                        : 'border-border-subtle hover:bg-neutral-50 dark:hover:bg-neutral-900/30'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="font-semibold text-text-strong">{opt.title}</span>
+                      {isSelected ? <Badge tone="brand">Active</Badge> : null}
+                    </div>
+                    <p className="mt-2 text-xs text-text-muted">{opt.desc}</p>
+                  </div>
+                );
+              })}
+            </div>
+            <div className="mt-4 flex flex-wrap items-end gap-4">
+              <div>
+                <p className="text-xs font-semibold text-text-strong">Prep fee enabled</p>
+                <Button
+                  className="mt-2"
+                  variant={getPolicyValue('prep_fee_enabled') === 'true' ? 'secondary' : 'primary'}
+                  disabled={updateMut.isPending}
+                  onClick={() =>
+                    updateMut.mutate({
+                      key: 'prep_fee_enabled',
+                      value: getPolicyValue('prep_fee_enabled') === 'true' ? 'false' : 'true',
+                    })
+                  }
+                >
+                  {getPolicyValue('prep_fee_enabled') === 'true' ? 'Disable prep fee' : 'Enable prep fee'}
+                </Button>
+              </div>
+              <div>
+                <p className="text-xs font-semibold text-text-strong">Prep fee %</p>
+                <Input
+                  type="number"
+                  step="0.1"
+                  min="0"
+                  max="100"
+                  className="mt-2 w-28"
+                  defaultValue={getPolicyValue('prep_fee_percent', '0')}
+                  onBlur={(e) => {
+                    const val = e.target.value;
+                    if (val !== '' && !isNaN(Number(val))) {
+                      updateMut.mutate({ key: 'prep_fee_percent', value: String(Number(val)) });
+                    }
+                  }}
+                />
+              </div>
+            </div>
+          </Card>
         </div>
       )}
     </AdminListPageShell>
