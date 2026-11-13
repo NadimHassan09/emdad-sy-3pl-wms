@@ -12,7 +12,7 @@ One row per route. Defects are logged below with ID, severity (S1 blocker, S2 ma
 | `/backups/health` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load sweep 3 Nov: no API error, no console error, no crash |
 | `/backups/retention` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load sweep 3 Nov: no API error, no console error, no crash |
 | `/backups/schedules` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load sweep 3 Nov: no API error, no console error, no crash |
-| `/billing/dashboard` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load sweep 3 Nov: no API error, no console error, no crash |
+| `/billing/dashboard` | ✅ | ⬜ | ⬜ | ⬜ | ⬜ | 13 Nov load Billing dashboard |
 | `/billing/invoices` | ✅ | ⬜ | ⬜ | ⬜ | ⬜ | 13 Nov list + open INV-2026-00025; Issue → Unpaid |
 | `/billing/invoices/:id` | ✅ | ⬜ | ⬜ | ⬜ | ⬜ | 13 Nov redesign tools: storage SKU table, incentive, Edit invoice after issue; evidence `invoice_storage_preview_20261113.jpg` |
 | `/billing/plans` | ✅ | ⬜ | ⬜ | ⬜ | ⬜ | 13 Nov load Billing plans |
@@ -30,10 +30,10 @@ One row per route. Defects are logged below with ID, severity (S1 blocker, S2 ma
 | `/cycle-count/:id/execute` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | No sessions to execute; same empty-state path as :id (9 Nov) |
 | `/cycle-count/my-tasks` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load sweep 3 Nov: no API error, no console error, no crash |
 | `/dashboard/overview` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load check only (3 Nov smoke pass) |
-| `/finance/accounts` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load + F31 🔍 9 Nov screenshot; Manual Adjustment not clicked (money) |
-| `/finance/carrier-costs` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load sweep 3 Nov: no API error, no console error, no crash |
+| `/finance/accounts` | ✅ | ⬜ | ⬜ | ⬜ | ⬜ | 13 Nov Client Current Accounts (12 clients; Test company $0) |
+| `/finance/carrier-costs` | ✅ | ⬜ | ⬜ | ⬜ | ⬜ | 13 Nov load Carrier Internal Costs |
 | `/finance/cod` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load sweep 3 Nov: no API error, no console error, no crash |
-| `/finance/overview` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load + F31 🔍 9 Nov screenshot (balances/COD cards); no money mutation |
+| `/finance/overview` | ✅ | ⬜ | ⬜ | ⬜ | ⬜ | 13 Nov F31: balances $320 / avail $200 / pending COD $187161 |
 | `/finance/payouts` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load sweep 3 Nov: no API error, no console error, no crash |
 | `/finance/policies` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load sweep 3 Nov: no API error, no console error, no crash |
 | `/finance/transactions` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load sweep 3 Nov: no API error, no console error, no crash |
