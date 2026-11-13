@@ -34,9 +34,9 @@ One row per route. Defects are logged below with ID, severity (S1 blocker, S2 ma
 | `/finance/carrier-costs` | ✅ | ⬜ | ⬜ | ⬜ | ⬜ | 13 Nov load Carrier Internal Costs |
 | `/finance/cod` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load sweep 3 Nov: no API error, no console error, no crash |
 | `/finance/overview` | ✅ | ⬜ | ⬜ | ⬜ | ⬜ | 13 Nov F31: balances $320 / avail $200 / pending COD $187161 |
-| `/finance/payouts` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load sweep 3 Nov: no API error, no console error, no crash |
+| `/finance/payouts` | ✅ | ⬜ | ⬜ | ⬜ | ⬜ | 13 Nov load Client Payout Management |
 | `/finance/policies` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load sweep 3 Nov: no API error, no console error, no crash |
-| `/finance/transactions` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load sweep 3 Nov: no API error, no console error, no crash |
+| `/finance/transactions` | ✅ | ⬜ | ⬜ | ⬜ | ⬜ | 13 Nov load Financial Transactions |
 | `/forms` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load sweep 3 Nov: no API error, no console error, no crash |
 | `/internal` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load sweep 3 Nov: no API error, no console error, no crash |
 | `/inventory/adjustments` | ✅ | ✅ | ⬜ | ⬜ | ⬜ | Create draft, add lines (9 validation cases), reason gate, approve, approve twice; D-030 |
@@ -54,7 +54,7 @@ One row per route. Defects are logged below with ID, severity (S1 blocker, S2 ma
 | `/oms/cod/:id` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load 9 Nov Available COD (Madino) — remittance UI only, no money mutation |
 | `/oms/dashboard` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load sweep 3 Nov: no API error, no console error, no crash |
 | `/oms/orders/:id` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load 9 Nov OMS-2026-03720; warehouse status returned after D-048 |
-| `/oms/orders/:id/waybill` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load 9 Nov SHIPPING WAYBILL for OMS-2026-03720 |
+| `/oms/orders/:id/waybill` | ✅ | ⬜ | ⬜ | ⬜ | ⬜ | 13 Nov OMS-2026-03729 preview+PDF+batch Download waybills; `oms_waybill_a1_20261113.jpg` |
 | `/oms/returns` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load sweep 3 Nov: no API error, no console error, no crash |
 | `/oms/returns/:id` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load 9 Nov OR-2026-00456 Return Received |
 | `/oms/returns/:id/edit` | 🔄 | ⬜ | ⬜ | ⬜ | ⬜ | Load 9 Nov completed return → Plan is locked (no crash) |
