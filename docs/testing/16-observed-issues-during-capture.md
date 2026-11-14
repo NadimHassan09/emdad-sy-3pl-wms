@@ -123,3 +123,5 @@ Deliberately not opened: bulk "Confirm Shipping / Complete Dispatch / Cancel Shi
 | V-086 | OMS status label | DB `shipped` OMS-2026-03603 renders UI badge **"Out for Delivery"**; failed_delivery still labeled **"Field Delivery"** (V-011). | S3 | A14, V-011 |
 | V-087 | Timeline events | ready_to_ship detail shows raw event key `oms ready_to_ship` in Timeline (same class as V-058). | S3 | PC oms detail |
 | V-088 | Batch BATCH-1013 | Status counters vs action counts diverge (Shipped 1 vs Shipping confirmed 5); mix of live carriers listed read-only (Babel/Karam) — no actions clicked. | S3 | E2E-BAT |
+| V-089 | Outbound Sena test delivered | Delivered with **0 line items / 0 SKUs** and empty pick allocation (OUT-SENA-TEST-…). | S3 | A15 |
+| V-090 | OMS waybill button | Waybill control is icon-only (no accessible name in a11y tree). | S4 | A18 |

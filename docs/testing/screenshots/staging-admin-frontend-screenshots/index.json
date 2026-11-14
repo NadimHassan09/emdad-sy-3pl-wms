@@ -822,6 +822,38 @@
    "seq": 130,
    "id": "8e7970f4-4f71-4fde-be02-47199c1caf23",
    "code": "BATCH-1013"
+  },
+  {
+   "n": 131,
+   "route": "/orders/inbound/:id",
+   "state": "completed",
+   "file": "131_orders-inbound-id-completed.png",
+   "seq": 131,
+   "id": "4e88e5bc-dd67-470d-b557-322fce745223"
+  },
+  {
+   "n": 132,
+   "route": "/orders/outbound/:id",
+   "state": "delivered",
+   "file": "132_orders-outbound-id-delivered.png",
+   "seq": 132,
+   "id": "5e84c5df-2dd9-4166-a739-63acbf8b3a5d"
+  },
+  {
+   "n": 133,
+   "route": "/documents/grn",
+   "state": "pdf-en",
+   "file": "133_pdf-grn-en.png",
+   "seq": 133,
+   "id": "GRN-2026-00026"
+  },
+  {
+   "n": 134,
+   "route": "/orders/oms/:id/waybill",
+   "state": "10x15",
+   "file": "134_pdf-waybill-oms-03729.png",
+   "seq": 134,
+   "id": "OMS-2026-03729"
   }
  ],
  "used": [

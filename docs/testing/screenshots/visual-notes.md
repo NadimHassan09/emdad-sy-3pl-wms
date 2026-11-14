@@ -152,3 +152,9 @@ Button sets observed (do not click carriers):
 - waiting OMS-2026-03718: Confirm / Reject / Cancel / Edit / Edit fee
 - out_for_delivery OMS-2026-03603 (DB shipped): Mark delivered, Field Delivery, Cancel, Create return
 - BATCH-1013: 6 orders, Issues 3, Babel 3 / كرم 2 / Unassigned 1; bulk bar Shipping details/Confirm/OFD/… — photographed only, no carrier actions
+
+## Round 4 — A15/A18 (131–134)
+- INB-2026-00063 completed: Print instructions; GRN-2026-00026 Open PDF EN/AR
+- OUT-SENA-TEST-… delivered Madino: SENA_EXPRESS AWB TEST-261031-…; 0 line items (V-089 candidate)
+- GRN EN PDF viewer: barcode, lot LOT-20261103-SWQN, signatures
+- Waybill OMS-2026-03729: 10×15, EN, Mersal AWB 100554961267, COD 20 / fee 5; unlabeled icon button opens waybill (a11y)
