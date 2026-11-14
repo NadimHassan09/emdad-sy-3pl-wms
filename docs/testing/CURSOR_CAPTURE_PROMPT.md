@@ -5,24 +5,31 @@
 اشتغل على **staging فقط** (`/var/www/emdad-sy-3pl-wms-staging`، branch `staging`، PM2 id 1). الـ production (PM2 id 0، DB `wms_db`) ممنوع تقرب منه. ردّ عليّ بالعربي المصري.
 
 ## الهدف
-أنا (Claude) كتبت خطة اختبارات كاملة في `docs/testing/` وصوّرت جزء من النظام. ناقص جزء، وانت هتكمّله باستخدام امتداد Chrome اللي معاك (Browser MCP / Claude in Chrome) على **الأدمن** (`https://staging-admin.emdadsy.com`) و**الكلاينت بورتال** (`https://staging-client.emdadsy.com`). مفيش كتابة تستات في المرحلة دي — **تصوير وفحص بس**.
+أنا (Claude) كتبت خطة اختبارات كاملة في `docs/testing/` وصوّرت جزء من النظام. ناقص جزء، وانت هتكمّله باستخدام امتداد Chrome اللي معاك (Browser MCP / Claude in Chrome) على **الأدمن** (`https://staging-admin.emdadsy.com`) و**الكلاينت بورتال** (`https://staging-client.emdadsy.com`). مفيش كتابة كود تستات في المرحلة دي — **تصوير وفحص وتجربة للواجهة بس**.
+
+## الـ staging ده sandbox
+كل الأوردرات والعملاء على staging داتا تجريبية، والمالك سمح لك تجرّب بحرية: تعمل وتعدّل وتوافق وتلغي وتمسح سجلات، وتعمل logout/login وتكتب باسوردات على صفحات لوجين الـ staging، وتعمل حسابات QA بأي role، وتقبل تحذير الشهادة الـ self-signed بتاع الـ staging (حتى الدخول بالـ IP `187.124.19.162`). الهدف إنك تشوف حالات النجاح والخطأ والـ toasts فعليًا، مش بس الفورم الفاضي.
 
 ## اقرأ بالترتيب قبل ما تبدأ
 1. `docs/testing/00-README-test-strategy.md` (القواعد والـ devices)
-2. `docs/testing/20-remaining-capture-backlog.md` ← **ده الشغل المطلوب منك، بند بند**
-3. `docs/testing/16-observed-issues-during-capture.md` (اللي اتلقى قبل كده، عشان ما تكررش وتكمل الترقيم من V-077)
-4. `docs/testing/screenshots/README.md` و`assign.py` و`visual-notes.md` (طريقة الترقيم والتخزين)
-5. `docs/testing/04a-e2e-page-catalogue-admin.md` و`04b-e2e-page-catalogue-client.md` (فيها العناصر اللي متوقعة في كل صفحة)
+2. `docs/testing/20-remaining-capture-backlog.md` ← **ده الشغل المطلوب منك، بند بند** (القواعد في §0 وقائمة الممنوعات في §8)
+3. `docs/testing/16-observed-issues-during-capture.md` (اللي اتلقى قبل كده؛ كمّل الترقيم من V-077)
+4. `docs/testing/screenshots/README.md` و`assign.py` و`visual-notes.md`
+5. `docs/testing/04a-e2e-page-catalogue-admin.md` و`04b-e2e-page-catalogue-client.md` (العناصر المتوقعة في كل صفحة)
 6. `docs/testing/17-assumptions-to-confirm.md` (افتراضات مش مؤكدة — ما تعتبرهاش bugs مؤكدة)
 
-## قواعد صارمة (ممنوعات)
-- **متعملش أي تعديل على البيانات**: ما تعملش submit/save/create/delete/approve/cancel/send/confirm لأي شيء. افتح المودال أو الفورم، صوّر، وبعدين Cancel/Close. لو الزرار مش واضح هل بيغيّر داتا → متدوسش عليه.
-- بند §8 في ملف الـ backlog (bulk shipping، Test connection، Register webhook، Google، إنشاء يوزرز، تسجيل خروج للـ owner…) **متعملوش** — بس اكتب في التقرير إيه المطلوب موافقة عليه.
-- متكتبش باسوردات أبدًا. لو محتاج logout/login أو حساب role معين → اكتب `NEEDS OWNER` في التقرير وكمّل في البنود اللي بعدها.
-- ما تقفلش التحقق من شهادة TLS ولا تدخل عن طريق الـ IP (`187.124.19.162`).
-- متلمسش أي أوردر جوه بورتال شركة شحن (Babel/Sila/Sena/Delivery Joud). والداتا الحقيقية للعملاء للقراءة بس.
-- لو غيّرت لغة/ثيم، رجّعهم EN/light. لو طبّقت فلاتر في قايمة، دوس Reset.
-- ما تعملش `git add .` — حط الملفات بالاسم. ما تكوميتش `dist`/`node_modules`/`graphify-out`.
+## الممنوعات الوحيدة (حتى على staging)
+1. **الـ production ممنوع تمامًا**: `/var/www/emdad-sy-3pl-wms`، PM2 id 0، DB `wms_db`، أي URL بروداكشن.
+2. **شركات الشحن: سينا (Sena) بس.** بابل وسيلا وDelivery Joud وفاتح شركات حقيقية — ممنوع تعمل أي create/edit/cancel شحنة، ولا Test connection ولا Register webhook ولا Disconnect، ولا تفتح بورتالاتهم، ولا تبعت أوردر لهم. في أي مودال اختيار شركة (bulk shipping وغيره) اختار **سينا** بس. لو سينا مش متاحة لأوردر (منطقة/عملة COD) اختار أوردر تاني أو اتخطى. إرسال أوردر لسينا للتأكد إن الفلو شغال = مسموح ومطلوب (البند 9b في الـ backlog).
+3. **مدمّر للداتا الأساسية — ممنوع حتى هنا**: Factory Reset، Restore، رفع ملف restore، "Run local retention cleanup"، مسح جماعي، `DROP`/`TRUNCATE`، تغيير/مسح credentials شركات الشحن أو إعدادات Google/SMTP. تفتح الـ dialog وتصوّر وتعمل Cancel، ده مسموح.
+4. الأسرار: ما تكتبش أي باسورد أو API key أو credentials (شحن/Google/SMTP) في ملفات أو commits أو شات. تكتب الباسورد في خانة اللوجين عادي، بس ما تسجّلهوش.
+5. إيميلات "نسيت الباسورد" بتتبعت فعلًا — استخدم إيميل المالك أو mailbox تجريبي بس.
+6. ما تعملش `git add .` — حط الملفات بالاسم. ما تكوميتش `dist`/`node_modules`/`graphify-out`.
+
+## قواعد التجربة
+- أي سجل تعمله: العميل **Test company**، المستلم **Nadim Hassan**، الملاحظات **TEST ORDER**، وأي اسم تاني يبدأ بـ `QA-`. العملاء "الشبه حقيقيين" (Mr Jad, Madino, Glow Mart…) للقراءة بس إلا لو الخطوة محتاجاهم صراحة.
+- أي حاجة تلغيها أو تمسحها أو تغيّر إعداد، اكتبها في التقرير (إيه، الـ id، ليه) ورجّع الإعدادات (سياسات الفاينانس، FX، pickup address، لغة/ثيم) لقيمها الأصلية اللي سجّلتها قبل التغيير.
+- لو محتاج حاجة مني (باسورد مش معاك، حساب مش بتعرف تعمله من الـ UI) اكتب `NEEDS OWNER` وكمّل في اللي بعده.
 
 ## طريقة التصوير (4 أجهزة لكل صفحة/حالة)
 Desktop 1920×1080، Laptop 1366×768، Tablet 820×1180، Mobile 390×844. لو الأداة بتسمح بـ resize للنافذة أو device emulation استخدمها. لو لا، ممكن تفتح نفس الصفحة جوه `iframe` بنفس عرض الجهاز على صفحة same-origin (ده اللي عملته أنا) — بس اتأكد إن الـ layout بيستجيب للعرض.
@@ -39,14 +46,15 @@ Desktop 1920×1080، Laptop 1366×768، Tablet 820×1180، Mobile 390×844. لو
 ما تفترضش إن حاجة "غلط" لمجرد إنك شايفها غريبة؛ اكتب "(guess)" لو انت مش متأكد من المطلوب.
 
 ## التنفيذ
-1. ابدأ بالبنود اللي مش محتاجة logout/roles: §1 → §3 → §4 → §5 → §7 في `20-remaining-capture-backlog.md`.
-2. بعدين §2 و§6 (محتاجين المالك) — اكتب في ردك بالظبط إيه اللي محتاجه مني (logout؟ حساب role؟) واستنى؛ كمّل الباقي في الوقت ده.
+1. ابدأ بالترتيب: §1 → §3 → §4 → §5 → §7 → §9b (فلو سينا كامل) → §2 (logout/login، آخر حاجة عشان ما تضيعش الجلسة) → §6 (الـ roles بحسابات QA تنشئها بنفسك).
+2. لو وقفت عند حاجة محتاجاني اكتب `NEEDS OWNER` وكمّل.
 3. ما تقفش عند أول مشكلة: لو بند مستحيل → `SKIPPED(reason)` وكمّل.
 4. اشتغل على دفعات (10–15 صفحة) وكوميت كل دفعة بـ message `docs(testing): capture round 4 – <batch>` ثم `git push origin staging`. الـ trailer: `Co-Authored-By: <اسم الموديل بتاعك>`.
 
 ## المطلوب في الآخر (التفاصيل في §9 من ملف الـ backlog)
 - الصور + `index.json` محدثين.
-- Defects جديدة في `16-observed-issues-during-capture.md` من **V-077** بنفس شكل الجدول.
+- Defects جديدة في `16-observed-issues-during-capture.md` من **V-077** بنفس شكل الجدول. اللي بيطلع من تجربة فعلية (مثلًا خطأ بعد submit) سجّله مع الخطوات والنتيجة الفعلية.
+- قائمة بالسجلات اللي أنشأتها/غيرتها (ids) وحسابات QA اللي عملتها، عشان المالك يمسحها أو يوقفها بعدين.
 - ملاحظات خام في `visual-notes.md`.
 - تحديث `14-coverage-matrix.md` (§9/§10).
 - تقرير مختصر `docs/testing/21-capture-round4-report.md`: اللي اتصوّر (أرقام)، اللي اتخطّى وليه، اللي محتاج موافقة المالك، وعدد الـ defects الجداد حسب الخطورة.
@@ -60,4 +68,4 @@ Desktop 1920×1080، Laptop 1366×768، Tablet 820×1180، Mobile 390×844. لو
 ╚═════════════════════════════════════╝
 ```
 
-مفيش كتابة تستات دلوقتي. لما تخلص ابعتلي إنك خلصت وأنا هكمل على كتابة التستات.
+مفيش كتابة كود تستات دلوقتي. لما تخلص ابعتلي إنك خلصت وأنا هكمل على كتابة التستات.
