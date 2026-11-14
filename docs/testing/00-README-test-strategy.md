@@ -34,6 +34,8 @@ Phase 2 = implement the tests (Playwright / Vitest / Jest / k6 …). Phase 3 = e
 | `16-observed-issues-during-capture.md` | Defect candidates seen while taking the screenshots (not yet confirmed) |
 | `17-assumptions-to-confirm.md` | Expected behaviours I inferred and the owner must confirm *before* they are used as pass/fail oracles |
 | `18-test-data-and-environment.md` | Accounts, seed data, safe-mutation rules, carrier rules, reset procedures |
+| `20-remaining-capture-backlog.md` | What is still not photographed/inspected (pages, modals, roles, AR/dark) — work list for the capture executor |
+| `CURSOR_CAPTURE_PROMPT.md` | Ready-to-paste prompt for Cursor to finish that backlog (look-only, no mutations) |
 | `19-results-report-template.md` | Mandatory format of the final report (why each test passed / failed) |
 | `generated/` | Auto-generated inventories (594 endpoints, unit gap lists) + generator script |
 | `screenshots/staging-admin-frontend-screenshots/{desktop,laptop,tablet,mobile}/` | Numbered screenshots of every admin page, 4 devices |
