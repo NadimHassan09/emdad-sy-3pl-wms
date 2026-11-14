@@ -41,14 +41,15 @@ Date: 14–15 Nov 2026. Portal screenshots via Browser MCP iframe device frames;
 | shipping Sena card + Test connection | done | 148–149 | Sena test OK; other carriers photo-only |
 | COD Set + QR pending | done | 150–152 | no confirm dialog; toast Updated 1 |
 | finance Adjust credit+debit | done | 153–155 | Test company ±$0.01; net zero |
-| outbound import / returns / users / billing / fee-rates / global chrome | pending | — | next |
+| global chrome (bell/user/jump/sidebar) | done | 156–159 | desktop (+copies) |
+| outbound import / returns / users / billing / fee-rates | pending | — | next |
 
 ## Skipped / blocked
 - A6: SKIPPED(no cycle count sessions)
 - Receiving task type: none open
 
 ## New defect candidates (V-077+)
-S1: 0 · S2: 3 (V-078, V-083, V-099) · S3: 15 (… V-095–V-097) · S4: 6 (… V-098, V-100)
+S1: 0 · S2: 3 (V-078, V-083, V-099) · S3: 16 (… V-101) · S4: 6 (… V-098, V-100)
 
 ## Records created / changed
 - Plan edit opened not saved; all create modals Cancelled.

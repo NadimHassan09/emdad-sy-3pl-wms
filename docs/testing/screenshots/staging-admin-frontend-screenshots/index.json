@@ -1001,6 +1001,34 @@
    "state": "adjust-debit-0.01-balance-zero",
    "file": "155_finance-adjust-debit-done.png",
    "seq": 155
+  },
+  {
+   "n": 156,
+   "route": "/dashboard/overview",
+   "state": "notifications-bell",
+   "file": "156_notifications-bell-dropdown.png",
+   "seq": 156
+  },
+  {
+   "n": 157,
+   "route": "/dashboard/overview",
+   "state": "user-menu",
+   "file": "157_user-menu-dropdown.png",
+   "seq": 157
+  },
+  {
+   "n": 158,
+   "route": "/dashboard/overview",
+   "state": "quick-jump-ord",
+   "file": "158_quick-jump-ord.png",
+   "seq": 158
+  },
+  {
+   "n": 159,
+   "route": "/dashboard/overview",
+   "state": "sidebar-collapsed",
+   "file": "159_sidebar-collapsed.png",
+   "seq": 159
   }
  ],
  "used": [

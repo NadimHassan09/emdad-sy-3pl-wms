@@ -192,3 +192,10 @@ Button sets observed (do not click carriers):
 - 154 Credit $0.01 QA-TEST ORDER round4 credit → balance $0.01
 - 155 Debit $0.01 QA-TEST ORDER round4 debit → balance back $0.00
 - Pending COD $ with SYP amounts (V-099); duplicated client names (V-100)
+
+## Round 4 — Global chrome (156–159)
+- 156 notifications bell: Invoice overdue + Billing cycle expiring; Mark all read / View all; badge 51
+- 157 user menu: EN/AR language toggle, Profile, Sign out (red)
+- 158 Ctrl+K / Quick jump typed "ord" with results
+- 159 sidebar collapsed (icons only) then re-expanded
+- Dashboard Ready count inconsistency noted (V-101)
