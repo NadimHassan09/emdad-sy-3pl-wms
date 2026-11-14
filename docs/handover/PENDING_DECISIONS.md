@@ -51,9 +51,9 @@ Generated: 13 Nov 2026 · **Owner final answers recorded 14 Nov 2026**
 ### 7. O-13 — Google Sheet Real Credentials
 
 **القرار / الدليل:** المالك جرّب → **403 access_denied**:  
-`emdadsy.com has not completed the Google verification process` — التطبيق في **Testing** ومسموح بس لـ test users المعتمدين.
+`emdadsy.com has not completed the Google verification process` — التطبيق في **Testing**.
 
-**التشخيص المتوقع:** إعداد Google Cloud Console (Publishing status / Test users)، مش بالضرورة bug في كود EMDAD. الوكيل يأكد ويوثّق الخطوات.
+**متابعة 14 Nov (مساءً):** إخفاء كل واجهات Google OAuth + forgot-password / Sheets Google من الـ UI (`GOOGLE_AUTH_UI_ENABLED=false`) حتى ينشر العميل التطبيق أو يكملها مبرمج لاحقًا. الكود موجود — مش محذوف. انظر `GOOGLE_AUTH_UI_HIDDEN.md`.
 
 ---
 

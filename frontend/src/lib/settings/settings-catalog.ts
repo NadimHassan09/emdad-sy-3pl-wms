@@ -1,4 +1,5 @@
 import { isBackupGdriveUiEnabled } from '../backup-gdrive-ui';
+import { isGoogleAuthUiEnabled } from '../google-auth-ui';
 
 export type SettingsTabEntry = {
   id: string;
@@ -64,11 +65,13 @@ export const SETTINGS_TABS: SettingsTabEntry[] = [
 ];
 
 const GDRIVE_TAB_ID = 'backup-google-drive';
+const GOOGLE_OAUTH_TAB_ID = 'google-oauth';
 
-/** Settings tabs visible in the current deployment (respects BACKUP_GDRIVE_UI_ENABLED). */
+/** Settings tabs visible in the current deployment (GDrive + Google OAuth UI flags). */
 export function getVisibleSettingsTabs(): SettingsTabEntry[] {
-  if (isBackupGdriveUiEnabled()) {
-    return SETTINGS_TABS;
-  }
-  return SETTINGS_TABS.filter((entry) => entry.id !== GDRIVE_TAB_ID);
+  return SETTINGS_TABS.filter((entry) => {
+    if (entry.id === GDRIVE_TAB_ID && !isBackupGdriveUiEnabled()) return false;
+    if (entry.id === GOOGLE_OAUTH_TAB_ID && !isGoogleAuthUiEnabled()) return false;
+    return true;
+  });
 }

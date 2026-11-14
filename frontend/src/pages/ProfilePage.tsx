@@ -15,6 +15,7 @@ import { ImageUploadField } from '../components/ImageUploadField';
 import { useToast } from '../components/ToastProvider';
 import { adminMediaSrc } from '../lib/admin-media';
 import { canAccessPath } from '../lib/rbac';
+import { isGoogleAuthUiEnabled } from '../lib/google-auth-ui';
 import { useWmsTranslation } from '../lib/ui-i18n';
 
 function roleLabel(role: string, isArabic: boolean): string {
@@ -69,6 +70,10 @@ export function ProfilePage(): ReactElement {
   }, [user?.fullName]);
 
   useEffect(() => {
+    if (!isGoogleAuthUiEnabled()) {
+      setGoogleEnabled(false);
+      return;
+    }
     let cancelled = false;
     void AuthApi.googleStatus()
       .then((s) => {
@@ -83,6 +88,7 @@ export function ProfilePage(): ReactElement {
   }, []);
 
   useEffect(() => {
+    if (!isGoogleAuthUiEnabled()) return;
     const params = new URLSearchParams(window.location.search);
     if (params.get('google_link') === 'success') {
       setGoogleMessage(
@@ -330,6 +336,7 @@ export function ProfilePage(): ReactElement {
             ) : null}
           </div>
 
+          {isGoogleAuthUiEnabled() ? (
           <div className="mt-4 rounded-xl border border-border bg-surface-sunken p-4">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div className="min-w-0">
@@ -401,6 +408,7 @@ export function ProfilePage(): ReactElement {
               <p className="mt-2 text-xs text-status-danger-fg">{googleError}</p>
             ) : null}
           </div>
+          ) : null}
         </div>
       </Card>
 

@@ -7,6 +7,7 @@ import { ImageUploadField } from '../components/ImageUploadField';
 import { useAuth } from '../auth/AuthContext';
 import { clientMediaSrc } from '../lib/client-media';
 import { isClientArabic } from '../lib/client-ui-language';
+import { isGoogleAuthUiEnabled } from '../lib/google-auth-ui';
 import { isClientAdmin } from '../lib/rbac';
 import { getClientApiBaseUrl } from '../services/apiBaseUrl';
 import {
@@ -121,6 +122,10 @@ export function ProfilePage(): ReactElement {
   }, [user?.fullName]);
 
   useEffect(() => {
+    if (!isGoogleAuthUiEnabled()) {
+      setGoogleEnabled(false);
+      return;
+    }
     void (async () => {
       try {
         const res = await fetch(`${getClientApiBaseUrl()}/auth/google/status`, { credentials: 'include' });
@@ -135,6 +140,7 @@ export function ProfilePage(): ReactElement {
   }, []);
 
   useEffect(() => {
+    if (!isGoogleAuthUiEnabled()) return;
     const linked = searchParams.get('google_linked');
     const err = searchParams.get('google_error');
     if (linked === '1') {
@@ -386,7 +392,7 @@ export function ProfilePage(): ReactElement {
         </form>
       </Card>
 
-      {googleEnabled !== false ? (
+      {isGoogleAuthUiEnabled() && googleEnabled !== false ? (
         <Card className="p-5">
           <div className="flex items-center gap-3 mb-3">
             <div className="w-8 h-8 rounded-lg bg-surface-sunken border border-border flex items-center justify-center">

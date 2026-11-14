@@ -1,15 +1,17 @@
 import { useState } from 'react';
+import { Navigate } from 'react-router-dom';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
 import { Alert, Badge } from '@ds';
 import { Button } from '../../components/Button';
-import { useWmsTranslation } from '../../lib/ui-i18n';
 import {
   fetchGoogleOAuthSettings,
   saveGoogleOAuthSettings,
   testGoogleOAuthSettings,
   type GoogleOAuthView,
 } from '../../api/adminSettings';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { isGoogleAuthUiEnabled } from '../../lib/google-auth-ui';
+import { useWmsTranslation } from '../../lib/ui-i18n';
 
 const QK = { googleOAuth: ['settings', 'google-oauth'] } as const;
 
@@ -54,10 +56,12 @@ function MaskedInput({
 export function GoogleOAuthSettingsPage() {
   const { t } = useWmsTranslation();
   const qc = useQueryClient();
+  const googleAuthUi = isGoogleAuthUiEnabled();
 
   const { data, isLoading, error } = useQuery<GoogleOAuthView>({
     queryKey: QK.googleOAuth,
     queryFn: fetchGoogleOAuthSettings,
+    enabled: googleAuthUi,
   });
 
   const [clientId, setClientId] = useState('');
@@ -85,6 +89,10 @@ export function GoogleOAuthSettingsPage() {
     mutationFn: testGoogleOAuthSettings,
     onSuccess: (updated) => qc.setQueryData(QK.googleOAuth, updated),
   });
+
+  if (!googleAuthUi) {
+    return <Navigate to="/backups" replace />;
+  }
 
   if (isLoading) return <p className="text-sm text-neutral-500">{t(['Loading…', 'جارٍ التحميل…'])}</p>;
   if (error) return <Alert variant="error">{String(error)}</Alert>;

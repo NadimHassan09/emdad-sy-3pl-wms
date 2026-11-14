@@ -13,6 +13,7 @@ import {
   type RememberedAccount,
 } from '../services/authStorage';
 import { getLoginErrorMessage } from '../utils/loginError';
+import { isGoogleAuthUiEnabled } from '../lib/google-auth-ui';
 import { apiClient } from '../services/apiClient';
 import { getClientApiBaseUrl } from '../services/apiBaseUrl';
 
@@ -256,6 +257,10 @@ export function LoginPage(): ReactElement {
   const isArabic = useClientArabic();
 
   useEffect(() => {
+    if (!isGoogleAuthUiEnabled()) {
+      setGoogleEnabled(false);
+      return;
+    }
     apiClient
       .get<{ enabled: boolean }>('/auth/google/status')
       .then((r) => setGoogleEnabled(r.data.enabled))
@@ -353,11 +358,12 @@ export function LoginPage(): ReactElement {
       }
     : null;
 
+  const googleAuthUi = isGoogleAuthUiEnabled();
   const googleLoginUrl = `${getClientApiBaseUrl()}/auth/google/login${rememberFor30Days ? '?rememberMe=1' : ''}`;
 
-  const oauthAndForgotSlot = (
+  const oauthAndForgotSlot = googleAuthUi ? (
     <div className="space-y-2">
-      {googleEnabled && (
+      {googleEnabled ? (
         <button
           type="button"
           disabled={submitting}
@@ -372,7 +378,7 @@ export function LoginPage(): ReactElement {
           </svg>
           {t('Sign in with Google', 'تسجيل الدخول عبر Google')}
         </button>
-      )}
+      ) : null}
       <div className="pt-1 text-center">
         <button
           type="button"
@@ -383,7 +389,7 @@ export function LoginPage(): ReactElement {
         </button>
       </div>
     </div>
-  );
+  ) : null;
 
   return (
     <div id="client-portal-root" dir={isArabic ? 'rtl' : 'ltr'}>
@@ -426,9 +432,9 @@ export function LoginPage(): ReactElement {
           ) : undefined
         }
       />
-      {showForgot && (
+      {googleAuthUi && showForgot ? (
         <ForgotPasswordModal onClose={() => setShowForgot(false)} isArabic={isArabic} />
-      )}
+      ) : null}
     </div>
   );
 }

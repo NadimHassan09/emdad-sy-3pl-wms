@@ -66,7 +66,7 @@ Status: ✅ built · 🔍 built, must be verified in the browser · ⬜ not buil
 | B3 | Link inbound order to OMS order | ✅ | Owner 14 Nov: product→inbound **traceability** only (not returns). Verified OMS-2026-03729 → INB-2026-00022 on detail “Inbound Traceability”. | 14 Nov |
 | B4 | Filters (store name + date range) and Excel export on all sections: COD, inventory, inbound, products, outbound, OMS, finance | ✅ | Browser 9 Nov — Export CSV/Excel on OMS/stock/COD/products; client filters present. | 9 Nov |
 | B5 | Add storage locations in a newly created warehouse | ✅ | Browser 9 Nov — TEST warehouse I-7 (WH-003) → Storage `TEST-BIN-I7`. | 9 Nov |
-| B6 | Stock shown per warehouse in an order | ❓ | Answer from code (which warehouse's stock the order form shows), write the answer in DECISIONS. | |
+| B6 | Stock shown per warehouse in an order | ✅ | Company-wide `currentStock` at Approve; warehouse filter only later at allocation (PENDING_DECISIONS). | 14 Nov |
 | B9/B14 | Super admin edits everything at any stage (COD amount, qty, price, shipment details) | ✅ | Browser 9 Nov — OMS-2026-03728 Edit shows local-only warning; notes saved. After-delivery money rules still need owner. | 9 Nov |
 | B10 | Raqqa orders fail | ✅ (not a defect) | Babel does not serve Raqqa/Deir ez-Zor/Hasakah/Suwayda; EMDAD keeps them and routes to other carriers or Manual. Evidence DECISIONS §1.1. | 2 Nov |
 | B11 | Tolerant address matching (wrong governorate, unknown neighbourhood) | ✅ | API 9 Nov — `حللب` → Did you mean: حلب?; unit specs. | 9 Nov |

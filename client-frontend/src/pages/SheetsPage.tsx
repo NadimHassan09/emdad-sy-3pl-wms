@@ -6,6 +6,7 @@ import { OmsSheet } from '../components/sheets/OmsSheet';
 import { WmsOrdersSheet } from '../components/sheets/WmsOrdersSheet';
 import { ListPageHeader } from '../design-v2/ListPageHeader';
 import { isClientArabic } from '../lib/client-ui-language';
+import { isGoogleAuthUiEnabled } from '../lib/google-auth-ui';
 import {
   createGoogleSheet,
   disconnectGoogleSheets,
@@ -19,9 +20,10 @@ type Tab = 'oms' | 'inbound' | 'outbound';
 export function SheetsPage(): ReactElement {
   const isArabic = isClientArabic();
   const t = (en: string, ar: string) => (isArabic ? ar : en);
+  const googleAuthUi = isGoogleAuthUiEnabled();
   const [tab, setTab] = useState<Tab>('oms');
   const [googleStatus, setGoogleStatus] = useState<GoogleSheetsStatus | null>(null);
-  const [googleLoading, setGoogleLoading] = useState(true);
+  const [googleLoading, setGoogleLoading] = useState(googleAuthUi);
   const [googleWorking, setGoogleWorking] = useState(false);
   const [googleMessage, setGoogleMessage] = useState<{ kind: 'success' | 'error'; text: string } | null>(null);
 
@@ -32,6 +34,10 @@ export function SheetsPage(): ReactElement {
   ];
 
   useEffect(() => {
+    if (!googleAuthUi) {
+      setGoogleLoading(false);
+      return;
+    }
     void fetchGoogleSheetsStatus()
       .then(setGoogleStatus)
       .catch(() => setGoogleStatus({ connected: false, sheetId: null, sheetUrl: null }))
@@ -96,7 +102,8 @@ export function SheetsPage(): ReactElement {
         subtitle={isArabic ? 'أضف وعدّل طلباتك في جدول واحد' : 'Add and edit your orders in one table'}
       />
 
-      {/* Google Sheets connect panel */}
+      {/* Google Sheets connect panel — hidden until GOOGLE_AUTH_UI_ENABLED=true */}
+      {googleAuthUi ? (
       <div className="flex flex-wrap items-center gap-3 rounded-lg border border-neutral-200 bg-neutral-50 px-4 py-3 dark:border-neutral-700 dark:bg-neutral-800/40">
         <span className="text-sm font-medium">{t('Google Sheets sync', 'مزامنة جوجل شيتس')}</span>
         {googleLoading ? (
@@ -138,6 +145,7 @@ export function SheetsPage(): ReactElement {
           </span>
         )}
       </div>
+      ) : null}
 
       <div className="flex gap-1 border-b border-neutral-200 dark:border-neutral-700" role="tablist">
         {tabs.map((x) => (

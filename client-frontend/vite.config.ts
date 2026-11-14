@@ -1,6 +1,6 @@
 import { execSync } from 'node:child_process';
 import react from '@vitejs/plugin-react';
-import { defineConfig } from 'vite';
+import { defineConfig, loadEnv } from 'vite';
 import { fileURLToPath, URL as NodeURL } from 'node:url';
 import { resolve as pathResolve } from 'node:path';
 
@@ -49,8 +49,13 @@ function versionJsonPlugin(info: typeof buildInfo) {
   };
 }
 
-export default defineConfig({
+export default defineConfig(({ mode }) => {
+  const env = loadEnv(mode, process.cwd(), '');
+  const googleAuthUiEnabled = env.GOOGLE_AUTH_UI_ENABLED ?? 'false';
+
+  return {
   define: {
+    __GOOGLE_AUTH_UI_ENABLED__: JSON.stringify(googleAuthUiEnabled),
     __APP_BUILD_ID__: JSON.stringify(buildInfo.buildId),
     __APP_VERSION__: JSON.stringify(buildInfo.version),
   },
@@ -85,4 +90,5 @@ export default defineConfig({
       },
     },
   },
+};
 });

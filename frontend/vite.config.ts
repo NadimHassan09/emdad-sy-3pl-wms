@@ -57,11 +57,13 @@ export default defineConfig(({ mode }) => {
   const devBackend = (env.VITE_DEV_BACKEND_URL ?? DEFAULT_DEV_BACKEND).replace(/\/$/, '');
 
   const backupGdriveUiEnabled = env.BACKUP_GDRIVE_UI_ENABLED ?? 'false';
+  const googleAuthUiEnabled = env.GOOGLE_AUTH_UI_ENABLED ?? 'false';
   const omsCodReturnsUiEnabled = env.OMS_COD_RETURNS_UI_ENABLED ?? 'true';
 
   return {
   define: {
     __BACKUP_GDRIVE_UI_ENABLED__: JSON.stringify(backupGdriveUiEnabled),
+    __GOOGLE_AUTH_UI_ENABLED__: JSON.stringify(googleAuthUiEnabled),
     __OMS_COD_RETURNS_UI_ENABLED__: JSON.stringify(omsCodReturnsUiEnabled),
     __APP_BUILD_ID__: JSON.stringify(buildInfo.buildId),
     __APP_VERSION__: JSON.stringify(buildInfo.version),
