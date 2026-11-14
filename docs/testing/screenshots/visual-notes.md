@@ -209,3 +209,5 @@ Button sets observed (do not click carriers):
 
 ## Round 4 — §4 empty start (163)
 - inbound empty search ZZZ-NO-MATCH-QA-99999: "No inbound orders match the filters."; status cards all 0; Reset after capture
+
+- 164 products empty search (live filter): No products match the filters.

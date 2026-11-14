@@ -1057,6 +1057,13 @@
    "state": "empty-search",
    "file": "163_inbound-empty-search.png",
    "seq": 163
+  },
+  {
+   "n": 164,
+   "route": "/products",
+   "state": "empty-search",
+   "file": "164_products-empty-search.png",
+   "seq": 164
   }
  ],
  "used": [
