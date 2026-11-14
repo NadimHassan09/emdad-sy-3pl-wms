@@ -186,3 +186,9 @@ Button sets observed (do not click carriers):
 - 151 after Set Available on already-Available OMS-SENA-TEST-…COD: toast "Updated 1." no confirm (V-098); no status change
 - 152 Pending by QR modal: same camera NotFoundError + manual entry; Done
 - Records touched: COD OMS-SENA-TEST-1793439374704-COD Set→Available (noop)
+
+## Round 4 — Finance adjust (153–155)
+- 153 Adjust modal Test company: Credit/Debit, Amount USD default 0.00, reason required; Cancel white (V-067 related)
+- 154 Credit $0.01 QA-TEST ORDER round4 credit → balance $0.01
+- 155 Debit $0.01 QA-TEST ORDER round4 debit → balance back $0.00
+- Pending COD $ with SYP amounts (V-099); duplicated client names (V-100)

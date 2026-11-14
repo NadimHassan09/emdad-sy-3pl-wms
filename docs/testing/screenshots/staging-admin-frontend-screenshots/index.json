@@ -980,6 +980,27 @@
    "state": "qr-pending-modal",
    "file": "152_cod-qr-pending-modal.png",
    "seq": 152
+  },
+  {
+   "n": 153,
+   "route": "/finance/accounts",
+   "state": "adjust-modal-empty",
+   "file": "153_finance-adjust-modal.png",
+   "seq": 153
+  },
+  {
+   "n": 154,
+   "route": "/finance/accounts",
+   "state": "adjust-credit-0.01",
+   "file": "154_finance-adjust-credit-toast.png",
+   "seq": 154
+  },
+  {
+   "n": 155,
+   "route": "/finance/accounts",
+   "state": "adjust-debit-0.01-balance-zero",
+   "file": "155_finance-adjust-debit-done.png",
+   "seq": 155
   }
  ],
  "used": [

@@ -133,3 +133,5 @@ Deliberately not opened: bulk "Confirm Shipping / Complete Dispatch / Cancel Shi
 | V-096 | Inbound list expected arrival | Cancelled INB-2026-00057 shows Expected arrival **1/1/2999** (sentinel date leaked to UI). | S3 | UX-CL |
 | V-097 | `/oms/cod` status cards | All=806 but Pending/Available/Paid out/Returned cards show **—** (counts missing). | S3 | LB-01 |
 | V-098 | COD "Set n selected" | Applies immediately with toast "Updated 1." — **no confirm dialog** (backlog expected open→cancel). | S4 | UX-EL-05 |
+| V-099 | Finance accounts Pending COD | Values like Madino **$85000.00** shown with `$` while underlying COD is SYP (guess currency label wrong). | S2 | FIN-COD |
+| V-100 | Client name on accounts | "Test company Test" / "Noviara Cosmetics Noviara Cosmetics" — name duplicated in cell. | S4 | UX-CL |
