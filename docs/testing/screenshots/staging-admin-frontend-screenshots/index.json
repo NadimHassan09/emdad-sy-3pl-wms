@@ -959,6 +959,27 @@
    "state": "sena-test-connection",
    "file": "149_shipping-sena-test-connection.png",
    "seq": 149
+  },
+  {
+   "n": 150,
+   "route": "/oms/cod",
+   "state": "set-1-selected-bar",
+   "file": "150_cod-set-selected-dialog.png",
+   "seq": 150
+  },
+  {
+   "n": 151,
+   "route": "/oms/cod",
+   "state": "set-toast-updated-1",
+   "file": "151_cod-set-toast.png",
+   "seq": 151
+  },
+  {
+   "n": 152,
+   "route": "/oms/cod",
+   "state": "qr-pending-modal",
+   "file": "152_cod-qr-pending-modal.png",
+   "seq": 152
   }
  ],
  "used": [

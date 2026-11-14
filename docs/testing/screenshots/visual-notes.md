@@ -180,3 +180,9 @@ Button sets observed (do not click carriers):
 - 149 Sena Test connection exercised: Last test updated to ~11/14 evening ok; no toast visible in shot
 - Baseline FX note (read-only): Manual rate 120 SYP/USD; pickup مستودعات إمداد / حلب الشيخ نجار (not changed)
 - Inbound expected 1/1/2999 on cancelled row (V-096)
+
+## Round 4 — COD (150–152)
+- 150 COD with 1 Sena row selected: Set 1 selected enabled; status cards — counts (V-097)
+- 151 after Set Available on already-Available OMS-SENA-TEST-…COD: toast "Updated 1." no confirm (V-098); no status change
+- 152 Pending by QR modal: same camera NotFoundError + manual entry; Done
+- Records touched: COD OMS-SENA-TEST-1793439374704-COD Set→Available (noop)

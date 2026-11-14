@@ -39,17 +39,20 @@ Date: 14–15 Nov 2026. Portal screenshots via Browser MCP iframe device frames;
 | inbound Import | done | 146 | no upload |
 | backups Restore | done | 147 | Cancel only |
 | shipping Sena card + Test connection | done | 148–149 | Sena test OK; other carriers photo-only |
-| outbound import / COD / returns / finance / users / billing / fee-rates / global chrome | pending | — | next |
+| COD Set + QR pending | done | 150–152 | no confirm dialog; toast Updated 1 |
+| outbound import / returns / finance / users / billing / fee-rates / global chrome | pending | — | next |
 
 ## Skipped / blocked
 - A6: SKIPPED(no cycle count sessions)
 - Receiving task type: none open
 
 ## New defect candidates (V-077+)
-S1: 0 · S2: 2 (V-078, V-083) · S3: 14 (… V-091–V-093, V-095–V-096) · S4: 4 (V-081, V-084, V-090, V-094)
+S1: 0 · S2: 2 (V-078, V-083) · S3: 15 (… V-095–V-097) · S4: 5 (V-081, V-084, V-090, V-094, V-098)
 
 ## Records created / changed
-None so far this round (read-only captures; modals Cancelled). Plan edit page opened, not saved.
+- Plan edit opened not saved; all create modals Cancelled.
+- Sena Test connection on `/shipping/companies` (Last test refreshed).
+- COD Set Available on OMS-SENA-TEST-1793439374704-COD (already Available → toast Updated 1).
 
 ## Next batches
 Rest of §3 → §4 states → §5 AR/dark → §7 client → §9b Sena → §2 login → §6 roles.

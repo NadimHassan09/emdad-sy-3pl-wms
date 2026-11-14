@@ -131,3 +131,5 @@ Deliberately not opened: bulk "Confirm Shipping / Complete Dispatch / Cancel Shi
 | V-094 | OMS QR confirm modal (143) | Camera fail shows raw `Error getting userMedia, error = NotFoundError: Requested device not found` (dev-style); manual order# fallback OK. | S4 | UX-CL |
 | V-095 | `/cycle-count` | No **Create session** control visible (empty warehouse); Product schedule empty "No product count history yet." Create modal SKIPPED. | S3 | A6 |
 | V-096 | Inbound list expected arrival | Cancelled INB-2026-00057 shows Expected arrival **1/1/2999** (sentinel date leaked to UI). | S3 | UX-CL |
+| V-097 | `/oms/cod` status cards | All=806 but Pending/Available/Paid out/Returned cards show **—** (counts missing). | S3 | LB-01 |
+| V-098 | COD "Set n selected" | Applies immediately with toast "Updated 1." — **no confirm dialog** (backlog expected open→cancel). | S4 | UX-EL-05 |
