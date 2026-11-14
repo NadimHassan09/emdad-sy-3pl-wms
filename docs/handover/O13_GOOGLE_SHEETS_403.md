@@ -29,3 +29,4 @@ This matches Google’s standard behaviour; the staging Sheets connect button is
 - OAuth + Sheets sync code is already in tree (`client-sheets-google.service.ts`).
 - D-043 (401 on status) was fixed earlier.
 - No code change required for this 403; unblock is **Google Console configuration**.
+- **14 Nov:** UI for Google OAuth / Sheets / forgot-password is **hidden** by default (`GOOGLE_AUTH_UI_ENABLED=false`). See `GOOGLE_AUTH_UI_HIDDEN.md`.
