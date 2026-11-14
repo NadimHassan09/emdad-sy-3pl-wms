@@ -1029,6 +1029,20 @@
    "state": "sidebar-collapsed",
    "file": "159_sidebar-collapsed.png",
    "seq": 159
+  },
+  {
+   "n": 160,
+   "route": "/oms/returns",
+   "state": "create-modal",
+   "file": "160_oms-returns-create-modal.png",
+   "seq": 160
+  },
+  {
+   "n": 161,
+   "route": "/oms/returns",
+   "state": "express-modal",
+   "file": "161_oms-returns-express-modal.png",
+   "seq": 161
   }
  ],
  "used": [

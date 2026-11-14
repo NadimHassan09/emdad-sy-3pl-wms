@@ -199,3 +199,8 @@ Button sets observed (do not click carriers):
 - 158 Ctrl+K / Quick jump typed "ord" with results
 - 159 sidebar collapsed (icons only) then re-expanded
 - Dashboard Ready count inconsistency noted (V-101)
+
+## Round 4 — OMS returns modals (160–161)
+- 160 Create OMS return: Reason optional, order search, +Add Order/Import CSV/Download Template, Confirm (0 lines) disabled empty
+- 161 Express Return: similar add-orders flow, Confirm (0 orders); Cancel
+- Status cards Pending/Received/… show — like COD (same class as V-097)
