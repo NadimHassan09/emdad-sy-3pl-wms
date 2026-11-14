@@ -97,3 +97,15 @@
 - /notifications (client) — 60 unread; list dominated by "Billing cycle expiring in N days / Your billing cycle ends on 12 Nov 2026" and "Account renewed … billing cycle has been renewed" → retired-cycle messages still sent to clients (V-043 confirmed on client side); "Invoice overdue … Please contact Finance" for INV-2026-00016; tabs All / Unread 60 / Read; Mark all read.
 - /profile (client) — black empty banner above photo card (same as admin V-029), cards NAME/EMAIL/ROLE/COMPANY, Personal details (full name), Change password; no language/theme/Google options here; password fields on one column; fine on mobile.
 - NotFound (client) — "Page not found. This link is not part of the Client Portal. Return to the dashboard…" good; works on all devices.
+## Modals (admin)
+- New user modal: Email*, Full name*, Phone, Password* ("Minimum 8 characters"), System role (Worker default); role select shows only Worker/…; Cancel red/Create green; mobile fits.
+- New company modal: Country defaults **SY** (OK) but is a free-text box with helper "ISO code or country name"; warehouse modal uses a select defaulting to SA → inconsistent controls for same concept (V-066); scrollable body on laptop/mobile, sticky footer ok.
+- Manual adjustment modal (finance): Client select "Mr Jad (Avail: $17.00)", Type "Credit (Increase Balance)", Amount (USD) 0.00 placeholder, Mandatory reason; **Cancel is white here but red in other modals** (V-067 inconsistency); title "Create Manual Financial Adjustment"; on mobile type select text truncated ("Credit (Increase Balan").
+- New warehouse modal re-captured at 4 widths: Country default **Saudi Arabia (SA)** confirmed (V-064).
+- Scan QR modal: raw camera error text, manual input fallback, Done button.
+- Create backup modal: explanatory text + optional label; Cancel red; fine.
+- Factory reset modal: good safety pattern — danger banner, "Create pre-reset snapshot" checked by default, must type FACTORY RESET, button disabled until typed; verify typed phrase is case-sensitive and server also enforces (SEC-BIZ-012). Never executed.
+- Error state /orders/oms/<unknown uuid>: red banner "Could not load OMS order." + "Back to OMS orders"; plain, no hint (404 vs 500 not distinguished) (V-068, S4); good: no stack trace.
+- /orders/<uuid> (unknown top route) silently redirects to dashboard (RoleHomeRedirect) — no 404 page in admin, unlike the client portal which has a branded "Page not found" (V-069, S3). Captured desktop only; mobile showed "Loading…".
+- Quick-jump (Ctrl+K) with no match shows "No matching pages" — fine (seen on all widths; typed into top search instead of list search).
+- Filtered-empty state of the OMS list itself was not captured (typing hit the quick-jump box); re-do in phase 3 with the list search field selector.

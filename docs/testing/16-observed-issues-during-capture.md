@@ -83,3 +83,13 @@ Not yet captured: modals, error/empty states beyond the ones seen, Arabic/dark b
 |---|---|---|---|---|
 | V-064 | Admin `/warehouses` → "+ New warehouse" modal | **Country defaults to "Saudi Arabia (SA)"** although D-010 was marked fixed (default SY) — regression of RG-009. Fields: Code (optional) + Generate Code, Name*, Country, City (dependent), Address; Cancel red / Create green. Mobile: modal fits, close × has focus ring. | S3 | RG-009, FB-01 |
 | V-065 | Admin `/orders/oms` → "Scan QR" modal | Camera error shown raw: "Error getting userMedia, error = NotFoundError: Requested device not found" (technical text) with Retry camera; manual-entry field + Search present (good fallback); "Waybill fast scan" footer link; chips show Field Delivery typo behind. | S3 | CT-SCN-001, V-011 |
+
+## Extra modal / error states (14 Nov 2026, screenshots 089–096; nothing submitted)
+
+| ID | State | Observation | Sev? | Confirm by |
+|---|---|---|---|---|
+| V-066 | Modals: New company vs New warehouse | "Country" is free text (default SY) in one and a select (default SA) in the other. | S3 | FB-09, RG-009 |
+| V-067 | Finance "Manual adjustment" modal | Cancel is white here but red in other modals; type select truncated on mobile. | S4 | LB-14, VIS-L-08 |
+| V-068 | Unknown OMS order id | Generic red "Could not load OMS order." with no distinction 404/403/500. | S4 | DB-01 |
+| V-069 | Unknown admin path (`/orders/<uuid>`) | Silently redirects to dashboard, no branded 404 page (client portal has one). | S3 | RD-02, E2E states |
+Positive: Factory-reset modal has danger banner, default pre-reset snapshot, typed phrase gate (never executed); Create-backup modal clear.
