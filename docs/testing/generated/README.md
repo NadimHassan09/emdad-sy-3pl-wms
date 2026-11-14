@@ -1,0 +1,1 @@
+Regenerate from repo root: `python3 docs/testing/generated/gen_inventory.py && python3 docs/testing/generated/gen_pages_admin.py && python3 docs/testing/generated/gen_pages_client.py && python3 docs/testing/generated/gen_matrix.py`.

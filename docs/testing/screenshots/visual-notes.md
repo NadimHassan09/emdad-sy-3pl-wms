@@ -1,0 +1,71 @@
+# Raw visual observations while capturing (working notes → feed 09-visual / 08-UAT plans)
+- Tablet 820px: sidebar stays fully expanded (~31% of width) → every table is clipped (products shows 2 of 6 columns; locations Action column cut).
+- /products: "Scan barcode" control is a very wide bar with icon only, no label (all devices).
+- /warehouses mobile: Actions buttons clipped ("Locatio", "Deactiv"), need horizontal scroll; Previous/Next rendered full-width & oversized.
+- /inventory/stock mobile+tablet: product name column wraps to 4-5 lines because columns are too narrow.
+- Label inconsistency: "Reset" (/locations) vs "Reset filters" (/warehouses, /inventory).
+- Status badge casing inconsistent: "Active" (/locations, /products) vs "active" (/warehouses).
+- /warehouses: country shown as "Syr"/"EG"/"SA" (mixed formats), city "—".
+- /orders/inbound tablet+mobile: order number wraps onto 3 lines ("INB-/2026-/00063") — column too narrow, should be nowrap.
+- /inventory/adjustments: "Adjustment id" shows raw UUID (not a human code) and the search field is a UUID box; mobile wraps the UUID on 4 lines.
+- /inventory/ledger mobile/tablet: Arabic product names wrap one word per line.
+- /orders/inbound: test row with expected arrival 1/1/2999 (date upper-bound validation missing?).
+- /orders/oms status card reads "Field Delivery" — likely typo for "Failed Delivery".
+- /orders/outbound tablet+mobile: rows become extremely tall (≈110px each) because a hidden/overflowing Destination column still wraps; only 2-4 rows visible per screen.
+- /orders/outbound: "Bulk Shipping Processing" button permanently disabled-looking with no hint why.
+- /orders/oms laptop: order number wraps in 2 lines, carrier badge clipped; table needs horizontal scroll at 1366.
+- /orders/oms/new: map tile shows grey seams/lines between tiles (Leaflet tile gap) on desktop/laptop.
+- /orders/oms/new: "Street / Detailed Address **" double asterisk.
+- /oms/cod and /oms/returns and /returns: status summary cards show "—" instead of counts (only "All" has a number).
+- /returns (super admin): banner "Select a tenant company to list returns." but no company selector on the page; desktop/tablet show endless skeleton rows with "0-0 of 0", mobile shows "No returns found." (inconsistent states); "+ New return" looks disabled.
+- /internal: "FROM → TO" column renders "— → —" on 3 lines (empty locations); Ref shows truncated UUID.
+- /cycle-count/my-tasks as admin: developer-ish instruction text ("so /auth/me includes workerId").
+- /cycle-count mobile: empty-state text clipped by horizontal scroll.
+- /contracts/grn + /dn: tablet/mobile PDF buttons clipped off-screen; statuses "Partial"/"Pending/Not generated" need meaning check (UAT).
+- Reports: 19 report tabs wrap into 2-3 rows on desktop/laptop and 7 rows on mobile (push content below the fold); "Server-side reporting / Paginated preview and export — no bulk client fetch." is developer wording shown to end users; Export buttons disabled until Generate (no hint).
+- /oms/cod mobile: three full-width Export buttons stacked (takes a third of the screen).
+- Finance pages (/finance/*): page-title icon is an empty pale-green square (icon missing) on all devices.
+- /finance/overview + /finance/accounts: Pending COD shown with "$" although underlying records are SYP (Madino 85000 SYP COD appears as "$85000.00", total "$102,144.00") → currency-mixing logic/display issue (UAT + system test).
+- /finance/overview: "Legacy cycle invoicing disabled on staging cutover" and tab "Legacy Billing" = internal wording shown to user.
+- /finance/accounts: status badges lowercase ("active", "restricted"); two clients with identical name "Valid Co Check".
+- /finance/transactions: Category shown raw lowercase ("cod credit", "manual adjustment"); Reference shows raw internal keys ("oms_order: 0f191f12-ffc", "manual_adjustment:"); date format differs from other pages (no seconds, 24h vs 12h).
+- /finance/transactions tablet: Export buttons overlap the title block.
+- /forms: phone formats inconsistent (data), Arabic message truncated with leading "..." on the wrong side (RTL ellipsis).
+- /finance/carrier-costs: "Pending Quote" as cost for shipments already created; "Cost source" raw key "api_estimate"; provider code shown raw (SILA_SY); AWB for Sila is a UUID; 337 rows with no pagination control visible (check).
+- /finance/float: subtitle starts with internal ticket id "B12 —"; provider code is free text (should be a dropdown of carriers); "Run reconciliation" disabled with no reason next to it.
+- /finance/policies: headings contain internal ticket ids ("B12 — …", "B15 — …"); "Architectural Rule:" wording; "Deactivate Cutover" is a dangerous action styled as neutral button (needs confirm — test).
+- /users/custom-roles: subtitle "O-11 — …" internal id; permission chips are lowercase raw keys ("oms · read") with "Denied" badge — not obvious they are clickable toggles; only 6 modules listed (billing, reports, shipping, returns, cycle count, settings missing?) → UAT logic question.
+- /billing/* : billing sub-nav shows only Dashboard/Plans/Invoices — Templates and Charge rules pages have no tab (reachable only by buttons) → navigation consistency.
+- /billing/plans/new: Cancel (red) + Create plan placed top-right far from the form; numeric fields default "0" (user must delete 0 before typing — same class of friction as the dropdown-search issue).
+- /billing/templates: "Reset"/"Apply" vs "Reset filters"/"Apply filters" elsewhere; title icon present here but missing on finance pages.
+- /billing/invoices: amount shown as "205 USD" while finance uses "$205.00" (currency format inconsistency); status "Draft" has no badge style while others do; hint "Click a row to view invoice details." 
+- /billing/invoices/on-demand: Preview/Calculate storage/Check incentive disabled until client chosen (no hint).
+- /billing/dashboard: legacy "billing cycle expiring" widgets shown although legacy cycles are disabled by cutover → logic consistency (UAT).
+- /users/client_users: "Worker profile" column shown for client users (always "—", irrelevant column); phone formats inconsistent.
+- /audit-logs: flooded with "AUTH REFRESH REPLAY IDEMPOTENT" rows every ~15 min (noise hides real actions; possible repeated token-refresh calls → performance/system check); technical retention line "Query window default 30d · Count cap 10,000" shown to user; actor shows email twice.
+- /notifications: "billing cycle expiring" notifications still generated although legacy cycles are disabled (logic); timestamps mix relative ("3d ago") and absolute formats.
+- /profile: read-only field "AUTH GROUP: Admin" is internal wording; dark empty banner above the photo card.
+- /backups/google-drive and /backups/google-oauth-settings render the plain Backups overview (route hidden/redirected since Google UI is hidden) — confirm direct URL behaviour (should 404 or redirect with message).
+- /backups health: banner "Healthy" while "Recent health monitoring events" lists a CRITICAL "stale_successful_backup" event (92.7h) — contradictory until alerts refresh; Activity feed shows raw event keys ("backup.health.critical") and actor email eng.yousef@emdadsy.com (check it is a real user).
+- /backups retention: red "Run local retention cleanup" is destructive — test confirm dialog. Manual cooldown is 1 minute (default says 15).
+- /backups mobile+tablet: header action buttons (Restore/Factory Reset/Upload/Create Backup) overlap the tabs row ("Scheduled Backups" is covered) — real overlap bug.
+- /backups: "Factory Reset" is adjacent to Restore/Upload with same size — danger of misclick; needs confirm + typed phrase (test).
+- /shipping/companies: page has no H1 title — only a green "Shipping Fee Rate" breadcrumb-like link at top (wrong label for this page); sections stacked in one long page with no anchors; Exchange-rate "Manual rate 120" while active rate is 130.01 (automatic) — unclear which wins; "Active rate 130.01 new SYP = 13,001 old SYP" wording heavy.
+- /shipping/fee-rates: "group 1" Inactive group with no destinations and "حلب" group with "No destinations" but Active → empty active groups (UAT logic); action icons (✎ ▶ ⏸) are icon-only with no label/tooltip check; tablet: Base-rate/Weight columns clipped; mobile: table clipped.
+- /products/:sku (detail) — header shows product name twice (page title + card title); "Stock health —" and "Dimensions —" empty with "Min stock threshold: Not configured" (dimension absent blocks the new storage-fee calculation → UAT/system link); no Edit/Archive buttons visible for admin on detail.
+- /orders/inbound/:id — tablet/mobile "Print instructions" button wraps above the card; "Expected arrival" shown before "Created" in mobile but after on desktop (field order differs per breakpoint).
+- /orders/outbound/:id — "Shipping company: SILA_SY" raw code; status chip "Waiting for Shipping Details" text; green banner + "Mark Shipping Details as Complete" button is the main CTA but sits far right on desktop.
+- /orders/oms/:id — title reads "OMS OMS-2026-03729" (prefix duplicated); tablet truncates title to "OMS OMS..."; "Warehouse status: waiting_for_shipping_details" raw enum shown to user; header action row has 5 buttons (Waybill / Cancel Shipment / Cancel order / Edit shipping fee / Open outbound) wrapping to 2 rows on tablet/mobile; "Cancel order" (solid red) next to "Cancel Shipment" (outline red) — two similarly named destructive actions; Carrier "مرسال" with tracking 100554961267 while linked outbound says SILA_SY with a UUID AWB (data inconsistency to verify in system test).
+- /orders/oms/:id — Pricing card: "Client shipping rate 5 USD [Edit]", "Carrier quote 3.5 USD", "Actual carrier cost 3.5 USD" visible → verify client view hides carrier cost; Edit control only on client rate (carrier-cost edit expected from Sprint 1 invoice redesign).
+- /orders/oms/:id/waybill — good: bilingual 10x15cm label with 2 QR codes; checks: sender block says "Test" (client company) not the warehouse pickup contact "مستودعات إمداد" configured in Shipping Companies (UAT: which is the correct sender?); "معتمد من مرسال" badge wording; English/PDF/Print controls present (test each); tablet/mobile toolbar wraps to 2 rows.
+- /oms/batches/:id — page title BATCH-1015 with 3 stacked summary rows (5+7+8 chips) → dense; "Issues 1" while batch is healthy-looking (Progress 0/1) → needs definition; Shipping cost block shows "SYP quotes 0 SYP / USD quotes $1.90 / Total (SYP) 24,702 SYP" (mixed currencies on the same card; owner rule: USD inside EMDAD, SYP only toward carriers) ; "Exchange rate used: 1 USD = 13,001.072 SYP" uses OLD-SYP scale while the settings page shows 1 USD = 130.01 new SYP — unit mismatch risk (system test X07).
+- /oms/batches/:id — bulk action bar has 4 red/green primary buttons + 4 outline buttons in one row; "Cancel (1)" and "Cancel Shipments (1)" both red and adjacent.
+- /oms/returns/:id — status "Return Received" while the line shows Received "–" and Put away "–" (counts missing) → logic/UX inconsistency; two Rollback buttons ("Rollback to Out for Delivery", "Rollback to Ready to Ship") placed top-right without confirm hint; status chip duplicated (header + details).
+- /clients/:id — detail page is read-only: no Edit / Suspend / Contract / Users / Plan shortcuts (UAT: how does admin edit a client from here?); Billing field shows "monthly · 30 days" although cycle billing was retired by the on-demand model (stale wording); country "SA" / city "Riyadh" for Acme vs Syria operations (test data).
+- /billing/invoices/:id — redesigned order tables present (Inbound 8 / OMS 2) with Carrier cost + Margin columns visible to admin; cancelled invoice still shows "Edit invoice" button (should a cancelled invoice be editable? business rule to confirm); "Payment status: Cancelled" duplicates the status chip; carrier cost "—" for a delivered OMS order (OMS-2026-03720) → verify source; no storage / incentive / grand-total blocks visible on this invoice (check on a non-cancelled one).
+- /inventory/adjustments/:id — "Adjustment ID" is a raw UUID and "Lot ID" is a raw UUID (should show lot code); movement type "Adjustments" (plural) as value; reason "QA restore test stock to 5" ok; mobile lines table clipped.
+- /tasks/:id (task detail) — DEFECT CANDIDATE: page shows only "Assigned worker: — / Assign worker / Start"; no task type, order, lines, status, location, timestamps (page looks empty/half-rendered at every breakpoint). Test must open a pick, pack, putaway, receiving and count task and verify content for each.
+- /locations/:warehouseId — header "10 location(s)" but table "1-8 of 8 locations" (10 vs 8 mismatch — child locations under "Aisle A" are collapsed; confirm count semantics); title shows "(WH-001)" twice (header + breadcrumb "WH-001 (Emdad Logistics Warehouse )" with stray space before ")"); "+ + New location" doubled plus sign; tablet/mobile table clipped; Reset red / Apply green colour semantics (Reset is not destructive — red means delete/cancel per owner rule → colour misuse, appears on every filter bar).
+- /users/warehouse_users/:id with a client user's id (negative route) — shows red banner "This user does not belong on this list." but still renders the person's name/email in the header (information shown for a user from another list) → tenant/role leakage check (SEC).
+## Client portal
+- /login (client) — mobile 390: login card is wider than the viewport (right edge clipped, language chip "العربية" clipped at top-right) → V-048; email/password are browser-autofilled (note for tests: clear before AUTH tests); desktop/laptop fine; "Remember me for 30 days" toggle default off.
