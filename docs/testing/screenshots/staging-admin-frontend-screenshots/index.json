@@ -854,6 +854,13 @@
    "file": "134_pdf-waybill-oms-03729.png",
    "seq": 134,
    "id": "OMS-2026-03729"
+  },
+  {
+   "n": 135,
+   "route": "/warehouses",
+   "state": "edit-modal",
+   "file": "135_warehouses-edit-modal.png",
+   "seq": 135
   }
  ],
  "used": [
