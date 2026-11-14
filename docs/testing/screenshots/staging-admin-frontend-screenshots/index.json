@@ -1064,6 +1064,13 @@
    "state": "empty-search",
    "file": "164_products-empty-search.png",
    "seq": 164
+  },
+  {
+   "n": 165,
+   "route": "/clients",
+   "state": "empty-search",
+   "file": "165_clients-empty-search.png",
+   "seq": 165
   }
  ],
  "used": [

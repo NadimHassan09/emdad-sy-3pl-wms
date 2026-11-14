@@ -137,3 +137,4 @@ Deliberately not opened: bulk "Confirm Shipping / Complete Dispatch / Cancel Shi
 | V-100 | Client name on accounts | "Test company Test" / "Noviara Cosmetics Noviara Cosmetics" — name duplicated in cell. | S4 | UX-CL |
 | V-101 | Dashboard Open Orders card | Breakdown once read as "0 Ready" while Outbound Pipeline shows Ready **5** (inconsistency / stale label — confirm). | S3 | DASH-01 |
 | V-102 | OMS Returns "Confirm return" row button | Click on OR-2026-00447 triggers API **400**, no confirm dialog / no toast visible (silent failure). | S2 | E2E-RET |
+| V-103 | `/clients` empty search (165) | Filtered search shows **"No companies yet."** (true-empty copy) instead of match-filters message. | S3 | LB-08 |

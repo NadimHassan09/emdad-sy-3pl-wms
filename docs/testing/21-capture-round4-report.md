@@ -43,6 +43,7 @@ Date: 14–15 Nov 2026. Portal screenshots via Browser MCP iframe device frames;
 | finance Adjust credit+debit | done | 153–155 | Test company ±$0.01; net zero |
 | global chrome (bell/user/jump/sidebar) | done | 156–159 | desktop (+copies) |
 | OMS returns Create + Express + Rollback | done | 160–162 | Confirm row → 400 (V-102) |
+| §4 empty inbound/products/clients | partial | 163–165 | more lists pending |
 | outbound import / users / billing / fee-rates | pending | — | next |
 
 ## Skipped / blocked
@@ -50,7 +51,7 @@ Date: 14–15 Nov 2026. Portal screenshots via Browser MCP iframe device frames;
 - Receiving task type: none open
 
 ## New defect candidates (V-077+)
-S1: 0 · S2: 3 (V-078, V-083, V-099) · S3: 16 (… V-101) · S4: 6 (… V-098, V-100)
+S1: 0 · S2: 4 (V-078, V-083, V-099, V-102) · S3: 17 (… V-103) · S4: 6 (… V-098, V-100)
 
 ## Records created / changed
 - Plan edit opened not saved; all create modals Cancelled.

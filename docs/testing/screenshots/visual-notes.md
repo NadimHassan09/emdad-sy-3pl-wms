@@ -211,3 +211,5 @@ Button sets observed (do not click carriers):
 - inbound empty search ZZZ-NO-MATCH-QA-99999: "No inbound orders match the filters."; status cards all 0; Reset after capture
 
 - 164 products empty search (live filter): No products match the filters.
+
+- 165 clients empty search: message "No companies yet." (V-103 wrong empty copy)
