@@ -66,7 +66,7 @@ page('*', 'Not found page', 'detail', BOTH, 'NotFoundPage', [('Unknown URL shows
 BATT = {'list': 'LB-01…LB-24', 'form': 'FB-01…FB-25', 'detail': 'DB-01…DB-12', 'report': 'RB-01…RB-14', 'settings': 'SB-01…SB-10', 'dashboard': 'DASH-01…DASH-08', 'redirect': 'RD-01…RD-02', 'auth': 'AUTH-01…AUTH-20'}
 out = ['# 04b — Client portal page catalogue', '',
        'Same rules as `04a`. Roles: `client_admin`, `client_staff` (A-25 defines the difference). Routes from `client-frontend/src/App.tsx`; nav from `client-frontend/src/lib/rbac.ts`.',
-       'Screenshots: `docs/testing/screenshots/staging-client-frontend-screenshots/<device>/<NNN>_<route>.png`. **Status of capture:** 30 screens × 4 devices captured on 14 Nov 2026 in the owner's logged-in session (client_admin "Eng Nadim", Acme Imports). Not captured: `/outbound-orders/returns/:id` (no data), `/inbound-orders` states beyond defaults, aliases, `/account-inactive`, and the client_staff view.', '',
+       'Screenshots: `docs/testing/screenshots/staging-client-frontend-screenshots/<device>/<NNN>_<route>.png`. **Status of capture:** 30 screens × 4 devices captured on 14 Nov 2026 in the owner logged-in session (client_admin "Eng Nadim", Acme Imports). Not captured: `/outbound-orders/returns/:id` (no data), `/inbound-orders` states beyond defaults, aliases, `/account-inactive`, and the client_staff view.', '',
        '| Route | Kind | Battery | Roles | Screenshot | Cases |', '|---|---|---|---|---|---|']
 for p in P:
     n = IDX.get(p['route'])

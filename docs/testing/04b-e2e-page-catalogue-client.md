@@ -1,7 +1,7 @@
 # 04b — Client portal page catalogue
 
 Same rules as `04a`. Roles: `client_admin`, `client_staff` (A-25 defines the difference). Routes from `client-frontend/src/App.tsx`; nav from `client-frontend/src/lib/rbac.ts`.
-Screenshots: `docs/testing/screenshots/staging-client-frontend-screenshots/<device>/<NNN>_<route>.png`. **Status of capture:** only the public pages could be captured so far — the client portal requires a logged-in session and the test agent never types passwords. The owner (or phase-3 executor with the owner) logs in once in the shared Chrome tab and the same capture procedure (`docs/testing/screenshots/assign.py`) is run for every route below.
+Screenshots: `docs/testing/screenshots/staging-client-frontend-screenshots/<device>/<NNN>_<route>.png`. **Status of capture:** 30 screens × 4 devices captured on 14 Nov 2026 in the owner logged-in session (client_admin "Eng Nadim", Acme Imports). Not captured: `/outbound-orders/returns/:id` (no data), `/inbound-orders` states beyond defaults, aliases, `/account-inactive`, and the client_staff view.
 
 | Route | Kind | Battery | Roles | Screenshot | Cases |
 |---|---|---|---|---|---|
@@ -10,28 +10,28 @@ Screenshots: `docs/testing/screenshots/staging-client-frontend-screenshots/<devi
 | `/dashboard` | dashboard | DASH-01…DASH-08 | client_admin, client_staff | `002` | 4 |
 | `/products` | list | LB-01…LB-24 | client_admin, client_staff | `014` | 3 |
 | `/products/new` | form | FB-01…FB-25 | client_admin, client_staff | `015` | 3 |
-| `/products/:id` | detail | DB-01…DB-12 | client_admin, client_staff | pending (login) | 2 |
-| `/products/:id/edit` | form | FB-01…FB-25 | client_admin, client_staff | pending (login) | 2 |
+| `/products/:id` | detail | DB-01…DB-12 | client_admin, client_staff | `016` | 2 |
+| `/products/:id/edit` | form | FB-01…FB-25 | client_admin, client_staff | `017` | 2 |
 | `/inbound-orders` | list | LB-01…LB-24 | client_admin, client_staff | `010` | 3 |
 | `/inbound-orders/new` | form | FB-01…FB-25 | client_admin, client_staff | `011` | 2 |
-| `/inbound-orders/:id` | detail | DB-01…DB-12 | client_admin, client_staff | pending (login) | 2 |
+| `/inbound-orders/:id` | detail | DB-01…DB-12 | client_admin, client_staff | `018` | 2 |
 | `/outbound-orders` | list | LB-01…LB-24 | client_admin, client_staff | `012` | 2 |
 | `/outbound-orders/new` | form | FB-01…FB-25 | client_admin, client_staff | `013` | 2 |
-| `/outbound-orders/:id` | detail | DB-01…DB-12 | client_admin, client_staff | pending (login) | 2 |
+| `/outbound-orders/:id` | detail | DB-01…DB-12 | client_admin, client_staff | `019` | 2 |
 | `/outbound-orders/returns` | list | LB-01…LB-24 | client_admin, client_staff | `021` | 1 |
 | `/outbound-orders/returns/new` | form | FB-01…FB-25 | client_admin, client_staff | `022` | 1 |
 | `/outbound-orders/returns/:id` | detail | DB-01…DB-12 | client_admin, client_staff | pending (login) | 1 |
 | `/ecommerce-orders` | list | LB-01…LB-24 | client_admin, client_staff | `003` | 5 |
 | `/ecommerce-orders/new` | form | FB-01…FB-25 | client_admin, client_staff | `004` | 4 |
-| `/ecommerce-orders/:id` | detail | DB-01…DB-12 | client_admin, client_staff | pending (login) | 3 |
+| `/ecommerce-orders/:id` | detail | DB-01…DB-12 | client_admin, client_staff | `020` | 3 |
 | `/ecommerce-orders/returns` | list | LB-01…LB-24 | client_admin, client_staff | `005` | 1 |
 | `/ecommerce-orders/returns/new` | form | FB-01…FB-25 | client_admin, client_staff | `023` | 1 |
-| `/ecommerce-orders/returns/:id` | detail | DB-01…DB-12 | client_admin, client_staff | pending (login) | 1 |
+| `/ecommerce-orders/returns/:id` | detail | DB-01…DB-12 | client_admin, client_staff | `024` | 1 |
 | `/my-profits` | report | RB-01…RB-14 | client_admin, client_staff | `006` | 3 |
 | `/finances` | dashboard | DASH-01…DASH-08 | client_admin, client_staff | `007` | 3 |
 | `/billing` | dashboard | DASH-01…DASH-08 | client_admin only | `008` | 2 |
 | `/invoices` | list | LB-01…LB-24 | client_admin only | `009` | 2 |
-| `/invoices/:id` | detail | DB-01…DB-12 | client_admin only | pending (login) | 3 |
+| `/invoices/:id` | detail | DB-01…DB-12 | client_admin only | `025` | 3 |
 | `/billing/invoices/:id` | redirect | RD-01…RD-02 | client_admin only | pending (login) | 1 |
 | `/sheets` | form | FB-01…FB-25 | client_admin, client_staff | `026` | 4 |
 | `/apis` | settings | SB-01…SB-10 | client_admin only | `027` | 4 |
@@ -41,7 +41,7 @@ Screenshots: `docs/testing/screenshots/staging-client-frontend-screenshots/<devi
 | `/returns` | redirect | RD-01…RD-02 | client_admin, client_staff | pending (login) | 1 |
 | `/returns/new` | redirect | RD-01…RD-02 | client_admin, client_staff | pending (login) | 1 |
 | `/returns/:id` | redirect | RD-01…RD-02 | client_admin, client_staff | pending (login) | 1 |
-| `*` | detail | DB-01…DB-12 | client_admin, client_staff | pending (login) | 1 |
+| `*` | detail | DB-01…DB-12 | client_admin, client_staff | `030` | 1 |
 
 ---
 
@@ -118,7 +118,7 @@ Screenshots: `docs/testing/screenshots/staging-client-frontend-screenshots/<devi
 
 - **Kind:** detail → battery **DB-01…DB-12**
 - **Roles:** client_admin, client_staff; others refused
-- **Screenshots:** pending (needs client session)
+- **Screenshots:** `016_*.png` ×4 devices
 - **Elements expected (from source/requirements; verify against screenshots):** Info grid, stock by lot/location (client view), image, actions
 
 | ID | Page-specific case | Expected | Pri |
@@ -130,7 +130,7 @@ Screenshots: `docs/testing/screenshots/staging-client-frontend-screenshots/<devi
 
 - **Kind:** form → battery **FB-01…FB-25**
 - **Roles:** client_admin, client_staff; others refused
-- **Screenshots:** pending (needs client session)
+- **Screenshots:** `017_*.png` ×4 devices
 - **Elements expected (from source/requirements; verify against screenshots):** Same as create, prefilled
 
 | ID | Page-specific case | Expected | Pri |
@@ -167,7 +167,7 @@ Screenshots: `docs/testing/screenshots/staging-client-frontend-screenshots/<devi
 
 - **Kind:** detail → battery **DB-01…DB-12**
 - **Roles:** client_admin, client_staff; others refused
-- **Screenshots:** pending (needs client session)
+- **Screenshots:** `018_*.png` ×4 devices
 - **Elements expected (from source/requirements; verify against screenshots):** Status timeline, lines (expected/received), GRN download (EN/AR) when complete, edit/cancel while pending
 
 | ID | Page-specific case | Expected | Pri |
@@ -203,7 +203,7 @@ Screenshots: `docs/testing/screenshots/staging-client-frontend-screenshots/<devi
 
 - **Kind:** detail → battery **DB-01…DB-12**
 - **Roles:** client_admin, client_staff; others refused
-- **Screenshots:** pending (needs client session)
+- **Screenshots:** `019_*.png` ×4 devices
 - **Elements expected (from source/requirements; verify against screenshots):** Status, lines, tracking panel, DN PDF
 
 | ID | Page-specific case | Expected | Pri |
@@ -277,7 +277,7 @@ Screenshots: `docs/testing/screenshots/staging-client-frontend-screenshots/<devi
 
 - **Kind:** detail → battery **DB-01…DB-12**
 - **Roles:** client_admin, client_staff; others refused
-- **Screenshots:** pending (needs client session)
+- **Screenshots:** `020_*.png` ×4 devices
 - **Elements expected (from source/requirements; verify against screenshots):** Status, recipient, lines, tracking panel + shipment movement panel (carrier detailed statuses), edit/cancel (before confirmation), waybill/print?
 
 | ID | Page-specific case | Expected | Pri |
@@ -312,7 +312,7 @@ Screenshots: `docs/testing/screenshots/staging-client-frontend-screenshots/<devi
 
 - **Kind:** detail → battery **DB-01…DB-12**
 - **Roles:** client_admin, client_staff; others refused
-- **Screenshots:** pending (needs client session)
+- **Screenshots:** `024_*.png` ×4 devices
 - **Elements expected (from source/requirements; verify against screenshots):** Stages (plan/receive/put away), lines
 
 | ID | Page-specific case | Expected | Pri |
@@ -373,7 +373,7 @@ Screenshots: `docs/testing/screenshots/staging-client-frontend-screenshots/<devi
 
 - **Kind:** detail → battery **DB-01…DB-12**
 - **Roles:** client_admin only; others refused
-- **Screenshots:** pending (needs client session)
+- **Screenshots:** `025_*.png` ×4 devices
 - **Elements expected (from source/requirements; verify against screenshots):** Lines: fulfilment (inbound/outbound/OMS), shipping fee, storage, incentive discount, total; PDF
 
 | ID | Page-specific case | Expected | Pri |
@@ -493,7 +493,7 @@ Screenshots: `docs/testing/screenshots/staging-client-frontend-screenshots/<devi
 
 - **Kind:** detail → battery **DB-01…DB-12**
 - **Roles:** client_admin, client_staff; others refused
-- **Screenshots:** pending (needs client session)
+- **Screenshots:** `030_*.png` ×4 devices
 - **Elements expected (from source/requirements; verify against screenshots):** NotFoundPage
 
 | ID | Page-specific case | Expected | Pri |
