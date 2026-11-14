@@ -123,3 +123,21 @@
 ## Dark theme (admin)
 - Dashboard + OMS list readable in dark; tokens consistent. **Finance → Client accounts table stays a white island inside the dark page** (desktop and mobile) — dark-mode defect V-070 (not filed as image; re-capture in phase 3).
 - Dark: status cards keep tinted borders; Reset red/Apply green unchanged.
+
+## Round 4 — admin dynamic routes (105–122)
+Ids used (read-only unless noted):
+- A1 inbound edit: dab51dee… / INB-2026-00053 pending_approval → 105
+- A2 outbound edit: 67478f86… / OUT-2026-01321 pending_approval → 106
+- A3 COD: 5477f590… / OMS-2026-03682 Available USD 17 (order cancelled) → 107; status dropdown present (not clicked)
+- A4 OMS return edit: 87ab5a55… / OR-2026-00447 requested → 108; Warehouse/Dock/Putaway/Notes/Save plan/Cancel
+- A5 putaway execute: fe3b5a72… in_progress → 109 (URL /execute redirects to /tasks/:id); Start still visible; Scan destination bin; Complete putaway
+- A5 pick 642c654e… pending → 110 empty body (V-078); pack 482546b9… → 111 same
+- A6 cycle-count: SKIPPED no sessions
+- A7 WMS return: 91ef2a61… / RTN-2026-00453 completed Acme → 112 detail; 113 process (banner only)
+- A8 product stock: b5414bd7… AIRCOOLING1 Mr Jad qty 75 → 114; tabs Overview/Inventory/Locations/Lots/Logs/Stock Movement; View stock movement / Inventory details
+- A9 ledger line d4ce27be… → 115; ref return_order/709bce15… → 116 (UUID in title)
+- A10 plan WorkerTest Co ae0c5041… → 117 detail Renew/Edit; 118 edit Custom + zeros 0 + auto-renew (not saved)
+- A11 client user 453409f1… test@emdad.com Client admin Mr Jad → 119 (no Edit/Deactivate buttons visible on this page — note)
+- A12 wh user 357e9a68… Yousef Samarli Worker Linked receiver/picker/packer → 120; Update profile; Profile UUID shown
+- A13 draft INV-2026-00024 Noviara → 121 Issue/Cancel/Download PDF/Calculate storage/Check incentive; unpaid INV-2026-00025 Test company → 122 Mark as paid/Edit invoice/Deduct; grand total $0 vs subscription line (V-083)
+- Interactive: iframe device capture via #qa-cap-frame at 1920/1366/820/390; JPEG→PNG normalize

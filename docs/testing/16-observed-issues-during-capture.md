@@ -106,3 +106,18 @@ Positive: Factory-reset modal has danger banner, default pre-reset snapshot, typ
 | V-075 | Create batch modal | "1 orders selected" grammar. | S4 | UX-CL |
 | V-076 | OMS list search | Search box only applies after clicking Apply; typing shows nothing; empty state "No OMS orders match the filters." and status cards drop to 0 with the search. Filters persist in localStorage until Reset. | S4 | LB-05, LB-07, LB-08 |
 Deliberately not opened: bulk "Confirm Shipping / Complete Dispatch / Cancel Shipments" (opening the bulk shipping modal fires PATCH shipping-details, D-009, and requests carrier quotes) — needs owner-approved test order in phase 3.
+
+## Round 4 captures (screenshots 105–122+, 14–15 Nov 2026)
+
+| ID | State | Observation | Sev? | Confirm by |
+|---|---|---|---|---|
+| V-077 | `/orders/inbound/:id/edit` mobile (105) | Page title / form labels truncate on 390px; cramped form columns. | S3 | VIS-L-08, LB-14 |
+| V-078 | `/tasks/:id` pick+pack pending (110–111) | Task body nearly empty — only Assign worker + Start; no task type/header/lines until Start (guess). `/execute` redirects to detail. | S2 | E2E-TSK-001 |
+| V-079 | Putaway task in_progress (109) | Status "In Progress" but green **Start** still shown; KPI UNITS=7 vs REMAINING=1 while DONE=0 (guess mismatch). | S3 | E2E-TSK-002 |
+| V-080 | Ledger line / ref (115–116) | Reference shown as raw UUID; subtitle `return_order · <uuid>` (technical to user). | S3 | UX-CL |
+| V-081 | Warehouse user detail (120) | Worker **Profile ID** shown as UUID; Role label "Worker" while system role is wh_operator (guess OK). | S4 | UX-CL |
+| V-082 | Billing plan detail (117) | Badges **Active** + **restricted** together; "No active billing cycle" while plan Active — confusing. | S3 | E2E-BIL-001 |
+| V-083 | Invoice draft+unpaid (121–122) | **Grand total (admin) Client total $0.00** while Charges show Fixed subscription 50/100 — totals panel ignores subscription lines (guess). | S2 | E2E-BIL-INV |
+| V-084 | `/returns/:id/process` completed (113) | Yellow banner only + empty body for completed return (no process UI) — expected?, but no link clarity beyond Details. | S4 | E2E-RET |
+| V-085 | A6 cycle-count | **SKIPPED** — zero `cycle_counts` rows on staging; list empty. | — | A6 |
+| V-086 | OMS `out_for_delivery` | **SKIPPED** — no OMS order in that status (use `shipped` OMS-2026-03603 as proxy later). | — | A14 |

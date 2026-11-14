@@ -623,6 +623,134 @@
    "route": "/orders/oms [dark theme]",
    "file": "104_orders-oms-dark-theme.png",
    "seq": 104
+  },
+  {
+   "n": 105,
+   "route": "/orders/inbound/:id/edit",
+   "file": "105_orders-inbound-id-edit.png",
+   "seq": 105
+  },
+  {
+   "n": 106,
+   "route": "/orders/outbound/:id/edit",
+   "file": "106_orders-outbound-id-edit.png",
+   "seq": 106
+  },
+  {
+   "n": 107,
+   "route": "/oms/cod/:id",
+   "file": "107_oms-cod-id.png",
+   "seq": 107
+  },
+  {
+   "n": 108,
+   "route": "/oms/returns/:id/edit",
+   "file": "108_oms-returns-id-edit.png",
+   "seq": 108
+  },
+  {
+   "n": 109,
+   "route": "/tasks/:id/execute",
+   "state": "putaway",
+   "file": "109_tasks-id-execute-putaway.png",
+   "seq": 109,
+   "id": "fe3b5a72-9293-4671-aaf6-b120f4391c8c"
+  },
+  {
+   "n": 110,
+   "route": "/tasks/:id/execute",
+   "state": "pick",
+   "file": "110_tasks-id-execute-pick.png",
+   "seq": 110,
+   "id": "642c654e-fc29-4c41-8a6b-6d6ad848bb19"
+  },
+  {
+   "n": 111,
+   "route": "/tasks/:id/execute",
+   "state": "pack",
+   "file": "111_tasks-id-execute-pack.png",
+   "seq": 111,
+   "id": "482546b9-f821-4d0e-a2ff-f3b6c59e101a"
+  },
+  {
+   "n": 112,
+   "route": "/returns/:id",
+   "file": "112_returns-id.png",
+   "seq": 112,
+   "id": "91ef2a61-427a-4dea-ba54-91de128011d6"
+  },
+  {
+   "n": 113,
+   "route": "/returns/:id/process",
+   "file": "113_returns-id-process.png",
+   "seq": 113,
+   "id": "91ef2a61-427a-4dea-ba54-91de128011d6"
+  },
+  {
+   "n": 114,
+   "route": "/inventory/product/:productId",
+   "file": "114_inventory-product-id.png",
+   "seq": 114,
+   "id": "b5414bd7-4481-4b9e-b5b4-a05d6502a4bd"
+  },
+  {
+   "n": 115,
+   "route": "/inventory/ledger/line/:ledgerId/:createdAt",
+   "file": "115_inventory-ledger-line.png",
+   "seq": 115,
+   "id": "d4ce27be-32ae-48f4-ac29-a6d8ad51225b"
+  },
+  {
+   "n": 116,
+   "route": "/inventory/ledger/:referenceType/:referenceId",
+   "file": "116_inventory-ledger-ref.png",
+   "seq": 116,
+   "id": "709bce15-ca5b-4f56-87ba-e4e0dffe2219",
+   "state": "return_order"
+  },
+  {
+   "n": 117,
+   "route": "/billing/plans/:clientId",
+   "file": "117_billing-plans-clientId.png",
+   "seq": 117,
+   "id": "ae0c5041-93f4-437a-88e6-e79e2d2251ec"
+  },
+  {
+   "n": 118,
+   "route": "/billing/plans/:clientId/edit",
+   "file": "118_billing-plans-clientId-edit.png",
+   "seq": 118,
+   "id": "ae0c5041-93f4-437a-88e6-e79e2d2251ec"
+  },
+  {
+   "n": 119,
+   "route": "/users/client_users/:id",
+   "file": "119_users-client-users-id.png",
+   "seq": 119,
+   "id": "453409f1-5ed4-47b9-874f-6c2e90b10edb"
+  },
+  {
+   "n": 120,
+   "route": "/users/warehouse_users/:id",
+   "file": "120_users-warehouse-users-id.png",
+   "seq": 120,
+   "id": "357e9a68-4e1f-4c68-b322-0650b1ad7eb7"
+  },
+  {
+   "n": 121,
+   "route": "/billing/invoices/:id",
+   "file": "121_billing-invoices-id-draft.png",
+   "seq": 121,
+   "id": "158d61d9-8617-47f0-97cc-8a8375204a8a",
+   "state": "draft"
+  },
+  {
+   "n": 122,
+   "route": "/billing/invoices/:id",
+   "file": "122_billing-invoices-id-unpaid.png",
+   "seq": 122,
+   "id": "14ba627f-79c6-438c-b4fe-9d7e38a4c54d",
+   "state": "unpaid"
   }
  ],
  "used": [
