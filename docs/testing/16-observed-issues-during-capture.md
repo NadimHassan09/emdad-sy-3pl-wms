@@ -93,3 +93,16 @@ Not yet captured: modals, error/empty states beyond the ones seen, Arabic/dark b
 | V-068 | Unknown OMS order id | Generic red "Could not load OMS order." with no distinction 404/403/500. | S4 | DB-01 |
 | V-069 | Unknown admin path (`/orders/<uuid>`) | Silently redirects to dashboard, no branded 404 page (client portal has one). | S3 | RD-02, E2E states |
 Positive: Factory-reset modal has danger banner, default pre-reset snapshot, typed phrase gate (never executed); Create-backup modal clear.
+
+## Round 3 captures (screenshots 097–104): empty state, bulk-bar modals, Arabic, dark
+
+| ID | State | Observation | Sev? | Confirm by |
+|---|---|---|---|---|
+| V-070 | Dark theme, `/finance/accounts` | Accounts table renders as a white card in dark mode (white island). Other dark pages fine. | S3 | VIS-L-08, A11Y-VIS-006 |
+| V-071 | Arabic UI, `/orders/oms` | Page title "OMS Orders" and subtitle "Manage ecommerce and OMS fulfillment orders." remain English; dashboard chart date labels English. | S3 | UX-CL, SYS-X-007 |
+| V-072 | OMS bulk bar | 10 controls in one bar; two adjacent red "Cancel Shipments / Cancel All"; on laptop (600 px high) bar is below the fold. | S3 | UX-13 |
+| V-073 | "Cancel 1 order(s)?" confirm | Does not state consequences (reservation release, COD void, carrier shipment); title "Cancel…" + button "Cancel orders" ambiguous vs "Keep orders". | S3 | UX-EL-05 |
+| V-074 | "Edit Shipping Fee" modal | Reason optional, while carrier-cost correction requires audit; mixed-colour title. | S4 | A-xx |
+| V-075 | Create batch modal | "1 orders selected" grammar. | S4 | UX-CL |
+| V-076 | OMS list search | Search box only applies after clicking Apply; typing shows nothing; empty state "No OMS orders match the filters." and status cards drop to 0 with the search. Filters persist in localStorage until Reset. | S4 | LB-05, LB-07, LB-08 |
+Deliberately not opened: bulk "Confirm Shipping / Complete Dispatch / Cancel Shipments" (opening the bulk shipping modal fires PATCH shipping-details, D-009, and requests carrier quotes) — needs owner-approved test order in phase 3.

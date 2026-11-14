@@ -575,6 +575,54 @@
    "route": "/orders/oms/UNKNOWN-ID [error: Could not load OMS order]",
    "file": "096_orders-oms-UNKNOWN-ID-error-Could-not-load-OMS-order.png",
    "seq": 96
+  },
+  {
+   "n": 97,
+   "route": "/orders/oms [empty: search with no match]",
+   "file": "097_orders-oms-empty-search-with-no-match.png",
+   "seq": 97
+  },
+  {
+   "n": 98,
+   "route": "/orders/oms [modal Create batch]",
+   "file": "098_orders-oms-modal-Create-batch.png",
+   "seq": 98
+  },
+  {
+   "n": 99,
+   "route": "/orders/oms [modal Edit shipping fee]",
+   "file": "099_orders-oms-modal-Edit-shipping-fee.png",
+   "seq": 99
+  },
+  {
+   "n": 100,
+   "route": "/orders/oms [confirm Cancel orders]",
+   "file": "100_orders-oms-confirm-Cancel-orders.png",
+   "seq": 100
+  },
+  {
+   "n": 101,
+   "route": "/dashboard/overview [lang AR RTL]",
+   "file": "101_dashboard-overview-lang-AR-RTL.png",
+   "seq": 101
+  },
+  {
+   "n": 102,
+   "route": "/orders/oms [lang AR RTL]",
+   "file": "102_orders-oms-lang-AR-RTL.png",
+   "seq": 102
+  },
+  {
+   "n": 103,
+   "route": "/dashboard/overview [dark theme]",
+   "file": "103_dashboard-overview-dark-theme.png",
+   "seq": 103
+  },
+  {
+   "n": 104,
+   "route": "/orders/oms [dark theme]",
+   "file": "104_orders-oms-dark-theme.png",
+   "seq": 104
   }
  ],
  "used": [
@@ -1168,6 +1216,43 @@
   "mcp-claude-in-chrome-blob-1794676123671-57xaiu.png",
   "mcp-claude-in-chrome-blob-1794676123671-iqksf4.png",
   "mcp-claude-in-chrome-blob-1794676123671-ikzlvf.png",
-  "mcp-claude-in-chrome-blob-1794676123671-uofxpm.png"
+  "mcp-claude-in-chrome-blob-1794676123671-uofxpm.png",
+  "mcp-claude-in-chrome-blob-1794677858176-m85431.png",
+  "mcp-claude-in-chrome-blob-1794677878550-aicsor.png",
+  "mcp-claude-in-chrome-blob-1794677878550-onlz14.png",
+  "mcp-claude-in-chrome-blob-1794677878550-352v3m.png",
+  "mcp-claude-in-chrome-blob-1794677878550-gjd4fr.png",
+  "mcp-claude-in-chrome-blob-1794677907385-vpegoe.png",
+  "mcp-claude-in-chrome-blob-1794677937229-npktxx.png",
+  "mcp-claude-in-chrome-blob-1794677937231-3o6ohr.png",
+  "mcp-claude-in-chrome-blob-1794677937231-c6szu6.png",
+  "mcp-claude-in-chrome-blob-1794677937231-memg1m.png",
+  "mcp-claude-in-chrome-blob-1794677937230-axdvww.png",
+  "mcp-claude-in-chrome-blob-1794678017701-6q5t0s.png",
+  "mcp-claude-in-chrome-blob-1794678017702-mbjyf5.png",
+  "mcp-claude-in-chrome-blob-1794678017702-6iwdwd.png",
+  "mcp-claude-in-chrome-blob-1794678017702-8339e0.png",
+  "mcp-claude-in-chrome-blob-1794678055836-15f2w9.png",
+  "mcp-claude-in-chrome-blob-1794678055836-z8jrbj.png",
+  "mcp-claude-in-chrome-blob-1794678055837-7oitkj.png",
+  "mcp-claude-in-chrome-blob-1794678055837-kcwmf3.png",
+  "mcp-claude-in-chrome-blob-1794678121609-qqjr00.png",
+  "mcp-claude-in-chrome-blob-1794678121609-9oet7p.png",
+  "mcp-claude-in-chrome-blob-1794678121609-pmce5a.png",
+  "mcp-claude-in-chrome-blob-1794678121610-hencgs.png",
+  "mcp-claude-in-chrome-blob-1794678121609-ahrky8.png",
+  "mcp-claude-in-chrome-blob-1794678121610-cqqv4j.png",
+  "mcp-claude-in-chrome-blob-1794678121610-sh3e99.png",
+  "mcp-claude-in-chrome-blob-1794678121609-ww2got.png",
+  "mcp-claude-in-chrome-blob-1794678175421-6ing1b.png",
+  "mcp-claude-in-chrome-blob-1794678175421-030s8f.png",
+  "mcp-claude-in-chrome-blob-1794678175420-oupr9z.png",
+  "mcp-claude-in-chrome-blob-1794678175421-07aozo.png",
+  "mcp-claude-in-chrome-blob-1794678175420-6nmpj1.png",
+  "mcp-claude-in-chrome-blob-1794678175420-4pdsoh.png",
+  "mcp-claude-in-chrome-blob-1794678175420-6lkgkl.png",
+  "mcp-claude-in-chrome-blob-1794678175420-sfw578.png",
+  "mcp-claude-in-chrome-blob-1794678175421-2ntyn0.png",
+  "mcp-claude-in-chrome-blob-1794678175421-pbza5t.png"
  ]
 }
