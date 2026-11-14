@@ -129,3 +129,5 @@ Deliberately not opened: bulk "Confirm Shipping / Complete Dispatch / Cancel Shi
 | V-092 | Internal transfer create modal (140) | **Source location*** placeholder says "Select product…" (copied from Product field). | S3 | FB-09 |
 | V-093 | `/internal` list | **From → To** shows `— → —` for all visible rows (locations missing in UI). | S3 | E2E-TSK |
 | V-094 | OMS QR confirm modal (143) | Camera fail shows raw `Error getting userMedia, error = NotFoundError: Requested device not found` (dev-style); manual order# fallback OK. | S4 | UX-CL |
+| V-095 | `/cycle-count` | No **Create session** control visible (empty warehouse); Product schedule empty "No product count history yet." Create modal SKIPPED. | S3 | A6 |
+| V-096 | Inbound list expected arrival | Cancelled INB-2026-00057 shows Expected arrival **1/1/2999** (sentinel date leaked to UI). | S3 | UX-CL |

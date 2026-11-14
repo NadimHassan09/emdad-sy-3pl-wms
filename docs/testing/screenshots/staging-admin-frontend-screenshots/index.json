@@ -917,6 +917,48 @@
    "state": "qr-confirm-modal",
    "file": "143_oms-qr-confirm-modal.png",
    "seq": 143
+  },
+  {
+   "n": 144,
+   "route": "/cycle-count",
+   "state": "sessions-empty",
+   "file": "144_cycle-count-sessions-empty.png",
+   "seq": 144
+  },
+  {
+   "n": 145,
+   "route": "/cycle-count",
+   "state": "product-schedule-empty",
+   "file": "145_cycle-count-product-schedule.png",
+   "seq": 145
+  },
+  {
+   "n": 146,
+   "route": "/orders/inbound",
+   "state": "import-modal",
+   "file": "146_inbound-import-modal.png",
+   "seq": 146
+  },
+  {
+   "n": 147,
+   "route": "/backups",
+   "state": "restore-dialog-cancel",
+   "file": "147_backups-restore-dialog.png",
+   "seq": 147
+  },
+  {
+   "n": 148,
+   "route": "/shipping/companies",
+   "state": "sena-card",
+   "file": "148_shipping-sena-card.png",
+   "seq": 148
+  },
+  {
+   "n": 149,
+   "route": "/shipping/companies",
+   "state": "sena-test-connection",
+   "file": "149_shipping-sena-test-connection.png",
+   "seq": 149
   }
  ],
  "used": [

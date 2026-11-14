@@ -170,3 +170,13 @@ Button sets observed (do not click carriers):
 - 142 OMS Advanced Filtering open: Order ID, Start/End No., Client, Customer, Phone, City, Shipping payer, Created from/to, Carrier, Total/Cost ≥0
 - 143 OMS Confirm by QR: camera NotFoundError raw message (V-094); Retry camera; manual order# + Record; Done
 - Interactive inventory: New location fields; Deactivate confirm; adjustment wizard step1; internal transfer scans; OMS import/filters/QR
+
+## Round 4 — §3 continued (144–149)
+- 144 cycle-count Count sessions empty: "No cycle counts for this warehouse."; no Create button (V-095)
+- 145 Product schedule empty: Overdue only filter; "No product count history yet."
+- 146 inbound Import modal: Client + Download template + Choose File (no upload)
+- 147 backups Restore dialog: warnings, Choose backup, pre-snapshot checked, type RESTORE; Cancel only
+- 148 shipping companies scrolled to Sena/Fatih/Sila cards (live carriers photographed only — no Test/Disconnect on them)
+- 149 Sena Test connection exercised: Last test updated to ~11/14 evening ok; no toast visible in shot
+- Baseline FX note (read-only): Manual rate 120 SYP/USD; pickup مستودعات إمداد / حلب الشيخ نجار (not changed)
+- Inbound expected 1/1/2999 on cancelled row (V-096)

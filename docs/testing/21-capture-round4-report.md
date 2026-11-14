@@ -35,14 +35,18 @@ Date: 14–15 Nov 2026. Portal screenshots via Browser MCP iframe device frames;
 | adjustments New + row menu | done | 138–139 | Draft Edit/Delete |
 | internal Create | done | 140 | Cancel only |
 | OMS Import / Adv filters / QR Confirm | done | 141–143 | no upload; camera absent → V-094 |
-| cycle-count / inbound-outbound import / COD / returns / finance / users / billing / backups / shipping / global chrome | pending | — | next |
+| cycle-count sessions + product schedule | done | 144–145 | empty; create modal SKIPPED (no control) |
+| inbound Import | done | 146 | no upload |
+| backups Restore | done | 147 | Cancel only |
+| shipping Sena card + Test connection | done | 148–149 | Sena test OK; other carriers photo-only |
+| outbound import / COD / returns / finance / users / billing / fee-rates / global chrome | pending | — | next |
 
 ## Skipped / blocked
 - A6: SKIPPED(no cycle count sessions)
 - Receiving task type: none open
 
 ## New defect candidates (V-077+)
-S1: 0 · S2: 2 (V-078, V-083) · S3: 12 (V-077, V-079–V-080, V-082, V-086–V-089, V-091–V-093, …) · S4: 4 (V-081, V-084, V-090, V-094)
+S1: 0 · S2: 2 (V-078, V-083) · S3: 14 (… V-091–V-093, V-095–V-096) · S4: 4 (V-081, V-084, V-090, V-094)
 
 ## Records created / changed
 None so far this round (read-only captures; modals Cancelled). Plan edit page opened, not saved.
