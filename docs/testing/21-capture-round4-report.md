@@ -42,8 +42,8 @@ Date: 14–15 Nov 2026. Portal screenshots via Browser MCP iframe device frames;
 | COD Set + QR pending | done | 150–152 | no confirm dialog; toast Updated 1 |
 | finance Adjust credit+debit | done | 153–155 | Test company ±$0.01; net zero |
 | global chrome (bell/user/jump/sidebar) | done | 156–159 | desktop (+copies) |
-| OMS returns Create + Express | done | 160–161 | Cancel only |
-| outbound import / Confirm-return dialog / users / billing / fee-rates | pending | — | next |
+| OMS returns Create + Express + Rollback | done | 160–162 | Confirm row → 400 (V-102) |
+| outbound import / users / billing / fee-rates | pending | — | next |
 
 ## Skipped / blocked
 - A6: SKIPPED(no cycle count sessions)

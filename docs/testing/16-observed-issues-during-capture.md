@@ -136,3 +136,4 @@ Deliberately not opened: bulk "Confirm Shipping / Complete Dispatch / Cancel Shi
 | V-099 | Finance accounts Pending COD | Values like Madino **$85000.00** shown with `$` while underlying COD is SYP (guess currency label wrong). | S2 | FIN-COD |
 | V-100 | Client name on accounts | "Test company Test" / "Noviara Cosmetics Noviara Cosmetics" — name duplicated in cell. | S4 | UX-CL |
 | V-101 | Dashboard Open Orders card | Breakdown once read as "0 Ready" while Outbound Pipeline shows Ready **5** (inconsistency / stale label — confirm). | S3 | DASH-01 |
+| V-102 | OMS Returns "Confirm return" row button | Click on OR-2026-00447 triggers API **400**, no confirm dialog / no toast visible (silent failure). | S2 | E2E-RET |

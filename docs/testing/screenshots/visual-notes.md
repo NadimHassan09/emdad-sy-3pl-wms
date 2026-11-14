@@ -204,3 +204,5 @@ Button sets observed (do not click carriers):
 - 160 Create OMS return: Reason optional, order search, +Add Order/Import CSV/Download Template, Confirm (0 lines) disabled empty
 - 161 Express Return: similar add-orders flow, Confirm (0 orders); Cancel
 - Status cards Pending/Received/… show — like COD (same class as V-097)
+- 162 Rollback confirm OR-2026-00456 / OMS-2026-03720: warning + Cancel / Reship OFD / Ready to Ship — Cancel only
+- Confirm return row button: 400 silent (V-102)

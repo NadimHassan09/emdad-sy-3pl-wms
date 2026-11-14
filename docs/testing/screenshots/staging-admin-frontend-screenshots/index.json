@@ -1043,6 +1043,13 @@
    "state": "express-modal",
    "file": "161_oms-returns-express-modal.png",
    "seq": 161
+  },
+  {
+   "n": 162,
+   "route": "/oms/returns",
+   "state": "rollback-confirm",
+   "file": "162_oms-returns-rollback-confirm.png",
+   "seq": 162
   }
  ],
  "used": [
