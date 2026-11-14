@@ -861,6 +861,62 @@
    "state": "edit-modal",
    "file": "135_warehouses-edit-modal.png",
    "seq": 135
+  },
+  {
+   "n": 136,
+   "route": "/locations/00000000-0000-4000-8000-000000000010",
+   "state": "new-modal",
+   "file": "136_locations-new-modal.png",
+   "seq": 136
+  },
+  {
+   "n": 137,
+   "route": "/warehouses",
+   "state": "deactivate-confirm",
+   "file": "137_warehouses-deactivate-confirm.png",
+   "seq": 137
+  },
+  {
+   "n": 138,
+   "route": "/inventory/adjustments",
+   "state": "new-modal",
+   "file": "138_adjustments-new-modal.png",
+   "seq": 138
+  },
+  {
+   "n": 139,
+   "route": "/inventory/adjustments",
+   "state": "row-actions-draft",
+   "file": "139_adjustments-row-actions.png",
+   "seq": 139
+  },
+  {
+   "n": 140,
+   "route": "/internal",
+   "state": "create-modal",
+   "file": "140_internal-create-modal.png",
+   "seq": 140
+  },
+  {
+   "n": 141,
+   "route": "/orders/oms",
+   "state": "import-modal",
+   "file": "141_oms-import-modal.png",
+   "seq": 141
+  },
+  {
+   "n": 142,
+   "route": "/orders/oms",
+   "state": "advanced-filtering",
+   "file": "142_oms-advanced-filtering.png",
+   "seq": 142
+  },
+  {
+   "n": 143,
+   "route": "/orders/oms",
+   "state": "qr-confirm-modal",
+   "file": "143_oms-qr-confirm-modal.png",
+   "seq": 143
   }
  ],
  "used": [

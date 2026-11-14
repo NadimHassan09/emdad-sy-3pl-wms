@@ -125,3 +125,7 @@ Deliberately not opened: bulk "Confirm Shipping / Complete Dispatch / Cancel Shi
 | V-088 | Batch BATCH-1013 | Status counters vs action counts diverge (Shipped 1 vs Shipping confirmed 5); mix of live carriers listed read-only (Babel/Karam) — no actions clicked. | S3 | E2E-BAT |
 | V-089 | Outbound Sena test delivered | Delivered with **0 line items / 0 SKUs** and empty pick allocation (OUT-SENA-TEST-…). | S3 | A15 |
 | V-090 | OMS waybill button | Waybill control is icon-only (no accessible name in a11y tree). | S4 | A18 |
+| V-091 | `/inventory/adjustments` list (138–139) | **Adjustment id** column shows raw UUID (e.g. `45651a76-…`); no human code. | S3 | UX-CL |
+| V-092 | Internal transfer create modal (140) | **Source location*** placeholder says "Select product…" (copied from Product field). | S3 | FB-09 |
+| V-093 | `/internal` list | **From → To** shows `— → —` for all visible rows (locations missing in UI). | S3 | E2E-TSK |
+| V-094 | OMS QR confirm modal (143) | Camera fail shows raw `Error getting userMedia, error = NotFoundError: Requested device not found` (dev-style); manual order# fallback OK. | S4 | UX-CL |

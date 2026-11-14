@@ -158,3 +158,15 @@ Button sets observed (do not click carriers):
 - OUT-SENA-TEST-… delivered Madino: SENA_EXPRESS AWB TEST-261031-…; 0 line items (V-089 candidate)
 - GRN EN PDF viewer: barcode, lot LOT-20261103-SWQN, signatures
 - Waybill OMS-2026-03729: 10×15, EN, Mersal AWB 100554961267, COD 20 / fee 5; unlabeled icon button opens waybill (a11y)
+
+## Round 4 — §3 modals batch (135–143)
+- 135 warehouses Edit WH-001 modal (Cancel only): Code/Name/City/Country/Address/Active; Cancel red / Save
+- 136 locations New location WH-001: Parent/Name/Type=Storage/Barcode/Max weight/volume; Cancel/Create
+- 137 warehouses Deactivate confirm WH-003 TEST warehouse I-7 (Cancel only)
+- 138 adjustments New modal: Client + Reason; Next disabled until filled
+- 139 adjustments row ⋯ Draft Acme: Edit / Delete (red); Approved rows menu sparse; portal menus captured on desktop viewport (tablet/mobile copy)
+- 140 internal Create transfer: Client optional, Find product, Source/Dest location+scan, Qty; Create disabled empty; Source placeholder bug (V-092); list From→To dashes (V-093)
+- 141 OMS Import: Client company, Download template, Choose File, Close/Import (no upload)
+- 142 OMS Advanced Filtering open: Order ID, Start/End No., Client, Customer, Phone, City, Shipping payer, Created from/to, Carrier, Total/Cost ≥0
+- 143 OMS Confirm by QR: camera NotFoundError raw message (V-094); Retry camera; manual order# + Record; Done
+- Interactive inventory: New location fields; Deactivate confirm; adjustment wizard step1; internal transfer scans; OMS import/filters/QR

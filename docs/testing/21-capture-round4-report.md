@@ -25,15 +25,27 @@ Date: 14–15 Nov 2026. Portal screenshots via Browser MCP iframe device frames;
 | A18 docs | partial | 133–134 | GRN EN PDF + OMS waybill 10×15; picking/packing/DN/AR toggle still open |
 | A17 final-contract PDF | pending | — | |
 
+## Progress (§3 modals — partial)
+
+| Item | Status | Shots | Note |
+|---|---|---|---|
+| warehouses Edit | done | 135 | WH-001 Cancel only |
+| locations New | done | 136 | WH-001 Cancel only |
+| warehouses Deactivate | done | 137 | WH-003 TEST Cancel only |
+| adjustments New + row menu | done | 138–139 | Draft Edit/Delete |
+| internal Create | done | 140 | Cancel only |
+| OMS Import / Adv filters / QR Confirm | done | 141–143 | no upload; camera absent → V-094 |
+| cycle-count / inbound-outbound import / COD / returns / finance / users / billing / backups / shipping / global chrome | pending | — | next |
+
 ## Skipped / blocked
 - A6: SKIPPED(no cycle count sessions)
 - Receiving task type: none open
 
 ## New defect candidates (V-077+)
-S1: 0 · S2: 2 (V-078, V-083) · S3: 8 (V-077, V-079, V-080, V-082, V-086–V-088, …) · S4: 2 (V-081, V-084)
+S1: 0 · S2: 2 (V-078, V-083) · S3: 12 (V-077, V-079–V-080, V-082, V-086–V-089, V-091–V-093, …) · S4: 4 (V-081, V-084, V-090, V-094)
 
 ## Records created / changed
-None so far this round (read-only captures). Plan edit page opened, not saved.
+None so far this round (read-only captures; modals Cancelled). Plan edit page opened, not saved.
 
 ## Next batches
-Continue A14–A18 → §3 modals → §4 states → §5 AR/dark → §7 client → §9b Sena → §2 login → §6 roles.
+Rest of §3 → §4 states → §5 AR/dark → §7 client → §9b Sena → §2 login → §6 roles.
