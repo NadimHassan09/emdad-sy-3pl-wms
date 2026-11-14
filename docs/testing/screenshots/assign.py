@@ -11,8 +11,8 @@ BOXW = {'desktop': 1866, 'laptop': 1639, 'tablet': 722, 'mobile': 429}
 def devinfo(size):
     w, h = size
     r = w / h
-    if 2.15 < r < 2.45: d = 'laptop'
-    elif 1.95 <= r <= 2.15: d = 'desktop'
+    if 2.15 <= r < 2.45: d = 'laptop'
+    elif 1.8 <= r < 2.15: d = 'desktop'
     elif 0.7 < r < 0.95: d = 'tablet'
     elif 0.4 < r < 0.6: d = 'mobile'
     else: return None

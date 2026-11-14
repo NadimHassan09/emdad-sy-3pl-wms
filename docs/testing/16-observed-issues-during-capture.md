@@ -54,4 +54,25 @@ Legend for device columns: D desktop · L laptop · T tablet (820) · M mobile (
 | V-046 | Global | Mixed date/time formats: `11/14/2026 01:24 AM`, `Nov 14, 2026, 4:37:44 AM`, `3d ago`, `2026-11-10` (waybill), `1/1/2999` — pick one pattern per context. | all | S4 | SYS-X-006 |
 | V-047 | Global | Several pages have **no H1/title** (shipping companies) or **an empty icon tile** (finance) → inconsistent page headers. | all | S4 | VIS |
 
-Not yet captured (need data/state): client portal (blocked on login), modals, error pages, empty states — see `04-e2e-testing.md` §C and `04b`.
+## Client portal (captured 14 Nov 2026, client_admin "Eng Nadim", screenshots `staging-client-frontend-screenshots/001`–`030`)
+
+| ID | Page(s) | Observation | Sev? | Confirm by |
+|---|---|---|---|---|
+| V-048 | `/login` (001) | On mobile 390 the login card is wider than the viewport (right edge clipped) and the language chip is cut off. | S3 | AUTH-20, VIS-L-02 |
+| V-049 | `/dashboard` (002) | "Orders needing attention" lists "Billing cycle expiring in 3/7 days" although cycles are retired. | S3 | PC dashboard, A-07 |
+| V-050 | `/my-profits` (006) | Client COD chips (Pending/Collected/Remitted/Settled/Returned) differ from admin COD (Pending/Available/Paid out/Returned); title "Cash on delivery" vs route name; "Filter by date" bar shows no inputs; "15141 USD" has no thousands separator. | S3 | PC my-profits, A-19 |
+| V-051 | `/finances` (007) vs `/my-profits` (006) / dashboard | Financial Account shows $0.00 everywhere (pending COD 0) while COD page lists 39 pending orders / 15,141 USD and dashboard shows "Pending collection 101 USD" → three screens disagree. "Request Payout" looks disabled with no reason. | **S2?** | SYS-X-002, E2E-FIN-004 |
+| V-052 | `/billing` (008) | Still a cycle-era page ("Monthly Plan", "Billing cycle: Monthly", "Orders this billing cycle", "Next billing —"). | S3 | A-07 |
+| V-053 | `/invoices` (009), `/invoices/:id` (025) | Client can see a **Draft** invoice (INV-2026-00022); client invoice detail is the old format (plan snapshot + fixed subscription) — no order tables, storage, incentive or shipping-fee lines from the redesign; "Grand total 20" vs only 10 USD line visible above fold. | S2? | E2E-BIL-005, UAT-09 |
+| V-054 | `/outbound-orders/new` (013) | Destination is a free-text box (no governorate/city cascade) and "Carrier" is a free-text/disabled field — inconsistent with online-order form and unusable for carrier address matching. | S3 | PC outbound-orders/new |
+| V-055 | `/products/new` (015), `/products/:id` (016) | Client cannot enter dimensions/weight at create (no fields), detail shows no L×W×H → storage-fee CBM will be 0 for client-created products. | S2 (billing) | A-10, SYS-BIL-003 |
+| V-056 | `/inbound-orders/:id` (018) | Completed inbound shows no GRN download (admin has GRN PDF). | S3 | PC inbound detail |
+| V-057 | `/outbound-orders/:id` (019) | No tracking/carrier/waybill/DN; status chip "In progress" for an order already shipped in admin; client status vocabulary coarse (In progress / Shipped only). | S3 | PC outbound detail |
+| V-058 | `/ecommerce-orders/:id` (020) | Timeline shows raw event keys ("oms created", "order waiting_for_confirmation", "oms confirmed"); stepper good. | S3 | PC ecommerce detail |
+| V-059 | `/ecommerce-orders/returns/:id` (024) | Completed return with line Received "—" (same pattern as V-034). | S2? | E2E-RET-001 |
+| V-060 | `/apis` (027) | Action links (Download documentation / Regenerate secret / Disable / Revoke) are plain text, destructive ones not red/confirmed visibly; Actions column clipped on mobile; lowercase key names. | S3 | PC apis |
+| V-061 | `/sheets` (026) | Very dense grid; mobile shows only two columns; rows of already-approved orders still show Cancel/Delete buttons — lock rule must be verified server-side. | S2? | E2E-CLI-008, SEC-BIZ-004 |
+| V-062 | `/notifications` (028) | 60 unread dominated by retired billing-cycle messages ("Account renewed … billing cycle has been renewed"). | S3 | A-07 |
+| V-063 | Global (client) | Filter **Reset Filters is red** on every list (same as admin V-003); status chips with "—" on returns/inbound/outbound lists (V-013 class); tablet keeps desktop sidebar (V-044). | S3 | LB-14 |
+
+Not yet captured: modals, error/empty states beyond the ones seen, Arabic/dark baselines, client_staff view, `/account-inactive`, `/outbound-orders/returns/:id` (no data).

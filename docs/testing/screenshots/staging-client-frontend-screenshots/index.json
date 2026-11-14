@@ -5,6 +5,180 @@
    "route": "/login",
    "file": "001_login.png",
    "seq": 1
+  },
+  {
+   "n": 2,
+   "route": "/dashboard",
+   "file": "002_dashboard.png",
+   "seq": 2
+  },
+  {
+   "n": 3,
+   "route": "/ecommerce-orders",
+   "file": "003_ecommerce-orders.png",
+   "seq": 3
+  },
+  {
+   "n": 4,
+   "route": "/ecommerce-orders/new",
+   "file": "004_ecommerce-orders-new.png",
+   "seq": 4
+  },
+  {
+   "n": 5,
+   "route": "/ecommerce-orders/returns",
+   "file": "005_ecommerce-orders-returns.png",
+   "seq": 5
+  },
+  {
+   "n": 6,
+   "route": "/my-profits",
+   "file": "006_my-profits.png",
+   "seq": 6
+  },
+  {
+   "n": 7,
+   "route": "/finances",
+   "file": "007_finances.png",
+   "seq": 7
+  },
+  {
+   "n": 8,
+   "route": "/billing",
+   "file": "008_billing.png",
+   "seq": 8
+  },
+  {
+   "n": 9,
+   "route": "/invoices",
+   "file": "009_invoices.png",
+   "seq": 9
+  },
+  {
+   "n": 10,
+   "route": "/inbound-orders",
+   "file": "010_inbound-orders.png",
+   "seq": 10
+  },
+  {
+   "n": 11,
+   "route": "/inbound-orders/new",
+   "file": "011_inbound-orders-new.png",
+   "seq": 11
+  },
+  {
+   "n": 12,
+   "route": "/outbound-orders",
+   "file": "012_outbound-orders.png",
+   "seq": 12
+  },
+  {
+   "n": 13,
+   "route": "/outbound-orders/new",
+   "file": "013_outbound-orders-new.png",
+   "seq": 13
+  },
+  {
+   "n": 14,
+   "route": "/products",
+   "file": "014_products.png",
+   "seq": 14
+  },
+  {
+   "n": 15,
+   "route": "/products/new",
+   "file": "015_products-new.png",
+   "seq": 15
+  },
+  {
+   "n": 16,
+   "route": "/products/ID",
+   "file": "016_products-ID.png",
+   "seq": 16
+  },
+  {
+   "n": 17,
+   "route": "/products/ID/edit",
+   "file": "017_products-ID-edit.png",
+   "seq": 17
+  },
+  {
+   "n": 18,
+   "route": "/inbound-orders/ID",
+   "file": "018_inbound-orders-ID.png",
+   "seq": 18
+  },
+  {
+   "n": 19,
+   "route": "/outbound-orders/ID",
+   "file": "019_outbound-orders-ID.png",
+   "seq": 19
+  },
+  {
+   "n": 20,
+   "route": "/ecommerce-orders/ID",
+   "file": "020_ecommerce-orders-ID.png",
+   "seq": 20
+  },
+  {
+   "n": 21,
+   "route": "/outbound-orders/returns",
+   "file": "021_outbound-orders-returns.png",
+   "seq": 21
+  },
+  {
+   "n": 22,
+   "route": "/outbound-orders/returns/new",
+   "file": "022_outbound-orders-returns-new.png",
+   "seq": 22
+  },
+  {
+   "n": 23,
+   "route": "/ecommerce-orders/returns/new",
+   "file": "023_ecommerce-orders-returns-new.png",
+   "seq": 23
+  },
+  {
+   "n": 24,
+   "route": "/ecommerce-orders/returns/ID",
+   "file": "024_ecommerce-orders-returns-ID.png",
+   "seq": 24
+  },
+  {
+   "n": 25,
+   "route": "/invoices/ID",
+   "file": "025_invoices-ID.png",
+   "seq": 25
+  },
+  {
+   "n": 26,
+   "route": "/sheets",
+   "file": "026_sheets.png",
+   "seq": 26
+  },
+  {
+   "n": 27,
+   "route": "/apis",
+   "file": "027_apis.png",
+   "seq": 27
+  },
+  {
+   "n": 28,
+   "route": "/notifications",
+   "file": "028_notifications.png",
+   "seq": 28
+  },
+  {
+   "n": 29,
+   "route": "/profile",
+   "file": "029_profile.png",
+   "seq": 29
+  },
+  {
+   "n": 30,
+   "route": "/NOT-FOUND",
+   "file": "030_NOT-FOUND.png",
+   "seq": 30
   }
  ],
  "used": [
@@ -432,6 +606,122 @@
   "mcp-claude-in-chrome-blob-1794673118900-0fakje.png",
   "mcp-claude-in-chrome-blob-1794673118900-fvewls.png",
   "mcp-claude-in-chrome-blob-1794673118900-mrx91l.png",
-  "mcp-claude-in-chrome-blob-1794673118900-eebuu6.png"
+  "mcp-claude-in-chrome-blob-1794673118900-eebuu6.png",
+  "mcp-claude-in-chrome-blob-1794673738943-y2sjba.png",
+  "mcp-claude-in-chrome-blob-1794673738944-mqe1sz.png",
+  "mcp-claude-in-chrome-blob-1794673738944-2gprb6.png",
+  "mcp-claude-in-chrome-blob-1794673738944-mb17xw.png",
+  "mcp-claude-in-chrome-blob-1794673823573-79kwa8.png",
+  "mcp-claude-in-chrome-blob-1794673823572-mszc6l.png",
+  "mcp-claude-in-chrome-blob-1794673823573-vo0u95.png",
+  "mcp-claude-in-chrome-blob-1794673823573-tzy12m.png",
+  "mcp-claude-in-chrome-blob-1794673823572-gsra7c.png",
+  "mcp-claude-in-chrome-blob-1794673823573-gsbepo.png",
+  "mcp-claude-in-chrome-blob-1794673823574-hfa1x5.png",
+  "mcp-claude-in-chrome-blob-1794673823574-4lqewn.png",
+  "mcp-claude-in-chrome-blob-1794673823573-n8w4p8.png",
+  "mcp-claude-in-chrome-blob-1794673823574-tg6dlw.png",
+  "mcp-claude-in-chrome-blob-1794673823572-3qwy4t.png",
+  "mcp-claude-in-chrome-blob-1794673823573-4j7nyr.png",
+  "mcp-claude-in-chrome-blob-1794673927865-1tytu9.png",
+  "mcp-claude-in-chrome-blob-1794673927867-i8uew8.png",
+  "mcp-claude-in-chrome-blob-1794673927867-g3ldy3.png",
+  "mcp-claude-in-chrome-blob-1794673927867-dozulx.png",
+  "mcp-claude-in-chrome-blob-1794673927866-d4s45p.png",
+  "mcp-claude-in-chrome-blob-1794673927865-kow0vo.png",
+  "mcp-claude-in-chrome-blob-1794673927866-es7jci.png",
+  "mcp-claude-in-chrome-blob-1794673927867-o1bee1.png",
+  "mcp-claude-in-chrome-blob-1794673927867-9v2nmh.png",
+  "mcp-claude-in-chrome-blob-1794673927866-fwwi5n.png",
+  "mcp-claude-in-chrome-blob-1794673927867-8k6hpp.png",
+  "mcp-claude-in-chrome-blob-1794673927866-pxt046.png",
+  "mcp-claude-in-chrome-blob-1794673927867-7fc7y7.png",
+  "mcp-claude-in-chrome-blob-1794673927867-ambxkg.png",
+  "mcp-claude-in-chrome-blob-1794673927866-l49uvr.png",
+  "mcp-claude-in-chrome-blob-1794673927866-mr00po.png",
+  "mcp-claude-in-chrome-blob-1794674063708-zomt0n.png",
+  "mcp-claude-in-chrome-blob-1794674063710-308kik.png",
+  "mcp-claude-in-chrome-blob-1794674063710-2txfi3.png",
+  "mcp-claude-in-chrome-blob-1794674063710-hxh884.png",
+  "mcp-claude-in-chrome-blob-1794674063709-fzoiql.png",
+  "mcp-claude-in-chrome-blob-1794674063709-9dfuxk.png",
+  "mcp-claude-in-chrome-blob-1794674063709-23y9e7.png",
+  "mcp-claude-in-chrome-blob-1794674063709-841fly.png",
+  "mcp-claude-in-chrome-blob-1794674063709-qin7y7.png",
+  "mcp-claude-in-chrome-blob-1794674063708-qe4wd6.png",
+  "mcp-claude-in-chrome-blob-1794674063709-4hnx76.png",
+  "mcp-claude-in-chrome-blob-1794674063708-tsjyo2.png",
+  "mcp-claude-in-chrome-blob-1794674063710-zw8vpq.png",
+  "mcp-claude-in-chrome-blob-1794674063709-kutdcp.png",
+  "mcp-claude-in-chrome-blob-1794674063708-x6lu5k.png",
+  "mcp-claude-in-chrome-blob-1794674063709-ytvdw0.png",
+  "mcp-claude-in-chrome-blob-1794674063709-a6eohk.png",
+  "mcp-claude-in-chrome-blob-1794674063710-r156fg.png",
+  "mcp-claude-in-chrome-blob-1794674063710-ypfbf1.png",
+  "mcp-claude-in-chrome-blob-1794674063710-hgqe4h.png",
+  "mcp-claude-in-chrome-blob-1794674222098-oa702f.png",
+  "mcp-claude-in-chrome-blob-1794674222095-xfennj.png",
+  "mcp-claude-in-chrome-blob-1794674222097-64pasn.png",
+  "mcp-claude-in-chrome-blob-1794674222097-h3dqyy.png",
+  "mcp-claude-in-chrome-blob-1794674222095-68j2pi.png",
+  "mcp-claude-in-chrome-blob-1794674222098-ccltxf.png",
+  "mcp-claude-in-chrome-blob-1794674222095-e8is02.png",
+  "mcp-claude-in-chrome-blob-1794674222095-gfrlvr.png",
+  "mcp-claude-in-chrome-blob-1794674222098-mnj03i.png",
+  "mcp-claude-in-chrome-blob-1794674222097-mxhz45.png",
+  "mcp-claude-in-chrome-blob-1794674222098-92a1a2.png",
+  "mcp-claude-in-chrome-blob-1794674222098-1laumr.png",
+  "mcp-claude-in-chrome-blob-1794674222097-85g02h.png",
+  "mcp-claude-in-chrome-blob-1794674222097-0btv5t.png",
+  "mcp-claude-in-chrome-blob-1794674222098-g9i7m9.png",
+  "mcp-claude-in-chrome-blob-1794674222098-6mehg7.png",
+  "mcp-claude-in-chrome-blob-1794674222100-ddlv1t.png",
+  "mcp-claude-in-chrome-blob-1794674222098-yu20x2.png",
+  "mcp-claude-in-chrome-blob-1794674222100-bxrdfm.png",
+  "mcp-claude-in-chrome-blob-1794674222100-ntwrys.png",
+  "mcp-claude-in-chrome-blob-1794674222093-qu0xnf.png",
+  "mcp-claude-in-chrome-blob-1794674222100-sn4y73.png",
+  "mcp-claude-in-chrome-blob-1794674222101-up0qj4.png",
+  "mcp-claude-in-chrome-blob-1794674222102-aacdoe.png",
+  "mcp-claude-in-chrome-blob-1794674357614-dp5684.png",
+  "mcp-claude-in-chrome-blob-1794674357614-qqk3r3.png",
+  "mcp-claude-in-chrome-blob-1794674357614-wjnv4m.png",
+  "mcp-claude-in-chrome-blob-1794674357613-vvmxds.png",
+  "mcp-claude-in-chrome-blob-1794674357613-aw6t25.png",
+  "mcp-claude-in-chrome-blob-1794674357613-ake6sa.png",
+  "mcp-claude-in-chrome-blob-1794674357614-ff8hwi.png",
+  "mcp-claude-in-chrome-blob-1794674357613-h3if8b.png",
+  "mcp-claude-in-chrome-blob-1794674357614-yu9pfs.png",
+  "mcp-claude-in-chrome-blob-1794674357612-yeh3mg.png",
+  "mcp-claude-in-chrome-blob-1794674357613-tfu7ix.png",
+  "mcp-claude-in-chrome-blob-1794674357614-hq1f30.png",
+  "mcp-claude-in-chrome-blob-1794674357612-su06su.png",
+  "mcp-claude-in-chrome-blob-1794674357614-zuixil.png",
+  "mcp-claude-in-chrome-blob-1794674357613-2hkx8a.png",
+  "mcp-claude-in-chrome-blob-1794674357614-w8e9f4.png",
+  "mcp-claude-in-chrome-blob-1794674357614-gcei7o.png",
+  "mcp-claude-in-chrome-blob-1794674357614-wfsx50.png",
+  "mcp-claude-in-chrome-blob-1794674357614-z62s1z.png",
+  "mcp-claude-in-chrome-blob-1794674357614-gii275.png",
+  "mcp-claude-in-chrome-blob-1794674490630-xkpsjp.png",
+  "mcp-claude-in-chrome-blob-1794674490629-g1rsn6.png",
+  "mcp-claude-in-chrome-blob-1794674490632-c09bnl.png",
+  "mcp-claude-in-chrome-blob-1794674490632-qx8msj.png",
+  "mcp-claude-in-chrome-blob-1794674490631-tuukia.png",
+  "mcp-claude-in-chrome-blob-1794674490630-y8e5z4.png",
+  "mcp-claude-in-chrome-blob-1794674490631-4hybbo.png",
+  "mcp-claude-in-chrome-blob-1794674490630-wrvjn9.png",
+  "mcp-claude-in-chrome-blob-1794674490632-dogqx1.png",
+  "mcp-claude-in-chrome-blob-1794674490632-dzrlt8.png",
+  "mcp-claude-in-chrome-blob-1794674490631-s47kmx.png",
+  "mcp-claude-in-chrome-blob-1794674490631-ckm42q.png",
+  "mcp-claude-in-chrome-blob-1794674490629-ohl1v8.png",
+  "mcp-claude-in-chrome-blob-1794674490631-wmiqch.png",
+  "mcp-claude-in-chrome-blob-1794674490630-4bfrqa.png",
+  "mcp-claude-in-chrome-blob-1794674490631-x8ko2b.png",
+  "mcp-claude-in-chrome-blob-1794674490628-bv1xir.png",
+  "mcp-claude-in-chrome-blob-1794674490630-yafzko.png",
+  "mcp-claude-in-chrome-blob-1794674490629-llb7y2.png",
+  "mcp-claude-in-chrome-blob-1794674490629-n6vp7a.png"
  ]
 }
