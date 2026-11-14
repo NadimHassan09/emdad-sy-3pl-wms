@@ -76,3 +76,10 @@ Legend for device columns: D desktop · L laptop · T tablet (820) · M mobile (
 | V-063 | Global (client) | Filter **Reset Filters is red** on every list (same as admin V-003); status chips with "—" on returns/inbound/outbound lists (V-013 class); tablet keeps desktop sidebar (V-044). | S3 | LB-14 |
 
 Not yet captured: modals, error/empty states beyond the ones seen, Arabic/dark baselines, client_staff view, `/account-inactive`, `/outbound-orders/returns/:id` (no data).
+
+## Modal states seen (14 Nov 2026, opened only — nothing submitted; images not filed, re-capture in phase 3)
+
+| ID | State | Observation | Sev? | Confirm by |
+|---|---|---|---|---|
+| V-064 | Admin `/warehouses` → "+ New warehouse" modal | **Country defaults to "Saudi Arabia (SA)"** although D-010 was marked fixed (default SY) — regression of RG-009. Fields: Code (optional) + Generate Code, Name*, Country, City (dependent), Address; Cancel red / Create green. Mobile: modal fits, close × has focus ring. | S3 | RG-009, FB-01 |
+| V-065 | Admin `/orders/oms` → "Scan QR" modal | Camera error shown raw: "Error getting userMedia, error = NotFoundError: Requested device not found" (technical text) with Retry camera; manual-entry field + Search present (good fallback); "Waybill fast scan" footer link; chips show Field Delivery typo behind. | S3 | CT-SCN-001, V-011 |
