@@ -206,3 +206,6 @@ Button sets observed (do not click carriers):
 - Status cards Pending/Received/… show — like COD (same class as V-097)
 - 162 Rollback confirm OR-2026-00456 / OMS-2026-03720: warning + Cancel / Reship OFD / Ready to Ship — Cancel only
 - Confirm return row button: 400 silent (V-102)
+
+## Round 4 — §4 empty start (163)
+- inbound empty search ZZZ-NO-MATCH-QA-99999: "No inbound orders match the filters."; status cards all 0; Reset after capture

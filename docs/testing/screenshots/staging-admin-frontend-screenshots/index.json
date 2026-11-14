@@ -1050,6 +1050,13 @@
    "state": "rollback-confirm",
    "file": "162_oms-returns-rollback-confirm.png",
    "seq": 162
+  },
+  {
+   "n": 163,
+   "route": "/orders/inbound",
+   "state": "empty-search",
+   "file": "163_inbound-empty-search.png",
+   "seq": 163
   }
  ],
  "used": [
