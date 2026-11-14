@@ -19,15 +19,16 @@ Date: 14–15 Nov 2026. Portal screenshots via Browser MCP iframe device frames;
 | A11 client user | done | 119 ×4 | test@emdad.com |
 | A12 warehouse user | done | 120 ×4 | Yousef Samarli |
 | A13 invoices | done | 121–122 ×4 | INV-2026-00024 draft, INV-2026-00025 unpaid |
-| A14–A18 | pending | — | OMS statuses, outbound/inbound detail variants, batch, PDFs |
+| A14 OMS statuses | done | 123–129 ×4 | ready/delivered/cancelled/failed/returned/waiting/out_for_delivery |
+| A16 batch ≥2 | done | 130 ×4 | BATCH-1013 (6 orders) |
+| A15 / A17 / A18 | pending | — | inbound/outbound detail variants; contract PDF; waybill/picking/packing/GRN/DN |
 
 ## Skipped / blocked
 - A6: SKIPPED(no cycle count sessions)
-- A14 `out_for_delivery`: SKIPPED(none on staging); proxy shipped OMS-2026-03603 available
 - Receiving task type: none open
 
 ## New defect candidates (V-077+)
-S1: 0 · S2: 2 (V-078, V-083) · S3: 5 (V-077, V-079, V-080, V-082, …) · S4: 2 (V-081, V-084)
+S1: 0 · S2: 2 (V-078, V-083) · S3: 8 (V-077, V-079, V-080, V-082, V-086–V-088, …) · S4: 2 (V-081, V-084)
 
 ## Records created / changed
 None so far this round (read-only captures). Plan edit page opened, not saved.

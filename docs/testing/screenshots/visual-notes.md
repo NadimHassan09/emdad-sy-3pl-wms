@@ -141,3 +141,14 @@ Ids used (read-only unless noted):
 - A12 wh user 357e9a68… Yousef Samarli Worker Linked receiver/picker/packer → 120; Update profile; Profile UUID shown
 - A13 draft INV-2026-00024 Noviara → 121 Issue/Cancel/Download PDF/Calculate storage/Check incentive; unpaid INV-2026-00025 Test company → 122 Mark as paid/Edit invoice/Deduct; grand total $0 vs subscription line (V-083)
 - Interactive: iframe device capture via #qa-cap-frame at 1920/1366/820/390; JPEG→PNG normalize
+
+## Round 4 — A14 OMS statuses + A16 batch (123–130)
+Button sets observed (do not click carriers):
+- ready_to_ship OMS-2026-03729: Waybill, Cancel Shipment, Cancel order, Edit shipping fee, Open outbound; carrier مرسال + tracking; warehouse waiting_for_shipping_details (desync note)
+- delivered TEST-ORD-… Madino: Revert delivery, Edit shipping fee, Create return; 0 line items; Babel Express
+- cancelled OMS-2026-03725: Undo Cancel, Edit shipping fee, Delete; notes long "x" string
+- failed_delivery OMS-2026-03305 UI "Field Delivery": Out for delivery, Mark delivered, Return pending receipt, Create return, Open outbound; return OR-2026-00450 cancelled
+- returned OMS-2026-03720 "Return Received": Rollback OFD / Ready to ship, Undo confirmed return; carrier شركة سينا TEST-261103-…
+- waiting OMS-2026-03718: Confirm / Reject / Cancel / Edit / Edit fee
+- out_for_delivery OMS-2026-03603 (DB shipped): Mark delivered, Field Delivery, Cancel, Create return
+- BATCH-1013: 6 orders, Issues 3, Babel 3 / كرم 2 / Unassigned 1; bulk bar Shipping details/Confirm/OFD/… — photographed only, no carrier actions

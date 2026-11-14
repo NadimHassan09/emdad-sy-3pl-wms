@@ -120,4 +120,6 @@ Deliberately not opened: bulk "Confirm Shipping / Complete Dispatch / Cancel Shi
 | V-083 | Invoice draft+unpaid (121–122) | **Grand total (admin) Client total $0.00** while Charges show Fixed subscription 50/100 — totals panel ignores subscription lines (guess). | S2 | E2E-BIL-INV |
 | V-084 | `/returns/:id/process` completed (113) | Yellow banner only + empty body for completed return (no process UI) — expected?, but no link clarity beyond Details. | S4 | E2E-RET |
 | V-085 | A6 cycle-count | **SKIPPED** — zero `cycle_counts` rows on staging; list empty. | — | A6 |
-| V-086 | OMS `out_for_delivery` | **SKIPPED** — no OMS order in that status (use `shipped` OMS-2026-03603 as proxy later). | — | A14 |
+| V-086 | OMS status label | DB `shipped` OMS-2026-03603 renders UI badge **"Out for Delivery"**; failed_delivery still labeled **"Field Delivery"** (V-011). | S3 | A14, V-011 |
+| V-087 | Timeline events | ready_to_ship detail shows raw event key `oms ready_to_ship` in Timeline (same class as V-058). | S3 | PC oms detail |
+| V-088 | Batch BATCH-1013 | Status counters vs action counts diverge (Shipped 1 vs Shipping confirmed 5); mix of live carriers listed read-only (Babel/Karam) — no actions clicked. | S3 | E2E-BAT |

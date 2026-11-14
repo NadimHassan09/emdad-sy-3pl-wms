@@ -751,6 +751,77 @@
    "seq": 122,
    "id": "14ba627f-79c6-438c-b4fe-9d7e38a4c54d",
    "state": "unpaid"
+  },
+  {
+   "n": 123,
+   "route": "/orders/oms/:id",
+   "file": "123_orders-oms-id-ready-to-ship.png",
+   "seq": 123,
+   "id": "b34dff4b-b44d-4a06-9ed6-4a6d6f5b0bd4",
+   "code": "OMS-2026-03729",
+   "state": "ready_to_ship"
+  },
+  {
+   "n": 124,
+   "route": "/orders/oms/:id",
+   "file": "124_orders-oms-id-delivered.png",
+   "seq": 124,
+   "id": "14e46f7d-a5a0-43e8-80ab-45915c3caa8b",
+   "code": "TEST-ORD-1793583947677",
+   "state": "delivered"
+  },
+  {
+   "n": 125,
+   "route": "/orders/oms/:id",
+   "file": "125_orders-oms-id-cancelled.png",
+   "seq": 125,
+   "id": "71b684fc-a050-454c-a430-6ad6fd6c0c15",
+   "code": "OMS-2026-03725",
+   "state": "cancelled"
+  },
+  {
+   "n": 126,
+   "route": "/orders/oms/:id",
+   "file": "126_orders-oms-id-failed-delivery.png",
+   "seq": 126,
+   "id": "1b82bbe9-146f-4347-b80c-cc4610a609c2",
+   "code": "OMS-2026-03305",
+   "state": "failed_delivery"
+  },
+  {
+   "n": 127,
+   "route": "/orders/oms/:id",
+   "file": "127_orders-oms-id-returned.png",
+   "seq": 127,
+   "id": "39e88dd2-0e6f-4f62-bfc4-0f5057c84bba",
+   "code": "OMS-2026-03720",
+   "state": "returned"
+  },
+  {
+   "n": 128,
+   "route": "/orders/oms/:id",
+   "file": "128_orders-oms-id-waiting-confirmation.png",
+   "seq": 128,
+   "id": "1caf6429-05c4-4adc-9a03-3e6eebea9b1c",
+   "code": "OMS-2026-03718",
+   "state": "waiting_for_confirmation"
+  },
+  {
+   "n": 129,
+   "route": "/orders/oms/:id",
+   "file": "129_orders-oms-id-shipped.png",
+   "seq": 129,
+   "id": "fe1f432e-7655-42c6-b0cf-42ca34b61916",
+   "code": "OMS-2026-03603",
+   "state": "out_for_delivery"
+  },
+  {
+   "n": 130,
+   "route": "/oms/batches/:id",
+   "file": "130_oms-batches-id.png",
+   "seq": 130,
+   "id": "8e7970f4-4f71-4fde-be02-47199c1caf23",
+   "code": "BATCH-1013"
   }
  ],
  "used": [
