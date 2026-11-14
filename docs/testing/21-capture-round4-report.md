@@ -21,7 +21,9 @@ Date: 14–15 Nov 2026. Portal screenshots via Browser MCP iframe device frames;
 | A13 invoices | done | 121–122 ×4 | INV-2026-00024 draft, INV-2026-00025 unpaid |
 | A14 OMS statuses | done | 123–129 ×4 | ready/delivered/cancelled/failed/returned/waiting/out_for_delivery |
 | A16 batch ≥2 | done | 130 ×4 | BATCH-1013 (6 orders) |
-| A15 / A17 / A18 | pending | — | inbound/outbound detail variants; contract PDF; waybill/picking/packing/GRN/DN |
+| A15 inbound/outbound detail | partial | 131–132 ×4 | completed inbound + Sena delivered outbound |
+| A18 docs | partial | 133–134 | GRN EN PDF + OMS waybill 10×15; picking/packing/DN/AR toggle still open |
+| A17 final-contract PDF | pending | — | |
 
 ## Skipped / blocked
 - A6: SKIPPED(no cycle count sessions)
